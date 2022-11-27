@@ -390,6 +390,7 @@ public class ByteCodeParser {
                     stack.push(expression1);
                     break;
                 case DUP2:
+                    System.out.println("DUP2: " + method.getKey());
                     expression1 = stack.pop();
 
                     type1 = expression1.getType();
@@ -407,6 +408,7 @@ public class ByteCodeParser {
                     stack.push(expression1);
                     break;
                 case DUP2_X1:
+                    System.out.println("DUP2_X1: " + method.getKey());
                     expression1 = stack.pop();
                     expression2 = stack.pop();
 

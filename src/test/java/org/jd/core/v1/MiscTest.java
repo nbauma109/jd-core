@@ -165,6 +165,15 @@ public class MiscTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+ 
+   @Test
+    public void testDoubleAccu() throws Exception {
+        String internalClassName = java.util.concurrent.atomic.DoubleAccumulator.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
     
     @Test
     public void testJavaClass() throws Exception {

@@ -411,7 +411,7 @@ public class ByteCodeParser {
                     System.out.println("DUP2_X1: " + method.getKey());
                     expression1 = stack.pop();
                     expression2 = stack.pop();
-
+                    System.out.println(expression1.getLineNumber());
                     type1 = expression1.getType();
 
                     if (TYPE_LONG.equals(type1) || TYPE_DOUBLE.equals(type1)) {

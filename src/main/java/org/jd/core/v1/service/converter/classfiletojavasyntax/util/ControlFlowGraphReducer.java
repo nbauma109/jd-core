@@ -712,15 +712,7 @@ public abstract class ControlFlowGraphReducer {
         }
 
         if (end == END) {
-            if (lastSC != null && lastSC.getBasicBlock() == lastSwitchCaseBasicBlock && searchLoopStart(basicBlock, maxOffset)) {
-                replaceLoopStartWithSwitchBreak(new BitSet(), basicBlock);
-                end = LOOP_START;
-                if (defaultSC != null) {
-                    defaultSC.setBasicBlock(end);
-                }
-            } else {
-                end = lastSwitchCaseBasicBlock;
-            }
+            end = lastSwitchCaseBasicBlock;
         } else {
             visit(v, lastSwitchCaseBasicBlock, end.getFromOffset(), ends);
         }
@@ -791,55 +783,6 @@ public abstract class ControlFlowGraphReducer {
 
         reduced &= reduce(visited, basicBlock.getNext(), jsrTargets);
         return reduced;
-    }
-
-    private static boolean searchLoopStart(BasicBlock basicBlock, int maxOffset) {
-        WatchDog watchdog = new WatchDog();
-
-        BasicBlock bb;
-        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-            bb = switchCase.getBasicBlock();
-            if (bb != null) {
-                watchdog.clear();
-
-                BasicBlock next;
-                while (bb != null && bb.getFromOffset() < maxOffset) {
-                    if (bb == LOOP_START) {
-                        return true;
-                    }
-
-                    if (bb.matchType(GROUP_END|GROUP_CONDITION)) {
-                        break;
-                    }
-
-                    next = null;
-
-                    if (bb.matchType(GROUP_SINGLE_SUCCESSOR)) {
-                        next = bb.getNext();
-                    } else if (bb.getType() == TYPE_CONDITIONAL_BRANCH) {
-                        next = bb.getBranch();
-                    } else if (bb.getType() == TYPE_SWITCH_DECLARATION) {
-                        int max = bb.getFromOffset();
-
-                        for (SwitchCase sc : bb.getSwitchCases()) {
-                            if (max < sc.getBasicBlock().getFromOffset()) {
-                                next = sc.getBasicBlock();
-                                max = next.getFromOffset();
-                            }
-                        }
-                    }
-
-                    if (bb == next) {
-                        break;
-                    }
-
-                    watchdog.check(bb, next);
-                    bb = next;
-                }
-            }
-        }
-
-        return false;
     }
 
     protected boolean reduceTryDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {

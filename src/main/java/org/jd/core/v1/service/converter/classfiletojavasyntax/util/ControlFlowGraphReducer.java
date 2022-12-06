@@ -1354,49 +1354,6 @@ public abstract class ControlFlowGraphReducer {
         }
     }
 
-    private static void replaceLoopStartWithSwitchBreak(BitSet visited, BasicBlock basicBlock) {
-        if (!basicBlock.matchType(GROUP_END) && !visited.get(basicBlock.getIndex())) {
-            visited.set(basicBlock.getIndex());
-            basicBlock.replace(LOOP_START, SWITCH_BREAK);
-
-            switch (basicBlock.getType()) {
-                case TYPE_CONDITIONAL_BRANCH, TYPE_JSR, TYPE_CONDITION:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getBranch());
-                    // intended fall through
-                case TYPE_START, TYPE_STATEMENTS, TYPE_GOTO, TYPE_GOTO_IN_TERNARY_OPERATOR, TYPE_LOOP:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getNext());
-                    break;
-                case TYPE_TRY, TYPE_TRY_JSR, TYPE_TRY_ECLIPSE:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getSub1());
-                    // intended fall through
-                case TYPE_TRY_DECLARATION:
-                    for (ExceptionHandler exceptionHandler : basicBlock.getExceptionHandlers()) {
-                        replaceLoopStartWithSwitchBreak(visited, exceptionHandler.getBasicBlock());
-                    }
-                    break;
-                case TYPE_IF_ELSE, TYPE_TERNARY_OPERATOR:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getSub2());
-                    // intended fall through
-                case TYPE_IF:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getSub1());
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getNext());
-                    break;
-                case TYPE_CONDITION_OR, TYPE_CONDITION_AND:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getSub1());
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getSub2());
-                    break;
-                case TYPE_SWITCH:
-                    replaceLoopStartWithSwitchBreak(visited, basicBlock.getNext());
-                    // intended fall through
-                case TYPE_SWITCH_DECLARATION:
-                    for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-                        replaceLoopStartWithSwitchBreak(visited, switchCase.getBasicBlock());
-                    }
-                    break;
-            }
-        }
-    }
-
     private BasicBlock searchUpdateBlockAndCreateContinueLoop(BitSet visited, BasicBlock basicBlock) {
         BasicBlock updateBasicBlock = null;
 

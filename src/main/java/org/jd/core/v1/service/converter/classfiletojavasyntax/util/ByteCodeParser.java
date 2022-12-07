@@ -1475,13 +1475,6 @@ public class ByteCodeParser {
     }
 
     private List<String> prepareLambdaParameterNames(BaseFormalParameter formalParameters, int parameterCount) {
-        if (formalParameters == null && parameterCount > 0) {
-            List<String> ignoredParameters = new ArrayList<>(parameterCount);
-            for (int i = 0; i < parameterCount; i++) {
-                ignoredParameters.add("ignoredParameter" + (i + 1));
-            }
-            return ignoredParameters;
-        }
         if (formalParameters == null || parameterCount == 0) {
             return null;
         }
@@ -1528,13 +1521,6 @@ public class ByteCodeParser {
                                     if (!localVariable.isAssignableFrom(typeBounds, expression.getType())) {
                                         continue;
                                     }
-                                }
-                                
-                                String name = formalParameter.getName();
-                                String newName = expression.getName();
-
-                                if (name.startsWith("param") && !name.equals(newName)) {
-                                    mapping.put(name, newName);
                                 }
                             }
                         }

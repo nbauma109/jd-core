@@ -1551,4 +1551,16 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    @Test
+    public void testSwitchThisEnum() throws Exception {
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/switch-this-enum-jdk1.8.0_331.jar")) {
+            Loader loader = new ZipLoader(is);
+            String internalClassName = "jd/core/test/SwitchThisEnum";
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+    
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
 }

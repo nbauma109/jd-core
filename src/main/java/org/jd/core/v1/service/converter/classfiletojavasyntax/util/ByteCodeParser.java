@@ -2084,7 +2084,7 @@ public class ByteCodeParser {
      * @return expression, 'this' or 'super'
      */
     private Expression getFieldInstanceReference(Expression expression, ObjectType ot, String name) {
-        if (bodyDeclaration.getFieldDeclarations() != null && expression.isThisExpression()) {
+        if (expression.isThisExpression()) {
             String internalName = expression.getType().getInternalName();
 
             if (!ot.getInternalName().equals(internalName)) {
@@ -2115,7 +2115,7 @@ public class ByteCodeParser {
                     member.accept(memberVisitor);
                     if (memberVisitor.found()) {
                         String[] interfaceTypeNames = member.getClassFile().getInterfaceTypeNames();
-                        if (interfaceTypeNames != null && Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
+                        if (Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
                             return new QualifiedSuperExpression(expression.getLineNumber(), ot);
                         }
                         return new SuperExpression(expression.getLineNumber(), expression.getType());

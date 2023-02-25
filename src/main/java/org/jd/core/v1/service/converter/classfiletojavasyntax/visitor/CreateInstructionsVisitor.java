@@ -58,28 +58,18 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
         // Parse byte code
         List<ClassFileConstructorOrMethodDeclaration> methods = bodyDeclaration.getMethodDeclarations();
 
-        if (methods != null) {
-            for (ClassFileConstructorOrMethodDeclaration method : methods) {
-                if ((method.getFlags() & (ACC_SYNTHETIC|ACC_BRIDGE)) != 0) {
+        for (ClassFileConstructorOrMethodDeclaration method : methods) {
+            if ((method.getFlags() & (ACC_SYNTHETIC|ACC_BRIDGE)) != 0) {
+                method.accept(this);
+            } else if ((method.getFlags() & (ACC_STATIC|ACC_BRIDGE)) == ACC_STATIC) {
+                if (method.getMethod().getName().startsWith("access$")) {
+                    // Accessor -> bridge method
+                    method.setFlags(method.getFlags() | ACC_BRIDGE);
                     method.accept(this);
-                } else if ((method.getFlags() & (ACC_STATIC|ACC_BRIDGE)) == ACC_STATIC) {
-                    if (method.getMethod().getName().startsWith("access$")) {
-                        // Accessor -> bridge method
-                        method.setFlags(method.getFlags() | ACC_BRIDGE);
-                        method.accept(this);
-                    }
-                } else if (method.getParameterTypes() != null) {
-                    if (method.getParameterTypes().isList()) {
-                        for (Type type : method.getParameterTypes()) {
-                            if (type.isObjectType() && type.getName() == null) {
-                                // Synthetic type in parameters -> synthetic method
-                                method.setFlags(method.getFlags() | ACC_SYNTHETIC);
-                                method.accept(this);
-                                break;
-                            }
-                        }
-                    } else {
-                        Type type = method.getParameterTypes().getFirst();
+                }
+            } else if (method.getParameterTypes() != null) {
+                if (method.getParameterTypes().isList()) {
+                    for (Type type : method.getParameterTypes()) {
                         if (type.isObjectType() && type.getName() == null) {
                             // Synthetic type in parameters -> synthetic method
                             method.setFlags(method.getFlags() | ACC_SYNTHETIC);
@@ -87,12 +77,20 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                             break;
                         }
                     }
+                } else {
+                    Type type = method.getParameterTypes().getFirst();
+                    if (type.isObjectType() && type.getName() == null) {
+                        // Synthetic type in parameters -> synthetic method
+                        method.setFlags(method.getFlags() | ACC_SYNTHETIC);
+                        method.accept(this);
+                        break;
+                    }
                 }
             }
-            for (ClassFileConstructorOrMethodDeclaration method : methods) {
-                if ((method.getFlags() & (ACC_SYNTHETIC|ACC_BRIDGE)) == 0) {
-                    method.accept(this);
-                }
+        }
+        for (ClassFileConstructorOrMethodDeclaration method : methods) {
+            if ((method.getFlags() & (ACC_SYNTHETIC|ACC_BRIDGE)) == 0) {
+                method.accept(this);
             }
         }
     }

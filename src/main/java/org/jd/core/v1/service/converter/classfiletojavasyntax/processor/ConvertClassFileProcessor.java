@@ -18,7 +18,6 @@ import org.apache.bcel.classfile.ConstantInteger;
 import org.apache.bcel.classfile.ConstantLong;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.ConstantString;
-import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.classfile.ConstantValue;
 import org.apache.bcel.classfile.Field;
 import org.apache.bcel.classfile.FieldOrMethod;
@@ -194,9 +193,6 @@ public class ConvertClassFileProcessor {
     protected List<ClassFileFieldDeclaration> convertFields(TypeMaker parser, AnnotationConverter converter, ClassFile classFile) {
         Field[] fields = classFile.getFields();
 
-        if (fields == null) {
-            return null;
-        }
         DefaultList<ClassFileFieldDeclaration> list = new DefaultList<>(fields.length);
         BaseAnnotationReference annotationReferences;
         Type typeField;
@@ -216,9 +212,6 @@ public class ConvertClassFileProcessor {
     protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile) {
         Method[] methods = classFile.getMethods();
 
-        if (methods == null) {
-            return null;
-        }
         DefaultList<ClassFileConstructorOrMethodDeclaration> list = new DefaultList<>(methods.length);
         String name;
         BaseAnnotationReference annotationReferences;
@@ -345,7 +338,6 @@ public class ConvertClassFileProcessor {
             case Const.CONSTANT_Float -> new FloatConstantExpression(((ConstantFloat)constantValue).getBytes());
             case Const.CONSTANT_Long -> new LongConstantExpression(((ConstantLong)constantValue).getBytes());
             case Const.CONSTANT_Double -> new DoubleConstantExpression(((ConstantDouble)constantValue).getBytes());
-            case Const.CONSTANT_Utf8 -> new StringConstantExpression(((ConstantUtf8)constantValue).getBytes());
             case Const.CONSTANT_String -> new StringConstantExpression(((ConstantString)constantValue).getBytes(acv.getConstantPool()));
             default -> throw new ConvertClassFileException("Invalid attributes");
         };

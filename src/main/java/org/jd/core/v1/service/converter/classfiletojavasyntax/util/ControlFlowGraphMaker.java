@@ -460,11 +460,9 @@ public class ControlFlowGraphMaker {
         }
         nextOffsets[lastOffset] = length;
         CodeException[] codeExceptions = attributeCode.getExceptionTable();
-        if (codeExceptions != null) {
-            for (CodeException codeException : codeExceptions) {
-                map[codeException.getStartPC()] = MARK;
-                map[codeException.getHandlerPC()] = MARK;
-            }
+        for (CodeException codeException : codeExceptions) {
+            map[codeException.getStartPC()] = MARK;
+            map[codeException.getHandlerPC()] = MARK;
         }
         // --- Create line numbers --- //
         ControlFlowGraph cfg = new ControlFlowGraph(method);
@@ -604,67 +602,65 @@ public class ControlFlowGraphMaker {
             }
         }
         // --- Create try-catch-finally basic blocks --- //
-        if (codeExceptions != null) {
-            Map<String, BasicBlock> cache = new HashMap<>();
-            ConstantPool constantPool = method.getConstantPool();
-            // Reuse arrays
-            int[] handlePcToStartPc = branchOffsets;
-            char[] handlePcMarks = types;
+        Map<String, BasicBlock> cache = new HashMap<>();
+        ConstantPool constantPool = method.getConstantPool();
+        // Reuse arrays
+        int[] handlePcToStartPc = branchOffsets;
+        char[] handlePcMarks = types;
 
-            Arrays.sort(codeExceptions, CODE_EXCEPTION_COMPARATOR);
+        Arrays.sort(codeExceptions, CODE_EXCEPTION_COMPARATOR);
 
-            int startPc;
-            int handlerPc;
-            for (CodeException codeException : codeExceptions) {
-                startPc = codeException.getStartPC();
-                handlerPc = codeException.getHandlerPC();
+        int startPc;
+        int handlerPc;
+        for (CodeException codeException : codeExceptions) {
+            startPc = codeException.getStartPC();
+            handlerPc = codeException.getHandlerPC();
 
-                if (startPc != handlerPc && (handlePcMarks[handlerPc] != 'T' || startPc <= map[handlePcToStartPc[handlerPc]].getFromOffset())) {
-                    int catchType = codeException.getCatchType();
-                    String key = makeShortKey(codeException);
-                    BasicBlock tcf = cache.get(key);
+            if (startPc != handlerPc && (handlePcMarks[handlerPc] != 'T' || startPc <= map[handlePcToStartPc[handlerPc]].getFromOffset())) {
+                int catchType = codeException.getCatchType();
+                String key = makeShortKey(codeException);
+                BasicBlock tcf = cache.get(key);
 
-                    if (tcf == null) {
-                        int endPc = codeException.getEndPC();
-                        // Check 'endPc'
-                        BasicBlock start = map[startPc];
+                if (tcf == null) {
+                    int endPc = codeException.getEndPC();
+                    // Check 'endPc'
+                    BasicBlock start = map[startPc];
 
-                        // Insert a new 'try-catch-finally' basic block
-                        tcf = cfg.newBasicBlock(TYPE_TRY_DECLARATION, startPc, endPc);
-                        tcf.setNext(start);
+                    // Insert a new 'try-catch-finally' basic block
+                    tcf = cfg.newBasicBlock(TYPE_TRY_DECLARATION, startPc, endPc);
+                    tcf.setNext(start);
 
-                        // Update predecessors
-                        Set<BasicBlock> tcfPredecessors = tcf.getPredecessors();
-                        Set<BasicBlock> startPredecessors = start.getPredecessors();
-                        Iterator<BasicBlock> iterator = startPredecessors.iterator();
+                    // Update predecessors
+                    Set<BasicBlock> tcfPredecessors = tcf.getPredecessors();
+                    Set<BasicBlock> startPredecessors = start.getPredecessors();
+                    Iterator<BasicBlock> iterator = startPredecessors.iterator();
 
-                        BasicBlock predecessor;
-                        while (iterator.hasNext()) {
-                            predecessor = iterator.next();
+                    BasicBlock predecessor;
+                    while (iterator.hasNext()) {
+                        predecessor = iterator.next();
 
-                            if (!start.contains(predecessor)) {
-                                predecessor.replace(start, tcf);
-                                tcfPredecessors.add(predecessor);
-                                iterator.remove();
-                            }
+                        if (!start.contains(predecessor)) {
+                            predecessor.replace(start, tcf);
+                            tcfPredecessors.add(predecessor);
+                            iterator.remove();
                         }
-
-                        startPredecessors.add(tcf);
-
-                        // Update map
-                        map[startPc] = tcf;
-
-                        // Store to objectTypeCache
-                        cache.put(key, tcf);
                     }
 
-                    String internalThrowableName = catchType == 0 ? null : constantPool.getConstantString(catchType, Const.CONSTANT_Class);
-                    BasicBlock handlerBB = map[handlerPc];
-                    tcf.addExceptionHandler(internalThrowableName, handlerBB);
-                    handlerBB.getPredecessors().add(tcf);
-                    handlePcToStartPc[handlerPc] = startPc;
-                    handlePcMarks[handlerPc] = 'T';
+                    startPredecessors.add(tcf);
+
+                    // Update map
+                    map[startPc] = tcf;
+
+                    // Store to objectTypeCache
+                    cache.put(key, tcf);
                 }
+
+                String internalThrowableName = catchType == 0 ? null : constantPool.getConstantString(catchType, Const.CONSTANT_Class);
+                BasicBlock handlerBB = map[handlerPc];
+                tcf.addExceptionHandler(internalThrowableName, handlerBB);
+                handlerBB.getPredecessors().add(tcf);
+                handlePcToStartPc[handlerPc] = startPc;
+                handlePcMarks[handlerPc] = 'T';
             }
         }
         BasicBlock next;

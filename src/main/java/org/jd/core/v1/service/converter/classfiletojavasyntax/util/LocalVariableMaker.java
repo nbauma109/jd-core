@@ -79,14 +79,12 @@ public class LocalVariableMaker {
         this.createLocalVariableVisitor = new CreateLocalVariableVisitor(typeMaker);
 
         // Initialize local black list variable names
-        if (classFile.getFields() != null) {
-            String descriptor;
-            for (Field field : classFile.getFields()) {
-                descriptor = field.getSignature();
+        String descriptor;
+        for (Field field : classFile.getFields()) {
+            descriptor = field.getSignature();
 
-                if (descriptor.charAt(descriptor.length() - 1) == ';') {
-                    typeMaker.makeFromDescriptor(descriptor).accept(populateBlackListNamesVisitor);
-                }
+            if (descriptor.charAt(descriptor.length() - 1) == ';') {
+                typeMaker.makeFromDescriptor(descriptor).accept(populateBlackListNamesVisitor);
             }
         }
 
@@ -96,10 +94,8 @@ public class LocalVariableMaker {
             typeMaker.makeFromInternalTypeName(classFile.getSuperTypeName()).accept(populateBlackListNamesVisitor);
         }
 
-        if (classFile.getInterfaceTypeNames() != null) {
-            for (String interfaceTypeName : classFile.getInterfaceTypeNames()) {
-                typeMaker.makeFromInternalTypeName(interfaceTypeName).accept(populateBlackListNamesVisitor);
-            }
+        for (String interfaceTypeName : classFile.getInterfaceTypeNames()) {
+            typeMaker.makeFromInternalTypeName(interfaceTypeName).accept(populateBlackListNamesVisitor);
         }
 
         if (parameterTypes != null) {

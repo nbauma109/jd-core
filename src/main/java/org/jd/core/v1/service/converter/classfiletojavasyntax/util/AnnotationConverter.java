@@ -86,9 +86,6 @@ public class AnnotationConverter implements ElementValueVisitor {
         ObjectType ot = typeMaker.makeFromDescriptor(descriptor);
         org.apache.bcel.classfile.ElementValuePair[] elementValuePairs = annotation.getElementValuePairs();
 
-        if (elementValuePairs == null) {
-            return new AnnotationReference(ot);
-        }
         if (elementValuePairs.length == 1) {
             org.apache.bcel.classfile.ElementValuePair elementValuePair = elementValuePairs[0];
             String elementName = elementValuePair.getNameString();
@@ -184,9 +181,7 @@ public class AnnotationConverter implements ElementValueVisitor {
     public void visit(ArrayElementValue elementValueArrayValue) {
         ElementValue[] values = elementValueArrayValue.getElementValuesArray();
 
-        if (values == null) {
-            elementValue = new ElementValueArrayInitializerElementValue();
-        } else if (values.length == 1) {
+        if (values.length == 1) {
             visit(values[0]);
             elementValue = new ElementValueArrayInitializerElementValue(elementValue);
         } else {

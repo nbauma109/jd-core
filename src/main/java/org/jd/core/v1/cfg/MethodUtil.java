@@ -42,8 +42,7 @@ public final class MethodUtil {
         BaseTypeDeclaration typeDeclarations = compilationUnit.typeDeclarations();
         BodyDeclaration bodyDeclaration = null;
 
-        if (typeDeclarations instanceof EnumDeclaration) { // to convert to jdk16 pattern matching only when spotbugs #1617 and eclipse #577987 are solved
-            EnumDeclaration ed = (EnumDeclaration) typeDeclarations;
+        if (typeDeclarations instanceof EnumDeclaration ed) {
             bodyDeclaration = ed.getBodyDeclaration();
         } else if (typeDeclarations instanceof AnnotationDeclaration) { // to convert to jdk16 pattern matching only when spotbugs #1617 and eclipse #577987 are solved
             AnnotationDeclaration ad = (AnnotationDeclaration) typeDeclarations;

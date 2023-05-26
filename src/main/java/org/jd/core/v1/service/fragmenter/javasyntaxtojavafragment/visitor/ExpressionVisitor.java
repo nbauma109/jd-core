@@ -781,6 +781,7 @@ public class ExpressionVisitor extends TypeVisitor {
             expression.accept(this);
             tokens.add(TextToken.RIGHTROUNDBRACKET);
         } else {
+            inVarArgParam = false; // cannot use varargs in ternary op
             expression.accept(this);
         }
     }

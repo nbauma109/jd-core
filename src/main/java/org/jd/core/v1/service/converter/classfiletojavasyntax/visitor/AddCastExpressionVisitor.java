@@ -16,6 +16,7 @@ import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
+import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
@@ -247,13 +248,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    public void pushContext(ClassDeclaration declaration) {
+    public void pushContext(InterfaceDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
             typeParameters.push(new TypeParameter(declaration.isStatic(), declaration.getTypeParameters()));
         }
     }
     
-    public void popContext(ClassDeclaration declaration) {
+    public void popContext(InterfaceDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
             typeParameters.pop();
         }
@@ -630,7 +631,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 expression = new CastExpression(searchFirstLineNumberVisitor.getLineNumber(), type, expression);
             }
         } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
-            return expression;
+            return expression; // TODO FIXME find real rule instead of hardcoded workaround
         } else {
             Type expressionType = expression.getType();
 
@@ -647,7 +648,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 ClassFileNewExpression ne = (ClassFileNewExpression)expression;
                                 ne.setObjectType(ne.getObjectType().createType(null));
                             }
-                            expression = addCastExpression(objectType, expression);
+                            if (expression instanceof LambdaIdentifiersExpression) {
+                                expression = addCastExpression(objectType, expression);
+                            } else {
+                                expression = addCastExpression(objectType.createType(null), expression);
+                            }
                         } else if (!ObjectType.TYPE_OBJECT.equals(type) && !typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
                             BaseTypeArgument ta2 = expressionObjectType.getTypeArguments();
@@ -681,7 +686,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     if (expression instanceof CastExpression && isCastToBeRemoved(typeBindings, localTypeBounds, type, (CastExpression) expression, unique)) {
                         // Remove cast expression
                         expression = expression.getExpression();
-                    } else {
+                    } else if (!type.isGenericType() || type.getDimension() != 0 || !visitingLambda) { // TODO FIXME get the generic casts right inside lambda functions
                         expression = addCastExpression(type, expression);
                     }
                 }

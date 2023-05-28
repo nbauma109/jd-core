@@ -385,7 +385,8 @@ public abstract class AbstractUpdateExpressionVisitor extends AbstractJavaSyntax
         statement.getExpression().accept(this);
     }
 
-    @Override public void visit(ReturnExpressionStatement statement) {
+    @Override
+    public void visit(ReturnExpressionStatement statement) {
         statement.setExpression(updateExpression(statement.getExpression()));
         statement.getExpression().accept(this);
     }

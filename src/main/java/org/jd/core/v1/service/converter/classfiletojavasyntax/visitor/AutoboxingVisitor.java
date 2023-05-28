@@ -65,27 +65,40 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
 
     @Override
     protected Expression updateExpression(Expression expression) {
-        if (expression != null && expression.isMethodInvocationExpression() && expression.getInternalTypeName().startsWith("java/lang/")) {
-            int parameterSize = expression.getParameters() == null ? 0 : expression.getParameters().size();
+        if (isJavaLangMethodInvocation(expression)) {
 
             if (expression.getExpression().isObjectTypeReferenceExpression()) {
                 // static method invocation
-                if (parameterSize == 1 &&
-                        "valueOf".equals(expression.getName()) &&
-                        expression.getDescriptor().equals(VALUEOF_DESCRIPTOR_MAP.get(expression.getInternalTypeName())))
+                if (isBoxingMethod(expression))
                 {
                     return expression.getParameters().getFirst();
                 }
             } else // non-static method invocation
-            if (parameterSize == 0 &&
-                    expression.getName().equals(VALUE_METHODNAME_MAP.get(expression.getInternalTypeName())) &&
-                    expression.getDescriptor().equals(VALUE_DESCRIPTOR_MAP.get(expression.getInternalTypeName())))
+            if (isUnboxingMethod(expression))
             {
                 return expression.getExpression();
             }
         }
 
         return expression;
+    }
+
+    public static boolean isJavaLangMethodInvocation(Expression expression) {
+        return expression != null && expression.isMethodInvocationExpression() && expression.getInternalTypeName().startsWith("java/lang/");
+    }
+
+    public static boolean isBoxingMethod(Expression expression) {
+        int parameterSize = expression.getParameters() == null ? 0 : expression.getParameters().size();
+        return parameterSize == 1 &&
+                "valueOf".equals(expression.getName()) &&
+                expression.getDescriptor().equals(VALUEOF_DESCRIPTOR_MAP.get(expression.getInternalTypeName()));
+    }
+
+    public static boolean isUnboxingMethod(Expression expression) {
+        int parameterSize = expression.getParameters() == null ? 0 : expression.getParameters().size();
+        return parameterSize == 0 &&
+                expression.getName().equals(VALUE_METHODNAME_MAP.get(expression.getInternalTypeName())) &&
+                expression.getDescriptor().equals(VALUE_DESCRIPTOR_MAP.get(expression.getInternalTypeName()));
     }
 
     @Override

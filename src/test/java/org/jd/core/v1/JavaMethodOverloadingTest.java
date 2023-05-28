@@ -32,7 +32,7 @@ public class JavaMethodOverloadingTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
-    // TODO: bug should be fix
+    // TODO: bug should be fixed
 //    @Test
     // https://github.com/java-decompiler/jd-core/issues/32
 //    public void testGenericParameterMethod() throws Exception {
@@ -58,7 +58,7 @@ public class JavaMethodOverloadingTest extends AbstractJdTest {
 //        assertTrue(source.matches(PatternMaker.make(": 86 */", "use((Object)1);")));
 //
 //        // Recompile decompiled source code and check errors
-//        assertTrue(CompilerUtil.compile("1.8", new JavaSourceFileObject(internalClassName, source)));
+//        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
 //    }
 
 }

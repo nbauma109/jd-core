@@ -68,6 +68,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.AutoboxingVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.BaseTypeToTypeArgumentVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.BindTypeParametersToNonWildcardTypeArgumentsVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.BindTypesToTypesVisitor;
@@ -76,6 +77,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.PopulateBi
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.PopulateBindingsWithTypeParameterVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchInTypeArgumentVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.TypeArgumentToTypeVisitor;
+import org.jd.core.v1.util.StringConstants;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -434,6 +436,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private void populateBindingsWithTypeArgument(Map<String, TypeArgument> bindings, Map<String, BaseType> typeBounds, Type type, Expression expression) {
+        if (type.isGenericType() && expression.isThisExpression()) {
+            // TODO FIXME find the real rule to apply
+            return;
+        }
         Type t = getExpressionType(expression);
 
         populateBindingsWithTypeArgument(bindings, typeBounds, type, t);
@@ -511,7 +517,15 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         @Override
         public void visit(MethodInvocationExpression expression) {
             if (omitNonWildcardTypeArguments) {
-                expression.setNonWildcardTypeArguments(null);
+                if (expression.getExpression() instanceof CastExpression ce
+                        && ce.getExpression() instanceof MethodInvocationExpression mie
+                        && ce.getType().getInternalName().equals(expression.getInternalTypeName())
+                        && AutoboxingVisitor.isJavaLangMethodInvocation(expression)
+                        && AutoboxingVisitor.isUnboxingMethod(expression)) {
+                    mie.setNonWildcardTypeArguments(null);
+                } else {
+                    expression.setNonWildcardTypeArguments(null);
+                }
             }
         }
     }
@@ -657,6 +671,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {
+        if (nonWildcardTypeArgument instanceof ObjectType ot && StringConstants.JAVA_LANG_OBJECT.equals(ot.getInternalName())) {
+            // Do not use Object or Object array as explicit type parameter
+            return false;
+        }
         if (parameters instanceof LambdaIdentifiersExpression) {
             return false;
         }

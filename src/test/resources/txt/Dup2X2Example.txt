@@ -1,0 +1,27 @@
+package jd.core.test;
+
+public abstract class Dup2X2Example {
+  protected abstract void form1Result(int paramInt1, int paramInt2, int paramInt3, int paramInt4, int paramInt5, int paramInt6);
+  
+  protected abstract void form2Result(long paramLong1, int paramInt1, int paramInt2, long paramLong2);
+  
+  protected abstract void form3Result(int paramInt1, int paramInt2, long paramLong, int paramInt3, int paramInt4);
+  
+  protected abstract void form4Result(long paramLong1, long paramLong2, long paramLong3);
+  
+  public void form1(int arg0, int arg1, int arg2, int arg3) {
+    form1Result(arg2, arg3, arg0, arg1, arg2, arg3);
+  }
+  
+  public void form2(int arg0, int arg1, long arg2) {
+    form2Result(arg2, arg0, arg1, arg2);
+  }
+  
+  public void form3(long arg0, int arg1, int arg2) {
+    form3Result(arg1, arg2, arg0, arg1, arg2);
+  }
+  
+  public void form4(long arg0, long arg1) {
+    form4Result(arg1, arg0, arg1);
+  }
+}

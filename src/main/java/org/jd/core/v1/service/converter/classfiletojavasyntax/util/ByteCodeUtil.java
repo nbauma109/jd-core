@@ -92,7 +92,7 @@ public final class ByteCodeUtil {
         code[lastOffset+2] = (byte) (delta & 0xFF);
     }
     
-    private static int getOppositeOpCode(final int opCode) {
+    static int getOppositeOpCode(final int opCode) {
         return switch(opCode) {
             case IFNONNULL -> IFNULL;
             case IFNULL -> IFNONNULL;

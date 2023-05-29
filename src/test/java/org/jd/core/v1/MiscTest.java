@@ -120,6 +120,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jd.core.process.analyzer.instruction.fast.FastCodeExceptionAnalyzer;
+import net.sourceforge.plantuml.klimt.drawing.LimitFinder;
 
 public class MiscTest extends AbstractJdTest {
 
@@ -1655,6 +1656,15 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    @Test
+    public void testLimitFinder() throws Exception {
+        String internalClassName = LimitFinder.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
     @Test
     public void testLockableFileWriter() throws Exception {
         class LockableFileWriter {

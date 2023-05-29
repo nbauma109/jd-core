@@ -680,7 +680,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         }
                     }
                 } else if (type.isGenericType()
-                        && !expression.isCastExpression()
                         && hasKnownTypeParameters(type)
                         && (expressionType.isObjectType() || expressionType.isGenericType())
                         && (type.getDimension() != 0 || !visitingLambda)) {

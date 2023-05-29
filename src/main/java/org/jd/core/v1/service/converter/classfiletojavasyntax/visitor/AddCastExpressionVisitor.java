@@ -446,9 +446,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             }
                             ce.setType(ot.createType(typeArguments));
                         }
-                    } else if (ot.getTypeArguments() != null && !hasKnownTypeParameters(ot.getTypeArguments())) {
-                        // Remove cast
-                        expression.setExpression(ce.getExpression());
                     }
                 }
             }
@@ -682,13 +679,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             expression = addCastExpression(type, expression);
                         }
                     }
-                } else if (type.isGenericType() && hasKnownTypeParameters(type) && (expressionType.isObjectType() || expressionType.isGenericType())) {
-                    if (expression instanceof CastExpression && isCastToBeRemoved(typeBindings, localTypeBounds, type, (CastExpression) expression, unique)) {
-                        // Remove cast expression
-                        expression = expression.getExpression();
-                    } else if (!type.isGenericType() || type.getDimension() != 0 || !visitingLambda) { // TODO FIXME get the generic casts right inside lambda functions
-                        expression = addCastExpression(type, expression);
-                    }
+                } else if (type.isGenericType()
+                        && !expression.isCastExpression()
+                        && hasKnownTypeParameters(type)
+                        && (expressionType.isObjectType() || expressionType.isGenericType())
+                        && (type.getDimension() != 0 || !visitingLambda)) {
+                    expression = addCastExpression(type, expression);
                 }
             }
 

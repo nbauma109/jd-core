@@ -87,6 +87,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
 import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1648,6 +1649,34 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testStreams() throws Exception {
         String internalClassName = Streams.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testLockableFileWriter() throws Exception {
+        class LockableFileWriter {
+            @SuppressWarnings("unused")
+            public LockableFileWriter(File file, Charset charset, boolean append, String lockDir) throws IOException {
+                // init file to create/append
+                file = file.getAbsoluteFile();
+                if (file.getParentFile() != null) {
+                    FileUtils.forceMkdir(file.getParentFile());
+                }
+                if (file.isDirectory()) {
+                    throw new IOException("File specified is a directory");
+                }
+                // init lock file
+                if (lockDir == null) {
+                    lockDir = System.getProperty("java.io.tmpdir");
+                }
+                File lockDirFile = new File(lockDir);
+                FileUtils.forceMkdir(lockDirFile);
+            }
+        }
+        String internalClassName = LockableFileWriter.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Recompile decompiled source code and check errors

@@ -1,0 +1,14 @@
+/*  1:  0 */ package org.jd.core.v1.stub;
+/*  2:  0 */ 
+/*  3:  0 */ public class ParsePUT {
+/*  4:  0 */   int x;
+/*  5:  0 */   
+/*  6:  0 */   int y;
+/*  7:  0 */   
+/*  8:  0 */   public ParsePUT(int x, int y) {
+/*  9:  9 */     this.x %= x;
+/* 10: 10 */     this.y /= y;
+/* 11: 11 */     this.x--;
+/* 12: 12 */     this.y++;
+/* 13:  0 */   }
+/* 14:  0 */ }

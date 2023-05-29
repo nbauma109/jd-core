@@ -14,14 +14,25 @@ public class BasicBlockTest {
 
     @Test
     public void testFlip() throws Exception {
-        Method method = new Method();
-        byte[] code =     { 25, 5, 18, 111, -74, 0, 112, -103, 0, -45 };
+        byte[] bytecode = { 25, 5, 18, 111, -74, 0, 112, -103, 0, -45 };
         byte[] expected = { 25, 5, 18, 111, -74, 0, 112, -102, -1, -7 };
+        testFlip(bytecode, expected);
+    }
+
+    @Test
+    public void testFlipEmpty() throws Exception {
+        byte[] bytecode = {};
+        byte[] expected = {};
+        testFlip(bytecode, expected);
+    }
+
+    private static void testFlip(byte[] bytecode, byte[] expected) {
         Constant[] constants = {};
-        Code attributeCode = new Code(0, code.length, 0, 0, code, null, null, new ConstantPool(constants));
-        method.setAttributes(new Attribute[] { attributeCode });
+        ConstantPool cp = new ConstantPool(constants);
+        Code attributeCode = new Code(0, bytecode.length, 0, 0, bytecode, null, null, cp);
+        Method method = new Method(0, 0, 0, new Attribute[] { attributeCode }, cp);
         ControlFlowGraph cfg = new ControlFlowGraph(method);
-        BasicBlock bb = cfg.newBasicBlock(0, code.length);
+        BasicBlock bb = cfg.newBasicBlock(0, bytecode.length);
         BasicBlock next = cfg.newBasicBlock(bb);
         BasicBlock branch = cfg.newBasicBlock(bb);
         bb.setNext(next);
@@ -29,6 +40,6 @@ public class BasicBlockTest {
         bb.flip();
         assertEquals(next, bb.getBranch());
         assertEquals(branch, bb.getNext());
-        assertArrayEquals(expected, code);
+        assertArrayEquals(expected, bytecode);
     }
 }

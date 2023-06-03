@@ -663,7 +663,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 expression = addCastExpression(t, expression);
                             }
                         }
-                    } else if (expressionType.getDimension() == 0 && type.getDimension() == 0 && expressionType.isGenericType() && !ObjectType.TYPE_OBJECT.equals(type)) {
+                    } else if (type.getDimension() == 0 && expressionType.isGenericType() && !ObjectType.TYPE_OBJECT.equals(type)) {
                         boolean cast = true;
                         if (expressionType instanceof GenericType) {
                             GenericType gt = (GenericType) expressionType;

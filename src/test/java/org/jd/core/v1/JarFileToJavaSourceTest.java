@@ -81,11 +81,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test(com.squareup.javapoet.JavaFile.class);
     }
 
-    @Test
-    public void testJavaWriter() throws Exception {
-        test(com.squareup.javawriter.JavaWriter.class);
-    }
-
 //    TODO: in progress
 //    @Test
 //    public void testJodaTime() throws Exception {

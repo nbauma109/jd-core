@@ -440,7 +440,7 @@ public final class TryWithResourcesStatementMaker {
                         Expression expression = statement.getExpression();
                         if (expression instanceof MethodInvocationExpression) {
                             MethodInvocationExpression mie = (MethodInvocationExpression) expression;
-                            if (checkCloseInvocation(mie, lv1)) {
+                            if (!iterator.hasNext() && checkCloseInvocation(mie, lv1)) {
                                 iterator.remove();
                             }
                         }

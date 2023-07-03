@@ -12,6 +12,7 @@ import org.junit.Test;
 import java.io.InputStream;
 
 public class AutoUnboxingInLoopTest extends AbstractJdTest {
+
     @Test
     public void test() throws Exception {
         String internalClassName = AutoUnboxingInLoop.class.getName().replace('.', '/');
@@ -27,7 +28,7 @@ public class AutoUnboxingInLoopTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 18 */         if (next != null) {")));
             assertTrue(source.matches(PatternMaker.make(": 19 */           Object elem = paramList.listIterator(j).next();")));
             assertTrue(source.matches(PatternMaker.make(": 20 */           String str = String.valueOf(elem.hashCode());")));
-            assertTrue(source.matches(PatternMaker.make(": 21 */           if (hashCode.equals(Integer.parseInt(str)))")));
+            assertTrue(source.matches(PatternMaker.make(": 21 */           if (hashCode.equals(Integer.valueOf(Integer.parseInt(str))))"))); // disable (un)boxing due to possible method overloading
             assertTrue(source.matches(PatternMaker.make(": 22 */             list.add(elem); ")));
             assertTrue(source.matches(PatternMaker.make(": 27 */       list2.addAll(list1);")));
             assertTrue(source.matches(PatternMaker.make(": 28 */       Integer integer1 = hashCode, integer2 = hashCode = hashCode - 1;")));

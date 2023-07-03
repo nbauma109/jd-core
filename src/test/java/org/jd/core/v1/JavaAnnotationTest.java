@@ -45,12 +45,24 @@ public class JavaAnnotationTest extends AbstractJdTest {
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile(
                     "1.7",
-                    new InMemoryJavaSourceFileObject(internalClassName, source),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Author", "package org.jd.core.test.annotation; public @interface Author {Name value(); Name[] contributors() default {};}"),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String salutation() default \"\"; String value(); String last() default \"\";}"),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Quality", "package org.jd.core.test.annotation; public @interface Quality {enum Level {LOW,MIDDLE,HIGH}; Level value();}"),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Value", "package org.jd.core.test.annotation; public @interface Value {boolean z() default true; byte b() default 1; short s() default 1; int i() default 1; long l() default 1L; float f() default 1.0F; double d() default 1.0D; String str() default \"str\"; Class clazz() default Object.class;}")
+                    new InMemoryJavaSourceFileObject(internalClassName, source)
                 ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Author", "package org.jd.core.test.annotation; public @interface Author {Name value(); Name[] contributors() default {};}")
+                    ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String salutation() default \"\"; String value(); String last() default \"\";}")
+                    ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Quality", "package org.jd.core.test.annotation; public @interface Quality {enum Level {LOW,MIDDLE,HIGH}; Level value();}")
+                    ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Value", "package org.jd.core.test.annotation; public @interface Value {boolean z() default true; byte b() default 1; short s() default 1; int i() default 1; long l() default 1L; float f() default 1.0F; double d() default 1.0D; String str() default \"str\"; Class clazz() default Object.class;}")
+                    ));
         }
     }
 
@@ -69,9 +81,12 @@ public class JavaAnnotationTest extends AbstractJdTest {
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile(
                     "1.7",
-                    new InMemoryJavaSourceFileObject(internalClassName, source),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String value();}")
+                    new InMemoryJavaSourceFileObject(internalClassName, source)
                 ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String value();}")
+                    ));
         }
     }
 

@@ -155,7 +155,8 @@ public abstract class AbstractUpdateExpressionVisitor extends AbstractJavaSyntax
         }
     }
 
-    @Override public void visit(FieldDeclaration declaration) {
+    @Override
+    public void visit(FieldDeclaration declaration) {
         declaration.getFieldDeclarators().accept(this);
     }
 
@@ -164,7 +165,8 @@ public abstract class AbstractUpdateExpressionVisitor extends AbstractJavaSyntax
         safeAccept(declaration.getVariableInitializer());
     }
 
-    @Override public void visit(FormalParameter declaration) {}
+    @Override
+    public void visit(FormalParameter declaration) {}
 
     @Override
     public void visit(InterfaceDeclaration declaration) {
@@ -243,10 +245,14 @@ public abstract class AbstractUpdateExpressionVisitor extends AbstractJavaSyntax
             expression.setExpression(newExpression);
         }
         if (expression.getParameters() != null) {
-            expression.setParameters(updateBaseExpression(expression.getParameters()));
+            maybeUpdateParameters(expression);
             expression.getParameters().accept(this);
         }
         expression.getExpression().accept(this);
+    }
+
+    protected void maybeUpdateParameters(MethodInvocationExpression expression) {
+        expression.setParameters(updateBaseExpression(expression.getParameters()));
     }
 
     @Override

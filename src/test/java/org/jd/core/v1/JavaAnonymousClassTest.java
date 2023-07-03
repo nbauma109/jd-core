@@ -55,9 +55,12 @@ public class JavaAnonymousClassTest extends AbstractJdTest {
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile(
                     "1.5",
-                    new InMemoryJavaSourceFileObject(internalClassName, source),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String value();}")
+                    new InMemoryJavaSourceFileObject(internalClassName, source)
             ));
+            assertTrue(CompilerUtil.compile(
+                    "1.5",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String value();}")
+                    ));
         }
     }
 
@@ -98,9 +101,12 @@ public class JavaAnonymousClassTest extends AbstractJdTest {
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile(
                     "1.7",
-                    new InMemoryJavaSourceFileObject(internalClassName, source),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String value();}")
+                    new InMemoryJavaSourceFileObject(internalClassName, source)
                 ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/annotation/Name", "package org.jd.core.test.annotation; public @interface Name {String value();}")
+                    ));
         }
     }
 }

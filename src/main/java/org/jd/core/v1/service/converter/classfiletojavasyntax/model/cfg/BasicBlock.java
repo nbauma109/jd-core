@@ -579,4 +579,12 @@ public class BasicBlock {
         setBranch(tmp);
         ByteCodeUtil.invertLastOpCode(this);
     }
+
+    public int getFromOpcode() {
+        return controlFlowGraph.getMethod().getCode().getCode()[fromOffset] & 255;
+    }
+
+    public int getToOpcode() {
+        return controlFlowGraph.getMethod().getCode().getCode()[toOffset] & 255;
+    }
 }

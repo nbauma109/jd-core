@@ -7,24 +7,37 @@
 
 package org.jd.core.v1;
 
+import org.apache.commons.io.FileUtils;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil;
 import org.jd.core.v1.util.DefaultList;
+import org.jd.core.v1.util.LicenseExtractor;
 import org.jd.core.v1.util.StringConstants;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.apache.bcel.Const.MAJOR_1_1;
 import static org.apache.bcel.Const.MAJOR_1_5;
@@ -38,34 +51,34 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testBCEL() throws Exception {
-        test(org.apache.bcel.Const.class);
+        test(org.apache.bcel.Const.class, "https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-");
     }
     
     @Test
     public void testCommonsIO() throws Exception {
-        test(org.apache.commons.io.IOUtils.class);
+        test(org.apache.commons.io.IOUtils.class, "https://github.com/apache/commons-io", "commons-io", "rel/commons-io-");
     }
 
     @Test
     public void testCommonsCodec() throws Exception {
-        test(org.apache.commons.codec.Charsets.class);
+        test(org.apache.commons.codec.Charsets.class, "https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-");
     }
 
     @Test
     public void testCommonsCollections4() throws Exception {
-        test(org.apache.commons.collections4.CollectionUtils.class);
+        test(org.apache.commons.collections4.CollectionUtils.class/*, "https://github.com/apache/commons-collections", "commons-collections", "commons-commons-collections-"*/);
     }
 
     @Test
     public void testCommonsImaging() throws Exception {
-        test(org.apache.commons.imaging.Imaging.class);
+        test(org.apache.commons.imaging.Imaging.class, "https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-");
     }
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test(org.apache.commons.lang3.JavaVersion.class);
+        test(org.apache.commons.lang3.JavaVersion.class, "https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-");
     }
-
+    
 //    @Test
 //    public void testCommonsMath3() throws Exception {
 //        test(org.apache.commons.math3.Field.class);
@@ -132,15 +145,96 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 //        test(com.google.common.collect.Collections2.class);
 //    }
 
+    private static Properties getPomProperties(File file) {
+        // Search 'META-INF/maven/*/*/pom.properties'
+        try (JarFile jarFile = new JarFile(file)) {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry nextEntry = entries.nextElement();
+                String entryName = nextEntry.getName();
+                if (entryName.startsWith("META-INF/maven/") && entryName.endsWith("/pom.properties")) {
+                    try (InputStream is = jarFile.getInputStream(nextEntry)) {
+                        Properties properties = new Properties();
+                        properties.load(is);
+                        return properties;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            assert ExceptionUtil.printStackTrace(e);
+        }
+        return null;
+    }
+    
     protected void test(Class<?> clazz) throws Exception {
+        test(clazz, null, null, null);
+    }
+
+    protected void test(Class<?> clazz, String repo, String repoName, String tag) throws Exception {
         File file = Paths.get(clazz.getProtectionDomain().getCodeSource().getLocation().toURI()).toFile();
+        Properties pomProperties = getPomProperties(file);
+        String implementationVersion = pomProperties == null ? clazz.getPackage().getImplementationVersion() : pomProperties.getProperty("version");
         System.out.println("====== Decompiling and recompiling " + file.getName() + " ======");
         try (FileInputStream inputStream = new FileInputStream(file)) {
-            test(inputStream);
+            test(inputStream, repo, repoName, tag + implementationVersion);
         }
     }
     
-    protected void test(InputStream inputStream) throws Exception {
+    protected void test(InputStream inputStream, String repo, String repoName, String tag) throws Exception {
+        String license = "";
+        File projectDir = null;
+        if (repoName != null) {
+            File repoDir = new File("target/" + repoName);  // Directory for extracted project files
+    
+            // If repoDir exists, delete it
+            if (repoDir.exists()) {
+                try {
+                    FileUtils.deleteDirectory(repoDir);
+                } catch (IOException e) {
+                    throw new RuntimeException("Error deleting directory " + repoDir, e);
+                }
+            }
+    
+            // Prepare URL of the .zip file for the tag
+            String repoZipURL = repo + "/archive/refs/tags/" + tag + ".zip";
+    
+            // Directory where the project files are extracted
+            projectDir = new File(repoDir, repoName + "-" + tag.replace("/", "-"));
+            
+            // Download and extract .zip file for the tag
+            try (InputStream in = new URL(repoZipURL).openStream();
+                 ZipInputStream zin = new ZipInputStream(in)) {
+    
+                ZipEntry entry;
+                while ((entry = zin.getNextEntry()) != null) {
+                    File file = new File(repoDir, entry.getName());
+                    if (entry.isDirectory()) {
+                        file.mkdirs();
+                    } else {
+                        File parent = file.getParentFile();
+                        if (parent != null) {
+                            parent.mkdirs();
+                        }
+                        Files.copy(zin, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        if (license.isEmpty() && file.getName().endsWith(".java")) {
+                            license = LicenseExtractor.extractLicense(file.toPath());
+                        }
+                    }
+                }
+            }
+    
+            // Delete all .java files in src/main/java
+            Files.walk(Paths.get(projectDir.getPath() + "/src/main/java"))
+                    .filter(path -> path.toString().endsWith(".java"))
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            throw new RuntimeException("Error deleting .java files", e);
+                        }
+                    });
+        }
+
         long fileCounter = 0;
         long exceptionCounter = 0;
         long assertFailedCounter = 0;
@@ -164,6 +258,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     //if (!internalTypeName.endsWith("/MapUtils")) continue;
 
                     printer.init();
+                    if (!license.isEmpty()) {
+                        printer.printText(license);
+                        printer.endLine();
+                    }
 
                     fileCounter++;
 
@@ -197,12 +295,28 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                             jdkVersion.append(majorVersion - (MAJOR_1_1 - 1));
                         }
                     }
-                    
-                    // Recompile source
-                    if (!CompilerUtil.compile(jdkVersion.toString(), new InMemoryJavaSourceFileObject(internalTypeName, source))) {
+
+                    if (projectDir != null) {
+                        // Write source file to source directory src/main/java
+                        Files.writeString(Paths.get(projectDir.getPath() + "/src/main/java/" + internalTypeName + ".java"), source);
+                    } else if (!CompilerUtil.compile(jdkVersion.toString(), new InMemoryJavaSourceFileObject(internalTypeName, source))) {
                         recompilationFailedCounter++;
                     }
                 }
+            }
+
+            if (projectDir != null) {
+                // Compile and run tests
+                String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
+                ProcessBuilder pbTest = new ProcessBuilder(mvnCommand, "test", "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED");
+                pbTest.directory(projectDir);
+                pbTest.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                pbTest.redirectError(ProcessBuilder.Redirect.INHERIT);
+                Process pTest = pbTest.start();
+                int exitCode = pTest.waitFor();
+
+                // Check result
+                assertEquals(0, exitCode);
             }
 
             long time9 = System.currentTimeMillis();
@@ -251,14 +365,18 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         public long errorInMethodCounter = 0;
         public long accessCounter = 0;
 
+        public CounterPrinter() {
+            super(true);
+        }
+        
         @Override
         public void printText(String text) {
             if (text != null) {
                 if ("// Byte code:".equals(text) || text.startsWith("/* monitor enter ") || text.startsWith("/* monitor exit ")) {
                     errorInMethodCounter++;
                 }
+                super.printText(text);
             }
-            super.printText(text);
         }
 
         @Override

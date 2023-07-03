@@ -91,11 +91,14 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
                 return true;
             }
 
+            if (type.getDimension() > 0 && this.type.equals(TYPE_OBJECT.createType(type.getDimension()))) {
+                return true;
+            }
+
             if (type.isObjectType()) {
                 return typeMaker.isAssignable(typeBounds, (ObjectType) this.type, (ObjectType) type);
             }
         }
-
         return false;
     }
 

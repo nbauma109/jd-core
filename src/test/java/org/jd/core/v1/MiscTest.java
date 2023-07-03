@@ -1293,7 +1293,7 @@ public class MiscTest extends AbstractJdTest {
     public void testVarArg1() throws Exception {
         abstract class VarArgTest1 implements IDefault {
             @SuppressWarnings("unused")
-            void test() {
+            void test1() {
                 test(new Object[0], new Object[0]);
             }
         }
@@ -1311,7 +1311,7 @@ public class MiscTest extends AbstractJdTest {
     public void testVarArg2() throws Exception {
         abstract class VarArgTest2 implements IDefault {
             @SuppressWarnings("unused")
-            void test() {
+            void test2() {
                 test(new Object[] { 0, 1 }, new Object[] { 0, 1 });
             }
         }

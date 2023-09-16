@@ -131,7 +131,7 @@ public class LineNumberStringBuilderPrinter extends StringBuilderPrinter {
 
         setRealignmentLineNumber(realignmentLineNumbers);
         setUnicodeEscape(Boolean.parseBoolean(preferences.getOrDefault(ESCAPE_UNICODE_CHARACTERS, Boolean.FALSE.toString())));
-        setShowLineNumbers(Boolean.parseBoolean(preferences.getOrDefault(WRITE_LINE_NUMBERS, Boolean.TRUE.toString())));
+        setShowLineNumbers(Boolean.parseBoolean(preferences.getOrDefault(WRITE_LINE_NUMBERS, Boolean.FALSE.toString())));
 
         // Format internal name
         String entryInternalName = ClassUtil.getInternalName(entryPath);
@@ -142,7 +142,7 @@ public class LineNumberStringBuilderPrinter extends StringBuilderPrinter {
         StringBuilder stringBuffer = getStringBuffer();
 
         // Metadata
-        if (Boolean.parseBoolean(preferences.getOrDefault(WRITE_METADATA, Boolean.TRUE.toString()))) {
+        if (Boolean.parseBoolean(preferences.getOrDefault(WRITE_METADATA, Boolean.FALSE.toString()))) {
             stringBuffer.append("\n\n/*");
             // Add Java compiler version
             int majorVersion = getMajorVersion();

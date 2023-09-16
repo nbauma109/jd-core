@@ -8,14 +8,14 @@ import org.junit.Test;
 public class BinaryOpTest extends AbstractJdTest {
 
     @Test
-    public void testSubstract() throws Exception {
-        class Substract {
+    public void testSubtract() throws Exception {
+        class Subtract {
             @SuppressWarnings("unused")
             int subtract(int i, int j, int k) {
                 return i - (j - k);
             }
         }
-        String internalClassName = Substract.class.getName().replace('.', '/');
+        String internalClassName = Subtract.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         
         // Check decompiled source code
@@ -23,14 +23,14 @@ public class BinaryOpTest extends AbstractJdTest {
     }
 
     @Test
-    public void testSubstractMultiply() throws Exception {
-        class SubstractMultiply {
+    public void testSubtractMultiply() throws Exception {
+        class SubtractMultiply {
             @SuppressWarnings("unused")
             int subtract(int i, int j, int k) {
                 return i - (j * k);
             }
         }
-        String internalClassName = SubstractMultiply.class.getName().replace('.', '/');
+        String internalClassName = SubtractMultiply.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         
         // Check decompiled source code

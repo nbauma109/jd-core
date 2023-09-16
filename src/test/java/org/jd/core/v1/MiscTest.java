@@ -18,7 +18,9 @@ import org.apache.commons.collections4.IterableUtils;
 import org.apache.commons.collections4.Transformer;
 import org.apache.commons.collections4.bidimap.UnmodifiableBidiMap;
 import org.apache.commons.collections4.collection.CompositeCollection;
+import org.apache.commons.collections4.comparators.FixedOrderComparator;
 import org.apache.commons.collections4.keyvalue.AbstractMapEntry;
+import org.apache.commons.collections4.properties.OrderedProperties;
 import org.apache.commons.imaging.Imaging;
 import org.apache.commons.imaging.common.itu_t4.T4AndT6Compression;
 import org.apache.commons.imaging.formats.bmp.BmpImageParser;
@@ -1818,6 +1820,24 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    @Test
+    public void testOrderedProperties() throws Exception {
+        String internalClassName = OrderedProperties.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testFixedOrderComparator() throws Exception {
+        String internalClassName = FixedOrderComparator.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
     @Test
     public void testStringBuxxxer() throws Exception {
         class StringBuxxxer {

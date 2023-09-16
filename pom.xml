@@ -143,9 +143,9 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-collections4</artifactId>
-      <version>4.4</version>
+      <groupId>com.github.nbauma109</groupId>
+      <artifactId>commons-collections</artifactId>
+      <version>4.5-RC4</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -351,6 +351,53 @@
       <artifactId>org.eclipse.jdt.core</artifactId>
       <version>${org.eclipse.jdt.version}</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jdt</groupId>
+      <artifactId>org.eclipse.jdt.core.manipulation</artifactId>
+      <version>1.18.0</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.equinox.registry</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.core.commands</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.jdt</groupId>
+          <artifactId>org.eclipse.jdt.debug</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.core.filesystem</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.equinox.app</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.core.expressions</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.core.variables</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.debug.core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.platform</groupId>
+          <artifactId>org.eclipse.core.filebuffers</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.jdt</groupId>
+          <artifactId>org.eclipse.jdt.launching</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>jd</groupId>

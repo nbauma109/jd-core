@@ -13,9 +13,12 @@ import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
+import org.jd.core.v1.util.RemoveUnnecessaryCastsCore;
+import org.jd.core.v1.util.StringConstants;
 import org.junit.Test;
 
 import java.io.InputStream;
+import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
 
@@ -25,10 +28,13 @@ public class JavaAnonymousClassTest extends AbstractJdTest {
     @Test
     public void testJdk150AnonymousClass() throws Exception {
         String internalClassName = "org/jd/core/test/AnonymousClass";
-        try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.5.0.zip")) {
+        String zipFilePath = "/zip/data-java-jdk-1.5.0.zip";
+        try (InputStream is = getClass().getResourceAsStream(zipFilePath)) {
             Loader loader = new ZipLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
+            URI uri = getClass().getResource(zipFilePath).toURI();
+            source = RemoveUnnecessaryCastsCore.process(source, internalClassName + StringConstants.CLASS_FILE_SUFFIX, uri);
 
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make(":  21 */", "Object object = new Object()")));
@@ -67,10 +73,13 @@ public class JavaAnonymousClassTest extends AbstractJdTest {
     @Test
     public void testJdk170AnonymousClass() throws Exception {
         String internalClassName = "org/jd/core/test/AnonymousClass";
-        try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
+        String zipFilePath = "/zip/data-java-jdk-1.7.0.zip";
+        try (InputStream is = getClass().getResourceAsStream(zipFilePath)) {
             Loader loader = new ZipLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
+            URI uri = getClass().getResource(zipFilePath).toURI();
+            source = RemoveUnnecessaryCastsCore.process(source, internalClassName + StringConstants.CLASS_FILE_SUFFIX, uri);
 
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make(":  21 */", "Object obj = new Object()")));

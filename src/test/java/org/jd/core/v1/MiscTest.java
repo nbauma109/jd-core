@@ -1724,11 +1724,15 @@ public class MiscTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         
         // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make(":  5 */", "public static final Long LONG_INT_MAX_VALUE = Long.valueOf(Integer.MAX_VALUE);")));
-        assertTrue(source.matches(PatternMaker.make(":  6 */", "public static final Long LONG_INT_MIN_VALUE = Long.valueOf(Integer.MIN_VALUE);")));
-        assertTrue(source.matches(PatternMaker.make(":  9 */", "return (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE);")));
-        assertTrue(source.matches(PatternMaker.make(": 13 */", "return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE);")));
-        assertTrue(source.matches(PatternMaker.make(": 17 */", "return (f >= Integer.MIN_VALUE && f <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  5 */", "static final Long LONG_INT_MAX_VALUE = Long.valueOf(Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  6 */", "static final Long LONG_INT_MIN_VALUE = Long.valueOf(Integer.MIN_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  7 */", "static final Double DOUBLE_FLOAT_MIN_VALUE = Double.valueOf(Float.MIN_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  8 */", "static final Double DOUBLE_FLOAT_MAX_VALUE = Double.valueOf(Float.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  9 */", "static final Float FLOAT_MIN_VALUE = Float.MIN_VALUE;")));
+        assertTrue(source.matches(PatternMaker.make(": 10 */", "static final Double DOUBLE_MIN_VALUE = Double.MIN_VALUE;")));
+        assertTrue(source.matches(PatternMaker.make(": 13 */", "return (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(": 17 */", "return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(": 21 */", "return (f >= Integer.MIN_VALUE && f <= Integer.MAX_VALUE);")));
         
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

@@ -1132,7 +1132,11 @@ public class ByteCodeParser {
             case CONSTANT_Double:
                 double d = ((ConstantDouble)constant).getBytes();
 
-                if (Double.compare(d, Integer.MIN_VALUE) == 0) {
+                if (Double.compare(d, Float.MIN_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_FLOAT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_FLOAT), StringConstants.JAVA_LANG_FLOAT, StringConstants.MIN_VALUE, "F"));
+                } else if (Double.compare(d, Float.MAX_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_FLOAT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_FLOAT), StringConstants.JAVA_LANG_FLOAT, StringConstants.MAX_VALUE, "F"));
+                } else if (Double.compare(d, Integer.MIN_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MIN_VALUE, "I"));
                 } else if (Double.compare(d, Integer.MAX_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MAX_VALUE, "I"));

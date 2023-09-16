@@ -690,6 +690,14 @@ public class Frame {
                     }
                 }
             });
+
+            if (createDeclaration[0] && parent.parent != null && parent.parent.statements != null && parent.parent.statements.getFirst() instanceof LocalVariableDeclarationStatement lvds) {
+                for (LocalVariableDeclarator localVariableDeclarator : lvds.getLocalVariableDeclarators()) {
+                    if (localVariableDeclarator instanceof ClassFileLocalVariableDeclarator cflvd && cflvd.getLocalVariable().getName().equals(localVariable.getOldName())) {
+                        createDeclaration[0] = false;
+                    }
+                }
+            }
         }
         
         if (createDeclaration[0]) {

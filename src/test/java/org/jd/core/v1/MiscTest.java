@@ -16,8 +16,8 @@ import org.apache.commons.collections4.FluentIterable;
 import org.apache.commons.collections4.Predicate;
 import org.apache.commons.collections4.Transformer;
 import org.apache.commons.collections4.bidimap.UnmodifiableBidiMap;
-import org.apache.commons.imaging.ImageReadException;
 import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.common.itu_t4.T4AndT6Compression;
 import org.apache.commons.imaging.formats.bmp.BmpImageParser;
 import org.apache.commons.imaging.formats.jpeg.decoder.JpegDecoder;
 import org.apache.commons.imaging.formats.jpeg.segments.DhtSegment;
@@ -83,7 +83,6 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 import com.squareup.javapoet.CodeBlock;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -397,29 +396,12 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
-    public void testT4Decompression() throws Exception {
-        class T4Decompression {
-            @SuppressWarnings("unused")
-            byte[] decompress(int width, int height, int runLength, ByteArrayOutputStream outputStream) throws ImageReadException, IOException {
-                int rowLength;
-                try {
-                    for (rowLength = 0; rowLength < width;) {
-                        rowLength += runLength;
-                    }
-                } catch (Exception huffmanException) {
-                    throw new ImageReadException("Decompression error", huffmanException);
-                }
-
-                if (rowLength == width) {
-                    outputStream.flush();
-                } else if (rowLength > width) {
-                    throw new ImageReadException("Unrecoverable row length error");
-                }
-                return outputStream.toByteArray();
-            }
-        }
-        String internalClassName = T4Decompression.class.getName().replace('.', '/');
+    public void testT4AndT6Compression() throws Exception {
+        String internalClassName = T4AndT6Compression.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make(": 446 */", "for (rowLength = 0; rowLength < width; ) {")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

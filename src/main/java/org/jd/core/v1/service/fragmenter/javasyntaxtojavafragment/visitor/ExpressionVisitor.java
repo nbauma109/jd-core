@@ -198,6 +198,13 @@ public class ExpressionVisitor extends TypeVisitor {
             BaseType type = expression.getType();
 
             type.accept(this);
+
+            BaseType intersectType = expression.getIntersectType();
+            if (intersectType != null) {
+                tokens.add(TextToken.SPACE_AND_SPACE);
+                intersectType.accept(this);
+            }
+
             tokens.add(TextToken.RIGHTROUNDBRACKET);
         }
 

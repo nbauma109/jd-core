@@ -25,6 +25,7 @@ import org.apache.commons.imaging.formats.tiff.write.TiffImageWriterBase;
 import org.apache.commons.imaging.internal.Util;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.io.function.IOBaseStream;
 import org.apache.commons.io.function.IOBinaryOperator;
 import org.apache.commons.lang3.ClassUtils;
@@ -1693,4 +1694,15 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    @Test
+    public void testRegexFileFilter() throws Exception {
+        String internalClassName = RegexFileFilter.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("(Function<Path, String> & Serializable)")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
 }

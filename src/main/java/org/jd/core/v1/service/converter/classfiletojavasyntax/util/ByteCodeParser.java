@@ -880,8 +880,12 @@ public class ByteCodeParser {
                     expression1 = stack.peek();
                     if (!type1.isObjectType() || !expression1.getType().isObjectType() || !typeMaker.isRawTypeAssignable((ObjectType) type1, (ObjectType) expression1.getType())) {
                         if (expression1.isCastExpression()) {
-                            // Skip double cast
-                            ((CastExpression) expression1).setType(type1);
+                            if (expression1.getExpression() instanceof LambdaIdentifiersExpression && "java/io/Serializable".equals(expression1.getType().getInternalName())) {
+                                ((CastExpression) expression1).setIntersectType(type1);
+                            } else {
+                                // Skip double cast
+                                ((CastExpression) expression1).setType(type1);
+                            }
                         } else {
                             boolean castNeeded = true;
                             if (expression1.getType().isGenericType()) {

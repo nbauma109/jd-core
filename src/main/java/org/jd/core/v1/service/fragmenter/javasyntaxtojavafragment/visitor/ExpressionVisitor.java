@@ -120,6 +120,7 @@ public class ExpressionVisitor extends TypeVisitor {
     protected int parameterTypeCount;
     protected Set<String> currentMethodParamNames = new HashSet<>();
     protected String currentTypeName;
+    protected String currentMethodName;
     private final HexaExpressionVisitor hexaExpressionVisitor = new HexaExpressionVisitor();
     private final int majorVersion;
 
@@ -163,8 +164,19 @@ public class ExpressionVisitor extends TypeVisitor {
             tokens.add(TextToken.SPACE);
             tokens.add(newTextToken(expression.getOperator()));
             tokens.add(TextToken.SPACE);
-            visit(expression, expression.getRightExpression());
+            visit(expression, expression.getRightExpression(), isParenthesisNeeded(expression));
         }
+    }
+
+    private static boolean isParenthesisNeeded(BinaryOperatorExpression parent) {
+        if (!(parent.getRightExpression() instanceof BinaryOperatorExpression rightChild)) {
+            return false;
+        }
+        return switch (parent.getOperator()) {
+            case "-" -> rightChild.getPriority() == parent.getPriority();
+            case "/", "%" -> true;
+            default -> false;
+        };
     }
 
     @Override
@@ -502,7 +514,7 @@ public class ExpressionVisitor extends TypeVisitor {
             boolean ivmf = inVarArgMethod;
             boolean ivpf = inVarArgParam;
             inExpressionFlag = false;
-            inVarArgMethod = expression.isVarArgs();
+            inVarArgMethod = expression.isVarArgs() && !expression.getName().equals(currentMethodName);
             if (expression instanceof ClassFileMethodInvocationExpression) {
                 ClassFileMethodInvocationExpression mie = (ClassFileMethodInvocationExpression) expression;
                 parameterTypeCount = mie.getParameterTypes() == null ? 0 : mie.getParameterTypes().size();
@@ -806,18 +818,23 @@ public class ExpressionVisitor extends TypeVisitor {
     }
 
     protected void storeContext() {
-        contextStack.add(new Context(currentType, currentTypeName, currentMethodParamNames));
+        contextStack.add(new Context(currentType, currentTypeName, currentMethodName, currentMethodParamNames));
     }
 
     protected void restoreContext() {
         Context currentContext = contextStack.removeLast();
         currentType = currentContext.currentType;
         currentTypeName = currentContext.currentTypeName;
+        currentMethodName = currentContext.currentMethodName;
         currentMethodParamNames = currentContext.currentMethodParamNames;
     }
 
     protected void visit(Expression parent, Expression child) {
-        if (parent.getPriority() < child.getPriority() || parent.getPriority() == 14 && child.getPriority() == 13) {
+        visit(parent, child, false);
+    }
+
+    protected void visit(Expression parent, Expression child, boolean alwaysUseParenthesis) {
+        if (parent.getPriority() < child.getPriority() || parent.getPriority() == 14 && child.getPriority() == 13 || alwaysUseParenthesis) {
             tokens.add(TextToken.LEFTROUNDBRACKET);
             child.accept(this);
             tokens.add(TextToken.RIGHTROUNDBRACKET);
@@ -839,11 +856,13 @@ public class ExpressionVisitor extends TypeVisitor {
     protected static class Context {
         private final ObjectType currentType;
         private final String currentTypeName;
+        private final String currentMethodName;
         private final Set<String> currentMethodParamNames;
 
-        public Context(ObjectType currentType, String currentTypeName, Set<String> currentMethodParamNames) {
+        public Context(ObjectType currentType, String currentTypeName, String currentMethodName, Set<String> currentMethodParamNames) {
             this.currentType = currentType;
             this.currentTypeName = currentTypeName;
+            this.currentMethodName = currentMethodName;
             this.currentMethodParamNames = new HashSet<>(currentMethodParamNames);
         }
     }

@@ -218,7 +218,7 @@ public abstract class ControlFlowGraphReducer {
             }
 
             if (branch.matchType(GROUP_END)) {
-                if (nextNext.getFromOffset() < maxOffset && nextNext.getPredecessors().size() == 1) {
+                if (nextNext.getFromOffset() < maxOffset && nextNext.getPredecessors().size() == 1 && branch != LOOP_END) {
                     createIf(basicBlock, next, nextNext, branch);
                 } else {
                     createIfElse(TYPE_IF_ELSE, basicBlock, next, nextLast, branch, branch, nextNext);

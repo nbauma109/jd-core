@@ -276,6 +276,9 @@ public class MiscTest extends AbstractJdTest {
         String internalClassName = DaitchMokotoffSoundex.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make(": 514 */", "for (String nextReplacement : replacements) {")));
+
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
@@ -1713,6 +1716,18 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make(": 156 */", "  bitInputStreamCount++;")));
         assertTrue(source.matches(PatternMaker.make(": 157 */", "  if (bitInputStreamCount < bitInputStreams.length)")));
         assertTrue(source.matches(PatternMaker.make(": 158 */", "    bitInputStream = bitInputStreams[bitInputStreamCount];")));
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testCommandLine() throws Exception {
+        String internalClassName = CommandLine.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("for (int start = line.first(), end = line.next(); end != -1; start = end, end = line.next()) {")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

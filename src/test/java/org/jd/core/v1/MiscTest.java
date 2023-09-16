@@ -67,6 +67,7 @@ import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.ClassFilePrinter;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
+import org.jd.core.v1.stub.NumericConstants;
 import org.jsoup.nodes.Attribute;
 import org.jsoup.nodes.Element;
 import org.junit.Test;
@@ -1713,6 +1714,20 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make(": 157 */", "  if (bitInputStreamCount < bitInputStreams.length)")));
         assertTrue(source.matches(PatternMaker.make(": 158 */", "    bitInputStream = bitInputStreams[bitInputStreamCount];")));
 
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testNumericConstants() throws Exception {
+        String internalClassName = NumericConstants.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make(":  6 */", "return (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(": 10 */", "return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(": 14 */", "return (f >= Integer.MIN_VALUE && f <= Integer.MAX_VALUE);")));
+        
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }

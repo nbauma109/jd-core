@@ -1087,7 +1087,11 @@ public class ByteCodeParser {
             case CONSTANT_Float:
                 float f = ((ConstantFloat)constant).getBytes();
 
-                if (Float.compare(f, Float.MIN_VALUE) == 0) {
+                if (Float.compare(f, Integer.MIN_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MIN_VALUE, "I"));
+                } else if (Float.compare(f, Integer.MAX_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MAX_VALUE, "I"));
+                } else if (Float.compare(f, Float.MIN_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_FLOAT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_FLOAT), StringConstants.JAVA_LANG_FLOAT, StringConstants.MIN_VALUE, "F"));
                 } else if (Float.compare(f, Float.MAX_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_FLOAT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_FLOAT), StringConstants.JAVA_LANG_FLOAT, StringConstants.MAX_VALUE, "F"));
@@ -1113,7 +1117,11 @@ public class ByteCodeParser {
             case CONSTANT_Long:
                 long l = ((ConstantLong)constant).getBytes();
 
-                if (l == Long.MIN_VALUE) {
+                if (Long.compare(l, Integer.MIN_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MIN_VALUE, "I"));
+                } else if (Long.compare(l, Integer.MAX_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MAX_VALUE, "I"));
+                } else if (l == Long.MIN_VALUE) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_LONG, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_LONG), StringConstants.JAVA_LANG_LONG, StringConstants.MIN_VALUE, "J"));
                 } else if (l == Long.MAX_VALUE) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_LONG, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_LONG), StringConstants.JAVA_LANG_LONG, StringConstants.MAX_VALUE, "J"));
@@ -1124,7 +1132,11 @@ public class ByteCodeParser {
             case CONSTANT_Double:
                 double d = ((ConstantDouble)constant).getBytes();
 
-                if (Double.compare(d, Double.MIN_VALUE) == 0) {
+                if (Double.compare(d, Integer.MIN_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MIN_VALUE, "I"));
+                } else if (Double.compare(d, Integer.MAX_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MAX_VALUE, "I"));
+                } else if (Double.compare(d, Double.MIN_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_DOUBLE), StringConstants.JAVA_LANG_DOUBLE, StringConstants.MIN_VALUE, "D"));
                 } else if (Double.compare(d, Double.MAX_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_DOUBLE), StringConstants.JAVA_LANG_DOUBLE, StringConstants.MAX_VALUE, "D"));

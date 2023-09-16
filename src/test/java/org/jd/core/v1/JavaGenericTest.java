@@ -53,9 +53,12 @@ public class JavaGenericTest extends AbstractJdTest {
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile(
                     "1.7",
-                    new InMemoryJavaSourceFileObject(internalClassName, source),
-                    new InMemoryJavaSourceFileObject("org/jd/core/test/AnnotatedClass", "package org.jd.core.test; public class AnnotatedClass {}")
+                    new InMemoryJavaSourceFileObject(internalClassName, source)
                 ));
+            assertTrue(CompilerUtil.compile(
+                    "1.7",
+                    new InMemoryJavaSourceFileObject("org/jd/core/test/AnnotatedClass", "package org.jd.core.test; public class AnnotatedClass {}")
+                    ));
         }
     }
 }

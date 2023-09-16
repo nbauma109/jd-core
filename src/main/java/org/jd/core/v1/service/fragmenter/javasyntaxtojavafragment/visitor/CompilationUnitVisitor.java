@@ -1146,6 +1146,7 @@ public class CompilationUnitVisitor extends StatementVisitor {
             tokens.add(new DeclarationToken(Printer.METHOD, getCurrentTypeInternalName(), declaration.getName(), declaration.getDescriptor()));
 
             storeContext();
+            currentMethodName = declaration.getName();
             currentMethodParamNames.clear();
 
             BaseFormalParameter formalParameters = declaration.getFormalParameters();

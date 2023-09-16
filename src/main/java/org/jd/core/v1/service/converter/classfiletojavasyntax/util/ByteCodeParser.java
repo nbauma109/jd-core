@@ -634,23 +634,23 @@ public class ByteCodeParser {
                     parseIINC(statements, stack, lineNumber, offset, localVariable, (byte)(code[++offset] & 255));
                     break;
                 case I2L:
-                    stack.push(new CastExpression(lineNumber, TYPE_LONG, stack.pop(), false));
+                    stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
                     break;
                 case I2F:
-                    stack.push(new CastExpression(lineNumber, TYPE_FLOAT, stack.pop(), false));
+                    stack.push(new CastExpression(lineNumber, TYPE_FLOAT, forceExplicitCastExpression(stack.pop())));
                     break;
                 case I2D, L2D, F2D:
-                    stack.push(new CastExpression(lineNumber, TYPE_DOUBLE, stack.pop(), false));
-                        break;
+                    stack.push(new CastExpression(lineNumber, TYPE_DOUBLE, forceExplicitCastExpression(stack.pop())));
+                    break;
                 case L2I, F2I, D2I:
                     stack.push(new CastExpression(lineNumber, TYPE_INT, forceExplicitCastExpression(stack.pop())));
-                        break;
+                    break;
                 case L2F, D2F:
                     stack.push(new CastExpression(lineNumber, TYPE_FLOAT, forceExplicitCastExpression(stack.pop())));
-                        break;
+                    break;
                 case F2L, D2L:
                     stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
-                        break;
+                    break;
                 case I2B:
                     stack.push(new CastExpression(lineNumber, TYPE_BYTE, forceExplicitCastExpression(stack.pop())));
                     break;
@@ -880,8 +880,12 @@ public class ByteCodeParser {
                     expression1 = stack.peek();
                     if (!type1.isObjectType() || !expression1.getType().isObjectType() || !typeMaker.isRawTypeAssignable((ObjectType) type1, (ObjectType) expression1.getType())) {
                         if (expression1.isCastExpression()) {
-                            // Skip double cast
-                            ((CastExpression) expression1).setType(type1);
+                            if (expression1.getExpression() instanceof LambdaIdentifiersExpression && "java/io/Serializable".equals(expression1.getType().getInternalName())) {
+                                ((CastExpression) expression1).setIntersectType(type1);
+                            } else {
+                                // Skip double cast
+                                ((CastExpression) expression1).setType(type1);
+                            }
                         } else {
                             boolean castNeeded = true;
                             if (expression1.getType().isGenericType()) {
@@ -1120,7 +1124,11 @@ public class ByteCodeParser {
             case CONSTANT_Double:
                 double d = ((ConstantDouble)constant).getBytes();
 
-                if (Double.compare(d, Double.MIN_VALUE) == 0) {
+                if (Double.compare(d, Integer.MIN_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MIN_VALUE, "I"));
+                } else if (Double.compare(d, Integer.MAX_VALUE) == 0) {
+                    stack.push(new FieldReferenceExpression(lineNumber, TYPE_INT, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_INTEGER), StringConstants.JAVA_LANG_INTEGER, StringConstants.MAX_VALUE, "I"));
+                } else if (Double.compare(d, Double.MIN_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_DOUBLE), StringConstants.JAVA_LANG_DOUBLE, StringConstants.MIN_VALUE, "D"));
                 } else if (Double.compare(d, Double.MAX_VALUE) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_DOUBLE), StringConstants.JAVA_LANG_DOUBLE, StringConstants.MAX_VALUE, "D"));

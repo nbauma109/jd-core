@@ -44,6 +44,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RemoveLast
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFirstLineNumberVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFromOffsetVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchLocalVariableReferenceVisitor;
+import org.jd.core.v1.util.StringConstants;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -509,7 +510,10 @@ public final class LoopStatementMaker {
             CastExpression castExpression = (CastExpression) array;
             Type leftArrayType = item.getType().createType(item.getType().getDimension() + 1);
             Type rightArrayType = castExpression.getExpression().getType();
-            if (leftArrayType.equals(rightArrayType)) {
+            if (leftArrayType.equals(rightArrayType)
+            || (leftArrayType.getDimension() == rightArrayType.getDimension()
+             && leftArrayType.isGenericType()
+             && StringConstants.JAVA_LANG_OBJECT.equals(rightArrayType.getInternalName()))) {
                 return new ClassFileForEachStatement(item, castExpression.getExpression(), subStatements);
             }
         }

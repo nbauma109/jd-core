@@ -6,7 +6,9 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
 import org.apache.bcel.classfile.Method;
+import org.apache.commons.lang3.Validate;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.ExceptionHandler;
@@ -217,7 +219,7 @@ public abstract class ControlFlowGraphReducer {
             }
 
             if (branch.matchType(GROUP_END)) {
-                if (nextNext.getFromOffset() < maxOffset && nextNext.getPredecessors().size() == 1) {
+                if (nextNext.getFromOffset() < maxOffset && nextNext.getPredecessors().size() == 1 && branch != LOOP_END) {
                     createIf(basicBlock, next, nextNext, branch);
                 } else {
                     createIfElse(TYPE_IF_ELSE, basicBlock, next, nextLast, branch, branch, nextNext);
@@ -323,7 +325,9 @@ public abstract class ControlFlowGraphReducer {
         }
 
         // Split sequence
-        last.setNext(END);
+        if (last.getNext() != LOOP_END && last.getNext() != SWITCH_BREAK) {
+            last.setNext(END);
+        }
         next.getPredecessors().remove(last);
         // Create 'if'
         basicBlock.setType(TYPE_IF);
@@ -352,9 +356,13 @@ public abstract class ControlFlowGraphReducer {
         Loop loop = basicBlock.getEnclosingLoop();
         if (!basicBlock.isLoopExitCondition(loop)) {
             // Split sequences
-            last1.setNext(END);
+            if (last1.getNext() != SWITCH_BREAK || next == SWITCH_BREAK) {
+                last1.setNext(END);
+            }
             next.getPredecessors().remove(last1);
-            last2.setNext(END);
+            if (last2.getNext() != SWITCH_BREAK || next == SWITCH_BREAK) {
+                last2.setNext(END);
+            }
             next.getPredecessors().remove(last2);
         }
         // Create 'if-else'
@@ -367,7 +375,7 @@ public abstract class ControlFlowGraphReducer {
         if (tryBlock != null) {
             tryBlock.getPredecessors().add(basicBlock);
             basicBlock.setNext(tryBlock);
-        } else if (next.isOutsideLoop(loop) || basicBlock.isLoopExitCondition(loop)) {
+        } else if (next != SWITCH_BREAK && (next.isOutsideLoop(loop) || basicBlock.isLoopExitCondition(loop))) {
             basicBlock.setNext(END);
         } else {
             next.getPredecessors().add(basicBlock);
@@ -428,7 +436,7 @@ public abstract class ControlFlowGraphReducer {
                         updateConditionalBranches(basicBlock, createLeftCondition(basicBlock), TYPE_CONDITION_OR, next);
                         return true;
                     }
-                    if (next.getBranch() == branch) {
+                    if (next.getBranch() == branch && checkNoIINC(basicBlock, next)) {
                         updateConditionalBranches(basicBlock, createLeftInverseCondition(basicBlock), TYPE_CONDITION_AND, next);
                         return true;
                     }
@@ -479,6 +487,14 @@ public abstract class ControlFlowGraphReducer {
         }
 
         return change;
+    }
+
+
+    private boolean checkNoIINC(BasicBlock basicBlock, BasicBlock next) {
+        if (doPreReduce()) {
+            return true;
+        }
+        return basicBlock.getToOpcode() != Const.IINC || next.getFromOpcode() != Const.IINC;
     }
 
     private static BasicBlock createLeftCondition(BasicBlock basicBlock) {
@@ -669,7 +685,6 @@ public abstract class ControlFlowGraphReducer {
 
     private boolean reduceSwitchDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
         SwitchCase defaultSC = null;
-        SwitchCase lastSC = null;
         int maxOffset = -1;
 
         for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
@@ -679,13 +694,7 @@ public abstract class ControlFlowGraphReducer {
 
             if (switchCase.isDefaultCase()) {
                 defaultSC = switchCase;
-            } else {
-                lastSC = switchCase;
             }
-        }
-
-        if (lastSC == null) {
-            lastSC = defaultSC;
         }
 
         BasicBlock lastSwitchCaseBasicBlock = null;
@@ -754,9 +763,7 @@ public abstract class ControlFlowGraphReducer {
         for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
             BasicBlock bb = switchCase.getBasicBlock();
 
-            if (bb == end) {
-                throw new IllegalStateException("bb == end");
-            }
+            Validate.isTrue(bb != end, "bb == end");
 
             predecessors = bb.getPredecessors();
 

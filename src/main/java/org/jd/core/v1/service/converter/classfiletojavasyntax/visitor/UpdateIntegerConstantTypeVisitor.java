@@ -304,8 +304,8 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
 
         if (trueType.isPrimitiveType()) {
             if (falseType.isPrimitiveType()) {
-                expression.setTrueExpression(updateExpression(TYPE_INT, expression.getTrueExpression()));
-                expression.setFalseExpression(updateExpression(TYPE_INT, expression.getFalseExpression()));
+                expression.setTrueExpression(updateExpression(trueType, expression.getTrueExpression()));
+                expression.setFalseExpression(updateExpression(falseType, expression.getFalseExpression()));
             } else {
                 expression.getTrueExpression().accept(this);
                 expression.setTrueExpression(updateExpression(falseType, expression.getTrueExpression()));

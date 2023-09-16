@@ -8,30 +8,40 @@
 package org.jd.core.v1;
 
 import org.apache.bcel.classfile.JavaClass;
+import org.apache.bcel.classfile.Utility;
+import org.apache.bcel.generic.FieldGen;
 import org.apache.bcel.generic.PUSH;
 import org.apache.commons.codec.language.DaitchMokotoffSoundex;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.Factory;
 import org.apache.commons.collections4.FluentIterable;
-import org.apache.commons.collections4.Predicate;
+import org.apache.commons.collections4.IterableUtils;
 import org.apache.commons.collections4.Transformer;
 import org.apache.commons.collections4.bidimap.UnmodifiableBidiMap;
-import org.apache.commons.imaging.ImageReadException;
+import org.apache.commons.collections4.collection.CompositeCollection;
+import org.apache.commons.collections4.comparators.FixedOrderComparator;
+import org.apache.commons.collections4.keyvalue.AbstractMapEntry;
+import org.apache.commons.collections4.properties.OrderedProperties;
 import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.common.itu_t4.T4AndT6Compression;
 import org.apache.commons.imaging.formats.bmp.BmpImageParser;
+import org.apache.commons.imaging.formats.jpeg.decoder.JpegDecoder;
 import org.apache.commons.imaging.formats.jpeg.segments.DhtSegment;
 import org.apache.commons.imaging.formats.pnm.PnmImageParser;
 import org.apache.commons.imaging.formats.tiff.write.TiffImageWriterBase;
 import org.apache.commons.imaging.internal.Util;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.io.function.IOBaseStream;
 import org.apache.commons.io.function.IOBinaryOperator;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.apache.commons.lang3.EnumUtils;
+import org.apache.commons.lang3.compare.ComparableUtils;
 import org.apache.commons.lang3.function.FailableFunction;
 import org.apache.commons.lang3.function.TriFunction;
 import org.apache.commons.lang3.stream.Streams;
+import org.apache.commons.lang3.time.FastDatePrinter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractManager;
@@ -43,6 +53,7 @@ import org.apache.logging.log4j.core.appender.nosql.NoSqlDatabaseManager;
 import org.apache.logging.log4j.core.config.plugins.convert.TypeConverter;
 import org.apache.logging.log4j.core.config.plugins.processor.PluginCache;
 import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
+import org.apache.logging.log4j.core.filter.BurstFilter;
 import org.apache.logging.log4j.core.net.MailManager.FactoryData;
 import org.apache.logging.log4j.core.net.SmtpManager;
 import org.apache.logging.log4j.core.net.SmtpManager.SMTPManagerFactory;
@@ -81,7 +92,6 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 import com.squareup.javapoet.CodeBlock;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -395,29 +405,12 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
-    public void testT4Decompression() throws Exception {
-        class T4Decompression {
-            @SuppressWarnings("unused")
-            byte[] decompress(int width, int height, int runLength, ByteArrayOutputStream outputStream) throws ImageReadException, IOException {
-                int rowLength;
-                try {
-                    for (rowLength = 0; rowLength < width;) {
-                        rowLength += runLength;
-                    }
-                } catch (Exception huffmanException) {
-                    throw new ImageReadException("Decompression error", huffmanException);
-                }
-
-                if (rowLength == width) {
-                    outputStream.flush();
-                } else if (rowLength > width) {
-                    throw new ImageReadException("Unrecoverable row length error");
-                }
-                return outputStream.toByteArray();
-            }
-        }
-        String internalClassName = T4Decompression.class.getName().replace('.', '/');
+    public void testT4AndT6Compression() throws Exception {
+        String internalClassName = T4AndT6Compression.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make(": 446 */", "for (rowLength = 0; rowLength < width; ) {")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -1302,7 +1295,7 @@ public class MiscTest extends AbstractJdTest {
     public void testVarArg1() throws Exception {
         abstract class VarArgTest1 implements IDefault {
             @SuppressWarnings("unused")
-            void test() {
+            void test1() {
                 test(new Object[0], new Object[0]);
             }
         }
@@ -1320,7 +1313,7 @@ public class MiscTest extends AbstractJdTest {
     public void testVarArg2() throws Exception {
         abstract class VarArgTest2 implements IDefault {
             @SuppressWarnings("unused")
-            void test() {
+            void test2() {
                 test(new Object[] { 0, 1 }, new Object[] { 0, 1 });
             }
         }
@@ -1483,8 +1476,11 @@ public class MiscTest extends AbstractJdTest {
 
     @Test
     public void testMapUtils() throws Exception {
-        String internalClassName = MapUtils.class.getName().replace('.', '/');
+        String internalClassName = org.apache.commons.collections4.MapUtils.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("PredicateUtils.equalPredicate(childValue));")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -1492,14 +1488,6 @@ public class MiscTest extends AbstractJdTest {
 
     @Test
     public void testIterableUtils() throws Exception {
-        abstract class IterableUtils {
-            @SuppressWarnings({ "unused", "unchecked" })
-            <O, R extends Collection<O>> List<R> partition(Iterable<? extends O> iterable, Factory<R> partitionFactory, Predicate<? super O>... predicates) {
-                R singlePartition = partitionFactory.create();
-                CollectionUtils.addAll(singlePartition, iterable);
-                return Collections.singletonList(singlePartition);
-            }
-        }
         String internalClassName = IterableUtils.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
@@ -1507,6 +1495,7 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make("R singlePartition = partitionFactory.create();")));
         assertTrue(source.matches(PatternMaker.make("CollectionUtils.addAll(singlePartition, iterable);")));
         assertTrue(source.matches(PatternMaker.make("return Collections.singletonList(singlePartition);")));
+        assertTrue(source.matches(PatternMaker.make("return chainedIterable(new Iterable[] {a, b});")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -1692,5 +1681,185 @@ public class MiscTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+    
+    @Test
+    public void testOverloadStackOverFlow() throws Exception {
+        String internalClassName = ArrayUtils.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return (T[])removeAll((Object)array, indices);")));
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testComparableUtils() throws Exception {
+        String internalClassName = ComparableUtils.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return new ComparableCheckBuilder<>(a);")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testFastDatePrinter() throws Exception {
+        String internalClassName = FastDatePrinter.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return (StringBuffer)applyRules(calendar, (Appendable)buf);")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testGmtTimeZone() throws Exception {
+        String internalClassName = "org.apache.commons.lang3.time.GmtTimeZone".replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("negate ? '-' : '+'")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testFieldGen() throws Exception {
+        String internalClassName = FieldGen.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("value = Integer.valueOf(c);")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testUtility() throws Exception {
+        String internalClassName = Utility.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("gos.close();")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testAbstractMapEntry() throws Exception {
+        String internalClassName = AbstractMapEntry.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testCompositeCollection() throws Exception {
+        String internalClassName = CompositeCollection.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("result = array;")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testRegexFileFilter() throws Exception {
+        String internalClassName = RegexFileFilter.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("(Function<Path, String> & Serializable)")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testJpegDecoder() throws Exception {
+        String internalClassName = JpegDecoder.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make(": 155 */", "if (!bitInputStream.hasNext()) {")));
+        assertTrue(source.matches(PatternMaker.make(": 156 */", "  bitInputStreamCount++;")));
+        assertTrue(source.matches(PatternMaker.make(": 157 */", "  if (bitInputStreamCount < bitInputStreams.length)")));
+        assertTrue(source.matches(PatternMaker.make(": 158 */", "    bitInputStream = bitInputStreams[bitInputStreamCount];")));
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testBurstFilter() throws Exception {
+        String internalClassName = BurstFilter.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testCommandLine() throws Exception {
+        String internalClassName = CommandLine.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testOrderedProperties() throws Exception {
+        String internalClassName = OrderedProperties.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testFixedOrderComparator() throws Exception {
+        String internalClassName = FixedOrderComparator.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testStringBuxxxer() throws Exception {
+        class StringBuxxxer {
+            @SuppressWarnings("unused")
+            StringBuilder createStringBuilder(boolean flag) {
+                return new StringBuilder().append('+').append(flag ? '+' : '-');
+            }
+
+            @SuppressWarnings("unused")
+            StringBuffer createStringBuffer(boolean flag) {
+                return new StringBuffer().append('+').append(flag ? '+' : '-');
+            }
+        }
+        String internalClassName = StringBuxxxer.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return new StringBuilder().append('+').append(flag ? '+' : '-');")));
+        assertTrue(source.matches(PatternMaker.make("return new StringBuffer().append('+').append(flag ? '+' : '-');")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        
+    }
 }

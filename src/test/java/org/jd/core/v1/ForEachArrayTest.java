@@ -7,8 +7,6 @@ import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.stub.ForEachArray;
 import org.junit.Test;
 
-import static org.junit.Assert.assertArrayEquals;
-
 public class ForEachArrayTest extends AbstractJdTest {
 
     @Test
@@ -47,7 +45,7 @@ public class ForEachArrayTest extends AbstractJdTest {
 /* 27:  0 */   }
 /* 28:  0 */ }
                 """;
-        assertArrayEquals(expected.split("\s*\r?\n"), source.split("\s*\r?\n"));
+        assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

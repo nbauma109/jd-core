@@ -10,11 +10,15 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.apache.bcel.Const.MAJOR_1_5;
 
@@ -89,9 +93,16 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
 
     public static boolean isBoxingMethod(Expression expression) {
         int parameterSize = expression.getParameters() == null ? 0 : expression.getParameters().size();
-        return parameterSize == 1 &&
+        String descriptor = VALUEOF_DESCRIPTOR_MAP.get(expression.getInternalTypeName());
+        if (parameterSize == 1 &&
                 "valueOf".equals(expression.getName()) &&
-                expression.getDescriptor().equals(VALUEOF_DESCRIPTOR_MAP.get(expression.getInternalTypeName()));
+                expression.getDescriptor().equals(descriptor) &&
+                expression instanceof ClassFileMethodInvocationExpression mie) {
+            Type expressionType = expression.getParameters().getFirst().getType();
+            BaseType parameterTypes = mie.getParameterTypes();
+            return Objects.equals(parameterTypes, expressionType);
+        }
+        return false;
     }
 
     public static boolean isUnboxingMethod(Expression expression) {

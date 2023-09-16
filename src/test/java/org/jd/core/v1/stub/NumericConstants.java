@@ -2,6 +2,9 @@ package org.jd.core.v1.stub;
 
 public class NumericConstants {
 
+    public static final Long LONG_INT_MAX_VALUE = Long.valueOf(Integer.MAX_VALUE);
+    public static final Long LONG_INT_MIN_VALUE = Long.valueOf(Integer.MIN_VALUE);
+
     boolean isInteger(double d) {
         return d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE;
     }

@@ -1724,9 +1724,11 @@ public class MiscTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         
         // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make(":  6 */", "return (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE);")));
-        assertTrue(source.matches(PatternMaker.make(": 10 */", "return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE);")));
-        assertTrue(source.matches(PatternMaker.make(": 14 */", "return (f >= Integer.MIN_VALUE && f <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  5 */", "public static final Long LONG_INT_MAX_VALUE = Long.valueOf(Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  6 */", "public static final Long LONG_INT_MIN_VALUE = Long.valueOf(Integer.MIN_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(":  9 */", "return (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(": 13 */", "return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE);")));
+        assertTrue(source.matches(PatternMaker.make(": 17 */", "return (f >= Integer.MIN_VALUE && f <= Integer.MAX_VALUE);")));
         
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

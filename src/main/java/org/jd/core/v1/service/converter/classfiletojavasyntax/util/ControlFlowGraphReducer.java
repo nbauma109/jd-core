@@ -6,6 +6,7 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
 import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock;
@@ -428,7 +429,7 @@ public abstract class ControlFlowGraphReducer {
                         updateConditionalBranches(basicBlock, createLeftCondition(basicBlock), TYPE_CONDITION_OR, next);
                         return true;
                     }
-                    if (next.getBranch() == branch) {
+                    if (next.getBranch() == branch && checkNoIINC(basicBlock, next)) {
                         updateConditionalBranches(basicBlock, createLeftInverseCondition(basicBlock), TYPE_CONDITION_AND, next);
                         return true;
                     }
@@ -479,6 +480,14 @@ public abstract class ControlFlowGraphReducer {
         }
 
         return change;
+    }
+
+
+    private boolean checkNoIINC(BasicBlock basicBlock, BasicBlock next) {
+        if (doPreReduce()) {
+            return true;
+        }
+        return basicBlock.getToOpcode() != Const.IINC || next.getFromOpcode() != Const.IINC;
     }
 
     private static BasicBlock createLeftCondition(BasicBlock basicBlock) {

@@ -19,6 +19,7 @@ import org.apache.commons.collections4.bidimap.UnmodifiableBidiMap;
 import org.apache.commons.imaging.ImageReadException;
 import org.apache.commons.imaging.Imaging;
 import org.apache.commons.imaging.formats.bmp.BmpImageParser;
+import org.apache.commons.imaging.formats.jpeg.decoder.JpegDecoder;
 import org.apache.commons.imaging.formats.jpeg.segments.DhtSegment;
 import org.apache.commons.imaging.formats.pnm.PnmImageParser;
 import org.apache.commons.imaging.formats.tiff.write.TiffImageWriterBase;
@@ -1702,6 +1703,21 @@ public class MiscTest extends AbstractJdTest {
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("(Function<Path, String> & Serializable)")));
         
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testJpegDecoder() throws Exception {
+        String internalClassName = JpegDecoder.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make(": 155 */", "if (!bitInputStream.hasNext()) {")));
+        assertTrue(source.matches(PatternMaker.make(": 156 */", "  bitInputStreamCount++;")));
+        assertTrue(source.matches(PatternMaker.make(": 157 */", "  if (bitInputStreamCount < bitInputStreams.length)")));
+        assertTrue(source.matches(PatternMaker.make(": 158 */", "    bitInputStream = bitInputStreams[bitInputStreamCount];")));
+
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }

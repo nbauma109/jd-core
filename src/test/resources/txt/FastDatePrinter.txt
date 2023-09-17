@@ -1,0 +1,1575 @@
+/*    1:    0 */ package org.apache.commons.lang3.time;
+/*    2:    0 */
+/*    3:    0 */ import java.io.IOException;
+/*    4:    0 */ import java.io.ObjectInputStream;
+/*    5:    0 */ import java.io.Serializable;
+/*    6:    0 */ import java.text.DateFormatSymbols;
+/*    7:    0 */ import java.text.FieldPosition;
+/*    8:    0 */ import java.util.ArrayList;
+/*    9:    0 */ import java.util.Calendar;
+/*   10:    0 */ import java.util.Date;
+/*   11:    0 */ import java.util.List;
+/*   12:    0 */ import java.util.Locale;
+/*   13:    0 */ import java.util.TimeZone;
+/*   14:    0 */ import java.util.concurrent.ConcurrentHashMap;
+/*   15:    0 */ import java.util.concurrent.ConcurrentMap;
+/*   16:    0 */ import org.apache.commons.lang3.LocaleUtils;
+/*   17:    0 */ import org.apache.commons.lang3.exception.ExceptionUtils;
+/*   18:    0 */
+/*   19:    0 */
+/*   20:    0 */
+/*   21:    0 */
+/*   22:    0 */
+/*   23:    0 */
+/*   24:    0 */
+/*   25:    0 */
+/*   26:    0 */
+/*   27:    0 */
+/*   28:    0 */
+/*   29:    0 */
+/*   30:    0 */
+/*   31:    0 */
+/*   32:    0 */
+/*   33:    0 */
+/*   34:    0 */
+/*   35:    0 */
+/*   36:    0 */
+/*   37:    0 */
+/*   38:    0 */
+/*   39:    0 */
+/*   40:    0 */
+/*   41:    0 */
+/*   42:    0 */
+/*   43:    0 */
+/*   44:    0 */
+/*   45:    0 */
+/*   46:    0 */
+/*   47:    0 */
+/*   48:    0 */
+/*   49:    0 */
+/*   50:    0 */
+/*   51:    0 */
+/*   52:    0 */
+/*   53:    0 */
+/*   54:    0 */
+/*   55:    0 */
+/*   56:    0 */
+/*   57:    0 */
+/*   58:    0 */
+/*   59:    0 */
+/*   60:    0 */
+/*   61:    0 */
+/*   62:    0 */
+/*   63:    0 */
+/*   64:    0 */
+/*   65:    0 */
+/*   66:    0 */
+/*   67:    0 */
+/*   68:    0 */
+/*   69:    0 */
+/*   70:    0 */
+/*   71:    0 */
+/*   72:    0 */
+/*   73:    0 */
+/*   74:    0 */
+/*   75:    0 */
+/*   76:    0 */
+/*   77:    0 */
+/*   78:    0 */
+/*   79:    0 */
+/*   80:    0 */
+/*   81:    0 */
+/*   82:    0 */
+/*   83:    0 */
+/*   84:    0 */
+/*   85:    0 */
+/*   86:    0 */
+/*   87:    0 */
+/*   88:    0 */
+/*   89:    0 */
+/*   90:    0 */
+/*   91:    0 */
+/*   92:    0 */ public class FastDatePrinter
+/*   93:    0 */   implements DatePrinter, Serializable
+/*   94:    0 */ {
+/*   95:   95 */   private static final Rule[] EMPTY_RULE_ARRAY = new Rule[0];
+/*   96:    0 */
+/*   97:    0 */
+/*   98:    0 */
+/*   99:    0 */
+/*  100:    0 */   private static final long serialVersionUID = 1L;
+/*  101:    0 */
+/*  102:    0 */
+/*  103:    0 */
+/*  104:    0 */
+/*  105:    0 */   public static final int FULL = 0;
+/*  106:    0 */
+/*  107:    0 */
+/*  108:    0 */
+/*  109:    0 */
+/*  110:    0 */   public static final int LONG = 1;
+/*  111:    0 */
+/*  112:    0 */
+/*  113:    0 */
+/*  114:    0 */
+/*  115:    0 */   public static final int MEDIUM = 2;
+/*  116:    0 */
+/*  117:    0 */
+/*  118:    0 */
+/*  119:    0 */
+/*  120:    0 */   public static final int SHORT = 3;
+/*  121:    0 */
+/*  122:    0 */
+/*  123:    0 */
+/*  124:    0 */
+/*  125:    0 */   private final String mPattern;
+/*  126:    0 */
+/*  127:    0 */
+/*  128:    0 */
+/*  129:    0 */
+/*  130:    0 */   private final TimeZone mTimeZone;
+/*  131:    0 */
+/*  132:    0 */
+/*  133:    0 */
+/*  134:    0 */
+/*  135:    0 */   private final Locale mLocale;
+/*  136:    0 */
+/*  137:    0 */
+/*  138:    0 */
+/*  139:    0 */
+/*  140:    0 */   private transient Rule[] mRules;
+/*  141:    0 */
+/*  142:    0 */
+/*  143:    0 */
+/*  144:    0 */
+/*  145:    0 */   private transient int mMaxLengthEstimate;
+/*  146:    0 */
+/*  147:    0 */
+/*  148:    0 */
+/*  149:    0 */   private static final int MAX_DIGITS = 10;
+/*  150:    0 */
+/*  151:    0 */
+/*  152:    0 */
+/*  153:    0 */
+/*  154:    0 */   protected FastDatePrinter(String pattern, TimeZone timeZone, Locale locale) {
+/*  155:  155 */     this.mPattern = pattern;
+/*  156:  156 */     this.mTimeZone = timeZone;
+/*  157:  157 */     this.mLocale = LocaleUtils.toLocale(locale);
+/*  158:    0 */
+/*  159:  159 */     init();
+/*  160:    0 */   }
+/*  161:    0 */
+/*  162:    0 */
+/*  163:    0 */
+/*  164:    0 */
+/*  165:    0 */   private void init() {
+/*  166:  166 */     List<Rule> rulesList = parsePattern();
+/*  167:  167 */     this.mRules = rulesList.<Rule>toArray(EMPTY_RULE_ARRAY);
+/*  168:    0 */
+/*  169:  169 */     int len = 0;
+/*  170:  170 */     for (int i = this.mRules.length; --i >= 0;) {
+/*  171:  171 */       len += this.mRules[i].estimateLength();
+/*  172:    0 */     }
+/*  173:    0 */
+/*  174:  174 */     this.mMaxLengthEstimate = len;
+/*  175:    0 */   }
+/*  176:    0 */
+/*  177:    0 */
+/*  178:    0 */
+/*  179:    0 */
+/*  180:    0 */
+/*  181:    0 */
+/*  182:    0 */
+/*  183:    0 */
+/*  184:    0 */
+/*  185:    0 */   protected List<Rule> parsePattern() {
+/*  186:  186 */     DateFormatSymbols symbols = new DateFormatSymbols(this.mLocale);
+/*  187:  187 */     List<Rule> rules = new ArrayList<>();
+/*  188:    0 */
+/*  189:  189 */     String[] ERAs = symbols.getEras();
+/*  190:  190 */     String[] months = symbols.getMonths();
+/*  191:  191 */     String[] shortMonths = symbols.getShortMonths();
+/*  192:  192 */     String[] weekdays = symbols.getWeekdays();
+/*  193:  193 */     String[] shortWeekdays = symbols.getShortWeekdays();
+/*  194:  194 */     String[] AmPmStrings = symbols.getAmPmStrings();
+/*  195:    0 */
+/*  196:  196 */     int length = this.mPattern.length();
+/*  197:  197 */     int[] indexRef = new int[1];
+/*  198:    0 */
+/*  199:  199 */     for (int i = 0; i < length; i++) {
+/*  200:  200 */       Rule rule; String sub; indexRef[0] = i;
+/*  201:  201 */       String token = parseToken(this.mPattern, indexRef);
+/*  202:  202 */       i = indexRef[0];
+/*  203:    0 */
+/*  204:  204 */       int tokenLen = token.length();
+/*  205:  205 */       if (tokenLen == 0) {
+/*  206:    0 */         break;
+/*  207:    0 */       }
+/*  208:    0 */
+/*  209:    0 */
+/*  210:  210 */       char c = token.charAt(0);
+/*  211:    0 */
+/*  212:  212 */       switch (c) {
+/*  213:    0 */         case 'G':
+/*  214:  214 */           rule = new TextField(0, ERAs);
+/*  215:    0 */           break;
+/*  216:    0 */         case 'Y':
+/*  217:    0 */         case 'y':
+/*  218:  218 */           if (tokenLen == 2) {
+/*  219:  219 */             rule = TwoDigitYearField.INSTANCE;
+/*  220:    0 */           } else {
+/*  221:  221 */             rule = selectNumberRule(1, Math.max(tokenLen, 4));
+/*  222:    0 */           }
+/*  223:  223 */           if (c == 'Y') {
+/*  224:  224 */             rule = new WeekYear((NumberRule)rule);
+/*  225:    0 */           }
+/*  226:    0 */           break;
+/*  227:    0 */         case 'M':
+/*  228:  228 */           if (tokenLen >= 4) {
+/*  229:  229 */             rule = new TextField(2, months);
+/*  230:  230 */           } else if (tokenLen == 3) {
+/*  231:  231 */             rule = new TextField(2, shortMonths);
+/*  232:  232 */           } else if (tokenLen == 2) {
+/*  233:  233 */             rule = TwoDigitMonthField.INSTANCE;
+/*  234:    0 */           } else {
+/*  235:  235 */             rule = UnpaddedMonthField.INSTANCE;
+/*  236:    0 */           }
+/*  237:    0 */           break;
+/*  238:    0 */         case 'd':
+/*  239:  239 */           rule = selectNumberRule(5, tokenLen);
+/*  240:    0 */           break;
+/*  241:    0 */         case 'h':
+/*  242:  242 */           rule = new TwelveHourField(selectNumberRule(10, tokenLen));
+/*  243:    0 */           break;
+/*  244:    0 */         case 'H':
+/*  245:  245 */           rule = selectNumberRule(11, tokenLen);
+/*  246:    0 */           break;
+/*  247:    0 */         case 'm':
+/*  248:  248 */           rule = selectNumberRule(12, tokenLen);
+/*  249:    0 */           break;
+/*  250:    0 */         case 's':
+/*  251:  251 */           rule = selectNumberRule(13, tokenLen);
+/*  252:    0 */           break;
+/*  253:    0 */         case 'S':
+/*  254:  254 */           rule = selectNumberRule(14, tokenLen);
+/*  255:    0 */           break;
+/*  256:    0 */         case 'E':
+/*  257:  257 */           rule = new TextField(7, (tokenLen < 4) ? shortWeekdays : weekdays);
+/*  258:    0 */           break;
+/*  259:    0 */         case 'u':
+/*  260:  260 */           rule = new DayInWeekField(selectNumberRule(7, tokenLen));
+/*  261:    0 */           break;
+/*  262:    0 */         case 'D':
+/*  263:  263 */           rule = selectNumberRule(6, tokenLen);
+/*  264:    0 */           break;
+/*  265:    0 */         case 'F':
+/*  266:  266 */           rule = selectNumberRule(8, tokenLen);
+/*  267:    0 */           break;
+/*  268:    0 */         case 'w':
+/*  269:  269 */           rule = selectNumberRule(3, tokenLen);
+/*  270:    0 */           break;
+/*  271:    0 */         case 'W':
+/*  272:  272 */           rule = selectNumberRule(4, tokenLen);
+/*  273:    0 */           break;
+/*  274:    0 */         case 'a':
+/*  275:  275 */           rule = new TextField(9, AmPmStrings);
+/*  276:    0 */           break;
+/*  277:    0 */         case 'k':
+/*  278:  278 */           rule = new TwentyFourHourField(selectNumberRule(11, tokenLen));
+/*  279:    0 */           break;
+/*  280:    0 */         case 'K':
+/*  281:  281 */           rule = selectNumberRule(10, tokenLen);
+/*  282:    0 */           break;
+/*  283:    0 */         case 'X':
+/*  284:  284 */           rule = Iso8601_Rule.getRule(tokenLen);
+/*  285:    0 */           break;
+/*  286:    0 */         case 'z':
+/*  287:  287 */           if (tokenLen >= 4) {
+/*  288:  288 */             rule = new TimeZoneNameRule(this.mTimeZone, this.mLocale, 1);
+/*  289:    0 */           } else {
+/*  290:  290 */             rule = new TimeZoneNameRule(this.mTimeZone, this.mLocale, 0);
+/*  291:    0 */           }
+/*  292:    0 */           break;
+/*  293:    0 */         case 'Z':
+/*  294:  294 */           if (tokenLen == 1) {
+/*  295:  295 */             rule = TimeZoneNumberRule.INSTANCE_NO_COLON;
+/*  296:  296 */           } else if (tokenLen == 2) {
+/*  297:  297 */             rule = Iso8601_Rule.ISO8601_HOURS_COLON_MINUTES;
+/*  298:    0 */           } else {
+/*  299:  299 */             rule = TimeZoneNumberRule.INSTANCE_COLON;
+/*  300:    0 */           }
+/*  301:    0 */           break;
+/*  302:    0 */         case '\'':
+/*  303:  303 */           sub = token.substring(1);
+/*  304:  304 */           if (sub.length() == 1) {
+/*  305:  305 */             rule = new CharacterLiteral(sub.charAt(0));
+/*  306:    0 */           } else {
+/*  307:  307 */             rule = new StringLiteral(sub);
+/*  308:    0 */           }
+/*  309:    0 */           break;
+/*  310:    0 */         default:
+/*  311:  311 */           throw new IllegalArgumentException("Illegal pattern component: " + token);
+/*  312:    0 */       }
+/*  313:    0 */
+/*  314:  314 */       rules.add(rule);
+/*  315:    0 */     }
+/*  316:    0 */
+/*  317:  317 */     return rules;
+/*  318:    0 */   }
+/*  319:    0 */
+/*  320:    0 */
+/*  321:    0 */
+/*  322:    0 */
+/*  323:    0 */
+/*  324:    0 */
+/*  325:    0 */
+/*  326:    0 */
+/*  327:    0 */   protected String parseToken(String pattern, int[] indexRef) {
+/*  328:  328 */     StringBuilder buf = new StringBuilder();
+/*  329:    0 */
+/*  330:  330 */     int i = indexRef[0];
+/*  331:  331 */     int length = pattern.length();
+/*  332:    0 */
+/*  333:  333 */     char c = pattern.charAt(i);
+/*  334:  334 */     if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+/*  335:    0 */
+/*  336:    0 */
+/*  337:  337 */       buf.append(c);
+/*  338:    0 */
+/*  339:  339 */       while (i + 1 < length) {
+/*  340:  340 */         char peek = pattern.charAt(i + 1);
+/*  341:  341 */         if (peek == c) {
+/*  342:  342 */           buf.append(c);
+/*  343:  343 */           i++;
+/*  344:    0 */
+/*  345:    0 */           continue;
+/*  346:    0 */         }
+/*  347:    0 */         break;
+/*  348:    0 */       }
+/*  349:    0 */     } else {
+/*  350:  350 */       buf.append('\'');
+/*  351:    0 */
+/*  352:  352 */       boolean inLiteral = false;
+/*  353:    0 */
+/*  354:  354 */       for (; i < length; i++) {
+/*  355:  355 */         c = pattern.charAt(i);
+/*  356:    0 */
+/*  357:  357 */         if (c == '\'')
+/*  358:  358 */         { if (i + 1 < length && pattern.charAt(i + 1) == '\'') {
+/*  359:    0 */
+/*  360:  360 */             i++;
+/*  361:  361 */             buf.append(c);
+/*  362:    0 */           } else {
+/*  363:  363 */             inLiteral = !inLiteral;
+/*  364:    0 */           }  }
+/*  365:  365 */         else { if (!inLiteral && ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
+/*  366:    0 */
+/*  367:  367 */             i--;
+/*  368:    0 */             break;
+/*  369:    0 */           }
+/*  370:  370 */           buf.append(c); }
+/*  371:    0 */
+/*  372:    0 */       }
+/*  373:    0 */     }
+/*  374:    0 */
+/*  375:  375 */     indexRef[0] = i;
+/*  376:  376 */     return buf.toString();
+/*  377:    0 */   }
+/*  378:    0 */
+/*  379:    0 */
+/*  380:    0 */
+/*  381:    0 */
+/*  382:    0 */
+/*  383:    0 */
+/*  384:    0 */
+/*  385:    0 */
+/*  386:    0 */   protected NumberRule selectNumberRule(int field, int padding) {
+/*  387:  387 */     switch (padding) {
+/*  388:    0 */       case 1:
+/*  389:  389 */         return new UnpaddedNumberField(field);
+/*  390:    0 */       case 2:
+/*  391:  391 */         return new TwoDigitNumberField(field);
+/*  392:    0 */     }
+/*  393:  393 */     return new PaddedNumberField(field, padding);
+/*  394:    0 */   }
+/*  395:    0 */
+/*  396:    0 */
+/*  397:    0 */
+/*  398:    0 */
+/*  399:    0 */
+/*  400:    0 */
+/*  401:    0 */
+/*  402:    0 */
+/*  403:    0 */
+/*  404:    0 */
+/*  405:    0 */
+/*  406:    0 */
+/*  407:    0 */
+/*  408:    0 */
+/*  409:    0 */   @Deprecated
+/*  410:    0 */   public StringBuffer format(Object obj, StringBuffer toAppendTo, FieldPosition pos) {
+/*  411:  411 */     if (obj instanceof Date)
+/*  412:  412 */       return format((Date)obj, toAppendTo);
+/*  413:  413 */     if (obj instanceof Calendar)
+/*  414:  414 */       return format((Calendar)obj, toAppendTo);
+/*  415:  415 */     if (obj instanceof Long) {
+/*  416:  416 */       return format((Long)obj, toAppendTo);
+/*  417:    0 */     }
+/*  418:  418 */     throw new IllegalArgumentException("Unknown class: " + ((obj == null) ? "<null>" :
+/*  419:  419 */         obj.getClass().getName()));
+/*  420:    0 */   }
+/*  421:    0 */
+/*  422:    0 */
+/*  423:    0 */
+/*  424:    0 */
+/*  425:    0 */
+/*  426:    0 */
+/*  427:    0 */
+/*  428:    0 */
+/*  429:    0 */
+/*  430:    0 */   String format(Object obj) {
+/*  431:  431 */     if (obj instanceof Date)
+/*  432:  432 */       return format((Date)obj);
+/*  433:  433 */     if (obj instanceof Calendar)
+/*  434:  434 */       return format((Calendar)obj);
+/*  435:  435 */     if (obj instanceof Long) {
+/*  436:  436 */       return format((Long)obj);
+/*  437:    0 */     }
+/*  438:  438 */     throw new IllegalArgumentException("Unknown class: " + ((obj == null) ? "<null>" :
+/*  439:  439 */         obj.getClass().getName()));
+/*  440:    0 */   }
+/*  441:    0 */
+/*  442:    0 */
+/*  443:    0 */
+/*  444:    0 */
+/*  445:    0 */
+/*  446:    0 */
+/*  447:    0 */   public String format(long millis) {
+/*  448:  448 */     Calendar c = newCalendar();
+/*  449:  449 */     c.setTimeInMillis(millis);
+/*  450:  450 */     return applyRulesToString(c);
+/*  451:    0 */   }
+/*  452:    0 */
+/*  453:    0 */
+/*  454:    0 */
+/*  455:    0 */
+/*  456:    0 */
+/*  457:    0 */
+/*  458:    0 */   private String applyRulesToString(Calendar c) {
+/*  459:  459 */     return applyRules(c, new StringBuilder(this.mMaxLengthEstimate)).toString();
+/*  460:    0 */   }
+/*  461:    0 */
+/*  462:    0 */
+/*  463:    0 */
+/*  464:    0 */
+/*  465:    0 */
+/*  466:    0 */   private Calendar newCalendar() {
+/*  467:  467 */     return Calendar.getInstance(this.mTimeZone, this.mLocale);
+/*  468:    0 */   }
+/*  469:    0 */
+/*  470:    0 */
+/*  471:    0 */
+/*  472:    0 */
+/*  473:    0 */
+/*  474:    0 */   public String format(Date date) {
+/*  475:  475 */     Calendar c = newCalendar();
+/*  476:  476 */     c.setTime(date);
+/*  477:  477 */     return applyRulesToString(c);
+/*  478:    0 */   }
+/*  479:    0 */
+/*  480:    0 */
+/*  481:    0 */
+/*  482:    0 */
+/*  483:    0 */
+/*  484:    0 */   public String format(Calendar calendar) {
+/*  485:  485 */     return format(calendar, new StringBuilder(this.mMaxLengthEstimate)).toString();
+/*  486:    0 */   }
+/*  487:    0 */
+/*  488:    0 */
+/*  489:    0 */
+/*  490:    0 */
+/*  491:    0 */
+/*  492:    0 */   public StringBuffer format(long millis, StringBuffer buf) {
+/*  493:  493 */     Calendar c = newCalendar();
+/*  494:  494 */     c.setTimeInMillis(millis);
+/*  495:  495 */     return applyRules(c, buf);
+/*  496:    0 */   }
+/*  497:    0 */
+/*  498:    0 */
+/*  499:    0 */
+/*  500:    0 */
+/*  501:    0 */
+/*  502:    0 */   public StringBuffer format(Date date, StringBuffer buf) {
+/*  503:  503 */     Calendar c = newCalendar();
+/*  504:  504 */     c.setTime(date);
+/*  505:  505 */     return applyRules(c, buf);
+/*  506:    0 */   }
+/*  507:    0 */
+/*  508:    0 */
+/*  509:    0 */
+/*  510:    0 */
+/*  511:    0 */
+/*  512:    0 */
+/*  513:    0 */   public StringBuffer format(Calendar calendar, StringBuffer buf) {
+/*  514:  514 */     return format(calendar.getTime(), buf);
+/*  515:    0 */   }
+/*  516:    0 */
+/*  517:    0 */
+/*  518:    0 */
+/*  519:    0 */
+/*  520:    0 */
+/*  521:    0 */   public <B extends Appendable> B format(long millis, B buf) {
+/*  522:  522 */     Calendar c = newCalendar();
+/*  523:  523 */     c.setTimeInMillis(millis);
+/*  524:  524 */     return applyRules(c, buf);
+/*  525:    0 */   }
+/*  526:    0 */
+/*  527:    0 */
+/*  528:    0 */
+/*  529:    0 */
+/*  530:    0 */
+/*  531:    0 */   public <B extends Appendable> B format(Date date, B buf) {
+/*  532:  532 */     Calendar c = newCalendar();
+/*  533:  533 */     c.setTime(date);
+/*  534:  534 */     return applyRules(c, buf);
+/*  535:    0 */   }
+/*  536:    0 */
+/*  537:    0 */
+/*  538:    0 */
+/*  539:    0 */
+/*  540:    0 */
+/*  541:    0 */
+/*  542:    0 */   public <B extends Appendable> B format(Calendar calendar, B buf) {
+/*  543:  543 */     if (!calendar.getTimeZone().equals(this.mTimeZone)) {
+/*  544:  544 */       calendar = (Calendar)calendar.clone();
+/*  545:  545 */       calendar.setTimeZone(this.mTimeZone);
+/*  546:    0 */     }
+/*  547:  547 */     return applyRules(calendar, buf);
+/*  548:    0 */   }
+/*  549:    0 */
+/*  550:    0 */
+/*  551:    0 */
+/*  552:    0 */
+/*  553:    0 */
+/*  554:    0 */
+/*  555:    0 */
+/*  556:    0 */
+/*  557:    0 */
+/*  558:    0 */
+/*  559:    0 */
+/*  560:    0 */   @Deprecated
+/*  561:    0 */   protected StringBuffer applyRules(Calendar calendar, StringBuffer buf) {
+/*  562:  562 */     return applyRules(calendar, buf);
+/*  563:    0 */   }
+/*  564:    0 */
+/*  565:    0 */
+/*  566:    0 */
+/*  567:    0 */
+/*  568:    0 */
+/*  569:    0 */
+/*  570:    0 */
+/*  571:    0 */
+/*  572:    0 */
+/*  573:    0 */
+/*  574:    0 */   private <B extends Appendable> B applyRules(Calendar calendar, B buf) {
+/*  575:    0 */     try {
+/*  576:  576 */       for (Rule rule : this.mRules) {
+/*  577:  577 */         rule.appendTo(buf, calendar);
+/*  578:    0 */       }
+/*  579:  579 */     } catch (IOException ioe) {
+/*  580:  580 */       ExceptionUtils.rethrow(ioe);
+/*  581:    0 */     }
+/*  582:  582 */     return buf;
+/*  583:    0 */   }
+/*  584:    0 */
+/*  585:    0 */
+/*  586:    0 */
+/*  587:    0 */
+/*  588:    0 */
+/*  589:    0 */
+/*  590:    0 */
+/*  591:    0 */   public String getPattern() {
+/*  592:  592 */     return this.mPattern;
+/*  593:    0 */   }
+/*  594:    0 */
+/*  595:    0 */
+/*  596:    0 */
+/*  597:    0 */
+/*  598:    0 */
+/*  599:    0 */   public TimeZone getTimeZone() {
+/*  600:  600 */     return this.mTimeZone;
+/*  601:    0 */   }
+/*  602:    0 */
+/*  603:    0 */
+/*  604:    0 */
+/*  605:    0 */
+/*  606:    0 */
+/*  607:    0 */   public Locale getLocale() {
+/*  608:  608 */     return this.mLocale;
+/*  609:    0 */   }
+/*  610:    0 */
+/*  611:    0 */
+/*  612:    0 */
+/*  613:    0 */
+/*  614:    0 */
+/*  615:    0 */
+/*  616:    0 */
+/*  617:    0 */
+/*  618:    0 */
+/*  619:    0 */
+/*  620:    0 */   public int getMaxLengthEstimate() {
+/*  621:  621 */     return this.mMaxLengthEstimate;
+/*  622:    0 */   }
+/*  623:    0 */
+/*  624:    0 */
+/*  625:    0 */
+/*  626:    0 */
+/*  627:    0 */
+/*  628:    0 */
+/*  629:    0 */
+/*  630:    0 */
+/*  631:    0 */
+/*  632:    0 */
+/*  633:    0 */   public boolean equals(Object obj) {
+/*  634:  634 */     if (!(obj instanceof FastDatePrinter)) {
+/*  635:  635 */       return false;
+/*  636:    0 */     }
+/*  637:  637 */     FastDatePrinter other = (FastDatePrinter)obj;
+/*  638:  638 */     return (this.mPattern.equals(other.mPattern) &&
+/*  639:  639 */       this.mTimeZone.equals(other.mTimeZone) &&
+/*  640:  640 */       this.mLocale.equals(other.mLocale));
+/*  641:    0 */   }
+/*  642:    0 */
+/*  643:    0 */
+/*  644:    0 */
+/*  645:    0 */
+/*  646:    0 */
+/*  647:    0 */
+/*  648:    0 */
+/*  649:    0 */   public int hashCode() {
+/*  650:  650 */     return this.mPattern.hashCode() + 13 * (this.mTimeZone.hashCode() + 13 * this.mLocale.hashCode());
+/*  651:    0 */   }
+/*  652:    0 */
+/*  653:    0 */
+/*  654:    0 */
+/*  655:    0 */
+/*  656:    0 */
+/*  657:    0 */
+/*  658:    0 */
+/*  659:    0 */   public String toString() {
+/*  660:  660 */     return "FastDatePrinter[" + this.mPattern + "," + this.mLocale + "," + this.mTimeZone.getID() + "]";
+/*  661:    0 */   }
+/*  662:    0 */
+/*  663:    0 */
+/*  664:    0 */
+/*  665:    0 */
+/*  666:    0 */
+/*  667:    0 */
+/*  668:    0 */
+/*  669:    0 */
+/*  670:    0 */
+/*  671:    0 */
+/*  672:    0 */
+/*  673:    0 */   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+/*  674:  674 */     in.defaultReadObject();
+/*  675:  675 */     init();
+/*  676:    0 */   }
+/*  677:    0 */
+/*  678:    0 */
+/*  679:    0 */
+/*  680:    0 */
+/*  681:    0 */
+/*  682:    0 */
+/*  683:    0 */
+/*  684:    0 */   private static void appendDigits(Appendable buffer, int value) throws IOException {
+/*  685:  685 */     buffer.append((char)(value / 10 + 48));
+/*  686:  686 */     buffer.append((char)(value % 10 + 48));
+/*  687:    0 */   }
+/*  688:    0 */
+/*  689:    0 */
+/*  690:    0 */
+/*  691:    0 */
+/*  692:    0 */
+/*  693:    0 */
+/*  694:    0 */
+/*  695:    0 */
+/*  696:    0 */
+/*  697:    0 */
+/*  698:    0 */
+/*  699:    0 */   private static void appendFullDigits(Appendable buffer, int value, int minFieldWidth) throws IOException {
+/*  700:  700 */     if (value < 10000) {
+/*  701:    0 */
+/*  702:    0 */
+/*  703:  703 */       int nDigits = 4;
+/*  704:  704 */       if (value < 1000) {
+/*  705:  705 */         nDigits--;
+/*  706:  706 */         if (value < 100) {
+/*  707:  707 */           nDigits--;
+/*  708:  708 */           if (value < 10) {
+/*  709:  709 */             nDigits--;
+/*  710:    0 */           }
+/*  711:    0 */         }
+/*  712:    0 */       }
+/*  713:    0 */
+/*  714:  714 */       for (int i = minFieldWidth - nDigits; i > 0; i--) {
+/*  715:  715 */         buffer.append('0');
+/*  716:    0 */       }
+/*  717:    0 */
+/*  718:  718 */       switch (nDigits) {
+/*  719:    0 */         case 4:
+/*  720:  720 */           buffer.append((char)(value / 1000 + 48));
+/*  721:  721 */           value %= 1000;
+/*  722:    0 */         case 3:
+/*  723:  723 */           if (value >= 100) {
+/*  724:  724 */             buffer.append((char)(value / 100 + 48));
+/*  725:  725 */             value %= 100;
+/*  726:    0 */           } else {
+/*  727:  727 */             buffer.append('0');
+/*  728:    0 */           }
+/*  729:    0 */         case 2:
+/*  730:  730 */           if (value >= 10) {
+/*  731:  731 */             buffer.append((char)(value / 10 + 48));
+/*  732:  732 */             value %= 10;
+/*  733:    0 */           } else {
+/*  734:  734 */             buffer.append('0');
+/*  735:    0 */           }
+/*  736:    0 */         case 1:
+/*  737:  737 */           buffer.append((char)(value + 48));
+/*  738:    0 */           break;
+/*  739:    0 */       }
+/*  740:    0 */
+/*  741:    0 */
+/*  742:    0 */     } else {
+/*  743:  743 */       char[] work = new char[10];
+/*  744:  744 */       int digit = 0;
+/*  745:  745 */       while (value != 0) {
+/*  746:  746 */         work[digit++] = (char)(value % 10 + 48);
+/*  747:  747 */         value /= 10;
+/*  748:    0 */       }
+/*  749:    0 */
+/*  750:    0 */
+/*  751:  751 */       while (digit < minFieldWidth) {
+/*  752:  752 */         buffer.append('0');
+/*  753:  753 */         minFieldWidth--;
+/*  754:    0 */       }
+/*  755:    0 */
+/*  756:    0 */
+/*  757:  757 */       while (--digit >= 0) {
+/*  758:  758 */         buffer.append(work[digit]);
+/*  759:    0 */       }
+/*  760:    0 */     }
+/*  761:    0 */   }
+/*  762:    0 */
+/*  763:    0 */
+/*  764:    0 */
+/*  765:    0 */
+/*  766:    0 */
+/*  767:    0 */
+/*  768:    0 */
+/*  769:    0 */
+/*  770:    0 */   private static interface Rule
+/*  771:    0 */   {
+/*  772:    0 */     int estimateLength();
+/*  773:    0 */
+/*  774:    0 */
+/*  775:    0 */
+/*  776:    0 */
+/*  777:    0 */
+/*  778:    0 */
+/*  779:    0 */
+/*  780:    0 */     void appendTo(Appendable param1Appendable, Calendar param1Calendar) throws IOException;
+/*  781:    0 */   }
+/*  782:    0 */
+/*  783:    0 */
+/*  784:    0 */
+/*  785:    0 */
+/*  786:    0 */
+/*  787:    0 */
+/*  788:    0 */
+/*  789:    0 */   private static interface NumberRule
+/*  790:    0 */     extends Rule
+/*  791:    0 */   {
+/*  792:    0 */     void appendTo(Appendable param1Appendable, int param1Int) throws IOException;
+/*  793:    0 */   }
+/*  794:    0 */
+/*  795:    0 */
+/*  796:    0 */
+/*  797:    0 */
+/*  798:    0 */
+/*  799:    0 */
+/*  800:    0 */
+/*  801:    0 */   private static class CharacterLiteral
+/*  802:    0 */     implements Rule
+/*  803:    0 */   {
+/*  804:    0 */     private final char mValue;
+/*  805:    0 */
+/*  806:    0 */
+/*  807:    0 */
+/*  808:    0 */
+/*  809:    0 */
+/*  810:    0 */
+/*  811:    0 */
+/*  812:    0 */     CharacterLiteral(char value) {
+/*  813:  813 */       this.mValue = value;
+/*  814:    0 */     }
+/*  815:    0 */
+/*  816:    0 */
+/*  817:    0 */
+/*  818:    0 */
+/*  819:    0 */
+/*  820:    0 */     public int estimateLength() {
+/*  821:  821 */       return 1;
+/*  822:    0 */     }
+/*  823:    0 */
+/*  824:    0 */
+/*  825:    0 */
+/*  826:    0 */
+/*  827:    0 */
+/*  828:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/*  829:  829 */       buffer.append(this.mValue);
+/*  830:    0 */     }
+/*  831:    0 */   }
+/*  832:    0 */
+/*  833:    0 */
+/*  834:    0 */
+/*  835:    0 */
+/*  836:    0 */
+/*  837:    0 */   private static class StringLiteral
+/*  838:    0 */     implements Rule
+/*  839:    0 */   {
+/*  840:    0 */     private final String mValue;
+/*  841:    0 */
+/*  842:    0 */
+/*  843:    0 */
+/*  844:    0 */
+/*  845:    0 */     StringLiteral(String value) {
+/*  846:  846 */       this.mValue = value;
+/*  847:    0 */     }
+/*  848:    0 */
+/*  849:    0 */
+/*  850:    0 */
+/*  851:    0 */
+/*  852:    0 */
+/*  853:    0 */     public int estimateLength() {
+/*  854:  854 */       return this.mValue.length();
+/*  855:    0 */     }
+/*  856:    0 */
+/*  857:    0 */
+/*  858:    0 */
+/*  859:    0 */
+/*  860:    0 */
+/*  861:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/*  862:  862 */       buffer.append(this.mValue);
+/*  863:    0 */     }
+/*  864:    0 */   }
+/*  865:    0 */
+/*  866:    0 */
+/*  867:    0 */
+/*  868:    0 */
+/*  869:    0 */   private static class TextField
+/*  870:    0 */     implements Rule
+/*  871:    0 */   {
+/*  872:    0 */     private final int mField;
+/*  873:    0 */
+/*  874:    0 */
+/*  875:    0 */
+/*  876:    0 */     private final String[] mValues;
+/*  877:    0 */
+/*  878:    0 */
+/*  879:    0 */
+/*  880:    0 */     TextField(int field, String[] values) {
+/*  881:  881 */       this.mField = field;
+/*  882:  882 */       this.mValues = values;
+/*  883:    0 */     }
+/*  884:    0 */
+/*  885:    0 */
+/*  886:    0 */
+/*  887:    0 */
+/*  888:    0 */
+/*  889:    0 */     public int estimateLength() {
+/*  890:  890 */       int max = 0;
+/*  891:  891 */       for (int i = this.mValues.length; --i >= 0; ) {
+/*  892:  892 */         int len = this.mValues[i].length();
+/*  893:  893 */         if (len > max) {
+/*  894:  894 */           max = len;
+/*  895:    0 */         }
+/*  896:    0 */       }
+/*  897:  897 */       return max;
+/*  898:    0 */     }
+/*  899:    0 */
+/*  900:    0 */
+/*  901:    0 */
+/*  902:    0 */
+/*  903:    0 */
+/*  904:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/*  905:  905 */       buffer.append(this.mValues[calendar.get(this.mField)]);
+/*  906:    0 */     }
+/*  907:    0 */   }
+/*  908:    0 */
+/*  909:    0 */
+/*  910:    0 */
+/*  911:    0 */
+/*  912:    0 */   private static class UnpaddedNumberField
+/*  913:    0 */     implements NumberRule
+/*  914:    0 */   {
+/*  915:    0 */     private final int mField;
+/*  916:    0 */
+/*  917:    0 */
+/*  918:    0 */
+/*  919:    0 */
+/*  920:    0 */     UnpaddedNumberField(int field) {
+/*  921:  921 */       this.mField = field;
+/*  922:    0 */     }
+/*  923:    0 */
+/*  924:    0 */
+/*  925:    0 */
+/*  926:    0 */
+/*  927:    0 */
+/*  928:    0 */     public int estimateLength() {
+/*  929:  929 */       return 4;
+/*  930:    0 */     }
+/*  931:    0 */
+/*  932:    0 */
+/*  933:    0 */
+/*  934:    0 */
+/*  935:    0 */
+/*  936:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/*  937:  937 */       appendTo(buffer, calendar.get(this.mField));
+/*  938:    0 */     }
+/*  939:    0 */
+/*  940:    0 */
+/*  941:    0 */
+/*  942:    0 */
+/*  943:    0 */
+/*  944:    0 */     public final void appendTo(Appendable buffer, int value) throws IOException {
+/*  945:  945 */       if (value < 10) {
+/*  946:  946 */         buffer.append((char)(value + 48));
+/*  947:  947 */       } else if (value < 100) {
+/*  948:  948 */         FastDatePrinter.appendDigits(buffer, value);
+/*  949:    0 */       } else {
+/*  950:  950 */         FastDatePrinter.appendFullDigits(buffer, value, 1);
+/*  951:    0 */       }
+/*  952:    0 */     }
+/*  953:    0 */   }
+/*  954:    0 */
+/*  955:    0 */
+/*  956:    0 */   private static class UnpaddedMonthField
+/*  957:    0 */     implements NumberRule
+/*  958:    0 */   {
+/*  959:  959 */     static final UnpaddedMonthField INSTANCE = new UnpaddedMonthField();
+/*  960:    0 */
+/*  961:    0 */
+/*  962:    0 */
+/*  963:    0 */
+/*  964:    0 */
+/*  965:    0 */
+/*  966:    0 */
+/*  967:    0 */
+/*  968:    0 */
+/*  969:    0 */
+/*  970:    0 */
+/*  971:    0 */
+/*  972:    0 */     public int estimateLength() {
+/*  973:  973 */       return 2;
+/*  974:    0 */     }
+/*  975:    0 */
+/*  976:    0 */
+/*  977:    0 */
+/*  978:    0 */
+/*  979:    0 */
+/*  980:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/*  981:  981 */       appendTo(buffer, calendar.get(2) + 1);
+/*  982:    0 */     }
+/*  983:    0 */
+/*  984:    0 */
+/*  985:    0 */
+/*  986:    0 */
+/*  987:    0 */
+/*  988:    0 */     public final void appendTo(Appendable buffer, int value) throws IOException {
+/*  989:  989 */       if (value < 10) {
+/*  990:  990 */         buffer.append((char)(value + 48));
+/*  991:    0 */       } else {
+/*  992:  992 */         FastDatePrinter.appendDigits(buffer, value);
+/*  993:    0 */       }
+/*  994:    0 */     }
+/*  995:    0 */   }
+/*  996:    0 */
+/*  997:    0 */
+/*  998:    0 */
+/*  999:    0 */
+/* 1000:    0 */   private static class PaddedNumberField
+/* 1001:    0 */     implements NumberRule
+/* 1002:    0 */   {
+/* 1003:    0 */     private final int mField;
+/* 1004:    0 */
+/* 1005:    0 */
+/* 1006:    0 */     private final int mSize;
+/* 1007:    0 */
+/* 1008:    0 */
+/* 1009:    0 */
+/* 1010:    0 */     PaddedNumberField(int field, int size) {
+/* 1011: 1011 */       if (size < 3)
+/* 1012:    0 */       {
+/* 1013: 1013 */         throw new IllegalArgumentException();
+/* 1014:    0 */       }
+/* 1015: 1015 */       this.mField = field;
+/* 1016: 1016 */       this.mSize = size;
+/* 1017:    0 */     }
+/* 1018:    0 */
+/* 1019:    0 */
+/* 1020:    0 */
+/* 1021:    0 */
+/* 1022:    0 */
+/* 1023:    0 */     public int estimateLength() {
+/* 1024: 1024 */       return this.mSize;
+/* 1025:    0 */     }
+/* 1026:    0 */
+/* 1027:    0 */
+/* 1028:    0 */
+/* 1029:    0 */
+/* 1030:    0 */
+/* 1031:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1032: 1032 */       appendTo(buffer, calendar.get(this.mField));
+/* 1033:    0 */     }
+/* 1034:    0 */
+/* 1035:    0 */
+/* 1036:    0 */
+/* 1037:    0 */
+/* 1038:    0 */
+/* 1039:    0 */     public final void appendTo(Appendable buffer, int value) throws IOException {
+/* 1040: 1040 */       FastDatePrinter.appendFullDigits(buffer, value, this.mSize);
+/* 1041:    0 */     }
+/* 1042:    0 */   }
+/* 1043:    0 */
+/* 1044:    0 */
+/* 1045:    0 */
+/* 1046:    0 */
+/* 1047:    0 */   private static class TwoDigitNumberField
+/* 1048:    0 */     implements NumberRule
+/* 1049:    0 */   {
+/* 1050:    0 */     private final int mField;
+/* 1051:    0 */
+/* 1052:    0 */
+/* 1053:    0 */
+/* 1054:    0 */
+/* 1055:    0 */     TwoDigitNumberField(int field) {
+/* 1056: 1056 */       this.mField = field;
+/* 1057:    0 */     }
+/* 1058:    0 */
+/* 1059:    0 */
+/* 1060:    0 */
+/* 1061:    0 */
+/* 1062:    0 */
+/* 1063:    0 */     public int estimateLength() {
+/* 1064: 1064 */       return 2;
+/* 1065:    0 */     }
+/* 1066:    0 */
+/* 1067:    0 */
+/* 1068:    0 */
+/* 1069:    0 */
+/* 1070:    0 */
+/* 1071:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1072: 1072 */       appendTo(buffer, calendar.get(this.mField));
+/* 1073:    0 */     }
+/* 1074:    0 */
+/* 1075:    0 */
+/* 1076:    0 */
+/* 1077:    0 */
+/* 1078:    0 */
+/* 1079:    0 */     public final void appendTo(Appendable buffer, int value) throws IOException {
+/* 1080: 1080 */       if (value < 100) {
+/* 1081: 1081 */         FastDatePrinter.appendDigits(buffer, value);
+/* 1082:    0 */       } else {
+/* 1083: 1083 */         FastDatePrinter.appendFullDigits(buffer, value, 2);
+/* 1084:    0 */       }
+/* 1085:    0 */     }
+/* 1086:    0 */   }
+/* 1087:    0 */
+/* 1088:    0 */
+/* 1089:    0 */   private static class TwoDigitYearField
+/* 1090:    0 */     implements NumberRule
+/* 1091:    0 */   {
+/* 1092: 1092 */     static final TwoDigitYearField INSTANCE = new TwoDigitYearField();
+/* 1093:    0 */
+/* 1094:    0 */
+/* 1095:    0 */
+/* 1096:    0 */
+/* 1097:    0 */
+/* 1098:    0 */
+/* 1099:    0 */
+/* 1100:    0 */
+/* 1101:    0 */
+/* 1102:    0 */
+/* 1103:    0 */
+/* 1104:    0 */     public int estimateLength() {
+/* 1105: 1105 */       return 2;
+/* 1106:    0 */     }
+/* 1107:    0 */
+/* 1108:    0 */
+/* 1109:    0 */
+/* 1110:    0 */
+/* 1111:    0 */
+/* 1112:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1113: 1113 */       appendTo(buffer, calendar.get(1) % 100);
+/* 1114:    0 */     }
+/* 1115:    0 */
+/* 1116:    0 */
+/* 1117:    0 */
+/* 1118:    0 */
+/* 1119:    0 */
+/* 1120:    0 */     public final void appendTo(Appendable buffer, int value) throws IOException {
+/* 1121: 1121 */       FastDatePrinter.appendDigits(buffer, value % 100);
+/* 1122:    0 */     }
+/* 1123:    0 */   }
+/* 1124:    0 */
+/* 1125:    0 */
+/* 1126:    0 */   private static class TwoDigitMonthField
+/* 1127:    0 */     implements NumberRule
+/* 1128:    0 */   {
+/* 1129: 1129 */     static final TwoDigitMonthField INSTANCE = new TwoDigitMonthField();
+/* 1130:    0 */
+/* 1131:    0 */
+/* 1132:    0 */
+/* 1133:    0 */
+/* 1134:    0 */
+/* 1135:    0 */
+/* 1136:    0 */
+/* 1137:    0 */
+/* 1138:    0 */
+/* 1139:    0 */
+/* 1140:    0 */
+/* 1141:    0 */     public int estimateLength() {
+/* 1142: 1142 */       return 2;
+/* 1143:    0 */     }
+/* 1144:    0 */
+/* 1145:    0 */
+/* 1146:    0 */
+/* 1147:    0 */
+/* 1148:    0 */
+/* 1149:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1150: 1150 */       appendTo(buffer, calendar.get(2) + 1);
+/* 1151:    0 */     }
+/* 1152:    0 */
+/* 1153:    0 */
+/* 1154:    0 */
+/* 1155:    0 */
+/* 1156:    0 */
+/* 1157:    0 */     public final void appendTo(Appendable buffer, int value) throws IOException {
+/* 1158: 1158 */       FastDatePrinter.appendDigits(buffer, value);
+/* 1159:    0 */     }
+/* 1160:    0 */   }
+/* 1161:    0 */
+/* 1162:    0 */
+/* 1163:    0 */
+/* 1164:    0 */
+/* 1165:    0 */
+/* 1166:    0 */   private static class TwelveHourField
+/* 1167:    0 */     implements NumberRule
+/* 1168:    0 */   {
+/* 1169:    0 */     private final FastDatePrinter.NumberRule mRule;
+/* 1170:    0 */
+/* 1171:    0 */
+/* 1172:    0 */
+/* 1173:    0 */
+/* 1174:    0 */     TwelveHourField(FastDatePrinter.NumberRule rule) {
+/* 1175: 1175 */       this.mRule = rule;
+/* 1176:    0 */     }
+/* 1177:    0 */
+/* 1178:    0 */
+/* 1179:    0 */
+/* 1180:    0 */
+/* 1181:    0 */
+/* 1182:    0 */     public int estimateLength() {
+/* 1183: 1183 */       return this.mRule.estimateLength();
+/* 1184:    0 */     }
+/* 1185:    0 */
+/* 1186:    0 */
+/* 1187:    0 */
+/* 1188:    0 */
+/* 1189:    0 */
+/* 1190:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1191: 1191 */       int value = calendar.get(10);
+/* 1192: 1192 */       if (value == 0) {
+/* 1193: 1193 */         value = calendar.getLeastMaximum(10) + 1;
+/* 1194:    0 */       }
+/* 1195: 1195 */       this.mRule.appendTo(buffer, value);
+/* 1196:    0 */     }
+/* 1197:    0 */
+/* 1198:    0 */
+/* 1199:    0 */
+/* 1200:    0 */
+/* 1201:    0 */
+/* 1202:    0 */     public void appendTo(Appendable buffer, int value) throws IOException {
+/* 1203: 1203 */       this.mRule.appendTo(buffer, value);
+/* 1204:    0 */     }
+/* 1205:    0 */   }
+/* 1206:    0 */
+/* 1207:    0 */
+/* 1208:    0 */
+/* 1209:    0 */
+/* 1210:    0 */
+/* 1211:    0 */   private static class TwentyFourHourField
+/* 1212:    0 */     implements NumberRule
+/* 1213:    0 */   {
+/* 1214:    0 */     private final FastDatePrinter.NumberRule mRule;
+/* 1215:    0 */
+/* 1216:    0 */
+/* 1217:    0 */
+/* 1218:    0 */
+/* 1219:    0 */     TwentyFourHourField(FastDatePrinter.NumberRule rule) {
+/* 1220: 1220 */       this.mRule = rule;
+/* 1221:    0 */     }
+/* 1222:    0 */
+/* 1223:    0 */
+/* 1224:    0 */
+/* 1225:    0 */
+/* 1226:    0 */
+/* 1227:    0 */     public int estimateLength() {
+/* 1228: 1228 */       return this.mRule.estimateLength();
+/* 1229:    0 */     }
+/* 1230:    0 */
+/* 1231:    0 */
+/* 1232:    0 */
+/* 1233:    0 */
+/* 1234:    0 */
+/* 1235:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1236: 1236 */       int value = calendar.get(11);
+/* 1237: 1237 */       if (value == 0) {
+/* 1238: 1238 */         value = calendar.getMaximum(11) + 1;
+/* 1239:    0 */       }
+/* 1240: 1240 */       this.mRule.appendTo(buffer, value);
+/* 1241:    0 */     }
+/* 1242:    0 */
+/* 1243:    0 */
+/* 1244:    0 */
+/* 1245:    0 */
+/* 1246:    0 */
+/* 1247:    0 */     public void appendTo(Appendable buffer, int value) throws IOException {
+/* 1248: 1248 */       this.mRule.appendTo(buffer, value);
+/* 1249:    0 */     }
+/* 1250:    0 */   }
+/* 1251:    0 */
+/* 1252:    0 */
+/* 1253:    0 */   private static class DayInWeekField
+/* 1254:    0 */     implements NumberRule
+/* 1255:    0 */   {
+/* 1256:    0 */     private final FastDatePrinter.NumberRule mRule;
+/* 1257:    0 */
+/* 1258:    0 */     DayInWeekField(FastDatePrinter.NumberRule rule) {
+/* 1259: 1259 */       this.mRule = rule;
+/* 1260:    0 */     }
+/* 1261:    0 */
+/* 1262:    0 */
+/* 1263:    0 */     public int estimateLength() {
+/* 1264: 1264 */       return this.mRule.estimateLength();
+/* 1265:    0 */     }
+/* 1266:    0 */
+/* 1267:    0 */
+/* 1268:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1269: 1269 */       int value = calendar.get(7);
+/* 1270: 1270 */       this.mRule.appendTo(buffer, (value == 1) ? 7 : (value - 1));
+/* 1271:    0 */     }
+/* 1272:    0 */
+/* 1273:    0 */
+/* 1274:    0 */     public void appendTo(Appendable buffer, int value) throws IOException {
+/* 1275: 1275 */       this.mRule.appendTo(buffer, value);
+/* 1276:    0 */     }
+/* 1277:    0 */   }
+/* 1278:    0 */
+/* 1279:    0 */
+/* 1280:    0 */   private static class WeekYear
+/* 1281:    0 */     implements NumberRule
+/* 1282:    0 */   {
+/* 1283:    0 */     private final FastDatePrinter.NumberRule mRule;
+/* 1284:    0 */
+/* 1285:    0 */     WeekYear(FastDatePrinter.NumberRule rule) {
+/* 1286: 1286 */       this.mRule = rule;
+/* 1287:    0 */     }
+/* 1288:    0 */
+/* 1289:    0 */
+/* 1290:    0 */     public int estimateLength() {
+/* 1291: 1291 */       return this.mRule.estimateLength();
+/* 1292:    0 */     }
+/* 1293:    0 */
+/* 1294:    0 */
+/* 1295:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1296: 1296 */       this.mRule.appendTo(buffer, calendar.getWeekYear());
+/* 1297:    0 */     }
+/* 1298:    0 */
+/* 1299:    0 */
+/* 1300:    0 */     public void appendTo(Appendable buffer, int value) throws IOException {
+/* 1301: 1301 */       this.mRule.appendTo(buffer, value);
+/* 1302:    0 */     }
+/* 1303:    0 */   }
+/* 1304:    0 */
+/* 1305:    0 */
+/* 1306:    0 */
+/* 1307: 1307 */   private static final ConcurrentMap<TimeZoneDisplayKey, String> cTimeZoneDisplayCache = new ConcurrentHashMap<>(7);
+/* 1308:    0 */
+/* 1309:    0 */
+/* 1310:    0 */
+/* 1311:    0 */
+/* 1312:    0 */
+/* 1313:    0 */
+/* 1314:    0 */
+/* 1315:    0 */
+/* 1316:    0 */
+/* 1317:    0 */
+/* 1318:    0 */   static String getTimeZoneDisplay(TimeZone tz, boolean daylight, int style, Locale locale) {
+/* 1319: 1319 */     TimeZoneDisplayKey key = new TimeZoneDisplayKey(tz, daylight, style, locale);
+/* 1320: 1320 */     String value = cTimeZoneDisplayCache.get(key);
+/* 1321: 1321 */     if (value == null) {
+/* 1322:    0 */
+/* 1323: 1323 */       value = tz.getDisplayName(daylight, style, locale);
+/* 1324: 1324 */       String prior = cTimeZoneDisplayCache.putIfAbsent(key, value);
+/* 1325: 1325 */       if (prior != null) {
+/* 1326: 1326 */         value = prior;
+/* 1327:    0 */       }
+/* 1328:    0 */     }
+/* 1329: 1329 */     return value;
+/* 1330:    0 */   }
+/* 1331:    0 */
+/* 1332:    0 */
+/* 1333:    0 */
+/* 1334:    0 */   private static class TimeZoneNameRule
+/* 1335:    0 */     implements Rule
+/* 1336:    0 */   {
+/* 1337:    0 */     private final Locale mLocale;
+/* 1338:    0 */
+/* 1339:    0 */
+/* 1340:    0 */     private final int mStyle;
+/* 1341:    0 */
+/* 1342:    0 */
+/* 1343:    0 */     private final String mStandard;
+/* 1344:    0 */
+/* 1345:    0 */     private final String mDaylight;
+/* 1346:    0 */
+/* 1347:    0 */
+/* 1348:    0 */     TimeZoneNameRule(TimeZone timeZone, Locale locale, int style) {
+/* 1349: 1349 */       this.mLocale = LocaleUtils.toLocale(locale);
+/* 1350: 1350 */       this.mStyle = style;
+/* 1351:    0 */
+/* 1352: 1352 */       this.mStandard = FastDatePrinter.getTimeZoneDisplay(timeZone, false, style, locale);
+/* 1353: 1353 */       this.mDaylight = FastDatePrinter.getTimeZoneDisplay(timeZone, true, style, locale);
+/* 1354:    0 */     }
+/* 1355:    0 */
+/* 1356:    0 */
+/* 1357:    0 */
+/* 1358:    0 */
+/* 1359:    0 */
+/* 1360:    0 */
+/* 1361:    0 */
+/* 1362:    0 */
+/* 1363:    0 */     public int estimateLength() {
+/* 1364: 1364 */       return Math.max(this.mStandard.length(), this.mDaylight.length());
+/* 1365:    0 */     }
+/* 1366:    0 */
+/* 1367:    0 */
+/* 1368:    0 */
+/* 1369:    0 */
+/* 1370:    0 */
+/* 1371:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1372: 1372 */       TimeZone zone = calendar.getTimeZone();
+/* 1373: 1373 */       if (calendar.get(16) == 0) {
+/* 1374: 1374 */         buffer.append(FastDatePrinter.getTimeZoneDisplay(zone, false, this.mStyle, this.mLocale));
+/* 1375:    0 */       } else {
+/* 1376: 1376 */         buffer.append(FastDatePrinter.getTimeZoneDisplay(zone, true, this.mStyle, this.mLocale));
+/* 1377:    0 */       }
+/* 1378:    0 */     }
+/* 1379:    0 */   }
+/* 1380:    0 */
+/* 1381:    0 */
+/* 1382:    0 */
+/* 1383:    0 */   private static class TimeZoneNumberRule
+/* 1384:    0 */     implements Rule
+/* 1385:    0 */   {
+/* 1386: 1386 */     static final TimeZoneNumberRule INSTANCE_COLON = new TimeZoneNumberRule(true);
+/* 1387: 1387 */     static final TimeZoneNumberRule INSTANCE_NO_COLON = new TimeZoneNumberRule(false);
+/* 1388:    0 */
+/* 1389:    0 */
+/* 1390:    0 */
+/* 1391:    0 */     final boolean mColon;
+/* 1392:    0 */
+/* 1393:    0 */
+/* 1394:    0 */
+/* 1395:    0 */
+/* 1396:    0 */     TimeZoneNumberRule(boolean colon) {
+/* 1397: 1397 */       this.mColon = colon;
+/* 1398:    0 */     }
+/* 1399:    0 */
+/* 1400:    0 */
+/* 1401:    0 */
+/* 1402:    0 */
+/* 1403:    0 */
+/* 1404:    0 */     public int estimateLength() {
+/* 1405: 1405 */       return 5;
+/* 1406:    0 */     }
+/* 1407:    0 */
+/* 1408:    0 */
+/* 1409:    0 */
+/* 1410:    0 */
+/* 1411:    0 */
+/* 1412:    0 */
+/* 1413:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1414: 1414 */       int offset = calendar.get(15) + calendar.get(16);
+/* 1415:    0 */
+/* 1416: 1416 */       if (offset < 0) {
+/* 1417: 1417 */         buffer.append('-');
+/* 1418: 1418 */         offset = -offset;
+/* 1419:    0 */       } else {
+/* 1420: 1420 */         buffer.append('+');
+/* 1421:    0 */       }
+/* 1422:    0 */
+/* 1423: 1423 */       int hours = offset / 3600000;
+/* 1424: 1424 */       FastDatePrinter.appendDigits(buffer, hours);
+/* 1425:    0 */
+/* 1426: 1426 */       if (this.mColon) {
+/* 1427: 1427 */         buffer.append(':');
+/* 1428:    0 */       }
+/* 1429:    0 */
+/* 1430: 1430 */       int minutes = offset / 60000 - 60 * hours;
+/* 1431: 1431 */       FastDatePrinter.appendDigits(buffer, minutes);
+/* 1432:    0 */     }
+/* 1433:    0 */   }
+/* 1434:    0 */
+/* 1435:    0 */
+/* 1436:    0 */
+/* 1437:    0 */
+/* 1438:    0 */
+/* 1439:    0 */   private static class Iso8601_Rule
+/* 1440:    0 */     implements Rule
+/* 1441:    0 */   {
+/* 1442: 1442 */     static final Iso8601_Rule ISO8601_HOURS = new Iso8601_Rule(3);
+/* 1443:    0 */
+/* 1444: 1444 */     static final Iso8601_Rule ISO8601_HOURS_MINUTES = new Iso8601_Rule(5);
+/* 1445:    0 */
+/* 1446: 1446 */     static final Iso8601_Rule ISO8601_HOURS_COLON_MINUTES = new Iso8601_Rule(6);
+/* 1447:    0 */
+/* 1448:    0 */
+/* 1449:    0 */
+/* 1450:    0 */     final int length;
+/* 1451:    0 */
+/* 1452:    0 */
+/* 1453:    0 */
+/* 1454:    0 */
+/* 1455:    0 */     static Iso8601_Rule getRule(int tokenLen) {
+/* 1456: 1456 */       switch (tokenLen) {
+/* 1457:    0 */         case 1:
+/* 1458: 1458 */           return ISO8601_HOURS;
+/* 1459:    0 */         case 2:
+/* 1460: 1460 */           return ISO8601_HOURS_MINUTES;
+/* 1461:    0 */         case 3:
+/* 1462: 1462 */           return ISO8601_HOURS_COLON_MINUTES;
+/* 1463:    0 */       }
+/* 1464: 1464 */       throw new IllegalArgumentException("invalid number of X");
+/* 1465:    0 */     }
+/* 1466:    0 */
+/* 1467:    0 */
+/* 1468:    0 */
+/* 1469:    0 */
+/* 1470:    0 */
+/* 1471:    0 */
+/* 1472:    0 */
+/* 1473:    0 */
+/* 1474:    0 */
+/* 1475:    0 */     Iso8601_Rule(int length) {
+/* 1476: 1476 */       this.length = length;
+/* 1477:    0 */     }
+/* 1478:    0 */
+/* 1479:    0 */
+/* 1480:    0 */
+/* 1481:    0 */
+/* 1482:    0 */
+/* 1483:    0 */     public int estimateLength() {
+/* 1484: 1484 */       return this.length;
+/* 1485:    0 */     }
+/* 1486:    0 */
+/* 1487:    0 */
+/* 1488:    0 */
+/* 1489:    0 */
+/* 1490:    0 */
+/* 1491:    0 */     public void appendTo(Appendable buffer, Calendar calendar) throws IOException {
+/* 1492: 1492 */       int offset = calendar.get(15) + calendar.get(16);
+/* 1493: 1493 */       if (offset == 0) {
+/* 1494: 1494 */         buffer.append("Z");
+/* 1495:    0 */
+/* 1496:    0 */         return;
+/* 1497:    0 */       }
+/* 1498: 1498 */       if (offset < 0) {
+/* 1499: 1499 */         buffer.append('-');
+/* 1500: 1500 */         offset = -offset;
+/* 1501:    0 */       } else {
+/* 1502: 1502 */         buffer.append('+');
+/* 1503:    0 */       }
+/* 1504:    0 */
+/* 1505: 1505 */       int hours = offset / 3600000;
+/* 1506: 1506 */       FastDatePrinter.appendDigits(buffer, hours);
+/* 1507:    0 */
+/* 1508: 1508 */       if (this.length < 5) {
+/* 1509:    0 */         return;
+/* 1510:    0 */       }
+/* 1511:    0 */
+/* 1512: 1512 */       if (this.length == 6) {
+/* 1513: 1513 */         buffer.append(':');
+/* 1514:    0 */       }
+/* 1515:    0 */
+/* 1516: 1516 */       int minutes = offset / 60000 - 60 * hours;
+/* 1517: 1517 */       FastDatePrinter.appendDigits(buffer, minutes);
+/* 1518:    0 */     }
+/* 1519:    0 */   }
+/* 1520:    0 */
+/* 1521:    0 */
+/* 1522:    0 */
+/* 1523:    0 */
+/* 1524:    0 */   private static class TimeZoneDisplayKey
+/* 1525:    0 */   {
+/* 1526:    0 */     private final TimeZone mTimeZone;
+/* 1527:    0 */
+/* 1528:    0 */
+/* 1529:    0 */
+/* 1530:    0 */     private final int mStyle;
+/* 1531:    0 */
+/* 1532:    0 */
+/* 1533:    0 */
+/* 1534:    0 */     private final Locale mLocale;
+/* 1535:    0 */
+/* 1536:    0 */
+/* 1537:    0 */
+/* 1538:    0 */
+/* 1539:    0 */     TimeZoneDisplayKey(TimeZone timeZone, boolean daylight, int style, Locale locale) {
+/* 1540: 1540 */       this.mTimeZone = timeZone;
+/* 1541: 1541 */       if (daylight) {
+/* 1542: 1542 */         this.mStyle = style | Integer.MIN_VALUE;
+/* 1543:    0 */       } else {
+/* 1544: 1544 */         this.mStyle = style;
+/* 1545:    0 */       }
+/* 1546: 1546 */       this.mLocale = LocaleUtils.toLocale(locale);
+/* 1547:    0 */     }
+/* 1548:    0 */
+/* 1549:    0 */
+/* 1550:    0 */
+/* 1551:    0 */
+/* 1552:    0 */
+/* 1553:    0 */     public int hashCode() {
+/* 1554: 1554 */       return (this.mStyle * 31 + this.mLocale.hashCode()) * 31 + this.mTimeZone.hashCode();
+/* 1555:    0 */     }
+/* 1556:    0 */
+/* 1557:    0 */
+/* 1558:    0 */
+/* 1559:    0 */
+/* 1560:    0 */
+/* 1561:    0 */     public boolean equals(Object obj) {
+/* 1562: 1562 */       if (this == obj) {
+/* 1563: 1563 */         return true;
+/* 1564:    0 */       }
+/* 1565: 1565 */       if (obj instanceof TimeZoneDisplayKey) {
+/* 1566: 1566 */         TimeZoneDisplayKey other = (TimeZoneDisplayKey)obj;
+/* 1567: 1567 */         return (
+/* 1568: 1568 */           this.mTimeZone.equals(other.mTimeZone) && this.mStyle == other.mStyle &&
+/* 1569:    0 */
+/* 1570: 1570 */           this.mLocale.equals(other.mLocale));
+/* 1571:    0 */       }
+/* 1572: 1572 */       return false;
+/* 1573:    0 */     }
+/* 1574:    0 */   }
+/* 1575:    0 */ }

@@ -16,6 +16,8 @@ import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Map;
 
@@ -237,54 +239,8 @@ public class JavaLoopTest extends AbstractJdTest {
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
             // Check decompiled source code
-            assertTrue(source.matches(PatternMaker.make(":  20 */", "for (int i = 0; i < 10; i++)")));
-            assertTrue(source.matches(PatternMaker.make(":  42 */", "int i = 0;")));
-            assertTrue(source.matches(PatternMaker.make(":  44 */", "for (; i < 10; i++)")));
-            assertTrue(source.matches(PatternMaker.make(":  54 */", "for (; i < 10; i++)")));
-            assertTrue(source.matches(PatternMaker.make(":  64 */", "for (int i = 0;; i++)")));
-            assertTrue(source.matches(PatternMaker.make(":  72 */", "for (;; i++)")));
-            assertTrue(source.matches(PatternMaker.make(":  80 */", "for (int i = 0; i < 10;)")));
-            assertTrue(source.matches(PatternMaker.make(":  88 */", "while (i < 10)")));
-            assertTrue(source.matches(PatternMaker.make(":  96 */", "int i = 0;")));
-            assertTrue(source.matches(PatternMaker.make("/* 104:   0 */", "while (true)")));
-            assertTrue(source.matches(PatternMaker.make(": 112 */", "for (int i = 0, j = i, size = 10; i < size; j += ++i)")));
-            assertTrue(source.matches(PatternMaker.make(": 122 */", "int i = 0, j = i, size = 10;")));
-            assertTrue(source.matches(PatternMaker.make(": 123 */", "for (; i < size;")));
-            assertTrue(source.matches(PatternMaker.make(": 124 */", "j += ++i)")));
-            assertTrue(source.matches(PatternMaker.make(": 134 */", "int i = 0;")));
-            assertTrue(source.matches(PatternMaker.make(": 135 */", "int j = i;")));
-            assertTrue(source.matches(PatternMaker.make(": 136 */", "int size = 10;")));
-            assertTrue(source.matches(PatternMaker.make(": 137 */", "for (; i < size;")));
-            assertTrue(source.matches(PatternMaker.make(": 138 */", "i++,")));
-            assertTrue(source.matches(PatternMaker.make(": 139 */", "j += i)")));
-            assertTrue(source.matches(PatternMaker.make(": 149 */", "int i = 0;")));
-            assertTrue(source.matches(PatternMaker.make(": 151 */", "int j = i;")));
-            assertTrue(source.matches(PatternMaker.make(": 153 */", "int size = 10;")));
-            assertTrue(source.matches(PatternMaker.make(": 155 */", "for (; i < size;")));
-            assertTrue(source.matches(PatternMaker.make(": 157 */", "i++,")));
-            assertTrue(source.matches(PatternMaker.make(": 159 */", "j += i)")));
-            assertTrue(source.matches(PatternMaker.make(": 169 */", "for (int i = 0; i < 10; i++);")));
-            assertTrue(source.matches(PatternMaker.make(": 177 */", "for (; i < 10; i++);")));
-            assertTrue(source.matches(PatternMaker.make(": 185 */", "for (int i = 0;; i++);")));
-            assertTrue(source.matches(PatternMaker.make("/* 190:   0 */", "while (true)")));
-            assertTrue(source.matches(PatternMaker.make(": 191 */", "i++;")));
-            assertTrue(source.matches(PatternMaker.make(": 197 */", "for (int i = 0; i < 10;);")));
-            assertTrue(source.matches(PatternMaker.make(": 203 */", "for (int[] i = { 0 }; i.length < 10;);")));
-            assertTrue(source.matches(PatternMaker.make(": 209 */", "for (int i = 0, j = i, k = i; i < 10;);")));
-            assertTrue(source.matches(PatternMaker.make(": 215 */", "for (int[] i = { 0 }, j = i, k = j; i.length < 10;);")));
-            assertTrue(source.matches(PatternMaker.make(": 221 */", "for (int i = 0, j[] = { 1 }; i < 10;);")));
-            assertTrue(source.matches(PatternMaker.make(": 227 */", "while (i < 10);")));
-            assertTrue(source.matches(PatternMaker.make(": 233 */", "int i = 0;")));
-            assertTrue(source.matches(PatternMaker.make("/* 234:   0 */", "while (true);")));
-            assertTrue(source.matches(PatternMaker.make(": 245 */", "for (int i = 0, j = i, size = 10; i < size; j += ++i);")));
-            assertTrue(source.matches(PatternMaker.make("/* 253:   0 */", "while (true) {")));
-            assertTrue(source.matches(PatternMaker.make(": 264 */", "for (String s : list)")));
-            assertTrue(source.matches(PatternMaker.make(": 310 */", "for (int j : new int[] { 4 })")));
-            assertTrue(source.matches(PatternMaker.make(": 389 */", "for (String s : array)")));
-            assertTrue(source.matches(PatternMaker.make(": 403 */", "for (String s : list)")));
-            assertTrue(source.matches(PatternMaker.make(": 411 */", "Iterator<Class<?>> iterator = Arrays.<Class<?>>asList(getClass().getInterfaces()).iterator()")));
-
-            assertNotEquals(-1, source.indexOf("/* 524: 524 */"));
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/For.txt").toURI()));
+            assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -346,16 +302,8 @@ public class JavaLoopTest extends AbstractJdTest {
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
             // Check decompiled source code
-            assertTrue(source.matches(PatternMaker.make(":  20 */", "for (int i = 0; i < 10; i++)")));
-            assertTrue(source.matches(PatternMaker.make(":  88 */", "while (i < 10)")));
-            assertTrue(source.matches(PatternMaker.make(": 273 */", "for (i = 0; i < 10; i++)")));
-            assertTrue(source.matches(PatternMaker.make(": 310 */", "for (int j : new int[] { 4 })")));
-            assertTrue(source.matches(PatternMaker.make("/* 347:   0 */", "do {")));
-            assertTrue(source.matches(PatternMaker.make(": 349 */", "while (i < 10);")));
-            assertTrue(source.matches(PatternMaker.make(": 385 */", "for (String s : array)")));
-            assertTrue(source.matches(PatternMaker.make(": 399 */", "for (String s : list)")));
-            assertTrue(source.matches(PatternMaker.make(": 411 */", "Iterator<Class<?>> iterator = Arrays.<Class<?>>asList(getClass().getInterfaces()).iterator()")));
-            assertTrue(source.matches(PatternMaker.make(": 427 */", "for (int i = 0; i < 3; i++)")));
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/For.txt").toURI()));
+            assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.6", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -371,15 +319,8 @@ public class JavaLoopTest extends AbstractJdTest {
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
             // Check decompiled source code
-            assertTrue(source.matches(PatternMaker.make(":  88 */", "while (i < 10)")));
-            assertTrue(source.matches(PatternMaker.make(": 273 */", "for (i = 0; i < 10; i++)")));
-            assertTrue(source.matches(PatternMaker.make(": 310 */", "for (int j : new int[] { 4 })")));
-            assertTrue(source.matches(PatternMaker.make("/* 347:   0 */", "do")));
-            assertTrue(source.matches(PatternMaker.make(": 349 */", "while (i < 10);")));
-            assertTrue(source.matches(PatternMaker.make(": 385 */", "for (String s : array)")));
-            assertTrue(source.matches(PatternMaker.make(": 399 */", "for (String s : list)")));
-            assertTrue(source.matches(PatternMaker.make(": 411 */", "Iterator<Class<?>> iterator = Arrays.<Class<?>>asList(getClass().getInterfaces()).iterator()")));
-            assertTrue(source.matches(PatternMaker.make(": 427 */", "for (int i = 0; i < 3; i++)")));
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/For.txt").toURI()));
+            assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.5", new InMemoryJavaSourceFileObject(internalClassName, source)));

@@ -35,6 +35,7 @@ import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.function.FailableFunction;
 import org.apache.commons.lang3.function.TriFunction;
 import org.apache.commons.lang3.stream.Streams;
+import org.apache.commons.lang3.time.FastDatePrinter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractManager;
@@ -94,6 +95,7 @@ import java.nio.charset.Charset;
 import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -371,6 +373,20 @@ public class MiscTest extends AbstractJdTest {
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.6", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testFastDatePrinter() throws Exception {
+        String internalClassName = FastDatePrinter.class.getName().replace('.', '/');
+        Map<String, Object> config = Collections.singletonMap("realignLineNumbers", "true");
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, config );
+        
+        // Check decompiled source code
+        String expected = Files.readString(Paths.get(getClass().getResource("/txt/FastDatePrinter.txt").toURI()));
+        assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test

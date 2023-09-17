@@ -209,7 +209,7 @@ public abstract class ControlFlowGraphReducer {
 
             if (nextNext.matchType(GROUP_END) && nextNext.getFromOffset() < maxOffset) {
                 BasicBlock branchNext = branch.getNext();
-                if (nextNext.matchType(TYPE_SWITCH_BREAK) && branchNext.matchType(TYPE_SWITCH_BREAK) && next.matchType(TYPE_STATEMENTS) && branch.matchType(TYPE_STATEMENTS)) {
+                if (nextNext.matchType(TYPE_SWITCH_BREAK) && branchNext.matchType(TYPE_SWITCH_BREAK) && next.matchType(TYPE_STATEMENTS) && branch.matchType(TYPE_STATEMENTS|TYPE_IF_ELSE)) {
                     createIfElse(TYPE_IF_ELSE, basicBlock, next, nextLast, branch, branch, nextNext);
                 } else {
                     createIf(basicBlock, next, nextNext, branch);
@@ -324,7 +324,9 @@ public abstract class ControlFlowGraphReducer {
         }
 
         // Split sequence
-        last.setNext(END);
+        if ((last.getNext() != LOOP_END && last.getNext() != SWITCH_BREAK) || next == SWITCH_BREAK) {
+            last.setNext(END);
+        }
         next.getPredecessors().remove(last);
         // Create 'if'
         basicBlock.setType(TYPE_IF);
@@ -353,9 +355,13 @@ public abstract class ControlFlowGraphReducer {
         Loop loop = basicBlock.getEnclosingLoop();
         if (!basicBlock.isLoopExitCondition(loop)) {
             // Split sequences
-            last1.setNext(END);
+            if (last1.getNext() != SWITCH_BREAK || next == SWITCH_BREAK) {
+                last1.setNext(END);
+            }
             next.getPredecessors().remove(last1);
-            last2.setNext(END);
+            if (last2.getNext() != SWITCH_BREAK || next == SWITCH_BREAK) {
+                last2.setNext(END);
+            }
             next.getPredecessors().remove(last2);
         }
         // Create 'if-else'
@@ -368,7 +374,7 @@ public abstract class ControlFlowGraphReducer {
         if (tryBlock != null) {
             tryBlock.getPredecessors().add(basicBlock);
             basicBlock.setNext(tryBlock);
-        } else if (next.isOutsideLoop(loop) || basicBlock.isLoopExitCondition(loop)) {
+        } else if (next != SWITCH_BREAK && (next.isOutsideLoop(loop) || basicBlock.isLoopExitCondition(loop))) {
             basicBlock.setNext(END);
         } else {
             next.getPredecessors().add(basicBlock);
@@ -678,7 +684,6 @@ public abstract class ControlFlowGraphReducer {
 
     private boolean reduceSwitchDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
         SwitchCase defaultSC = null;
-        SwitchCase lastSC = null;
         int maxOffset = -1;
 
         for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
@@ -688,13 +693,7 @@ public abstract class ControlFlowGraphReducer {
 
             if (switchCase.isDefaultCase()) {
                 defaultSC = switchCase;
-            } else {
-                lastSC = switchCase;
             }
-        }
-
-        if (lastSC == null) {
-            lastSC = defaultSC;
         }
 
         BasicBlock lastSwitchCaseBasicBlock = null;

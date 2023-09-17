@@ -1,0 +1,526 @@
+/*   1:   0 */ package org.jd.core.test;
+/*   2:   0 */ 
+/*   3:   0 */ import java.util.Arrays;
+/*   4:   0 */ import java.util.Iterator;
+/*   5:   0 */ import java.util.List;
+/*   6:   0 */ import java.util.Map;
+/*   7:   0 */ 
+/*   8:   0 */ 
+/*   9:   0 */ 
+/*  10:   0 */ 
+/*  11:   0 */ 
+/*  12:   0 */ 
+/*  13:   0 */ 
+/*  14:   0 */ 
+/*  15:   0 */ public class For
+/*  16:   0 */ {
+/*  17:   0 */   public void simpleFor() {
+/*  18:  18 */     System.out.println("start");
+/*  19:   0 */     
+/*  20:  20 */     for (int i = 0; i < 10; i++) {
+/*  21:  21 */       System.out.println("loop");
+/*  22:   0 */     }
+/*  23:   0 */     
+/*  24:  24 */     System.out.println("end");
+/*  25:   0 */   }
+/*  26:   0 */   
+/*  27:   0 */   public void declarationAndFor() {
+/*  28:  28 */     System.out.println("start");
+/*  29:   0 */ 
+/*  30:   0 */ 
+/*  31:   0 */     
+/*  32:  32 */     for (int i = 0; i < 5; i++) {
+/*  33:  33 */       System.out.println("loop");
+/*  34:   0 */     }
+/*  35:   0 */     
+/*  36:  36 */     System.out.println("end");
+/*  37:   0 */   }
+/*  38:   0 */   
+/*  39:   0 */   public void initAndForTestUpdate() {
+/*  40:  40 */     System.out.println("start");
+/*  41:   0 */     
+/*  42:  42 */     int i = 0;
+/*  43:   0 */     
+/*  44:  44 */     for (; i < 10; i++) {
+/*  45:  45 */       System.out.println("loop");
+/*  46:   0 */     }
+/*  47:   0 */     
+/*  48:  48 */     System.out.println("end");
+/*  49:   0 */   }
+/*  50:   0 */   
+/*  51:   0 */   public void forTestUpdate(int i) {
+/*  52:  52 */     System.out.println("start");
+/*  53:   0 */     
+/*  54:  54 */     for (; i < 10; i++) {
+/*  55:  55 */       System.out.println("loop");
+/*  56:   0 */     }
+/*  57:   0 */     
+/*  58:  58 */     System.out.println("end");
+/*  59:   0 */   }
+/*  60:   0 */   
+/*  61:   0 */   public void forInitUpdate() {
+/*  62:  62 */     System.out.println("start");
+/*  63:   0 */     
+/*  64:  64 */     for (int i = 0;; i++) {
+/*  65:  65 */       System.out.println("loop");
+/*  66:   0 */     }
+/*  67:   0 */   }
+/*  68:   0 */   
+/*  69:   0 */   public void forUpdate(int i) {
+/*  70:  70 */     System.out.println("start");
+/*  71:   0 */     
+/*  72:  72 */     for (;; i++) {
+/*  73:  73 */       System.out.println("loop");
+/*  74:   0 */     }
+/*  75:   0 */   }
+/*  76:   0 */   
+/*  77:   0 */   public void forInitTest() {
+/*  78:  78 */     System.out.println("start");
+/*  79:   0 */     
+/*  80:  80 */     for (int i = 0; i < 10;) {
+/*  81:  81 */       System.out.println("loop");
+/*  82:   0 */     }
+/*  83:   0 */   }
+/*  84:   0 */   
+/*  85:   0 */   public void forTest(int i) {
+/*  86:  86 */     System.out.println("start");
+/*  87:   0 */     
+/*  88:  88 */     while (i < 10) {
+/*  89:  89 */       System.out.println("loop");
+/*  90:   0 */     }
+/*  91:   0 */   }
+/*  92:   0 */   
+/*  93:   0 */   public void forInit() {
+/*  94:  94 */     System.out.println("start");
+/*  95:   0 */     
+/*  96:  96 */     int i = 0; while (true) {
+/*  97:  97 */       System.out.println("loop");
+/*  98:   0 */     }
+/*  99:   0 */   }
+/* 100:   0 */   
+/* 101:   0 */   public void forInfiniteLoop() {
+/* 102: 102 */     System.out.println("start");
+/* 103:   0 */     
+/* 104:   0 */     while (true) {
+/* 105: 105 */       System.out.println("loop");
+/* 106:   0 */     }
+/* 107:   0 */   }
+/* 108:   0 */   
+/* 109:   0 */   public void forMultipleVariables1() {
+/* 110: 110 */     System.out.println("start");
+/* 111:   0 */     
+/* 112: 112 */     for (int i = 0, j = i, size = 10; i < size; j += ++i) {
+/* 113: 113 */       System.out.println("loop");
+/* 114:   0 */     }
+/* 115:   0 */     
+/* 116: 116 */     System.out.println("end");
+/* 117:   0 */   }
+/* 118:   0 */   
+/* 119:   0 */   public void forMultipleVariables2() {
+/* 120: 120 */     System.out.println("start");
+/* 121:   0 */     
+/* 122: 122 */     int i = 0, j = i, size = 10;
+/* 123: 123 */     for (; i < size; 
+/* 124: 124 */       j += ++i) {
+/* 125: 125 */       System.out.println("loop");
+/* 126:   0 */     }
+/* 127:   0 */     
+/* 128: 128 */     System.out.println("end");
+/* 129:   0 */   }
+/* 130:   0 */   
+/* 131:   0 */   public void forMultipleVariables3() {
+/* 132: 132 */     System.out.println("start");
+/* 133:   0 */     
+/* 134: 134 */     int i = 0;
+/* 135: 135 */     int j = i;
+/* 136: 136 */     int size = 10;
+/* 137: 137 */     for (; i < size; 
+/* 138: 138 */       i++, 
+/* 139: 139 */       j += i) {
+/* 140: 140 */       System.out.println("loop");
+/* 141:   0 */     }
+/* 142:   0 */     
+/* 143: 143 */     System.out.println("end");
+/* 144:   0 */   }
+/* 145:   0 */   
+/* 146:   0 */   public void forMultipleVariables4() {
+/* 147: 147 */     System.out.println("start");
+/* 148:   0 */     
+/* 149: 149 */     int i = 0;
+/* 150:   0 */     
+/* 151: 151 */     int j = i;
+/* 152:   0 */     
+/* 153: 153 */     int size = 10;
+/* 154:   0 */     
+/* 155: 155 */     for (; i < size; 
+/* 156:   0 */       
+/* 157: 157 */       i++, 
+/* 158:   0 */       
+/* 159: 159 */       j += i) {
+/* 160: 160 */       System.out.println("loop");
+/* 161:   0 */     }
+/* 162:   0 */     
+/* 163: 163 */     System.out.println("end");
+/* 164:   0 */   }
+/* 165:   0 */   
+/* 166:   0 */   public void emptyFor() {
+/* 167: 167 */     System.out.println("start");
+/* 168:   0 */     
+/* 169: 169 */     for (int i = 0; i < 10; i++);
+/* 170:   0 */     
+/* 171: 171 */     System.out.println("end");
+/* 172:   0 */   }
+/* 173:   0 */   
+/* 174:   0 */   public void emptyForTestUpdate(int i) {
+/* 175: 175 */     System.out.println("start");
+/* 176:   0 */     
+/* 177: 177 */     for (; i < 10; i++);
+/* 178:   0 */     
+/* 179: 179 */     System.out.println("end");
+/* 180:   0 */   }
+/* 181:   0 */   
+/* 182:   0 */   public void emptyForInitUpdate() {
+/* 183: 183 */     System.out.println("start");
+/* 184:   0 */     
+/* 185: 185 */     for (int i = 0;; i++);
+/* 186:   0 */   }
+/* 187:   0 */   
+/* 188:   0 */   public void emptyForUpdate(int i) {
+/* 189: 189 */     System.out.println("start");
+/* 190:   0 */     while (true)
+/* 191: 191 */       i++; 
+/* 192:   0 */   }
+/* 193:   0 */   
+/* 194:   0 */   public void emptyForInitTest1() {
+/* 195: 195 */     System.out.println("start");
+/* 196:   0 */     
+/* 197: 197 */     for (int i = 0; i < 10;);
+/* 198:   0 */   }
+/* 199:   0 */   
+/* 200:   0 */   public void emptyForInitTest2() {
+/* 201: 201 */     System.out.println("start");
+/* 202:   0 */     
+/* 203: 203 */     for (int[] i = { 0 }; i.length < 10;);
+/* 204:   0 */   }
+/* 205:   0 */   
+/* 206:   0 */   public void emptyForInitTest3() {
+/* 207: 207 */     System.out.println("start");
+/* 208:   0 */     
+/* 209: 209 */     for (int i = 0, j = i, k = i; i < 10;);
+/* 210:   0 */   }
+/* 211:   0 */   
+/* 212:   0 */   public void emptyForInitTest4() {
+/* 213: 213 */     System.out.println("start");
+/* 214:   0 */     
+/* 215: 215 */     for (int[] i = { 0 }, j = i, k = j; i.length < 10;);
+/* 216:   0 */   }
+/* 217:   0 */   
+/* 218:   0 */   public void emptyForInitTest5() {
+/* 219: 219 */     System.out.println("start");
+/* 220:   0 */     
+/* 221: 221 */     for (int i = 0, j[] = { 1 }; i < 10;);
+/* 222:   0 */   }
+/* 223:   0 */   
+/* 224:   0 */   public void emptyForTest(int i) {
+/* 225: 225 */     System.out.println("start");
+/* 226:   0 */     
+/* 227: 227 */     while (i < 10);
+/* 228:   0 */   }
+/* 229:   0 */   
+/* 230:   0 */   public void emptyForInit() {
+/* 231: 231 */     System.out.println("start");
+/* 232:   0 */     
+/* 233: 233 */     int i = 0;
+/* 234:   0 */     while (true);
+/* 235:   0 */   }
+/* 236:   0 */   public void emptyForInfiniteLoop() {
+/* 237: 237 */     System.out.println("start");
+/* 238:   0 */     while (true);
+/* 239:   0 */   }
+/* 240:   0 */ 
+/* 241:   0 */   
+/* 242:   0 */   public void emptyForMultipleVariables() {
+/* 243: 243 */     System.out.println("start");
+/* 244:   0 */     
+/* 245: 245 */     for (int i = 0, j = i, size = 10; i < size; j += ++i);
+/* 246:   0 */     
+/* 247: 247 */     System.out.println("end");
+/* 248:   0 */   }
+/* 249:   0 */   
+/* 250:   0 */   public void testInfiniteLoop2() {
+/* 251: 251 */     System.out.println("start");
+/* 252:   0 */     
+/* 253:   0 */     while (true) {
+/* 254: 254 */       System.out.println("infinite loop");
+/* 255: 255 */       if (this == null)
+/* 256: 256 */         System.out.println("infinite loop"); 
+/* 257: 257 */       System.out.println("infinite loop");
+/* 258:   0 */     } 
+/* 259:   0 */   }
+/* 260:   0 */   
+/* 261:   0 */   public void testForEach(List<String> list) {
+/* 262: 262 */     System.out.println("start");
+/* 263:   0 */     
+/* 264: 264 */     for (String s : list) {
+/* 265: 265 */       System.out.println(s);
+/* 266:   0 */     }
+/* 267: 267 */     System.out.println("end");
+/* 268:   0 */   }
+/* 269:   0 */   
+/* 270:   0 */   public void forTry(int i, Object o) {
+/* 271: 271 */     System.out.println("start");
+/* 272:   0 */     
+/* 273: 273 */     for (i = 0; i < 10; i++) {
+/* 274: 274 */       System.out.println("a");
+/* 275:   0 */       try {
+/* 276: 276 */         System.out.println("b");
+/* 277: 277 */       } catch (RuntimeException e) {
+/* 278: 278 */         System.out.println("c");
+/* 279:   0 */       } 
+/* 280:   0 */     } 
+/* 281:   0 */     
+/* 282: 282 */     System.out.println("end");
+/* 283:   0 */   }
+/* 284:   0 */   
+/* 285:   0 */   public void forTryReturn(int i, Object o) {
+/* 286: 286 */     System.out.println("start");
+/* 287:   0 */     
+/* 288: 288 */     for (i = 0; i < 10; i++) {
+/* 289: 289 */       System.out.println("a");
+/* 290:   0 */       try {
+/* 291: 291 */         System.out.println("b");
+/* 292:   0 */         return;
+/* 293: 293 */       } catch (RuntimeException e) {
+/* 294: 294 */         System.out.println("c");
+/* 295:   0 */       } 
+/* 296:   0 */     } 
+/* 297:   0 */     
+/* 298: 298 */     System.out.println("end");
+/* 299:   0 */   }
+/* 300:   0 */   
+/* 301:   0 */   public Object forFor() {
+/* 302: 302 */     System.out.println("start");
+/* 303:   0 */     
+/* 304: 304 */     for (int i = 0; i < 5; i++) {
+/* 305:   0 */       
+/* 306: 306 */       if (this == null) return null; 
+/* 307: 307 */       System.out.println(i);
+/* 308:   0 */     } 
+/* 309:   0 */     
+/* 310: 310 */     for (int j : new int[] { 4 }) {
+/* 311:   0 */       
+/* 312: 312 */       if (0 == j)
+/* 313:   0 */       {
+/* 314: 314 */         System.out.println(j);
+/* 315:   0 */       }
+/* 316:   0 */     } 
+/* 317:   0 */     
+/* 318: 318 */     System.out.println("end");
+/* 319:   0 */     
+/* 320: 320 */     return this;
+/* 321:   0 */   }
+/* 322:   0 */   
+/* 323:   0 */   public void forIf() {
+/* 324: 324 */     System.out.println("start");
+/* 325:   0 */     
+/* 326: 326 */     for (int i = 0; i < 10; i++) {
+/* 327:   0 */       
+/* 328: 328 */       System.out.println("b");
+/* 329: 329 */       if (i == 4)
+/* 330: 330 */         System.out.println("c"); 
+/* 331: 331 */       System.out.println("d");
+/* 332:   0 */     } 
+/* 333:   0 */     
+/* 334: 334 */     if (this == null) {
+/* 335: 335 */       System.out.println("e");
+/* 336:   0 */     }
+/* 337: 337 */     System.out.println("end");
+/* 338:   0 */   }
+/* 339:   0 */   
+/* 340:   0 */   private static void forAndEmptyDoWhile() {
+/* 341: 341 */     System.out.println("start");
+/* 342:   0 */     
+/* 343:   0 */     int i;
+/* 344:   0 */     
+/* 345: 345 */     for (i = 0; i < 20; i++)
+/* 346: 346 */       System.out.println(i); 
+/* 347:   0 */     do {
+/* 348:   0 */     
+/* 349: 349 */     } while (i < 10);
+/* 350:   0 */     
+/* 351: 351 */     System.out.println("end");
+/* 352:   0 */   }
+/* 353:   0 */   
+/* 354:   0 */   private static void forAndEmptyDoWhileTestOr() {
+/* 355: 355 */     System.out.println("start");
+/* 356:   0 */     
+/* 357:   0 */     int i;
+/* 358:   0 */     
+/* 359: 359 */     for (i = 0; i < 10; i++)
+/* 360: 360 */       System.out.println(i); 
+/* 361:   0 */     do {
+/* 362:   0 */     
+/* 363: 363 */     } while (i < 20 || i < 10 || i < 0);
+/* 364:   0 */     
+/* 365: 365 */     System.out.println("end");
+/* 366:   0 */   }
+/* 367:   0 */   
+/* 368:   0 */   private static void forAndEmptyDoWhileTestAnd() {
+/* 369: 369 */     System.out.println("start");
+/* 370:   0 */     
+/* 371:   0 */     int i;
+/* 372:   0 */     
+/* 373: 373 */     for (i = 0; i < 10; i++)
+/* 374: 374 */       System.out.println(i); 
+/* 375:   0 */     do {
+/* 376:   0 */     
+/* 377: 377 */     } while (i < 20 && i < 10 && i < 0);
+/* 378:   0 */     
+/* 379: 379 */     System.out.println("end");
+/* 380:   0 */   }
+/* 381:   0 */   
+/* 382:   0 */   public static void forEachArray(String[] array) {
+/* 383: 383 */     System.out.println("start");
+/* 384:   0 */     
+/* 385: 385 */     for (String s : array) {
+/* 386: 386 */       System.out.println(s);
+/* 387:   0 */     }
+/* 388:   0 */     
+/* 389: 389 */     for (String s : array) {
+/* 390: 390 */       System.out.println(s);
+/* 391:   0 */     }
+/* 392:   0 */     
+/* 393: 393 */     System.out.println("end");
+/* 394:   0 */   }
+/* 395:   0 */   
+/* 396:   0 */   public static void forEachList(List<String> list) {
+/* 397: 397 */     System.out.println("start");
+/* 398:   0 */     
+/* 399: 399 */     for (String s : list) {
+/* 400: 400 */       System.out.println(s);
+/* 401:   0 */     }
+/* 402:   0 */     
+/* 403: 403 */     for (String s : list) {
+/* 404: 404 */       System.out.println(s);
+/* 405:   0 */     }
+/* 406:   0 */     
+/* 407: 407 */     System.out.println("end");
+/* 408:   0 */   }
+/* 409:   0 */   
+/* 410:   0 */   public void notAForEach() {
+/* 411: 411 */     Iterator<Class<?>> iterator = Arrays.<Class<?>>asList(getClass().getInterfaces()).iterator();
+/* 412: 412 */     while (iterator.hasNext()) {
+/* 413: 413 */       Class clazz = iterator.next();
+/* 414: 414 */       System.out.println(clazz);
+/* 415:   0 */     } 
+/* 416:   0 */     
+/* 417: 417 */     System.out.println(iterator);
+/* 418:   0 */   }
+/* 419:   0 */   
+/* 420:   0 */   public static void forUnderscore(String[] __) {
+/* 421: 421 */     for (int ___ = 0; ___ < __.length; ___++) {
+/* 422: 422 */       System.out.println(__[___]);
+/* 423:   0 */     }
+/* 424:   0 */   }
+/* 425:   0 */   
+/* 426:   0 */   private byte[] forTryReturn() throws Exception {
+/* 427: 427 */     for (int i = 0; i < 3; i++) {
+/* 428:   0 */       try {
+/* 429: 429 */         byte[] data = null;
+/* 430: 430 */         return data;
+/* 431: 431 */       } catch (Exception e) {
+/* 432: 432 */         Thread.sleep(300L);
+/* 433:   0 */       } 
+/* 434:   0 */     } 
+/* 435: 435 */     throw new Exception("comm error");
+/* 436:   0 */   }
+/* 437:   0 */   
+/* 438:   0 */   protected boolean ifForIfReturn(int[] array) {
+/* 439: 439 */     boolean flag = false;
+/* 440:   0 */     
+/* 441: 441 */     if (!flag) {
+/* 442: 442 */       for (int i : array) {
+/* 443: 443 */         if (flag) {
+/* 444:   0 */           break;
+/* 445:   0 */         }
+/* 446:   0 */       } 
+/* 447: 447 */       if (!flag) {
+/* 448: 448 */         flag = true;
+/* 449:   0 */       }
+/* 450:   0 */     } 
+/* 451:   0 */     
+/* 452: 452 */     return flag;
+/* 453:   0 */   }
+/* 454:   0 */   
+/* 455:   0 */   public static void forIfContinue() {
+/* 456: 456 */     System.out.println("start");
+/* 457:   0 */     
+/* 458: 458 */     for (int i = 0; i < 100; i++) {
+/* 459: 459 */       System.out.println("a");
+/* 460: 460 */       if (i == 0) {
+/* 461: 461 */         System.out.println("b");
+/* 462: 462 */         if (i == 1) {
+/* 463:   0 */           continue;
+/* 464:   0 */         }
+/* 465: 465 */         System.out.println("c");
+/* 466:   0 */       } 
+/* 467: 467 */       System.out.println("d");
+/* 468:   0 */     } 
+/* 469:   0 */     
+/* 470: 470 */     System.out.println("end");
+/* 471:   0 */   }
+/* 472:   0 */   
+/* 473:   0 */   public void forIfIfContinue() {
+/* 474: 474 */     for (int i = 0; i < 100; i++) {
+/* 475: 475 */       if (i != 1 || 
+/* 476: 476 */         i == 2)
+/* 477:   0 */       {
+/* 478:   0 */ 
+/* 479:   0 */         
+/* 480: 480 */         i += 42; } 
+/* 481:   0 */     } 
+/* 482:   0 */   }
+/* 483:   0 */   
+/* 484:   0 */   public void forIfIfContinue2() {
+/* 485: 485 */     for (int i = 0; i < 100; i++) {
+/* 486: 486 */       if (i == 1) {
+/* 487: 487 */         if (i != 2) {
+/* 488: 488 */           i = 3;
+/* 489:   0 */           continue;
+/* 490:   0 */         } 
+/* 491: 491 */         i = 4;
+/* 492:   0 */       } 
+/* 493: 493 */       i += 42;
+/* 494:   0 */     } 
+/* 495:   0 */   }
+/* 496:   0 */   
+/* 497:   0 */   public void forIterator(Map map) {
+/* 498: 498 */     for (Iterator<Map.Entry> it = map.entrySet().iterator(); it.hasNext(); ) {
+/* 499: 499 */       Map.Entry entry = it.next();
+/* 500: 500 */       if (entry.getValue() instanceof String) {
+/* 501: 501 */         it.remove();
+/* 502:   0 */       }
+/* 503:   0 */     } 
+/* 504:   0 */   }
+/* 505:   0 */   
+/* 506:   0 */   public void forBreak(Object[] array) {
+/* 507: 507 */     System.out.println("start");
+/* 508:   0 */     
+/* 509: 509 */     for (int i = 0; i < array.length; i++) {
+/* 510: 510 */       Object o = array[i];
+/* 511:   0 */       
+/* 512: 512 */       if (o == null) {
+/* 513: 513 */         System.out.println("array[" + i + "] = null");
+/* 514: 514 */         if (i > 0) {
+/* 515: 515 */           array[i] = "null";
+/* 516:   0 */           
+/* 517:   0 */           continue;
+/* 518:   0 */         } 
+/* 519:   0 */       } 
+/* 520: 520 */       System.out.println("array[" + i + "] = " + o);
+/* 521:   0 */       
+/* 522:   0 */       break;
+/* 523:   0 */     } 
+/* 524: 524 */     System.out.println("end");
+/* 525:   0 */   }
+/* 526:   0 */ }

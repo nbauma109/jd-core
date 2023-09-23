@@ -413,7 +413,7 @@
 /*  413:  413 */     if (obj instanceof Calendar)
 /*  414:  414 */       return format((Calendar)obj, toAppendTo);
 /*  415:  415 */     if (obj instanceof Long) {
-/*  416:  416 */       return format((Long)obj, toAppendTo);
+/*  416:  416 */       return format(((Long)obj).longValue(), toAppendTo);
 /*  417:    0 */     }
 /*  418:  418 */     throw new IllegalArgumentException("Unknown class: " + ((obj == null) ? "<null>" :
 /*  419:  419 */         obj.getClass().getName()));
@@ -433,7 +433,7 @@
 /*  433:  433 */     if (obj instanceof Calendar)
 /*  434:  434 */       return format((Calendar)obj);
 /*  435:  435 */     if (obj instanceof Long) {
-/*  436:  436 */       return format((Long)obj);
+/*  436:  436 */       return format(((Long)obj).longValue());
 /*  437:    0 */     }
 /*  438:  438 */     throw new IllegalArgumentException("Unknown class: " + ((obj == null) ? "<null>" :
 /*  439:  439 */         obj.getClass().getName()));

@@ -1458,7 +1458,7 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make("        System.out.print(str);")));
         assertTrue(source.matches(PatternMaker.make("        System.out.print(lst);")));
         assertTrue(source.matches(PatternMaker.make("        System.out.print(chrctr);")));
-        assertTrue(source.matches(PatternMaker.make("        return Integer.compare(a, b);")));
+        assertTrue(source.matches(PatternMaker.make("        return Integer.compare(a.intValue(), b.intValue());")));
 
 
         // Recompile decompiled source code and check errors

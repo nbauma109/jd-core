@@ -404,7 +404,9 @@ public class StatementMaker {
         if (!subStatements.isEmpty() && subStatements.getFirst().isMonitorEnterStatement()) {
             statements.add(subStatements.removeFirst());
         }
-
+        if (subStatements.isEmpty() && !stack.isEmpty()) {
+            subStatements.add(new ReturnExpressionStatement(stack.pop()));
+        }
         return subStatements;
     }
 

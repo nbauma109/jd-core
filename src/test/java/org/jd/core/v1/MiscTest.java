@@ -17,6 +17,7 @@ import org.apache.commons.collections4.Predicate;
 import org.apache.commons.collections4.Transformer;
 import org.apache.commons.collections4.bidimap.UnmodifiableBidiMap;
 import org.apache.commons.collections4.collection.CompositeCollection;
+import org.apache.commons.collections4.keyvalue.AbstractMapEntry;
 import org.apache.commons.imaging.Imaging;
 import org.apache.commons.imaging.common.itu_t4.T4AndT6Compression;
 import org.apache.commons.imaging.formats.bmp.BmpImageParser;
@@ -379,7 +380,7 @@ public class MiscTest extends AbstractJdTest {
     public void testFastDatePrinter() throws Exception {
         String internalClassName = FastDatePrinter.class.getName().replace('.', '/');
         Map<String, Object> config = Collections.singletonMap("realignLineNumbers", "true");
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, config );
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, config);
         
         // Check decompiled source code
         String expected = Files.readString(Paths.get(getClass().getResource("/txt/FastDatePrinter.txt").toURI()));
@@ -1694,6 +1695,19 @@ public class MiscTest extends AbstractJdTest {
         String internalClassName = LockableFileWriter.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testAbstractMapEntry() throws Exception {
+        String internalClassName = AbstractMapEntry.class.getName().replace('.', '/');
+        Map<String, Object> config = Collections.singletonMap("realignLineNumbers", "true");
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, config);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("if ((getValue() == null) ? (other.getValue() == null) : getValue().equals(other.getValue())) return true;   return false;")));
+        
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }

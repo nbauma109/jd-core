@@ -634,23 +634,23 @@ public class ByteCodeParser {
                     parseIINC(statements, stack, lineNumber, offset, localVariable, (byte)(code[++offset] & 255));
                     break;
                 case I2L:
-                    stack.push(new CastExpression(lineNumber, TYPE_LONG, stack.pop(), false));
+                    stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
                     break;
                 case I2F:
-                    stack.push(new CastExpression(lineNumber, TYPE_FLOAT, stack.pop(), false));
+                    stack.push(new CastExpression(lineNumber, TYPE_FLOAT, forceExplicitCastExpression(stack.pop())));
                     break;
                 case I2D, L2D, F2D:
-                    stack.push(new CastExpression(lineNumber, TYPE_DOUBLE, stack.pop(), false));
-                        break;
+                    stack.push(new CastExpression(lineNumber, TYPE_DOUBLE, forceExplicitCastExpression(stack.pop())));
+                    break;
                 case L2I, F2I, D2I:
                     stack.push(new CastExpression(lineNumber, TYPE_INT, forceExplicitCastExpression(stack.pop())));
-                        break;
+                    break;
                 case L2F, D2F:
                     stack.push(new CastExpression(lineNumber, TYPE_FLOAT, forceExplicitCastExpression(stack.pop())));
-                        break;
+                    break;
                 case F2L, D2L:
                     stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
-                        break;
+                    break;
                 case I2B:
                     stack.push(new CastExpression(lineNumber, TYPE_BYTE, forceExplicitCastExpression(stack.pop())));
                     break;

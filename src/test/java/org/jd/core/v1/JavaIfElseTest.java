@@ -42,7 +42,7 @@ public class JavaIfElseTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make("/*  58:  58 */", "if (i == 0)")));
             assertTrue(source.matches(PatternMaker.make("/*  60:  60 */", "if (i == 1)")));
 
-            assertTrue(source.matches(PatternMaker.make("/*  71:  71 */", "if (i == System.currentTimeMillis())")));
+            assertTrue(source.matches(PatternMaker.make("/*  71:  71 */", "if ((long)i == System.currentTimeMillis())")));
             assertTrue(source.matches(PatternMaker.make("/*  73:  73 */", "} else if (i != System.currentTimeMillis()) {")));
             assertTrue(source.matches(PatternMaker.make("/*  75:  75 */", "} else if (i > System.currentTimeMillis()) {")));
 

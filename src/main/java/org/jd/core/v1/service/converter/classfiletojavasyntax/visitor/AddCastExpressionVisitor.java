@@ -629,6 +629,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
             return expression; // TODO FIXME find real rule instead of hardcoded workaround
+        } else if (forceCast && unboundType instanceof GenericType gt && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
+            expression = addCastExpression(ot, expression);
         } else {
             Type expressionType = expression.getType();
 
@@ -663,14 +665,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 expression = addCastExpression(t, expression);
                             }
                         }
-                    } else if (expressionType.getDimension() == 0 && type.getDimension() == 0 && expressionType.isGenericType() && !ObjectType.TYPE_OBJECT.equals(type)) {
+                    } else if (type.getDimension() == 0 && expressionType.isGenericType() && (!ObjectType.TYPE_OBJECT.equals(type) || forceCast)) {
                         boolean cast = true;
                         if (expressionType instanceof GenericType) {
                             GenericType gt = (GenericType) expressionType;
                             BaseType boundType = typeBounds.get(gt.getName());
                             if (boundType instanceof ObjectType) {
                                 ObjectType boundObjectType = (ObjectType) boundType;
-                                if (boundObjectType.equals(type)) {
+                                if (boundObjectType.rawEquals(type)) {
                                     cast = false;
                                 }
                             }
@@ -702,17 +704,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
         Expression nestedExpression = expression.getExpression();
-        if (nestedExpression.getExpression() instanceof FieldReferenceExpression) {
-            FieldReferenceExpression fre = (FieldReferenceExpression) nestedExpression.getExpression();
-            if (fieldNamesInLambda.contains(fre.getName())) {
-                return false;
-            }
+        if (nestedExpression.getExpression() instanceof FieldReferenceExpression fre && fieldNamesInLambda.contains(fre.getName())) {
+            return false;
         }
         Type nestedExpressionType = nestedExpression.getType();
 
         if (type.isObjectType() && nestedExpressionType.isObjectType()) {
             ObjectType left = (ObjectType) type;
             ObjectType right = (ObjectType) nestedExpressionType;
+            if (!visitingLambda
+                    && nestedExpression instanceof ClassFileMethodInvocationExpression mie
+                    && mie.getUnboundType() instanceof GenericType
+                    && mie.getParameters() != null
+                    && typeMaker.matchCount(mie.getInternalTypeName(), mie.getName(), mie.getParameters().size(), true) > 1
+                    && typeMaker.matchCount(mie.getTypeBindings(), mie.getTypeBounds(), mie.getInternalTypeName(), mie.getName(), mie.getParameters(), true) > 1) {
+                return false;
+            }
             if (left.equals(right) || unique && typeMaker.isAssignable(typeBindings, localTypeBounds, left, right)) {
                 return true;
             }

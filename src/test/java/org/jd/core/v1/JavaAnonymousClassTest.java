@@ -37,7 +37,7 @@ public class JavaAnonymousClassTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(":  37 */", "final long l1 = System.currentTimeMillis();")));
             assertTrue(source.matches(PatternMaker.make(":  39 */", "Enumeration enumeration = new Enumeration()")));
             assertTrue(source.matches(PatternMaker.make(":  40 */", "Iterator<String> i = AnonymousClass.this.list.iterator();")));
-            assertTrue(source.matches(PatternMaker.make(":  44 */", "return (this.i.hasNext() && s1 == s2 && i1 > l1);")));
+            assertTrue(source.matches(PatternMaker.make(":  44 */", "return (this.i.hasNext() && s1 == s2 && (long)i1 > l1);")));
             assertNotEquals(-1, source.indexOf("return this.i.next();"));
             assertTrue(source.matches(PatternMaker.make(":  52 */", "test(enumeration, \"test\");")));
             assertTrue(source.matches(PatternMaker.make(":  55 */", "System.out.println(\"end\");")));
@@ -75,7 +75,7 @@ public class JavaAnonymousClassTest extends AbstractJdTest {
 
             assertTrue(source.matches(PatternMaker.make(":  39 */", "Enumeration e = new Enumeration()")));
             assertTrue(source.matches(PatternMaker.make(":  40 */", "Iterator<String> i = AnonymousClass.this.list.iterator();")));
-            assertTrue(source.matches(PatternMaker.make(":  44 */", "return (this.i.hasNext() && s1 == s2 && i1 > l1);")));
+            assertTrue(source.matches(PatternMaker.make(":  44 */", "return (this.i.hasNext() && s1 == s2 && (long)i1 > l1);")));
 
             assertTrue(source.matches(PatternMaker.make(":  61 */", "final int i = s1.length();")));
             assertTrue(source.matches(PatternMaker.make(":  63 */", "System.out.println(\"2\" + new StringWrapper(123456L)")));

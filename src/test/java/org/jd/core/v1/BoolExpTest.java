@@ -26,7 +26,7 @@ public class BoolExpTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 30 */       v.add(new String(\"Field #2 is not valid\")); ")));
             assertTrue(source.matches(PatternMaker.make(": 33 */     if (this.field3 == null || \"\".equals(this.field3))")));
             assertTrue(source.matches(PatternMaker.make(": 34 */       v.add(new String(\"Field #3 is not valid\")); ")));
-            assertTrue(source.matches(PatternMaker.make(": 37 */     if (this.field4 == null || \"\".equals((this.field4 == null)))")));
+            assertTrue(source.matches(PatternMaker.make(": 37 */     if (this.field4 == null || \"\".equals(Boolean.valueOf((this.field4 == null))))")));
             assertTrue(source.matches(PatternMaker.make(": 38 */       v.add(new String(\"Field #4 is not valid\")); ")));
             assertTrue(source.matches(PatternMaker.make(": 41 */     if (this.field5 == null || \"\".equals(this.field5))")));
             assertTrue(source.matches(PatternMaker.make(": 42 */       v.add(new String(\"Field #5 is not valid\")); ")));
@@ -34,7 +34,7 @@ public class BoolExpTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 46 */       v.add(new String(\"Field #6 is not valid\")); ")));
             assertTrue(source.matches(PatternMaker.make(": 49 */     return v.isEmpty();")));
 
-            assertTrue(source.matches(PatternMaker.make(": 53 */     toolBar.add(button, (Math.random() == 0.0D && toolBar.getComponentCount() > ((Math.random() > 0.5D) ? 1 : 0)));")));
+            assertTrue(source.matches(PatternMaker.make(": 53 */     toolBar.add(button, Boolean.valueOf((Math.random() == 0.0D && toolBar.getComponentCount() > ((Math.random() > 0.5D) ? 1 : 0))));")));
 
             assertTrue(source.matches(PatternMaker.make(": 58 */     boolean bool = true;")));
             assertTrue(source.matches(PatternMaker.make(": 59 */     if ((Color.BLACK.equals(getColorChoice(s)) && (\"CONST1\"")));

@@ -10,6 +10,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
@@ -113,5 +114,12 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
     }
 
     @Override
-    protected void maybeUpdateParameters(ConstructorInvocationExpression expression) {}
+    protected void maybeUpdateParameters(ConstructorInvocationExpression expression) {
+        // disable (un)boxing due to possible constructor overloading
+    }
+    
+    @Override
+    protected void maybeUpdateParameters(MethodInvocationExpression expression) {
+        // disable (un)boxing due to possible method overloading
+    }
 }

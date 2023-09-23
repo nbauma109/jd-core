@@ -24,6 +24,7 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFirstLineNumberVisitor;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.Iterator;
@@ -441,7 +442,15 @@ public final class TryWithResourcesStatementMaker {
                         if (expression instanceof MethodInvocationExpression) {
                             MethodInvocationExpression mie = (MethodInvocationExpression) expression;
                             if (checkCloseInvocation(mie, lv1)) {
-                                iterator.remove();
+                                if (finallyStatements == null) {
+                                    iterator.remove();
+                                } else {
+                                    SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
+                                    searchFirstLineNumberVisitor.safeAccept(finallyStatements);
+                                    if (searchFirstLineNumberVisitor.getLineNumber() == mie.getLineNumber()) {
+                                        iterator.remove();
+                                    }
+                                }
                             }
                         }
                     }

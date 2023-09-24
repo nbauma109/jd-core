@@ -191,22 +191,20 @@ public class ExpressionVisitor extends TypeVisitor {
 
     @Override
     public void visit(CastExpression expression) {
-        if (expression.isExplicit()) {
-            tokens.addLineNumberToken(expression);
-            tokens.add(TextToken.LEFTROUNDBRACKET);
+        tokens.addLineNumberToken(expression);
+        tokens.add(TextToken.LEFTROUNDBRACKET);
 
-            BaseType type = expression.getType();
+        BaseType type = expression.getType();
 
-            type.accept(this);
+        type.accept(this);
 
-            BaseType intersectType = expression.getIntersectType();
-            if (intersectType != null) {
-                tokens.add(TextToken.SPACE_AND_SPACE);
-                intersectType.accept(this);
-            }
-
-            tokens.add(TextToken.RIGHTROUNDBRACKET);
+        BaseType intersectType = expression.getIntersectType();
+        if (intersectType != null) {
+            tokens.add(TextToken.SPACE_AND_SPACE);
+            intersectType.accept(this);
         }
+
+        tokens.add(TextToken.RIGHTROUNDBRACKET);
 
         visit(expression, expression.getExpression());
     }

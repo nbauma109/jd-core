@@ -424,11 +424,7 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
                             case Character.MAX_VALUE:
                                 return new FieldReferenceExpression(lineNumber, TYPE_CHAR, TYPE_CHARACTER_REFERENCE, StringConstants.JAVA_LANG_CHARACTER, StringConstants.MAX_VALUE, "C");
                             default:
-                                if ((icePrimitiveType.getFlags() & primitiveType.getFlags()) != 0) {
-                                    ice.setType(type);
-                                } else {
-                                    ice.setType(TYPE_INT);
-                                }
+                                setType(type, primitiveType, ice, icePrimitiveType);
                                 break;
                         }
                         break;
@@ -439,11 +435,7 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
                             case Byte.MAX_VALUE:
                                 return new FieldReferenceExpression(lineNumber, TYPE_BYTE, TYPE_BYTE_REFERENCE, StringConstants.JAVA_LANG_BYTE, StringConstants.MAX_VALUE, "B");
                             default:
-                                if ((icePrimitiveType.getFlags() & primitiveType.getFlags()) != 0) {
-                                    ice.setType(type);
-                                } else {
-                                    ice.setType(TYPE_INT);
-                                }
+                                setType(type, primitiveType, ice, icePrimitiveType);
                                 break;
                         }
                         break;
@@ -454,11 +446,7 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
                             case Short.MAX_VALUE:
                                 return new FieldReferenceExpression(lineNumber, TYPE_SHORT, TYPE_SHORT_REFERENCE, StringConstants.JAVA_LANG_SHORT, StringConstants.MAX_VALUE, "S");
                             default:
-                                if ((icePrimitiveType.getFlags() & primitiveType.getFlags()) != 0) {
-                                    ice.setType(type);
-                                } else {
-                                    ice.setType(TYPE_INT);
-                                }
+                                setType(type, primitiveType, ice, icePrimitiveType);
                                 break;
                         }
                         break;
@@ -469,11 +457,7 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
                             case Integer.MAX_VALUE:
                                 return new FieldReferenceExpression(lineNumber, TYPE_INT, TYPE_INTEGER_REFERENCE, StringConstants.JAVA_LANG_INTEGER, StringConstants.MAX_VALUE, "I");
                             default:
-                                if ((icePrimitiveType.getFlags() & primitiveType.getFlags()) != 0) {
-                                    ice.setType(type);
-                                } else {
-                                    ice.setType(TYPE_INT);
-                                }
+                                setType(type, primitiveType, ice, icePrimitiveType);
                                 break;
                         }
                         break;
@@ -498,6 +482,14 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
 
         expression.accept(this);
         return expression;
+    }
+
+    private static void setType(Type type, PrimitiveType primitiveType, IntegerConstantExpression ice, PrimitiveType icePrimitiveType) {
+        if ((icePrimitiveType.getFlags() & primitiveType.getFlags()) != 0) {
+            ice.setType(type);
+        } else {
+            ice.setType(TYPE_INT);
+        }
     }
 
     protected Expression safeUpdateBooleanExpression(Expression expression) {

@@ -28,6 +28,7 @@ import org.apache.commons.imaging.formats.pnm.PnmImageParser;
 import org.apache.commons.imaging.formats.tiff.write.TiffImageWriterBase;
 import org.apache.commons.imaging.internal.Util;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.io.filefilter.RegexFileFilter;
 import org.apache.commons.io.function.IOBaseStream;
@@ -1650,6 +1651,15 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testLimitFinder() throws Exception {
         String internalClassName = LimitFinder.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testIOUtils() throws Exception {
+        String internalClassName = IOUtils.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         
         // Recompile decompiled source code and check errors

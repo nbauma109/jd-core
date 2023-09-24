@@ -536,7 +536,13 @@ public class ExpressionVisitor extends TypeVisitor {
 
     @Override
     public void visit(MethodReferenceExpression expression) {
+        if (expression.getExpression().isCastExpression()) {
+            tokens.add(TextToken.LEFTROUNDBRACKET);
+        }
         expression.getExpression().accept(this);
+        if (expression.getExpression().isCastExpression()) {
+            tokens.add(TextToken.RIGHTROUNDBRACKET);
+        }
         tokens.addLineNumberToken(expression);
         tokens.add(TextToken.COLON_COLON);
         tokens.add(new ReferenceToken(Printer.METHOD, expression.getInternalTypeName(), expression.getName(), expression.getDescriptor(), currentType));

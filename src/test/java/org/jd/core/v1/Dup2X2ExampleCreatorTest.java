@@ -31,7 +31,7 @@ public class Dup2X2ExampleCreatorTest extends AbstractJdTest {
         };
         StringBuilderPrinter printer = new StringBuilderPrinter();
         String output = decompileSuccess(loader, printer, "org/jd/core/v1/Dup2X2Example");
-        assertEquals(IOUtils.toString(getClass().getResource("/txt/Dup2X2Example.txt"), StandardCharsets.UTF_8), output);
+        assertEqualsIgnoreEOL(IOUtils.toString(getClass().getResource("/txt/Dup2X2Example.txt"), StandardCharsets.UTF_8), output);
     }
 
     @Test
@@ -53,6 +53,6 @@ public class Dup2X2ExampleCreatorTest extends AbstractJdTest {
         };
         StringBuilderPrinter printer = new StringBuilderPrinter();
         String output = decompileSuccess(loader, printer, "org/jd/core/v1/Dup2X2Example");
-        assertEquals(IOUtils.toString(getClass().getResource("/txt/Dup2X2DoubleExample.txt"), StandardCharsets.UTF_8), output);
+        assertEqualsIgnoreEOL(IOUtils.toString(getClass().getResource("/txt/Dup2X2DoubleExample.txt"), StandardCharsets.UTF_8), output);
     }
 }

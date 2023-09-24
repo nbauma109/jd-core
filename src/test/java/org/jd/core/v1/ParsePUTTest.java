@@ -17,7 +17,7 @@ public class ParsePUTTest extends AbstractJdTest {
         String output = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         
         // Check output
-        assertEquals(IOUtils.toString(getClass().getResource("/txt/ParsePUT.txt"), StandardCharsets.UTF_8), output);
+        assertEqualsIgnoreEOL(IOUtils.toString(getClass().getResource("/txt/ParsePUT.txt"), StandardCharsets.UTF_8), output);
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, output)));

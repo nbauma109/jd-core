@@ -240,7 +240,7 @@ public class JavaLoopTest extends AbstractJdTest {
 
             // Check decompiled source code
             String expected = Files.readString(Paths.get(getClass().getResource("/txt/For.txt").toURI()));
-            assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
+            assertEqualsIgnoreEOL(expected, source);
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -303,7 +303,7 @@ public class JavaLoopTest extends AbstractJdTest {
 
             // Check decompiled source code
             String expected = Files.readString(Paths.get(getClass().getResource("/txt/For.txt").toURI()));
-            assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
+            assertEqualsIgnoreEOL(expected, source);
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.6", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -320,7 +320,7 @@ public class JavaLoopTest extends AbstractJdTest {
 
             // Check decompiled source code
             String expected = Files.readString(Paths.get(getClass().getResource("/txt/For.txt").toURI()));
-            assertEquals(expected.replaceAll("\s*\r?\n", "\n"), source.replaceAll("\s*\r?\n", "\n"));
+            assertEqualsIgnoreEOL(expected, source);
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.5", new InMemoryJavaSourceFileObject(internalClassName, source)));

@@ -41,4 +41,8 @@ public abstract class AbstractJdTest extends TestCase {
         System.out.println(source);
         System.out.println("- - - - - - - - ");
     }
+
+    protected void assertEqualsIgnoreEOL(String expected, String actual) {
+        assertEquals(expected.replaceAll("\s*\r?\n", "\n"), actual.replaceAll("\s*\r?\n", "\n"));
+    }
 }

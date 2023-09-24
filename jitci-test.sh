@@ -3,4 +3,5 @@ export M3_VERSION=$(curl -Ls -o /dev/null -w %{url_effective} https://github.com
 export JAVA_HOME=$HOME/jdk-17.0.8.1+1
 ln -s "$HOME/apache-maven-${M3_VERSION}/bin/mvn" ~/bin/mvn
 export PATH=~/bin:$PATH
+mvn -version
 mvn -B test --no-transfer-progress

@@ -492,7 +492,7 @@
 /*  492:    0 */   public StringBuffer format(long millis, StringBuffer buf) {
 /*  493:  493 */     Calendar c = newCalendar();
 /*  494:  494 */     c.setTimeInMillis(millis);
-/*  495:  495 */     return applyRules(c, buf);
+/*  495:  495 */     return (StringBuffer)applyRules(c, (Appendable)buf);
 /*  496:    0 */   }
 /*  497:    0 */
 /*  498:    0 */
@@ -502,7 +502,7 @@
 /*  502:    0 */   public StringBuffer format(Date date, StringBuffer buf) {
 /*  503:  503 */     Calendar c = newCalendar();
 /*  504:  504 */     c.setTime(date);
-/*  505:  505 */     return applyRules(c, buf);
+/*  505:  505 */     return (StringBuffer)applyRules(c, (Appendable)buf);
 /*  506:    0 */   }
 /*  507:    0 */
 /*  508:    0 */
@@ -559,7 +559,7 @@
 /*  559:    0 */
 /*  560:    0 */   @Deprecated
 /*  561:    0 */   protected StringBuffer applyRules(Calendar calendar, StringBuffer buf) {
-/*  562:  562 */     return applyRules(calendar, buf);
+/*  562:  562 */     return (StringBuffer)applyRules(calendar, (Appendable)buf);
 /*  563:    0 */   }
 /*  564:    0 */
 /*  565:    0 */

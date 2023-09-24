@@ -43,8 +43,8 @@ public class JavaIfElseTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make("/*  60:  60 */", "if (i == 1)")));
 
             assertTrue(source.matches(PatternMaker.make("/*  71:  71 */", "if ((long)i == System.currentTimeMillis())")));
-            assertTrue(source.matches(PatternMaker.make("/*  73:  73 */", "} else if (i != System.currentTimeMillis()) {")));
-            assertTrue(source.matches(PatternMaker.make("/*  75:  75 */", "} else if (i > System.currentTimeMillis()) {")));
+            assertTrue(source.matches(PatternMaker.make("/*  73:  73 */", "} else if ((long)i != System.currentTimeMillis()) {")));
+            assertTrue(source.matches(PatternMaker.make("/*  75:  75 */", "} else if ((long)i > System.currentTimeMillis()) {")));
 
             assertTrue(source.matches(PatternMaker.make("/* 123: 123 */", "if (i == 4 && i == 5 && i == 6)")));
 

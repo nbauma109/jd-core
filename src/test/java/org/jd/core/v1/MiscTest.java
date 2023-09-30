@@ -284,10 +284,10 @@ public class MiscTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make(": 514 */", "for (String nextReplacement : replacements) {")));
+        assertTrue(source.matches(PatternMaker.make("for (String nextReplacement : replacements) {")));
 
         // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test

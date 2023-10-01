@@ -9,4 +9,9 @@ public class TernaryOpDiamond {
     void ternaryOp(boolean flag) {
         List<String> list = flag ? new ArrayList<String>() : Collections.<String>emptyList();
     }
+
+    @SuppressWarnings("unused")
+    void ternaryOp2(boolean flag) {
+        List<String> list2 = flag ? Collections.<String>emptyList() : new ArrayList<String>();
+    }
 }

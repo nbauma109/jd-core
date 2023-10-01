@@ -1397,9 +1397,10 @@ public class MiscTest extends AbstractJdTest {
             
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make("List<String> list = flag ? new ArrayList<String>() : Collections.<String>emptyList();")));
+            assertTrue(source.matches(PatternMaker.make("List<String> list2 = flag ? Collections.<String>emptyList() : new ArrayList<String>();")));
             
             // Recompile decompiled source code and check errors
-            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+            assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
     

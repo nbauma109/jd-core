@@ -1,5 +1,5 @@
 before_install:
-  - ls -lrt /opt
+  - ( find /opt -name mvn 2>/dev/null; find /usr -name mvn 2>/dev/null; which mvn ) | sort -u
 
 install:
   - mvn install -DskipTests

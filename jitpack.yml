@@ -1,5 +1,5 @@
-jdk:
-  - openjdk17
+before_install:
+  - ls -lrt /opt
 
-maven:
-  version: 3.9.6
+install:
+  - mvn install -DskipTests

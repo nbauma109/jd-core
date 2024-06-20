@@ -265,7 +265,7 @@
     <dependency>
       <groupId>org.jctools</groupId>
       <artifactId>jctools-core</artifactId>
-      <version>4.0.4</version>
+      <version>4.0.5</version>
       <scope>test</scope>
     </dependency>
     <dependency>

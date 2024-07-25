@@ -346,37 +346,20 @@ public class ConvertClassFileProcessor {
 
     protected ModuleDeclaration convertModuleDeclaration(ClassFile classFile) {
         Module attributeModule = classFile.getAttribute(Const.ATTR_MODULE);
-        String fieldName = "usesIndex";
-        int[] usesIndexes = getFieldValue(attributeModule, fieldName);
-        final String[] usedClassNames = new String[usesIndexes.length];
-        for (int i = 0; i < usesIndexes.length; i++) {
-            usedClassNames[i] = classFile.getConstantPool().getConstantString(usesIndexes[i], Const.CONSTANT_Class);
-        }
-        List<ModuleDeclaration.ModuleInfo> requires = convertModuleRequiresToModuleInfo(attributeModule.getRequiresTable(), classFile.getConstantPool());
-        List<ModuleDeclaration.PackageInfo> exports = convertModuleExportsToPackageInfo(attributeModule.getExportsTable(), classFile.getConstantPool());
-        List<ModuleDeclaration.PackageInfo> opens = convertModuleOpensToPackageInfo(attributeModule.getOpensTable(), classFile.getConstantPool());
+        ConstantPool constantPool = classFile.getConstantPool();
+        final String[] usedClassNames = attributeModule.getUsedClassNames(constantPool, false);
+        List<ModuleDeclaration.ModuleInfo> requires = convertModuleRequiresToModuleInfo(attributeModule.getRequiresTable(), constantPool);
+        List<ModuleDeclaration.PackageInfo> exports = convertModuleExportsToPackageInfo(attributeModule.getExportsTable(), constantPool);
+        List<ModuleDeclaration.PackageInfo> opens = convertModuleOpensToPackageInfo(attributeModule.getOpensTable(), constantPool);
         DefaultList<String> uses = new DefaultList<>(usedClassNames);
-        List<ModuleDeclaration.ServiceInfo> provides = convertModuleProvidesToServiceInfo(attributeModule.getProvidesTable(), classFile.getConstantPool());
+        List<ModuleDeclaration.ServiceInfo> provides = convertModuleProvidesToServiceInfo(attributeModule.getProvidesTable(), constantPool);
 
-        int moduleFlags = getFieldValue(attributeModule, "moduleFlags");
-        int moduleNameIndex = getFieldValue(attributeModule, "moduleNameIndex");
-        int moduleVersionIndex = getFieldValue(attributeModule, "moduleVersionIndex");
-        String moduleName = classFile.getConstantPool().getConstantString(moduleNameIndex, Const.CONSTANT_Module);
-        String moduleVersion = classFile.getConstantPool().getConstantString(moduleVersionIndex, Const.CONSTANT_Utf8);
+        int moduleFlags = attributeModule.getModuleFlags();
+        String moduleName = attributeModule.getModuleName(constantPool);
+        String moduleVersion = attributeModule.getVersion(constantPool);
         return new ModuleDeclaration(
                 moduleFlags, classFile.getInternalTypeName(), moduleName,
                 moduleVersion, requires, exports, opens, uses, provides);
-    }
-
-    @SuppressWarnings("all")
-    private static <T> T getFieldValue(Object o, String fieldName) {
-        try {
-            java.lang.reflect.Field f = o.getClass().getDeclaredField(fieldName);
-            f.setAccessible(true);
-            return (T) f.get(o);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     protected List<ModuleDeclaration.ModuleInfo> convertModuleRequiresToModuleInfo(ModuleRequires[] moduleRequires, ConstantPool constantPool) {
@@ -385,12 +368,9 @@ public class ConvertClassFileProcessor {
         }
         DefaultList<ModuleDeclaration.ModuleInfo> list = new DefaultList<>(moduleRequires.length);
         for (ModuleRequires moduleRequire : moduleRequires) {
-            int requiresFlags = getFieldValue(moduleRequire, "requiresFlags");
-            int requiresIndex = getFieldValue(moduleRequire, "requiresIndex");
-            int requiresVersionIndex = getFieldValue(moduleRequire, "requiresVersionIndex");
-            String moduleName = constantPool.constantToString(requiresIndex, Const.CONSTANT_Module);
-            String version = requiresVersionIndex == 0 ? "0" : constantPool.getConstantString(requiresVersionIndex, Const.CONSTANT_Utf8);
-            list.add(new ModuleDeclaration.ModuleInfo(moduleName, requiresFlags, version));
+            String moduleName = moduleRequire.getModuleName(constantPool);
+            String version = moduleRequire.getVersion(constantPool);
+            list.add(new ModuleDeclaration.ModuleInfo(moduleName, moduleRequire.getRequiresFlags(), version));
         }
         return list;
     }
@@ -402,16 +382,10 @@ public class ConvertClassFileProcessor {
         DefaultList<ModuleDeclaration.PackageInfo> list = new DefaultList<>(moduleOpens.length);
         DefaultList<String> moduleInfoNames;
         for (ModuleOpens moduleOpen : moduleOpens) {
-            int opensToCount = getFieldValue(moduleOpen, "opensToCount");
-            int[] opensToIndexes = getFieldValue(moduleOpen, "opensToIndex");
-            String[] toModuleNames = new String[opensToCount];
-            for (int i = 0; i < opensToCount; i++) {
-                toModuleNames[i] = constantPool.getConstantString(opensToIndexes[i], Const.CONSTANT_Module);
-            }
+            String[] toModuleNames = moduleOpen.getToModuleNames(constantPool);
             moduleInfoNames = new DefaultList<>(toModuleNames);
-            int exportsIndex = getFieldValue(moduleOpen, "opensIndex");
-            int opensFlags = getFieldValue(moduleOpen, "opensFlags");
-            String packageName = constantPool.constantToString(exportsIndex, Const.CONSTANT_Package);
+            int opensFlags = moduleOpen.getOpensFlags();
+            String packageName = moduleOpen.getPackageName(constantPool);
             list.add(new ModuleDeclaration.PackageInfo(packageName, opensFlags, moduleInfoNames));
         }
         return list;
@@ -424,16 +398,10 @@ public class ConvertClassFileProcessor {
         DefaultList<ModuleDeclaration.PackageInfo> list = new DefaultList<>(moduleExports.length);
         DefaultList<String> moduleInfoNames;
         for (ModuleExports moduleExport : moduleExports) {
-            int exportsToCount = getFieldValue(moduleExport, "exportsToCount");
-            int[] exportsToIndexes = getFieldValue(moduleExport, "exportsToIndex");
-            String[] toModuleNames = new String[exportsToCount];
-            for (int i = 0; i < exportsToCount; i++) {
-                toModuleNames[i] = constantPool.getConstantString(exportsToIndexes[i], Const.CONSTANT_Module);
-            }
+            String[] toModuleNames = moduleExport.getToModuleNames(constantPool);
             moduleInfoNames = new DefaultList<>(toModuleNames);
-            int exportsIndex = getFieldValue(moduleExport, "exportsIndex");
-            int exportsFlags = getFieldValue(moduleExport, "exportsFlags");
-            String packageName = constantPool.constantToString(exportsIndex, Const.CONSTANT_Package);
+            int exportsFlags = moduleExport.getExportsFlags();
+            String packageName = moduleExport.getPackageName(constantPool);
             list.add(new ModuleDeclaration.PackageInfo(packageName, exportsFlags, moduleInfoNames));
         }
         return list;
@@ -446,15 +414,9 @@ public class ConvertClassFileProcessor {
         DefaultList<ModuleDeclaration.ServiceInfo> list = new DefaultList<>(moduleProvides.length);
         DefaultList<String> implementationTypeNames;
         for (ModuleProvides serviceInfo : moduleProvides) {
-            int providesIndex = getFieldValue(serviceInfo, "providesIndex");
-            int providesWithCount = getFieldValue(serviceInfo, "providesWithCount");
-            int[] providesWithIndexes = getFieldValue(serviceInfo, "providesWithIndex");
-            String[] implementationClassNames = new String[providesWithCount];
-            for (int i = 0; i < providesWithCount; i++) {
-                implementationClassNames[i] = constantPool.getConstantString(providesWithIndexes[i], Const.CONSTANT_Class);
-            }
+            String[] implementationClassNames = serviceInfo.getImplementationClassNames(constantPool, false);
             implementationTypeNames = new DefaultList<>(implementationClassNames);
-            String interfaceName = constantPool.getConstantString(providesIndex, Const.CONSTANT_Class);
+            String interfaceName = serviceInfo.getInterfaceName(constantPool);
             list.add(new ModuleDeclaration.ServiceInfo(interfaceName, implementationTypeNames));
         }
         return list;

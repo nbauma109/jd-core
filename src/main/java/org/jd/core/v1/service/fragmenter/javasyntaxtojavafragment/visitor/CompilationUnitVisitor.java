@@ -115,6 +115,7 @@ public class CompilationUnitVisitor extends StatementVisitor {
     private final SingleLineStatementVisitor singleLineStatementVisitor = new SingleLineStatementVisitor();
     private final String mainInternalName;
     private boolean emptyConstants;
+    private boolean visitingInterface;
 
     public CompilationUnitVisitor(Loader loader, String mainInternalTypeName, int majorVersion, ImportsFragment importsFragment) {
         super(loader, mainInternalTypeName, majorVersion, importsFragment);
@@ -834,7 +835,10 @@ public class CompilationUnitVisitor extends StatementVisitor {
                 storeContext();
                 currentType = typeMaker.makeFromInternalTypeName(declaration.getInternalTypeName());
                 currentTypeName = declaration.getName();
+                boolean tmpVisitingInterface = visitingInterface;
+                visitingInterface = true;
                 bodyDeclaration.accept(this);
+                visitingInterface = tmpVisitingInterface;
                 restoreContext();
 
                 if (fragmentCount2 == fragments.size()) {
@@ -1228,7 +1232,7 @@ public class CompilationUnitVisitor extends StatementVisitor {
     public void visit(StaticInitializerDeclaration declaration) {
         BaseStatement statements = declaration.getStatements();
 
-        if (statements != null) {
+        if (statements != null && !visitingInterface) {
             fragments.add(StartMovableJavaBlockFragment.START_MOVABLE_METHOD_BLOCK);
 
             storeContext();

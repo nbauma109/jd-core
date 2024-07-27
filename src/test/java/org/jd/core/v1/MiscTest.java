@@ -16,9 +16,13 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.FluentIterable;
 import org.apache.commons.collections4.IterableUtils;
 import org.apache.commons.collections4.Transformer;
+import org.apache.commons.collections4.bidimap.DualTreeBidiMap;
 import org.apache.commons.collections4.bidimap.UnmodifiableBidiMap;
+import org.apache.commons.collections4.bloomfilter.CellProducer;
 import org.apache.commons.collections4.collection.CompositeCollection;
+import org.apache.commons.collections4.functors.PrototypeFactory;
 import org.apache.commons.collections4.keyvalue.AbstractMapEntry;
+import org.apache.commons.collections4.properties.OrderedProperties;
 import org.apache.commons.imaging.Imaging;
 import org.apache.commons.imaging.common.itu_t4.T4AndT6Compression;
 import org.apache.commons.imaging.formats.bmp.BmpImageParser;
@@ -37,6 +41,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.apache.commons.lang3.EnumUtils;
 import org.apache.commons.lang3.compare.ComparableUtils;
+import org.apache.commons.lang3.function.FailableConsumer;
 import org.apache.commons.lang3.function.FailableFunction;
 import org.apache.commons.lang3.function.TriFunction;
 import org.apache.commons.lang3.stream.Streams;
@@ -73,6 +78,7 @@ import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.ClassFilePrinter;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
+import org.jd.core.v1.stub.ArrayIndexInc;
 import org.jd.core.v1.stub.NumericConstants;
 import org.jd.core.v1.stub.TernaryOpDiamond;
 import org.jsoup.nodes.Attribute;
@@ -1164,6 +1170,18 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testOrderedProperties() throws Exception {
+        String internalClassName = OrderedProperties.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return this.orderedKeys.stream().map(k -> new AbstractMap.SimpleEntry<>(k, get(k))).collect(Collectors.toCollection(LinkedHashSet::new));")));
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
     public void testBounds2() throws Exception {
         class TestBounds2<K, V> {
             Transformer<? super V, ? extends V> valueTransformer;
@@ -1212,8 +1230,8 @@ public class MiscTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make(": 63 */", "Objects.requireNonNull(after);")));
-        assertTrue(source.matches(PatternMaker.make(": 64 */", "return (t, u, v) -> after.apply(apply(t, u, v));")));
+        assertTrue(source.matches(PatternMaker.make(": 53 */", "Objects.requireNonNull(after);")));
+        assertTrue(source.matches(PatternMaker.make(": 54 */", "return (t, u, v) -> after.apply(apply(t, u, v));")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -1616,7 +1634,7 @@ public class MiscTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test
@@ -1750,6 +1768,20 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testFailableConsumer() throws Exception {
+        String internalClassName = FailableConsumer.class.getName().replace('.', '/');
+        Map<String, Object> config = Collections.singletonMap("realignLineNumbers", "true");
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, config);
+        
+        // Check decompiled source code
+        String expected = Files.readString(Paths.get(getClass().getResource("/txt/FailableConsumer.txt").toURI()));
+        assertEqualsIgnoreEOL(expected, source);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
     public void testGmtTimeZone() throws Exception {
         String internalClassName = "org.apache.commons.lang3.time.GmtTimeZone".replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
@@ -1850,6 +1882,27 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testDualTreeBidiMap() throws Exception {
+        String internalClassName = DualTreeBidiMap.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("iterator = new ArrayList<Map.Entry<K, V>>(parent.entrySet()).listIterator();")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testPrototypeFactory() throws Exception {
+        String internalClassName = PrototypeFactory.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
     public void testNumericConstants() throws Exception {
         String internalClassName = NumericConstants.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
@@ -1869,6 +1922,15 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    @Test
+    public void testCounterCell() throws Exception {
+        String internalClassName = CellProducer.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
     @Test
     public void testStringBuxxxer() throws Exception {
         class StringBuxxxer {
@@ -1892,5 +1954,22 @@ public class MiscTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         
+    }
+    
+    @Test
+    public void testArrayIndexInc() throws Exception {
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/array-index-inc-jdk8u331.jar")) {
+            Loader loader = new ZipLoader(is);
+    
+            String internalClassName = ArrayIndexInc.class.getName().replace('.', '/');
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            assertTrue(source.matches(PatternMaker.make("postInc[idx[0]++] = i;")));
+            assertTrue(source.matches(PatternMaker.make("preInc[++idx[0]] = i;")));
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
     }
 }

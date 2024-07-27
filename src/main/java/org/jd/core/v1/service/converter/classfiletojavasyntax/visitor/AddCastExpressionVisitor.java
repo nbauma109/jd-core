@@ -627,7 +627,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 expression.accept(searchFirstLineNumberVisitor);
                 expression = new CastExpression(searchFirstLineNumberVisitor.getLineNumber(), type, expression);
             }
-        } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
+        } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && ("toList".equals(expression.getName()) || "toCollection".equals(expression.getName()))) {
             return expression; // TODO FIXME find real rule instead of hardcoded workaround
         } else if (forceCast && unboundType instanceof GenericType gt && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
             expression = addCastExpression(ot, expression);
@@ -693,6 +693,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 // Remove cast expression
                 expression = expression.getExpression();
             }
+            if (expression.isNewExpression() && expression.getParameters() != null && expression.getParameters().size() == 1 && expression.getParameters().getFirst().isCastExpression()) {
+                Set<String> parametersInType = type.findTypeParametersInType();
+                if (!parametersInType.isEmpty()) {
+                    expression = addCastExpression(type, expression);
+                }
+            }
             expression.accept(this);
         }
 
@@ -708,7 +714,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
         Type nestedExpressionType = nestedExpression.getType();
-
+        if ("java/util/stream/Stream".equals(nestedExpression.getInternalTypeName()) && "collect".equals(nestedExpression.getName())) {
+            // TODO FIXME find real rule instead of hardcoded workaround
+           return true;
+        }
         if (type.isObjectType() && nestedExpressionType.isObjectType()) {
             ObjectType left = (ObjectType) type;
             ObjectType right = (ObjectType) nestedExpressionType;

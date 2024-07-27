@@ -797,11 +797,13 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     if (!partialBinding) {
                         ne.setType((ObjectType) bind(bindings, neObjectType));
                     }
+                    if (neObjectType != null) {
+                        ne.setHasTypeArguments(neObjectType.getTypeArguments() != null);
+                    }
                 }
             }
 
             bindParameters(parameterTypes, parameters);
-
             ne.setBound(true);
         }
     }

@@ -336,7 +336,22 @@ public class ByteCodeParser {
                     indexRef = stack.pop();
                     arrayRef = stack.pop();
                     type1 = arrayRef.getType();
-                    statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, type1.createType(type1.getDimension()-1), new ArrayExpression(lineNumber, arrayRef, indexRef), "=", valueRef, 16)));
+                    ArrayExpression arrayExpression = new ArrayExpression(lineNumber, arrayRef, indexRef);
+                    if (!stack.isEmpty() 
+                            && valueRef instanceof BinaryOperatorExpression boe
+                            && boe.getRightExpression() instanceof IntegerConstantExpression ice
+                            && ice.getIntegerValue() == 1
+                            && arrayExpression.equals(valueRef.getLeftExpression())
+                            && ("+".equals(boe.getOperator()) || "-".equals(boe.getOperator()))) {
+                        Expression expression = stack.pop();
+                        if (!expression.equals(valueRef)) {
+                            stack.push(newPostArithmeticOperatorExpression(lineNumber, arrayExpression, boe.getOperator().repeat(2)));
+                        } else {
+                            stack.push(newPreArithmeticOperatorExpression(lineNumber, boe.getOperator().repeat(2), arrayExpression));
+                        }
+                    } else {
+                        statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, type1.createType(type1.getDimension()-1), arrayExpression , "=", valueRef, 16)));
+                    }
                     break;
                 case AASTORE:
                     valueRef = stack.pop();

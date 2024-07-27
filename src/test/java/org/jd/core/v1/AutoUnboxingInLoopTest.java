@@ -22,7 +22,7 @@ public class AutoUnboxingInLoopTest extends AbstractJdTest {
 
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make(": 13 */     while (hashCode != -1) {")));
-            assertTrue(source.matches(PatternMaker.make(": 14 */       List<Object> list = new ArrayList();")));
+            assertTrue(source.matches(PatternMaker.make(": 14 */       List<Object> list = new ArrayList<>();")));
             assertTrue(source.matches(PatternMaker.make(": 16 */       for (int j = 0; j < paramList.size(); j++) {")));
             assertTrue(source.matches(PatternMaker.make(": 17 */         Object next = paramList.listIterator(j).next();")));
             assertTrue(source.matches(PatternMaker.make(": 18 */         if (next != null) {")));
@@ -32,7 +32,7 @@ public class AutoUnboxingInLoopTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 22 */             list.add(elem); ")));
             assertTrue(source.matches(PatternMaker.make(": 27 */       list2.addAll(list1);")));
             assertTrue(source.matches(PatternMaker.make(": 28 */       Integer integer1 = hashCode, integer2 = hashCode = hashCode - 1;")));
-            assertTrue(source.matches(PatternMaker.make(": 30 */     List<Object> l = new ArrayList();")));
+            assertTrue(source.matches(PatternMaker.make(": 30 */     List<Object> l = new ArrayList<>();")));
             assertTrue(source.matches(PatternMaker.make(": 32 */     for (int i = 0; i < list2.size(); i++) {")));
             assertTrue(source.matches(PatternMaker.make(": 33 */       Object next = list2.listIterator(i).next();")));
             assertTrue(source.matches(PatternMaker.make(": 34 */       if (next != null)")));

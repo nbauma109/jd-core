@@ -18,7 +18,7 @@ public class ClassFileNewExpression extends NewExpression {
     private boolean bound;
 
     public ClassFileNewExpression(int lineNumber, ObjectType type, boolean varArgs, boolean diamondPossible) {
-        super(lineNumber, type, null, varArgs,diamondPossible);
+        super(lineNumber, type, null, varArgs, diamondPossible);
         this.bound = false;
     }
 

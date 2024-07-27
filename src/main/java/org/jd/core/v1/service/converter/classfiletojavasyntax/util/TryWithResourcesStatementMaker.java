@@ -25,6 +25,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFirstLineNumberVisitor;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchLocalVariableReferenceVisitor;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.Iterator;
@@ -417,7 +418,8 @@ public final class TryWithResourcesStatementMaker {
             @Override
             public void visit(Statements statements) {
                 if (statements.isList()) {
-                    for (Iterator<Statement> iterator = statements.getList().iterator(); iterator.hasNext();) {
+                    int idx = 0;
+                    for (Iterator<Statement> iterator = statements.getList().iterator(); iterator.hasNext(); idx++) {
                         Statement statement = iterator.next();
                         if (statement instanceof IfStatement) {
                             IfStatement ifStatement = (IfStatement) statement;
@@ -443,7 +445,14 @@ public final class TryWithResourcesStatementMaker {
                             MethodInvocationExpression mie = (MethodInvocationExpression) expression;
                             if (checkCloseInvocation(mie, lv1)) {
                                 if (finallyStatements == null) {
-                                    iterator.remove();
+                                    SearchLocalVariableReferenceVisitor searchLocalVariableReferenceVisitor = new SearchLocalVariableReferenceVisitor();
+                                    if (idx + 1 < statements.size()) {
+                                        searchLocalVariableReferenceVisitor.init(lv1);
+                                        searchLocalVariableReferenceVisitor.safeAcceptListStatement(statements.subList(idx + 1, statements.size()));
+                                        if (!searchLocalVariableReferenceVisitor.containsReference()) {
+                                            iterator.remove();
+                                        }
+                                    }
                                 } else {
                                     SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
                                     searchFirstLineNumberVisitor.safeAccept(finallyStatements);

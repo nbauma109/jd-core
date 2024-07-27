@@ -492,7 +492,7 @@ public class ExpressionVisitor extends TypeVisitor {
                 } else {
                     if (exp instanceof NewExpression) {
                         NewExpression newExpression = (NewExpression) exp;
-                        newExpression.setDiamondPossible(false);
+                        newExpression.setDiamondPossible(newExpression.getType() instanceof ObjectType ot && ObjectType.TYPE_UNDEFINED_OBJECT.equals(ot.getTypeArguments()));
                     }
                     visit(expression, exp);
                     tokens.addLineNumberToken(expression);
@@ -635,7 +635,7 @@ public class ExpressionVisitor extends TypeVisitor {
 
         ObjectType objectType = expression.getObjectType();
 
-        if (objectType.getTypeArguments() != null && expression.isDiamondPossible() && majorVersion >= MAJOR_1_7) {
+        if (expression.hasTypeArguments() && expression.isDiamondPossible() && majorVersion >= MAJOR_1_7) {
             objectType = objectType.createType(DiamondTypeArgument.DIAMOND);
         }
 

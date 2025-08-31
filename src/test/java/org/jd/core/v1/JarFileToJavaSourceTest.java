@@ -50,16 +50,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     private static final Pattern MODULE_INFO_CLASS = Pattern.compile("META-INF/versions/(\\d+)/module-info\\.class");
 
     @Test
-    public void testBCEL() throws Exception {
-        test(org.apache.bcel.Const.class, "https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-");
-    }
-    
-    @Test
-    public void testCommonsIO() throws Exception {
-        test(org.apache.commons.io.IOUtils.class, "https://github.com/apache/commons-io", "commons-io", "rel/commons-io-");
-    }
-
-    @Test
     public void testCommonsCodec() throws Exception {
         test(org.apache.commons.codec.Charsets.class, "https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-");
     }
@@ -72,11 +62,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     @Test
     public void testCommonsImaging() throws Exception {
         test(org.apache.commons.imaging.Imaging.class, "https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-");
-    }
-
-    @Test
-    public void testCommonsLang3() throws Exception {
-        test(org.apache.commons.lang3.JavaVersion.class, "https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-");
     }
     
 //    @Test

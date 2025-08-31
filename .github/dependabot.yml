@@ -9,6 +9,13 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
-      time: "16:00"
+      time: "17:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 30
+  - package-ecosystem: "github-actions"
+    directory: "/" # Location of GitHub Actions workflows
+    schedule:
+      interval: "daily"
+      time: "17:30"
       timezone: "Europe/Paris"
     open-pull-requests-limit: 30

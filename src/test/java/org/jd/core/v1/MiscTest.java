@@ -42,7 +42,6 @@ import org.apache.commons.lang3.function.TriFunction;
 import org.apache.commons.lang3.stream.Streams;
 import org.apache.commons.lang3.time.FastDatePrinter;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractManager;
 import org.apache.logging.log4j.core.appender.ManagerFactory;
 import org.apache.logging.log4j.core.appender.OutputStreamManager;
@@ -59,7 +58,6 @@ import org.apache.logging.log4j.core.tools.picocli.CommandLine;
 import org.apache.logging.log4j.core.tools.picocli.CommandLine.Help;
 import org.apache.logging.log4j.core.tools.picocli.CommandLine.Help.Ansi;
 import org.apache.logging.log4j.core.util.ReflectionUtil;
-import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.spi.AbstractLogger;
 import org.apache.logging.log4j.util.IndexedStringMap;
 import org.apache.logging.log4j.util.TriConsumer;
@@ -797,19 +795,14 @@ public class MiscTest extends AbstractJdTest {
      */
     @Test
     public void testConsumer() throws Exception {
-        class Consumer {
-            @SuppressWarnings({ "unused" })
-            void accept(LogEvent event, TriConsumer<String, Object, StringBuilder> mapWriter, StringBuilder builder) {
-                if (event.getMessage() instanceof MapMessage) {
-                    ((MapMessage<?, ?>) event.getMessage()).forEach((key, value) -> mapWriter.accept(key, value, builder));
-                }
-            }
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/misc-oracle-jdk1.8.0_331.jar")) {
+            Loader loader = new ZipLoader(is);
+            String internalClassName = MiscOracleJDK8.Consumer.class.getName().replace('.', '/');
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+    
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
-        String internalClassName = Consumer.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-
-        // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test
@@ -1431,43 +1424,28 @@ public class MiscTest extends AbstractJdTest {
      */
     @Test
     public void testLambdaVariables() throws Exception {
-        class LambdaVariables {
-            @SuppressWarnings("unused")
-            void test(String str, int intger) {
-                char chrctr = Character.MAX_VALUE;
-                CharSequence chrsq = null;
-                List<Integer> lst = null;
-                Runnable r = (() -> {
-                    Collections.sort(lst, (a, b) -> {
-                        System.out.print(intger);
-                        System.out.print(chrsq);
-                        System.out.print(str);
-                        System.out.print(lst);
-                        System.out.print(chrctr);
-                        return Integer.compare(a, b);
-                    });
-                });
-            }
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/misc-oracle-jdk1.8.0_331.jar")) {
+            Loader loader = new ZipLoader(is);
+            String internalClassName = MiscOracleJDK8.LambdaVariables.class.getName().replace('.', '/');
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+    
+            // Check decompiled source code
+            assertTrue(source.matches(PatternMaker.make("void test(String str, int intger) {")));
+            assertTrue(source.matches(PatternMaker.make("  char chrctr = Character.MAX_VALUE;")));
+            assertTrue(source.matches(PatternMaker.make("  CharSequence chrsq = null;")));
+            assertTrue(source.matches(PatternMaker.make("  List<Integer> lst = null;")));
+            assertTrue(source.matches(PatternMaker.make("  Runnable r = () -> Collections.sort(lst, (a, b) -> {")));
+            assertTrue(source.matches(PatternMaker.make("        System.out.print(intger);")));
+            assertTrue(source.matches(PatternMaker.make("        System.out.print(chrsq);")));
+            assertTrue(source.matches(PatternMaker.make("        System.out.print(str);")));
+            assertTrue(source.matches(PatternMaker.make("        System.out.print(lst);")));
+            assertTrue(source.matches(PatternMaker.make("        System.out.print(chrctr);")));
+            assertTrue(source.matches(PatternMaker.make("        return Integer.compare(a.intValue(), b.intValue());")));
+    
+    
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
-        String internalClassName = LambdaVariables.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-
-        // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make("void test(String str, int intger) {")));
-        assertTrue(source.matches(PatternMaker.make("  char chrctr = Character.MAX_VALUE;")));
-        assertTrue(source.matches(PatternMaker.make("  CharSequence chrsq = null;")));
-        assertTrue(source.matches(PatternMaker.make("  List<Integer> lst = null;")));
-        assertTrue(source.matches(PatternMaker.make("  Runnable r = () -> Collections.sort(lst, (a, b) -> {")));
-        assertTrue(source.matches(PatternMaker.make("        System.out.print(intger);")));
-        assertTrue(source.matches(PatternMaker.make("        System.out.print(chrsq);")));
-        assertTrue(source.matches(PatternMaker.make("        System.out.print(str);")));
-        assertTrue(source.matches(PatternMaker.make("        System.out.print(lst);")));
-        assertTrue(source.matches(PatternMaker.make("        System.out.print(chrctr);")));
-        assertTrue(source.matches(PatternMaker.make("        return Integer.compare(a.intValue(), b.intValue());")));
-
-
-        // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test

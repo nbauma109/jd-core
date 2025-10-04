@@ -6,6 +6,13 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.processor;
 
+import java.lang.invoke.MethodHandles;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.AnnotationDefault;
 import org.apache.bcel.classfile.AnnotationEntry;
@@ -69,12 +76,6 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.PopulateBindingsWithTypeParameterVisitor;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Convert ClassFile model to Java syntax model.<br><br>
@@ -368,14 +369,16 @@ public class ConvertClassFileProcessor {
                 moduleVersion, requires, exports, opens, uses, provides);
     }
 
-    @SuppressWarnings("all")
     private static <T> T getFieldValue(Object o, String fieldName) {
         try {
-            java.lang.reflect.Field f = o.getClass().getDeclaredField(fieldName);
-            f.setAccessible(true);
-            return (T) f.get(o);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            var lookup = MethodHandles.privateLookupIn(o.getClass(), MethodHandles.lookup());
+            var type   = o.getClass().getDeclaredField(fieldName).getType();
+            var getter = lookup.findGetter(o.getClass(), fieldName, type);
+            return (T) getter.invoke(o);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new IllegalStateException("Cannot access field: " + fieldName + " on " + o.getClass().getName(), e);
+        } catch (Throwable t) {
+            throw new IllegalStateException("MethodHandle get failed for: " + fieldName, t);
         }
     }
 

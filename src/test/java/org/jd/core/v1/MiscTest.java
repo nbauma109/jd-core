@@ -7,9 +7,6 @@
 
 package org.jd.core.v1;
 
-import org.apache.bcel.classfile.JavaClass;
-import org.apache.bcel.generic.FieldGen;
-import org.apache.bcel.generic.PUSH;
 import org.apache.commons.codec.language.DaitchMokotoffSoundex;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.FluentIterable;
@@ -206,20 +203,28 @@ public class MiscTest extends AbstractJdTest {
 
     @Test
     public void testJavaClass() throws Exception {
-        String internalClassName = JavaClass.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+    	try (InputStream in = getClass().getResourceAsStream("/jar/bcel-6.7.0.jar")) {
+    		ZipLoader loader = new ZipLoader(in);
 
-        // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+	        String internalClassName = "org/apache/bcel/classfile/JavaClass";
+	        String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+	
+	        // Recompile decompiled source code and check errors
+	        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    	}
     }
 
     @Test
     public void testPUSH() throws Exception {
-        String internalClassName = PUSH.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+    	try (InputStream in = getClass().getResourceAsStream("/jar/bcel-6.7.0.jar")) {
+    		ZipLoader loader = new ZipLoader(in);
 
-        // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+	        String internalClassName = "org/apache/bcel/generic/PUSH";
+	        String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+	
+	        // Recompile decompiled source code and check errors
+	        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    	}
     }
 
     @Test
@@ -1740,21 +1745,26 @@ public class MiscTest extends AbstractJdTest {
 
     @Test
     public void testFieldGen() throws Exception {
-        String internalClassName = FieldGen.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
-        // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make("value = Integer.valueOf(c);")));
-        
-        // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    	try (InputStream in = getClass().getResourceAsStream("/jar/bcel-6.7.0.jar")) {
+			ZipLoader loader = new ZipLoader(in);
+
+	        String internalClassName = "org/apache/bcel/generic/FieldGen";
+	        String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+	        
+	        // Check decompiled source code
+	        assertTrue(source.matches(PatternMaker.make("value = Integer.valueOf(c);")));
+	        
+	        // Recompile decompiled source code and check errors
+	        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    	}
     }
 
     @Test
 	public void testUtility() throws Exception {
-		try (InputStream in = MavenHelper.buildJarUrl("org.apache.bcel", "bcel", "6.7.0").openStream()) {
-			String internalClassName = "org/apache/bcel/classfile/Utility";
-			ZipLoader loader = new ZipLoader(in);
+    	try (InputStream in = getClass().getResourceAsStream("/jar/bcel-6.7.0.jar")) {
+    		ZipLoader loader = new ZipLoader(in);
+
+    		String internalClassName = "org/apache/bcel/classfile/Utility";
 			String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
 			// Check decompiled source code

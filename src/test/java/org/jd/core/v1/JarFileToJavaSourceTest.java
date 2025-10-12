@@ -37,7 +37,6 @@ import java.util.zip.ZipInputStream;
 import static org.apache.bcel.Const.MAJOR_1_1;
 import static org.apache.bcel.Const.MAJOR_1_5;
 import static org.apache.bcel.Const.MAJOR_1_8;
-import static org.jd.core.v1.MavenHelper.buildJarUrl;
 
 import jd.core.ClassUtil;
 
@@ -215,7 +214,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long assertFailedCounter = 0;
         long recompilationFailedCounter = 0;
 
-        try (InputStream is = buildJarUrl(groupId, artifactId, version).openStream()) {
+        try (InputStream is = MavenHelper.buildJarUrl(groupId, artifactId, version).openStream()) {
             ZipLoader loader = new ZipLoader(is);
             CounterPrinter printer = new CounterPrinter();
             Map<String, Integer> statistics = new HashMap<>();

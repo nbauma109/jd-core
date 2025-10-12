@@ -7,6 +7,8 @@
 
 package org.jd.core.v1;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.IOFileFilter;
 import org.jd.core.test.TryResourcesImaging;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
@@ -14,16 +16,19 @@ import org.jd.core.v1.compiler.InMemoryClassLoader;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.printer.ClassFilePrinter;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.NumericConstants;
 import org.jd.core.v1.stub.TernaryOpDiamond;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Type;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -47,8 +52,12 @@ import java.util.Map.Entry;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.Vector;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import jd.core.process.analyzer.instruction.fast.FastCodeExceptionAnalyzer;
+import net.sourceforge.plantuml.klimt.drawing.LimitFinder;
 
 public class MiscTest extends AbstractJdTest {
 
@@ -79,6 +88,22 @@ public class MiscTest extends AbstractJdTest {
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.4", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testFileFilterUtils() throws Exception {
+        abstract class FileFilterUtils {
+            abstract <R, A> R filterFiles(IOFileFilter filter, Stream<File> stream, Collector<? super File, A, R> collector);
+            @SuppressWarnings("unused")
+            File[] filter(IOFileFilter filter, File... files) {
+                return filterFiles(filter, Stream.of(files), Collectors.toList()).toArray(FileUtils.EMPTY_FILE_ARRAY);
+            }
+        }
+        String internalClassName = FileFilterUtils.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new ClassFilePrinter(), internalClassName);
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test
@@ -842,6 +867,43 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testCSS() throws Exception {
         String internalClassName = javax.swing.text.html.CSS.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testLimitFinder() throws Exception {
+        String internalClassName = LimitFinder.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testLockableFileWriter() throws Exception {
+        class LockableFileWriter {
+            @SuppressWarnings("unused")
+            public LockableFileWriter(File file, Charset charset, boolean append, String lockDir) throws IOException {
+                // init file to create/append
+                file = file.getAbsoluteFile();
+                if (file.getParentFile() != null) {
+                    FileUtils.forceMkdir(file.getParentFile());
+                }
+                if (file.isDirectory()) {
+                    throw new IOException("File specified is a directory");
+                }
+                // init lock file
+                if (lockDir == null) {
+                    lockDir = System.getProperty("java.io.tmpdir");
+                }
+                File lockDirFile = new File(lockDir);
+                FileUtils.forceMkdir(lockDirFile);
+            }
+        }
+        String internalClassName = LockableFileWriter.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Recompile decompiled source code and check errors

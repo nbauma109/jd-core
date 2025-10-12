@@ -286,7 +286,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             if (projectDir != null && runUnitTests) {
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
-                ProcessBuilder pbTest = new ProcessBuilder(mvnCommand, "test", "--no-transfer-progress", "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED");
+                ProcessBuilder pbTest = new ProcessBuilder(
+                        mvnCommand,
+                        "--debug",
+                        "--errors",
+                        "-DtrimStackTrace=false",
+                        "test",
+                        "--no-transfer-progress",
+                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
+                );
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");
                 pbTest.directory(projectDir);
                 pbTest.redirectOutput(ProcessBuilder.Redirect.INHERIT);

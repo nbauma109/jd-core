@@ -288,9 +288,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
                 ProcessBuilder pbTest = new ProcessBuilder(
                         mvnCommand,
-                        "--debug",
-                        "--errors",
-                        "-DtrimStackTrace=false",
+                        "--batch-mode",
                         "test",
                         "--no-transfer-progress",
                         "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"

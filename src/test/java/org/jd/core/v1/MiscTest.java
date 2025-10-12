@@ -8,7 +8,6 @@
 package org.jd.core.v1;
 
 import org.apache.bcel.classfile.JavaClass;
-import org.apache.bcel.classfile.Utility;
 import org.apache.bcel.generic.FieldGen;
 import org.apache.bcel.generic.PUSH;
 import org.apache.commons.codec.language.DaitchMokotoffSoundex;
@@ -1752,16 +1751,19 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
-    public void testUtility() throws Exception {
-        String internalClassName = Utility.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
-        // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make("gos.close();")));
-        
-        // Recompile decompiled source code and check errors
-        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
-    }
+	public void testUtility() throws Exception {
+		try (InputStream in = MavenHelper.buildJarUrl("org.apache.bcel", "bcel", "6.7.0").openStream()) {
+			String internalClassName = "org/apache/bcel/classfile/Utility";
+			ZipLoader loader = new ZipLoader(in);
+			String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+
+			// Check decompiled source code
+			assertTrue(source.matches(PatternMaker.make("gos.close();")));
+
+			// Recompile decompiled source code and check errors
+			assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+		}
+	}
 
     @Test
     public void testAbstractMapEntry() throws Exception {

@@ -13,27 +13,22 @@ import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.printer.PlainTextPrinter;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.LicenseExtractor;
 import org.jd.core.v1.util.StringConstants;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -42,6 +37,7 @@ import java.util.zip.ZipInputStream;
 import static org.apache.bcel.Const.MAJOR_1_1;
 import static org.apache.bcel.Const.MAJOR_1_5;
 import static org.apache.bcel.Const.MAJOR_1_8;
+import static org.jd.core.v1.MavenHelper.buildJarUrl;
 
 import jd.core.ClassUtil;
 
@@ -51,32 +47,32 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testBCEL() throws Exception {
-        test(org.apache.bcel.Const.class, "https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-");
+        test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", "6.7.0");
     }
     
     @Test
     public void testCommonsIO() throws Exception {
-        test(org.apache.commons.io.IOUtils.class, "https://github.com/apache/commons-io", "commons-io", "rel/commons-io-");
+        test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", "2.15.0");
     }
 
     @Test
     public void testCommonsCodec() throws Exception {
-        test(org.apache.commons.codec.Charsets.class, "https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-");
+        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", "1.18.0");
     }
 
     @Test
     public void testCommonsCollections4() throws Exception {
-        test(org.apache.commons.collections4.CollectionUtils.class);
+        test("https://github.com/apache/commons-collections", "commons-collections", "rel/commons-collections-", "org.apache.commons", "commons-collections4", "4.4");
     }
 
     @Test
     public void testCommonsImaging() throws Exception {
-        test(org.apache.commons.imaging.Imaging.class, "https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-");
+        test("https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-", "org.apache.commons", "commons-imaging", "1.0-alpha3");
     }
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test(org.apache.commons.lang3.JavaVersion.class, "https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-");
+        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.12.0");
     }
     
 //    @Test
@@ -86,17 +82,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testDiskLruCache() throws Exception {
-        test(com.jakewharton.disklrucache.DiskLruCache.class);
+        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", "2.0.2", false);
     }
 
     @Test
     public void testJavaPoet() throws Exception {
-        test(com.squareup.javapoet.JavaFile.class);
+        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", "1.13.0", false);
     }
 
     @Test
     public void testJavaWriter() throws Exception {
-        test(com.squareup.javawriter.JavaWriter.class);
+        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", "2.5.1", false);
     }
 
 //    TODO: in progress
@@ -107,37 +103,37 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJSoup() throws Exception {
-        test(org.jsoup.Jsoup.class);
+        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.16.2", false);
     }
 
     @Test
     public void testJUnit4() throws Exception {
-        test(org.junit.Test.class);
+        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", "4.13.2", false);
     }
 
     @Test
     public void testMimecraft() throws Exception {
-        test(com.squareup.mimecraft.Part.class);
+        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", "1.1.1", false);
     }
 
     @Test
     public void testScribe() throws Exception {
-        test(org.scribe.oauth.OAuthService.class);
+        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", "1.3.7", false);
     }
 
     @Test
     public void testSparkCore() throws Exception {
-        test(spark.Spark.class);
+        test("https://github.com/perwendel/spark", "spark", "", "com.sparkjava", "spark-core", "2.9.4", false);
     }
 
     @Test
     public void testLog4jApi() throws Exception {
-        test(org.apache.logging.log4j.Logger.class);
+        test("org.apache.logging.log4j", "log4j-api", "2.20.0");
     }
 
     @Test
     public void testLog4jCore() throws Exception {
-        test(org.apache.logging.log4j.core.Logger.class);
+        test("org.apache.logging.log4j", "log4j-core", "2.20.0");
     }
     
 //    @Test
@@ -145,45 +141,24 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 //        test(com.google.common.collect.Collections2.class);
 //    }
 
-    private static Properties getPomProperties(File file) {
-        // Search 'META-INF/maven/*/*/pom.properties'
-        try (JarFile jarFile = new JarFile(file)) {
-            Enumeration<JarEntry> entries = jarFile.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry nextEntry = entries.nextElement();
-                String entryName = nextEntry.getName();
-                if (entryName.startsWith("META-INF/maven/") && entryName.endsWith("/pom.properties")) {
-                    try (InputStream is = jarFile.getInputStream(nextEntry)) {
-                        Properties properties = new Properties();
-                        properties.load(is);
-                        return properties;
-                    }
-                }
-            }
-        } catch (IOException e) {
-            assert ExceptionUtil.printStackTrace(e);
-        }
-        return null;
+    protected void test(String groupId, String artifactId, String version) throws Exception {
+    	test(null, null, null, groupId, artifactId, version, false);
     }
     
-    protected void test(Class<?> clazz) throws Exception {
-        test(clazz, null, null, null);
-    }
-
-    protected void test(Class<?> clazz, String repo, String repoName, String tag) throws Exception {
-        File file = Paths.get(clazz.getProtectionDomain().getCodeSource().getLocation().toURI()).toFile();
-        Properties pomProperties = getPomProperties(file);
-        String implementationVersion = pomProperties == null ? clazz.getPackage().getImplementationVersion() : pomProperties.getProperty("version");
-        System.out.println("====== Decompiling and recompiling " + file.getName() + " ======");
-        try (FileInputStream inputStream = new FileInputStream(file)) {
-            test(inputStream, repo, repoName, tag + implementationVersion);
-        }
+    protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version) throws Exception {
+    	test(repo, repoName, tagPrefix, groupId, artifactId, version, true);
     }
     
-    protected void test(InputStream inputStream, String repo, String repoName, String tag) throws Exception {
+    protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version, boolean runUnitTests) throws Exception {
+    	String tag = tagPrefix + version;
+    	if (runUnitTests) {
+    		System.out.println("====== Decompiling, recompiling and running unit tests for " + repoName + " tag " + tag + " ======");
+    	} else {
+    		System.out.println("====== Decompiling and recompiling " + String.join(":", groupId, artifactId, version) + " ======");
+    	}
         String license = "";
         File projectDir = null;
-        if (repoName != null) {
+        if (repoName != null && runUnitTests) {
             File repoDir = new File("target/" + repoName);  // Directory for extracted project files
     
             // If repoDir exists, delete it
@@ -222,7 +197,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     }
                 }
             }
-    
+
             // Delete all .java files in src/main/java
             Files.walk(Paths.get(projectDir.getPath() + "/src/main/java"))
                     .filter(path -> path.toString().endsWith(".java"))
@@ -240,7 +215,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long assertFailedCounter = 0;
         long recompilationFailedCounter = 0;
 
-        try (InputStream is = inputStream) {
+        try (InputStream is = buildJarUrl(groupId, artifactId, version).openStream()) {
             ZipLoader loader = new ZipLoader(is);
             CounterPrinter printer = new CounterPrinter();
             Map<String, Integer> statistics = new HashMap<>();
@@ -296,16 +271,20 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         }
                     }
 
-                    if (projectDir != null) {
+                    if (projectDir != null && runUnitTests) {
                         // Write source file to source directory src/main/java
-                        Files.writeString(Paths.get(projectDir.getPath() + "/src/main/java/" + internalTypeName + ".java"), source);
+                        Path destinationPath = Paths.get(projectDir.getPath() + "/src/main/java/" + internalTypeName + ".java");
+                        if (!Files.exists(destinationPath.getParent())) {
+                        	destinationPath.getParent().toFile().mkdirs();
+                        }
+						Files.writeString(destinationPath, source);
                     } else if (!CompilerUtil.compile(jdkVersion.toString(), new InMemoryJavaSourceFileObject(internalTypeName, source))) {
                         recompilationFailedCounter++;
                     }
                 }
             }
 
-            if (projectDir != null) {
+            if (projectDir != null && runUnitTests) {
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
                 ProcessBuilder pbTest = new ProcessBuilder(mvnCommand, "test", "--no-transfer-progress", "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED");

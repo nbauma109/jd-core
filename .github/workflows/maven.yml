@@ -1,12 +1,22 @@
 name: "Maven Release"
 
 on:
-  workflow_dispatch:
+  workflow_dispatch
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
+
     steps:
+    - name: Create .ssh directory
+      run: mkdir $HOME/.ssh
+    - name: Create known hosts file
+      run: echo "${{ secrets.KNOWN_HOSTS }}" > $HOME/.ssh/known_hosts
+    - name: Create private key
+      run: |
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/id_ed25519
+        chmod 600 $HOME/.ssh/id_ed25519
     - uses: actions/checkout@v5
     - name: Set up JDK 17
       uses: actions/setup-java@v5
@@ -14,9 +24,13 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: maven
-    - name: Release
-      uses: qcastel/github-actions-maven-release@master
-      env:
-        JAVA_HOME: /usr/lib/jvm/java-17-openjdk/
+    - name: Create maven settings
+      uses: s4u/maven-settings-action@v4.0.0
       with:
-       ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_JD_CORE }}
+        servers: '[{"id": "github.com", "username": "git", "privateKey": "${user.home}/.ssh/id_ed25519"}]'
+    - name: Git Config
+      run: |
+        git config --global user.email "git@github.com"
+        git config --global user.name "git"
+    - name: Release with Maven
+      run: mvn -B -Dusername=git release:clean release:prepare release:perform

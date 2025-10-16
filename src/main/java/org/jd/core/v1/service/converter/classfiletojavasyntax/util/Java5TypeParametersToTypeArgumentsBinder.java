@@ -577,8 +577,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                             typeBound.accept(getTypeArgumentVisitor);
                             typeArguments = getTypeArgumentVisitor.getTypeArguments();
                         }
-                    } else if (expressionType instanceof ObjectType) { // to convert to jdk16 pattern matching only when spotbugs #1617 and eclipse #577987 are solved
-                        ObjectType ot = (ObjectType) expressionType;
+                    } else if (expressionType instanceof ObjectType ot) {
                         typeArguments = ot.getTypeArguments();
                     }
 
@@ -696,8 +695,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isNonWildCardableExpression(Expression parameter, BaseTypeArgument nonWildcardTypeArgument) {
-        if (parameter.getType() instanceof ObjectType) {
-            ObjectType ot = (ObjectType) parameter.getType();
+        if (parameter.getType() instanceof ObjectType ot) {
             BaseTypeArgument typeArguments = ot.getTypeArguments();
             if (typeArguments != null) {
                 if (typeArguments.isTypeArgumentList()) {
@@ -718,14 +716,12 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isNonWildcardableTypeArgument(TypeArgument typeArgument, BaseTypeArgument nonWildcardTypeArgument) {
-        if (typeArgument instanceof WildcardExtendsTypeArgument) {
-            WildcardExtendsTypeArgument weta = (WildcardExtendsTypeArgument) typeArgument;
+        if (typeArgument instanceof WildcardExtendsTypeArgument weta) {
             if (weta.type().equals(nonWildcardTypeArgument)) {
                 return false;
             }
         }
-        if (typeArgument instanceof WildcardSuperTypeArgument) {
-            WildcardSuperTypeArgument wsta = (WildcardSuperTypeArgument) typeArgument;
+        if (typeArgument instanceof WildcardSuperTypeArgument wsta) {
             if (wsta.type().equals(nonWildcardTypeArgument)) {
                 return false;
             }

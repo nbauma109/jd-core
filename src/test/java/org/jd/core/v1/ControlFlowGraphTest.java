@@ -3904,8 +3904,7 @@ public class ControlFlowGraphTest extends TestCase {
         constants[1176] = new ConstantClass(1175);
         ConstantPool cp = new ConstantPool(constants);
         for (int i = 0; i < constants.length; i++) {
-            if (constants[i] instanceof ConstantCP) {
-                ConstantCP constantCP = (ConstantCP) constants[i];
+            if (constants[i] instanceof ConstantCP constantCP) {
                 ConstantNameAndType cnat = cp.getConstant(constantCP.getNameAndTypeIndex());
                 constants[cnat.getSignatureIndex()] = new ConstantUtf8("()V");
             }
@@ -4452,8 +4451,7 @@ public class ControlFlowGraphTest extends TestCase {
         constants[518] = new ConstantUtf8("");
         ConstantPool cp = new ConstantPool(constants);
         for (int i = 0; i < constants.length; i++) {
-            if (constants[i] instanceof ConstantCP) {
-                ConstantCP constantCP = (ConstantCP) constants[i];
+            if (constants[i] instanceof ConstantCP constantCP) {
                 ConstantNameAndType cnat = cp.getConstant(constantCP.getNameAndTypeIndex());
                 constants[cnat.getSignatureIndex()] = new ConstantUtf8("()V");
             }
@@ -6107,8 +6105,7 @@ public class ControlFlowGraphTest extends TestCase {
         constants[1516] = new ConstantMethodref(1512, 1515);
         ConstantPool cp = new ConstantPool(constants);
         for (int i = 0; i < constants.length; i++) {
-            if (constants[i] instanceof ConstantCP) {
-                ConstantCP constantCP = (ConstantCP) constants[i];
+            if (constants[i] instanceof ConstantCP constantCP) {
                 ConstantNameAndType cnat = cp.getConstant(constantCP.getNameAndTypeIndex());
                 constants[cnat.getSignatureIndex()] = new ConstantUtf8("()V");
             }

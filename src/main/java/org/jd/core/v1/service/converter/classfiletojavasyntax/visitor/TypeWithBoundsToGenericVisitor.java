@@ -39,8 +39,7 @@ public class TypeWithBoundsToGenericVisitor implements TypeParameterVisitor, Typ
     @Override
     public void visit(TypeParameterWithTypeBounds parameter) {
         BaseType bounds = parameter.getTypeBounds();
-        if (bounds instanceof ObjectType) {
-            ObjectType ot = (ObjectType) bounds;
+        if (bounds instanceof ObjectType ot) {
             internalNameToGenericType.put(ot.getInternalName(), new GenericType(parameter.getIdentifier()));
         }
     }
@@ -58,8 +57,7 @@ public class TypeWithBoundsToGenericVisitor implements TypeParameterVisitor, Typ
     public void visit(TypeArguments arguments) {
         for (int i = 0; i < arguments.size(); i++) {
             TypeArgument typeArgument = arguments.get(i);
-            if (typeArgument instanceof ObjectType) {
-                ObjectType ot = (ObjectType) typeArgument;
+            if (typeArgument instanceof ObjectType ot) {
                 GenericType genericType = internalNameToGenericType.get(ot.getInternalName());
                 if (genericType != null) {
                     arguments.set(i, genericType);

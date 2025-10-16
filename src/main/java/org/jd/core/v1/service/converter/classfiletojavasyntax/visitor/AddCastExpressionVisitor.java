@@ -385,8 +385,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private static Map<String, TypeArgument> getLocalTypeBindings(Expression exp) {
-        if (exp instanceof MethodInvocationExpression) {
-            MethodInvocationExpression mie = (MethodInvocationExpression) exp;
+        if (exp instanceof MethodInvocationExpression mie) {
             return mie.getTypeBindings();
         }
         return Collections.emptyMap();
@@ -394,8 +393,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private Map<String, BaseType> getLocalTypeBounds(Expression exp) {
         Map<String, BaseType> localTypeBounds = new HashMap<>(typeBounds);
-        if (exp instanceof MethodInvocationExpression) {
-            MethodInvocationExpression mie = (MethodInvocationExpression) exp;
+        if (exp instanceof MethodInvocationExpression mie) {
             if (mie.getTypeBounds() != null) {
                 localTypeBounds.putAll(mie.getTypeBounds());
             }
@@ -427,8 +425,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        if (expression.getExpression() instanceof CastExpression) {
-            CastExpression ce = (CastExpression) expression.getExpression();
+        if (expression.getExpression() instanceof CastExpression ce) {
             if (ce.isByteCodeCheckCast() && ce.getExpression() instanceof ClassFileMethodInvocationExpression && ce.getType() instanceof ObjectType) {
                 ObjectType ot = (ObjectType) ce.getType();
                 if (ot != null) {
@@ -609,8 +606,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (primitiveType.createType(type.getDimension()).equals(type) && expression.isNewInitializedArray()) {
                 NewInitializedArray newInitializedArray = (NewInitializedArray) expression;
                 for (VariableInitializer variableInitializer : newInitializedArray.getArrayInitializer()) {
-                    if (variableInitializer instanceof ExpressionVariableInitializer) {
-                        ExpressionVariableInitializer evi = (ExpressionVariableInitializer) variableInitializer;
+                    if (variableInitializer instanceof ExpressionVariableInitializer evi) {
                         evi.setExpression(new CastExpression(primitiveType, evi.getExpression()));
                     }
                 }
@@ -667,11 +663,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         }
                     } else if (type.getDimension() == 0 && expressionType.isGenericType() && (!ObjectType.TYPE_OBJECT.equals(type) || forceCast)) {
                         boolean cast = true;
-                        if (expressionType instanceof GenericType) {
-                            GenericType gt = (GenericType) expressionType;
+                        if (expressionType instanceof GenericType gt) {
                             BaseType boundType = typeBounds.get(gt.getName());
-                            if (boundType instanceof ObjectType) {
-                                ObjectType boundObjectType = (ObjectType) boundType;
+                            if (boundType instanceof ObjectType boundObjectType) {
                                 if (boundObjectType.rawEquals(type)) {
                                     cast = false;
                                 }

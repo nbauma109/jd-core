@@ -235,8 +235,10 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     protected void addStaticInitializerDeclaration(ClassFileStaticInitializerDeclaration sid, int lineNumber, BaseStatement statements) {
-        methods.add(new ClassFileStaticInitializerDeclaration(
-            sid.getBodyDeclaration(), sid.getClassFile(), sid.getMethod(), sid.getBindings(),
-            sid.getTypeBounds(), lineNumber, statements));
+        if (!sid.getClassFile().isInterface()) {
+	        methods.add(new ClassFileStaticInitializerDeclaration(
+	            sid.getBodyDeclaration(), sid.getClassFile(), sid.getMethod(), sid.getBindings(),
+	            sid.getTypeBounds(), lineNumber, statements));
+        }
     }
 }

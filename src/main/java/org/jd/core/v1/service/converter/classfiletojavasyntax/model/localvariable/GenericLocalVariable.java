@@ -68,8 +68,7 @@ public class GenericLocalVariable extends AbstractLocalVariable {
     @Override
     public boolean isAssignableFrom(Map<String, BaseType> typeBounds, Type otherType) {
         BaseType boundType = typeBounds.get(type.getName());
-        if (boundType instanceof ObjectType) {
-            ObjectType ot = (ObjectType) boundType;
+        if (boundType instanceof ObjectType ot) {
             if (ot.getInternalName().equals(otherType.getInternalName()) && getDimension() == otherType.getDimension()) {
                 return true;
             }

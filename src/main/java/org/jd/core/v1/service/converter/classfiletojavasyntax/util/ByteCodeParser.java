@@ -1537,8 +1537,7 @@ public class ByteCodeParser {
 
                             if (expression.isLocalVariableReferenceExpression()) {
                                 FormalParameter formalParameter = formalParameterList.get(i);
-                                if (formalParameter instanceof ClassFileFormalParameter) {
-                                    ClassFileFormalParameter classFileFormalParameter = (ClassFileFormalParameter) formalParameter;
+                                if (formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
                                     AbstractLocalVariable localVariable = classFileFormalParameter.getLocalVariable();
                                     if (!localVariable.isAssignableFrom(typeBounds, expression.getType())) {
                                         continue;
@@ -1744,8 +1743,7 @@ public class ByteCodeParser {
     private void parseIF(DefaultStack<Expression> stack, int lineNumber, BasicBlock basicBlock, String operator1, String operator2, int priority) {
         Expression expression = stack.pop();
 
-        if (expression instanceof ClassFileCmpExpression) { // to convert to jdk16 pattern matching only when spotbugs #1617 and eclipse #577987 are solved
-            ClassFileCmpExpression cmp = (ClassFileCmpExpression) expression;
+        if (expression instanceof ClassFileCmpExpression cmp) {
             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(cmp.getLeftExpression().getType(), cmp.getLeftExpression());
             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(cmp.getRightExpression().getType(), cmp.getRightExpression());
 

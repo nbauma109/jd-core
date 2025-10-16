@@ -490,8 +490,7 @@ public class ExpressionVisitor extends TypeVisitor {
                     tokens.addLineNumberToken(expression);
                     visit(expression, exp);
                 } else {
-                    if (exp instanceof NewExpression) {
-                        NewExpression newExpression = (NewExpression) exp;
+                    if (exp instanceof NewExpression newExpression) {
                         newExpression.setDiamondPossible(false);
                     }
                     visit(expression, exp);
@@ -520,8 +519,7 @@ public class ExpressionVisitor extends TypeVisitor {
             boolean ivpf = inVarArgParam;
             inExpressionFlag = false;
             inVarArgMethod = expression.isVarArgs() && !expression.getName().equals(currentMethodName);
-            if (expression instanceof ClassFileMethodInvocationExpression) {
-                ClassFileMethodInvocationExpression mie = (ClassFileMethodInvocationExpression) expression;
+            if (expression instanceof ClassFileMethodInvocationExpression mie) {
                 parameterTypeCount = mie.getParameterTypes() == null ? 0 : mie.getParameterTypes().size();
             }
             inVarArgParam = inVarArgMethod && parameters.size() == 1;
@@ -781,13 +779,11 @@ public class ExpressionVisitor extends TypeVisitor {
             }
         }
 
-        if (expression.getTrueExpression() instanceof NewExpression) {
-            NewExpression newExpression = (NewExpression) expression.getTrueExpression();
+        if (expression.getTrueExpression() instanceof NewExpression newExpression) {
             newExpression.setDiamondPossible(newExpression.isDiamondPossible() && majorVersion > MAJOR_1_7);
         }
         
-        if (expression.getFalseExpression() instanceof NewExpression) {
-            NewExpression newExpression = (NewExpression) expression.getFalseExpression();
+        if (expression.getFalseExpression() instanceof NewExpression newExpression) {
             newExpression.setDiamondPossible(newExpression.isDiamondPossible() && majorVersion > MAJOR_1_7);
         }
         

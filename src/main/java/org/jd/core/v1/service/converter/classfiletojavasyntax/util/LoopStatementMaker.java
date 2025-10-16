@@ -506,8 +506,7 @@ public final class LoopStatementMaker {
         localVariableMaker.removeLocalVariable(syntheticIndex);
         localVariableMaker.removeLocalVariable(syntheticLength);
 
-        if (array instanceof CastExpression) {
-            CastExpression castExpression = (CastExpression) array;
+        if (array instanceof CastExpression castExpression) {
             Type leftArrayType = item.getType().createType(item.getType().getDimension() + 1);
             Type rightArrayType = castExpression.getExpression().getType();
             if (leftArrayType.equals(rightArrayType)
@@ -642,13 +641,11 @@ public final class LoopStatementMaker {
 
                 if (type != null) {
                     if (TYPE_OBJECT.equals(item.getType())) {
-                        if (item instanceof ObjectLocalVariable) { // to convert to jdk16 pattern matching only when spotbugs #1617 and eclipse #577987 are solved
-                            ObjectLocalVariable olv = (ObjectLocalVariable) item;
+                        if (item instanceof ObjectLocalVariable olv) {
                             olv.setType(typeBounds, type);
                         }
                     } else if (item.getType().isGenericType()) {
-                        if (item instanceof GenericLocalVariable) { // to convert to jdk16 pattern matching only when spotbugs #1617 and eclipse #577987 are solved
-                            GenericLocalVariable glv = (GenericLocalVariable) item;
+                        if (item instanceof GenericLocalVariable glv) {
                             if (type instanceof GenericType) {
                                 glv.setType((GenericType) type);
                             }

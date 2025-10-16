@@ -701,8 +701,7 @@ public class StatementMaker {
                 BaseStatement thenStatements = ifStatement.getStatements();
                 if (thenStatements.size() == 1) {
                     Statement thenStatement = thenStatements.getFirst();
-                    if (thenStatement instanceof ReturnExpressionStatement) {
-                        ReturnExpressionStatement returnExp = (ReturnExpressionStatement) thenStatement;
+                    if (thenStatement instanceof ReturnExpressionStatement returnExp) {
                         if (returnExp.getExpression().getType().equals(stack.peek().getType())) {
                             Expression exp = stack.pop();
                             statements.add(new ReturnExpressionStatement(exp.getLineNumber(), exp));

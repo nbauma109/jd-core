@@ -222,8 +222,7 @@ public final class TryWithResourcesStatementMaker {
         if (firstStatement instanceof ClassFileTryStatement) {
             return (ClassFileTryStatement) firstStatement;
         }
-        if (firstStatement instanceof IfStatement) {
-            IfStatement ifStatement = (IfStatement) firstStatement;
+        if (firstStatement instanceof IfStatement ifStatement) {
             Expression condition = ifStatement.getCondition();
             BaseStatement thenStatements = ifStatement.getStatements();
             if (condition instanceof BinaryOperatorExpression && thenStatements.size() == 1) {
@@ -419,8 +418,7 @@ public final class TryWithResourcesStatementMaker {
                 if (statements.isList()) {
                     for (Iterator<Statement> iterator = statements.getList().iterator(); iterator.hasNext();) {
                         Statement statement = iterator.next();
-                        if (statement instanceof IfStatement) {
-                            IfStatement ifStatement = (IfStatement) statement;
+                        if (statement instanceof IfStatement ifStatement) {
                             Expression condition = ifStatement.getCondition();
                             BaseStatement thenStatements = ifStatement.getStatements();
                             if (condition instanceof BinaryOperatorExpression && thenStatements.size() == 1) {
@@ -439,8 +437,7 @@ public final class TryWithResourcesStatementMaker {
                             }
                         }
                         Expression expression = statement.getExpression();
-                        if (expression instanceof MethodInvocationExpression) {
-                            MethodInvocationExpression mie = (MethodInvocationExpression) expression;
+                        if (expression instanceof MethodInvocationExpression mie) {
                             if (checkCloseInvocation(mie, lv1)) {
                                 if (finallyStatements == null) {
                                     iterator.remove();
@@ -470,14 +467,11 @@ public final class TryWithResourcesStatementMaker {
     private static boolean checkLocalVariable(Statements statements, AbstractLocalVariable lv) {
         if (!statements.isEmpty()) {
             Statement lastStatement = statements.getLast();
-            if (lastStatement instanceof ExpressionStatement) {
-                ExpressionStatement expressionStatement = (ExpressionStatement) lastStatement;
+            if (lastStatement instanceof ExpressionStatement expressionStatement) {
                 Expression expression = expressionStatement.getExpression();
-                if (expression instanceof BinaryOperatorExpression) {
-                    BinaryOperatorExpression boe = (BinaryOperatorExpression) expression;
+                if (expression instanceof BinaryOperatorExpression boe) {
                     Expression leftExpression = boe.getLeftExpression();
-                    if (leftExpression instanceof ClassFileLocalVariableReferenceExpression) {
-                        ClassFileLocalVariableReferenceExpression ref = (ClassFileLocalVariableReferenceExpression) leftExpression;
+                    if (leftExpression instanceof ClassFileLocalVariableReferenceExpression ref) {
                         return lv == ref.getLocalVariable();
                     }
                 }

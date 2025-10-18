@@ -3,7 +3,7 @@ name: Refresh Release Notes (idempotent exact match)
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "17 3 * * *"  # run daily at 03:17 UTC
+    - cron: "0 20 * * *" # run daily at 20:00 UTC
 
 permissions:
   contents: write   # needed to update release bodies

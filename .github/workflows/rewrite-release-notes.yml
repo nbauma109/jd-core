@@ -97,7 +97,8 @@ jobs:
         if: steps.fetch.outputs.should_format == 'true'
         shell: bash
         run: |
-          groovy release_notes.groovy commits_src.md > RELEASE_NOTES.md
+          git clone https://github.com/nbauma109/release-notes.git
+          groovy release-notes/release_notes.groovy commits_src.md > RELEASE_NOTES.md
           echo "=== Full RELEASE_NOTES.md for ${{ matrix.rel.tag }} ==="
           cat RELEASE_NOTES.md
 

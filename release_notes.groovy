@@ -108,7 +108,7 @@ Pattern reGHA        = ~/(actions\/|github[- ]?actions|workflow|workflows|github
 // Build and misc
 Pattern reYaml       = ~/\.(ya?ml)(\b|$)/
 Pattern reScripts    = ~/(\.sh$|\.bat$|\.cmd$|(^|[^a-z])makefile(\b|$))/
-Pattern reBuildCore  = ~/(^|[^a-z])(buil|packag|pom\.xml|maven|assembl|launch4j|distr|archiv|tar\.xz|releas)([^a-z]|$)/
+Pattern reBuildCore  = ~/(^|[^a-z])(buil|packag|pom\.xml|maven|assembl|launch4j|distr|archiv|tar\.xz|releas|jit)([^a-z]|$)/
 
 // Decide the unique bucket for a commit (ordered precedence)
 enum Bucket {

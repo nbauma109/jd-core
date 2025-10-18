@@ -93,9 +93,9 @@ commitLines.each { line ->
 // ------------------------------ Classification ------------------------------
 
 // Keyword patterns (lowercased)
-Pattern reFeatures   = ~/(^|[^a-z])(add|added|introduce|implement|support|enable|feature|new)([^a-z]|$)/
-Pattern reFixes      = ~/(^|[^a-z])(fix|bug|issue|regression|correct|hotfix)([^a-z]|$)/
-Pattern reImprove    = ~/(^|[^a-z])(improve|enhance|optimi[sz]e|tweak|adjust|fine[-\s]?tune|fine[-\s]?tuning)([^a-z]|$)/
+Pattern reFeatures = ~/(add|introduc|implement|support|enabl|feature|new)/
+Pattern reFixes = ~/(fix|bug|issue|regress|correct|hotfix)/
+Pattern reImprove = ~/(improv|enhanc|optim|tweak|adjust|fine[-\s]?tun)/
 Pattern reDocs       = ~/(^|[^a-z])(readme|docs?|documentation|changelog|javadoc)([^a-z]|$)/
 
 // Dependencies (narrow candidate so we do not capture random “update” text)
@@ -108,11 +108,7 @@ Pattern reGHA        = ~/(actions\/|github[- ]?actions|workflow|workflows|github
 // Build and misc
 Pattern reYaml       = ~/\.(ya?ml)(\b|$)/
 Pattern reScripts    = ~/(\.sh$|\.bat$|\.cmd$|(^|[^a-z])makefile(\b|$))/
-Pattern reBuildCore  = ~/(^|[^a-z])(build|packag|pom\.xml|maven|install-plugin|launch4j|distribution|archive|tar\.xz|release\.ya?ml)([^a-z]|$)/
-// Chores + specific extras
-Pattern reChores     = ~/(dependabot\.ya?ml|(^|[^a-z])(config|configuration|rename|reformat|style|typo|housekeeping|maintenance|preferences|refactor|polish|cleanup)([^a-z]|$))/
-Pattern reChmod      = ~/(?i)\b(chmod|permissions?)\b/
-Pattern reJit        = ~/(?i)\b(jitci|jitpack)\b/
+Pattern reBuildCore  = ~/(^|[^a-z])(buil|packag|pom\.xml|maven|assembl|launch4j|distr|archiv|tar\.xz|releas)([^a-z]|$)/
 
 // Decide the unique bucket for a commit (ordered precedence)
 enum Bucket {
@@ -129,10 +125,6 @@ def classify = { Commit c ->
   if (reYaml.matcher(msg).find())     return Bucket.BUILD_YAML
   if (reScripts.matcher(msg).find())  return Bucket.BUILD_SCRIPTS
 
-  // Specific tweaks
-  if (reChmod.matcher(msg).find())    return Bucket.CHORES     // chmod → Chores
-  if (reJit.matcher(msg).find())      return Bucket.BUILD_CORE // jitci/jitpack → Build & Packaging
-
   // Dependencies (narrow candidate)
   if (reDepNarrow.matcher(msg).find()) {
     if (reTestDep.matcher(msg).find())   return Bucket.DEP_TEST
@@ -144,7 +136,6 @@ def classify = { Commit c ->
   if (reFeatures.matcher(msg).find())   return Bucket.FEATURES
   if (reFixes.matcher(msg).find())      return Bucket.FIXES
   if (reImprove.matcher(msg).find())    return Bucket.IMPROVEMENTS
-  if (reChores.matcher(msg).find())     return Bucket.CHORES
   if (reDocs.matcher(msg).find())       return Bucket.DOCS
   if (reBuildCore.matcher(msg).find())  return Bucket.BUILD_CORE
 

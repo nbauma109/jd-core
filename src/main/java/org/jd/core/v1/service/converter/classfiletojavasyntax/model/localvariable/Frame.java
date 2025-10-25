@@ -1059,7 +1059,7 @@ public class Frame {
             sb.setLength(0);
 
             if (type.getDimension() == 0) {
-                sb.append(switch (str) {
+                sb.append(str == null ? "unnamed" : switch (str) {
                     case "Class"   -> "clazz";
                     case "String"  -> "str";
                     case "Boolean" -> "bool";

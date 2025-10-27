@@ -126,7 +126,7 @@
     <dependency>
       <groupId>com.github.nbauma109</groupId>
       <artifactId>jd-util</artifactId>
-      <version>1.2.0</version>
+      <version>1.2.1</version>
     </dependency>
     <!-- test dependencies -->
     <dependency>

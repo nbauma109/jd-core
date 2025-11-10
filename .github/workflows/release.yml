@@ -31,31 +31,3 @@ jobs:
           files: |
             **/jd-*.jar
 
-      # Notify ecd and transformer-api after a successful release
-      - name: Notify downstream repos about new jd-core release
-        if: ${{ success() }}
-        env:
-          VERSION: ${{ github.ref_name }}
-          OWNER: ${{ github.repository_owner }}
-          TARGETS: '["ecd","transformer-api"]'
-          EVENT_TYPE: "bump-jd-core"
-          GROUP_ID: "com.github.nbauma109"
-          ARTIFACT_ID: "jd-core"
-          TOKEN: ${{ secrets.PAT_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          payload=$(jq -nc \
-            --arg pkg_group "$GROUP_ID" \
-            --arg pkg_art "$ARTIFACT_ID" \
-            --arg ver "$VERSION" \
-            '{groupId:$pkg_group, artifactId:$pkg_art, version:$ver}')
-
-          for name in $(echo "$TARGETS" | jq -r '.[]'); do
-            echo "Dispatching to $OWNER/$name"
-            curl -sSf -X POST \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: token $TOKEN" \
-              https://api.github.com/repos/$OWNER/$name/dispatches \
-              -d "$(jq -nc --arg et "$EVENT_TYPE" --argjson pl "$payload" '{event_type:$et, client_payload:$pl}')"
-          done

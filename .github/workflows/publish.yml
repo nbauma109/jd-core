@@ -1,0 +1,58 @@
+# .github/workflows/publish.yml
+name: Publish to Maven Central
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    name: Build and Publish
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+          gpg-private-key: ${{ secrets.PGP_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.PGP_PASSPHRASE }}
+
+      - name: Verify secrets
+        shell: bash
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          PGP_PRIVATE_KEY: ${{ secrets.PGP_PRIVATE_KEY }}
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        run: |
+          test -n "$CENTRAL_TOKEN_USERNAME" || { echo "Missing CENTRAL_TOKEN_USERNAME"; exit 1; }
+          test -n "$CENTRAL_TOKEN_PASSWORD" || { echo "Missing CENTRAL_TOKEN_PASSWORD"; exit 1; }
+          test -n "$PGP_PRIVATE_KEY" || { echo "Missing PGP_PRIVATE_KEY"; exit 1; }
+          test -n "$PGP_PASSPHRASE" || { echo "Missing PGP_PASSPHRASE"; exit 1; }
+
+      - name: Build and verify
+        env:
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        run: mvn --no-transfer-progress -B clean verify
+
+      - name: Deploy to Sonatype Central
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+        run: mvn --no-transfer-progress -B -Dgpg.skip=false deploy

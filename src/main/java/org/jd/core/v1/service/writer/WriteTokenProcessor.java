@@ -15,10 +15,10 @@ import org.jd.core.v1.service.writer.visitor.PrintTokenVisitor;
 import java.util.List;
 
 /**
- * Write a list of tokens to a {@link org.jd.core.v1.api.printer.Printer}.<br><br>
+ * Writes a list of tokens to a {@link org.jd.core.v1.api.printer.Printer}.
  *
- * Input:  List<{@link org.jd.core.v1.model.token.Token}><br>
- * Output: -<br>
+ * <p><b>Input:</b> List of {@link org.jd.core.v1.model.token.Token}</p>
+ * <p><b>Output:</b> None</p>
  */
 public class WriteTokenProcessor {
 

@@ -22,10 +22,10 @@ import java.util.Map;
 import static org.jd.core.v1.api.printer.Printer.UNKNOWN_LINE_NUMBER;
 
 /**
- * Layout (compact, expend, move) a list of fragments.<br><br>
+ * Lays out a list of fragments by compacting, expanding, or moving them.
  *
- * Input:  List<{@link Fragment}><br>
- * Output: List<{@link Fragment}><br>
+ * <p><b>Input:</b> List of {@link Fragment}</p>
+ * <p><b>Output:</b> List of {@link Fragment}</p>
  */
 public class LayoutFragmentProcessor {
 

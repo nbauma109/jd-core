@@ -15,10 +15,10 @@ import org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.visitor.Compil
 import org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.visitor.SearchImportsVisitor;
 
 /**
- * Convert a Java syntax model to a list of fragments.<br><br>
+ * Converts a Java syntax model into a list of fragments.
  *
- * Input:  {@link org.jd.core.v1.model.javasyntax.CompilationUnit}<br>
- * Output: List<{@link org.jd.core.v1.model.fragment.Fragment}><br>
+ * <p><b>Input:</b> {@link org.jd.core.v1.model.javasyntax.CompilationUnit}</p>
+ * <p><b>Output:</b> List of {@link org.jd.core.v1.model.fragment.Fragment}</p>
  */
 public class JavaSyntaxToJavaFragmentProcessor {
 

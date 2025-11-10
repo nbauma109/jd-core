@@ -15,10 +15,10 @@ import org.jd.core.v1.util.DefaultList;
 import java.util.List;
 
 /**
- * Convert a list of fragments to a list of tokens.<br><br>
+ * Converts a list of fragments into a list of tokens.
  *
- * Input:  List<{@link org.jd.core.v1.model.fragment.Fragment}><br>
- * Output: List<{@link org.jd.core.v1.model.token.Token}><br>
+ * <p><b>Input:</b> List of {@link org.jd.core.v1.model.fragment.Fragment}</p>
+ * <p><b>Output:</b> List of {@link org.jd.core.v1.model.token.Token}</p>
  */
 public class JavaFragmentToTokenProcessor {
 

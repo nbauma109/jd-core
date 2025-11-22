@@ -18,13 +18,13 @@ public class MiscOracleJDK8 {
 
 	class LambdaVariables {
 		@SuppressWarnings("unused")
-		void test(String str, int intger) {
+		void test(String str, int integer) {
 			char chrctr = Character.MAX_VALUE;
 			CharSequence chrsq = null;
 			List<Integer> lst = null;
 			Runnable r = (() -> {
 				Collections.sort(lst, (a, b) -> {
-					System.out.print(intger);
+					System.out.print(integer);
 					System.out.print(chrsq);
 					System.out.print(str);
 					System.out.print(lst);

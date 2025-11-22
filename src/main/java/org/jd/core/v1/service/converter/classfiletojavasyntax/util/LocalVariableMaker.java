@@ -165,20 +165,20 @@ public class LocalVariableMaker {
                     }
                 }
             } else {
-                ParameterAnnotationEntry[] visiblesArray = rvpa == null ? null : rvpa.getParameterAnnotationEntries();
+                ParameterAnnotationEntry[] visibleArray = rvpa == null ? null : rvpa.getParameterAnnotationEntries();
                 ParameterAnnotationEntry[] invisiblesArray = ripa == null ? null : ripa.getParameterAnnotationEntries();
                 AnnotationConverter annotationConverter = new AnnotationConverter(typeMaker);
 
                 AbstractLocalVariable lv;
-                ParameterAnnotationEntry visibles;
+                ParameterAnnotationEntry visible;
                 ParameterAnnotationEntry invisibles;
                 BaseAnnotationReference annotationReferences;
                 for (int parameterIndex=0, variableIndex=firstVariableIndex; parameterIndex<=lastParameterIndex; parameterIndex++, variableIndex++) {
                     lv = localVariableSet.root(variableIndex);
 
-                    visibles = visiblesArray == null || visiblesArray.length <= parameterIndex ? null : visiblesArray[parameterIndex];
+                    visible = visibleArray == null || visibleArray.length <= parameterIndex ? null : visibleArray[parameterIndex];
                     invisibles = invisiblesArray == null || invisiblesArray.length <= parameterIndex ? null : invisiblesArray[parameterIndex];
-                    AnnotationEntry[] visibleEntries = visibles == null ? null : visibles.getAnnotationEntries();
+                    AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
                     AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
                     annotationReferences = annotationConverter.convert(visibleEntries, invisibleEntries);
 

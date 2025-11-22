@@ -305,14 +305,14 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
-    public void testPriviledgedAction() throws Exception {
-        class PriviledgedAction {
+    public void testPrivilegedAction() throws Exception {
+        class PrivilegedAction {
             @SuppressWarnings("all")
-            <T> void doPriviledged() throws PrivilegedActionException {
+            <T> void doPrivileged() throws PrivilegedActionException {
                 AccessController.doPrivileged((PrivilegedAction<T>) () -> null);
             }
         }
-        String internalClassName = PriviledgedAction.class.getName().replace('.', '/');
+        String internalClassName = PrivilegedAction.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Recompile decompiled source code and check errors
@@ -795,12 +795,12 @@ public class MiscTest extends AbstractJdTest {
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
     
             // Check decompiled source code
-            assertTrue(source.matches(PatternMaker.make("void test(String str, int intger) {")));
+            assertTrue(source.matches(PatternMaker.make("void test(String str, int integer) {")));
             assertTrue(source.matches(PatternMaker.make("  char chrctr = Character.MAX_VALUE;")));
             assertTrue(source.matches(PatternMaker.make("  CharSequence chrsq = null;")));
             assertTrue(source.matches(PatternMaker.make("  List<Integer> lst = null;")));
             assertTrue(source.matches(PatternMaker.make("  Runnable r = () -> Collections.sort(lst, (a, b) -> {")));
-            assertTrue(source.matches(PatternMaker.make("        System.out.print(intger);")));
+            assertTrue(source.matches(PatternMaker.make("        System.out.print(integer);")));
             assertTrue(source.matches(PatternMaker.make("        System.out.print(chrsq);")));
             assertTrue(source.matches(PatternMaker.make("        System.out.print(str);")));
             assertTrue(source.matches(PatternMaker.make("        System.out.print(lst);")));

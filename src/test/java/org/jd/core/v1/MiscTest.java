@@ -305,14 +305,14 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
-    public void testPriviledgedAction() throws Exception {
-        class PriviledgedActionClass {
+    public void testPrivilegedAction() throws Exception {
+        class PrivilegedActionClass {
             @SuppressWarnings("all")
-            <T> void doPriviledged() throws PrivilegedActionException {
+            <T> void doPrivileged() throws PrivilegedActionException {
                 AccessController.doPrivileged((PrivilegedAction<T>) () -> null);
             }
         }
-        String internalClassName = PriviledgedActionClass.class.getName().replace('.', '/');
+        String internalClassName = PrivilegedActionClass.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Recompile decompiled source code and check errors

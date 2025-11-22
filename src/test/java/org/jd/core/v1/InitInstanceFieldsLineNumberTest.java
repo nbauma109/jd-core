@@ -18,7 +18,7 @@ import org.junit.Test;
 public class InitInstanceFieldsLineNumberTest extends AbstractJdTest {
 
     @Test
-    public void testLineNumberAlignement() throws Exception {
+    public void testLineNumberAlignment() throws Exception {
         String internalClassName = InitInstanceFieldsLineNumber.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 

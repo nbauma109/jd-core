@@ -42,19 +42,19 @@ public class AnnotationConverter implements ElementValueVisitor {
         this.typeMaker = typeMaker;
     }
 
-    public BaseAnnotationReference convert(AnnotationEntry[] visibles, AnnotationEntry[] invisibles) {
-        if (visibles == null) {
+    public BaseAnnotationReference convert(AnnotationEntry[] visible, AnnotationEntry[] invisibles) {
+        if (visible == null) {
             if (invisibles == null) {
                 return null;
             }
             return convert(invisibles);
         }
         if (invisibles == null) {
-            return convert(visibles);
+            return convert(visible);
         }
         AnnotationReferences<AnnotationReference> aral = new AnnotationReferences<>();
 
-        for (AnnotationEntry a : visibles) {
+        for (AnnotationEntry a : visible) {
             aral.add(convert(a));
         }
         for (AnnotationEntry a : invisibles) {

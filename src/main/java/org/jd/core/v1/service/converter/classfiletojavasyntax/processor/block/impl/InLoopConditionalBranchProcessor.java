@@ -29,8 +29,8 @@ public class InLoopConditionalBranchProcessor implements BlockProcessor {
 
     public boolean hasIsolatedSuccessor(BasicBlock bb, UnaryOperator<BasicBlock> leftSuccessorFunction, UnaryOperator<BasicBlock> rightSuccessorFunction) {
         BasicBlock successor = leftSuccessorFunction.apply(bb);
-        Set<BasicBlock> sucessorPredecessors = successor.getPredecessors();
-        return successor.getType() == TYPE_CONDITIONAL_BRANCH && sucessorPredecessors.size() >= 5
-                && sucessorPredecessors.stream().filter(b -> b.getIndex() != bb.getIndex()).allMatch(b -> rightSuccessorFunction.apply(b).getIndex() == successor.getIndex());
+        Set<BasicBlock> successorPredecessors = successor.getPredecessors();
+        return successor.getType() == TYPE_CONDITIONAL_BRANCH && successorPredecessors.size() >= 5
+                && successorPredecessors.stream().filter(b -> b.getIndex() != bb.getIndex()).allMatch(b -> rightSuccessorFunction.apply(b).getIndex() == successor.getIndex());
     }
 }

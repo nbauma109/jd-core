@@ -308,20 +308,20 @@ public class ConvertClassFileProcessor {
     }
 
     protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, ClassFile classFile) {
-        Annotations visibles = classFile.getAttribute(Const.ATTR_RUNTIME_VISIBLE_ANNOTATIONS);
+        Annotations visible = classFile.getAttribute(Const.ATTR_RUNTIME_VISIBLE_ANNOTATIONS);
         Annotations invisibles = classFile.getAttribute(Const.ATTR_RUNTIME_INVISIBLE_ANNOTATIONS);
 
-        AnnotationEntry[] visibleEntries = visibles == null ? null : visibles.getAnnotationEntries();
+        AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
         
         return converter.convert(visibleEntries, invisibleEntries);
     }
 
     protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, FieldOrMethod fieldOrMethod) {
-        Annotations visibles = (Annotations) Stream.of(fieldOrMethod.getAttributes()).filter(RuntimeVisibleAnnotations.class::isInstance).findAny().orElse(null);
+        Annotations visible = (Annotations) Stream.of(fieldOrMethod.getAttributes()).filter(RuntimeVisibleAnnotations.class::isInstance).findAny().orElse(null);
         Annotations invisibles = (Annotations) Stream.of(fieldOrMethod.getAttributes()).filter(RuntimeInvisibleAnnotations.class::isInstance).findAny().orElse(null);
 
-        AnnotationEntry[] visibleEntries = visibles == null ? null : visibles.getAnnotationEntries();
+        AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
         
         return converter.convert(visibleEntries, invisibleEntries);

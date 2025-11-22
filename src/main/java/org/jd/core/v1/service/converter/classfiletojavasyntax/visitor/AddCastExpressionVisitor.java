@@ -228,8 +228,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     @Override
     public void visit(FormalParameter declaration) {
         if (!visitingAnonymousClass && declaration.getType() instanceof ObjectType) {
-            ObjectType ot = (ObjectType) declaration.getType();
-            parameterTypeArguments.put(declaration.getName(), ot.getTypeArguments());
+            ObjectType to = (ObjectType) declaration.getType();
+            parameterTypeArguments.put(declaration.getName(), to.getTypeArguments());
         }
     }
     
@@ -427,21 +427,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (expression.getExpression() instanceof CastExpression ce) {
             if (ce.isByteCodeCheckCast() && ce.getExpression() instanceof ClassFileMethodInvocationExpression && ce.getType() instanceof ObjectType) {
-                ObjectType ot = (ObjectType) ce.getType();
-                if (ot != null) {
-                    if (isCastToBeRemoved(typeBindings, localTypeBounds, ot, ce, true)) {
+                ObjectType to = (ObjectType) ce.getType();
+                if (to != null) {
+                    if (isCastToBeRemoved(typeBindings, localTypeBounds, to, ce, true)) {
                         // Remove cast
                         expression.setExpression(ce.getExpression());
                     }
-                    TypeTypes typeTypes = typeMaker.makeTypeTypes(ot.getInternalName());
-                    if (typeTypes != null && typeTypes.getTypeParameters() != null && ot.getTypeArguments() == null) {
+                    TypeTypes typeTypes = typeMaker.makeTypeTypes(to.getInternalName());
+                    if (typeTypes != null && typeTypes.getTypeParameters() != null && to.getTypeArguments() == null) {
                         ClassFileMethodInvocationExpression mie = (ClassFileMethodInvocationExpression) ce.getExpression();
                         if (mie.getUnboundType() instanceof ObjectType) {
                             TypeArguments typeArguments = new TypeArguments();
                             for (int i = 0; i < typeTypes.getTypeParameters().size(); i++) {
                                 typeArguments.add(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
                             }
-                            ce.setType(ot.createType(typeArguments));
+                            ce.setType(to.createType(typeArguments));
                         }
                     }
                 }
@@ -573,11 +573,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (visitingAnonymousClass && expression instanceof FieldReferenceExpression && expression.getType() instanceof ObjectType) {
             FieldReferenceExpression fieldRef = (FieldReferenceExpression) expression;
-            ObjectType ot = (ObjectType) expression.getType();
-            if (ot.getTypeArguments() == null) {
+            ObjectType to = (ObjectType) expression.getType();
+            if (to.getTypeArguments() == null) {
                 BaseTypeArgument parameterTypeArgument = parameterTypeArguments.get(expression.getName());
                 if (parameterTypeArgument != null) {
-                    fieldRef.setType(ot.createType(parameterTypeArgument));
+                    fieldRef.setType(to.createType(parameterTypeArgument));
                 }
             }
         }
@@ -625,8 +625,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
             return expression; // TODO FIXME find real rule instead of hardcoded workaround
-        } else if (forceCast && unboundType instanceof GenericType gt && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
-            expression = addCastExpression(ot, expression);
+        } else if (forceCast && unboundType instanceof GenericType gt && localTypeBounds.get(gt.getName()) instanceof ObjectType to) {
+            expression = addCastExpression(to, expression);
         } else {
             Type expressionType = expression.getType();
 
@@ -698,7 +698,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
         Expression nestedExpression = expression.getExpression();
-        if (nestedExpression.getExpression() instanceof FieldReferenceExpression fre && fieldNamesInLambda.contains(fre.getName())) {
+        if (nestedExpression.getExpression() instanceof FieldReferenceExpression free && fieldNamesInLambda.contains(free.getName())) {
             return false;
         }
         Type nestedExpressionType = nestedExpression.getType();

@@ -185,9 +185,9 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             ObjectType expressionObjectType = (ObjectType) expressionType;
 
             if ((staticMethod || !expressionObjectType.getInternalName().equals(internalTypeName)) && type.isObjectType()) {
-                ObjectType ot = (ObjectType) type;
+                ObjectType to = (ObjectType) type;
 
-                if (ot.getTypeArguments() != null) {
+                if (to.getTypeArguments() != null) {
                     TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(expressionObjectType.getInternalName());
 
                     if (typeTypes == null) {
@@ -500,17 +500,17 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private Type getExpressionType(ClassFileNewExpression ne) {
-        ObjectType ot = ne.getObjectType();
+        ObjectType to = ne.getObjectType();
 
-        if (staticMethod || !ot.getInternalName().equals(internalTypeName)) {
-            TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(ot.getInternalName());
+        if (staticMethod || !to.getInternalName().equals(internalTypeName)) {
+            TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(to.getInternalName());
 
             if (typeTypes != null && typeTypes.getTypeParameters() != null) {
                 return null;
             }
         }
 
-        return ot;
+        return to;
     }
 
     private class RemoveNonWildcardTypeArgumentsVisitor extends AbstractNopExpressionVisitor {
@@ -577,8 +577,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                             typeBound.accept(getTypeArgumentVisitor);
                             typeArguments = getTypeArgumentVisitor.getTypeArguments();
                         }
-                    } else if (expressionType instanceof ObjectType ot) {
-                        typeArguments = ot.getTypeArguments();
+                    } else if (expressionType instanceof ObjectType to) {
+                        typeArguments = to.getTypeArguments();
                     }
 
                     Type t = mie.getType();
@@ -670,7 +670,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {
-        if (nonWildcardTypeArgument instanceof ObjectType ot && StringConstants.JAVA_LANG_OBJECT.equals(ot.getInternalName())) {
+        if (nonWildcardTypeArgument instanceof ObjectType to && StringConstants.JAVA_LANG_OBJECT.equals(to.getInternalName())) {
             // Do not use Object or Object array as explicit type parameter
             return false;
         }
@@ -695,8 +695,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isNonWildCardableExpression(Expression parameter, BaseTypeArgument nonWildcardTypeArgument) {
-        if (parameter.getType() instanceof ObjectType ot) {
-            BaseTypeArgument typeArguments = ot.getTypeArguments();
+        if (parameter.getType() instanceof ObjectType to) {
+            BaseTypeArgument typeArguments = to.getTypeArguments();
             if (typeArguments != null) {
                 if (typeArguments.isTypeArgumentList()) {
                     for (TypeArgument typeArgument : typeArguments.getTypeArgumentList()) {

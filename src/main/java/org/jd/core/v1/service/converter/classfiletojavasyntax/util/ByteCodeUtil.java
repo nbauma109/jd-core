@@ -108,8 +108,8 @@ public final class ByteCodeUtil {
             case IFNE -> IFEQ;
             case IFGE -> IFLT;
             case IFLT -> IFGE;
-            case IFLE -> IFGT;
-            case IFGT -> IFLE;
+            case FILE -> IFGT;
+            case IFGT -> FILE;
             default -> throw new IllegalArgumentException("Unexpected opCode " + Const.getOpcodeName(opCode));
         };
     }
@@ -126,7 +126,7 @@ public final class ByteCodeUtil {
             case SIPUSH, LDC_W, LDC2_W, IINC, GETSTATIC, PUTSTATIC, NEW, GETFIELD, PUTFIELD, INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC, ANEWARRAY, CHECKCAST, INSTANCEOF:
                 offset += 2;
                 break;
-            case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE, IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE, IF_ACMPEQ, IF_ACMPNE, GOTO, IFNULL, IFNONNULL:
+            case IFEQ, IFNE, IFLT, IFGE, IFGT, FILE, IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE, IF_ACMPEQ, IF_ACMPNE, GOTO, IFNULL, IFNONNULL:
                 int deltaOffset = (short)((code[++offset] & 255) << 8 | code[++offset] & 255);
 
                 if (deltaOffset > 0) {
@@ -247,7 +247,7 @@ public final class ByteCodeUtil {
                      MONITORENTER, MONITOREXIT:
                     depth--;
                     break;
-                case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                case IFEQ, IFNE, IFLT, IFGE, IFGT, FILE,
                      PUTSTATIC,
                      IFNULL, IFNONNULL:
                     offset += 2;
@@ -476,7 +476,7 @@ public final class ByteCodeUtil {
                         minDepth = depth;
                     }
                     break;
-                case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                case IFEQ, IFNE, IFLT, IFGE, IFGT, FILE,
                      PUTSTATIC,
                      IFNULL, IFNONNULL:
                     offset += 2;

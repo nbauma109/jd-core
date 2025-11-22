@@ -195,7 +195,7 @@ public class ByteCodeParser {
         String typeName;
         String name;
         String descriptor;
-        ObjectType ot;
+        ObjectType to;
         int i;
         int count;
         int value;
@@ -685,7 +685,7 @@ public class ByteCodeParser {
                     parseIF(stack, lineNumber, basicBlock, "<=", ">", 7);
                     offset += 2; // Skip branch offset
                     break;
-                case IFLE:
+                case FILE:
                     parseIF(stack, lineNumber, basicBlock, ">", "<=", 7);
                     offset += 2; // Skip branch offset
                     break;
@@ -780,19 +780,19 @@ public class ByteCodeParser {
                 case INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC, INVOKEINTERFACE:
                     constantMemberRef = constants.getConstant( (code[++offset] & 255) << 8 | code[++offset] & 255 );
                     typeName = constants.getConstantString(constantMemberRef.getClassIndex(), CONSTANT_Class);
-                    ot = typeMaker.makeFromDescriptorOrInternalTypeName(typeName);
+                    to = typeMaker.makeFromDescriptorOrInternalTypeName(typeName);
                     constantNameAndType = constants.getConstant(constantMemberRef.getNameAndTypeIndex());
                     name = constants.getConstantString(constantNameAndType.getNameIndex(), CONSTANT_Utf8);
                     descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
                     
-                    TypeMaker.MethodTypes methodTypes = makeMethodTypes(ot.getInternalName(), name, descriptor);
+                    TypeMaker.MethodTypes methodTypes = makeMethodTypes(to.getInternalName(), name, descriptor);
 
                     methodTypes.handlePolymorphicSignature(typeName, name);
                     
                     BaseExpression parameters = extractParametersFromStack(statements, stack, methodTypes.getParameterTypes());
 
                     if (opcode == INVOKESTATIC) {
-                        expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, new ObjectTypeReferenceExpression(lineNumber, ot), ot, name, descriptor, methodTypes, parameters);
+                        expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, new ObjectTypeReferenceExpression(lineNumber, to), to, name, descriptor, methodTypes, parameters);
                         if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
                             typeParametersToTypeArgumentsBinder.setExceptionTypes(exceptionTypes);
                             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
@@ -806,7 +806,7 @@ public class ByteCodeParser {
                             ((NewExpression)expression1).setQualifier(enclosingInstances.pop());
                         }
                         if (expression1.isLocalVariableReferenceExpression()) {
-                            ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable().typeOnLeft(typeBounds, ot);
+                            ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable().typeOnLeft(typeBounds, to);
                         }
                         if (opcode == INVOKEINTERFACE) {
                             offset += 2; // Skip 'count' and one byte
@@ -816,14 +816,14 @@ public class ByteCodeParser {
                                 StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
                                 if (expression1.isNewExpression()) {
                                     typeParametersToTypeArgumentsBinder.updateNewExpression((ClassFileNewExpression)expression1, descriptor, methodTypes, parameters);
-                                } else if (ot.getDescriptor().equals(expression1.getType().getDescriptor())) {
-                                    statements.add(new ExpressionStatement(typeParametersToTypeArgumentsBinder.newConstructorInvocationExpression(lineNumber, ot, descriptor, methodTypes, parameters)));
+                                } else if (to.getDescriptor().equals(expression1.getType().getDescriptor())) {
+                                    statements.add(new ExpressionStatement(typeParametersToTypeArgumentsBinder.newConstructorInvocationExpression(lineNumber, to, descriptor, methodTypes, parameters)));
                                 } else {
-                                    statements.add(new ExpressionStatement(typeParametersToTypeArgumentsBinder.newSuperConstructorInvocationExpression(lineNumber, ot, descriptor, methodTypes, parameters)));
+                                    statements.add(new ExpressionStatement(typeParametersToTypeArgumentsBinder.newSuperConstructorInvocationExpression(lineNumber, to, descriptor, methodTypes, parameters)));
                                 }
                             } else {
                                 expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                    lineNumber, getMethodInstanceReference(expression1, ot,  name, descriptor), ot,  name, descriptor, methodTypes, parameters);
+                                    lineNumber, getMethodInstanceReference(expression1, to,  name, descriptor), to,  name, descriptor, methodTypes, parameters);
                                 typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                                 statements.add(new ExpressionStatement(expression1));
                             }
@@ -836,7 +836,7 @@ public class ByteCodeParser {
                                 }
                             }
                             stack.push(typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                lineNumber, getMethodInstanceReference(expression1, ot,  name, descriptor), ot, name, descriptor, methodTypes, parameters));
+                                lineNumber, getMethodInstanceReference(expression1, to,  name, descriptor), to, name, descriptor, methodTypes, parameters));
                         }
                     }
                     break;
@@ -861,9 +861,9 @@ public class ByteCodeParser {
                         type1 = typeMaker.makeFromInternalTypeName(typeName).createType(1);
                     }
                     if (typeName.endsWith(TYPE_CLASS.getInternalName())) {
-                        ot = (ObjectType)type1;
-                        if (ot.getTypeArguments() == null) {
-                            type1 = ot.createType(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
+                        to = (ObjectType)type1;
+                        if (to.getTypeArguments() == null) {
+                            type1 = to.createType(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
                         }
                     }
                     stack.push(new NewArray(lineNumber, type1, stack.pop()));
@@ -1477,12 +1477,12 @@ public class ByteCodeParser {
 
         if (indyParameters == null) {
             // Create static method reference
-            ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
+            ObjectType to = typeMaker.makeFromInternalTypeName(typeName);
 
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name1)) {
-                stack.push(new ConstructorReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ot, descriptor1));
+                stack.push(new ConstructorReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), to, descriptor1));
             } else {
-                stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), new ObjectTypeReferenceExpression(lineNumber, ot), typeName, name1, descriptor1));
+                stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), new ObjectTypeReferenceExpression(lineNumber, to), typeName, name1, descriptor1));
             }
             return;
         }
@@ -1856,50 +1856,50 @@ public class ByteCodeParser {
             }
         }
 
-        ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
+        ObjectType to = typeMaker.makeFromInternalTypeName(typeName);
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
-        Type type = makeFieldType(ot.getInternalName(), name, descriptor);
-        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, ot, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
-        stack.push(typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, ot, name, descriptor));
+        Type type = makeFieldType(to.getInternalName(), name, descriptor);
+        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, to, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
+        stack.push(typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, to, name, descriptor));
     }
 
     private void parsePutStatic(Statements statements, DefaultStack<Expression> stack, ConstantPool constants, int lineNumber, int index) {
         ConstantCP constantMemberRef = constants.getConstant(index);
         String typeName = constants.getConstantString(constantMemberRef.getClassIndex(), CONSTANT_Class);
-        ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
+        ObjectType to = typeMaker.makeFromInternalTypeName(typeName);
         ConstantNameAndType constantNameAndType = constants.getConstant(constantMemberRef.getNameAndTypeIndex());
         String name = constants.getConstantString(constantNameAndType.getNameIndex(), CONSTANT_Utf8);
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
-        Type type = makeFieldType(ot.getInternalName(), name, descriptor);
+        Type type = makeFieldType(to.getInternalName(), name, descriptor);
         Expression valueRef = stack.pop();
-        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, ot, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
-        FieldReferenceExpression fieldRef = typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, ot, name, descriptor);
+        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, to, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
+        FieldReferenceExpression fieldRef = typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, to, name, descriptor);
         parsePUT(statements, stack, lineNumber, fieldRef, valueRef);
     }
 
     private void parseGetField(DefaultStack<Expression> stack, ConstantPool constants, int lineNumber, int index) {
         ConstantCP constantMemberRef = constants.getConstant(index);
         String typeName = constants.getConstantString(constantMemberRef.getClassIndex(), CONSTANT_Class);
-        ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
+        ObjectType to = typeMaker.makeFromInternalTypeName(typeName);
         ConstantNameAndType constantNameAndType = constants.getConstant(constantMemberRef.getNameAndTypeIndex());
         String name = constants.getConstantString(constantNameAndType.getNameIndex(), CONSTANT_Utf8);
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
-        Type type = makeFieldType(ot.getInternalName(), name, descriptor);
+        Type type = makeFieldType(to.getInternalName(), name, descriptor);
         Expression objectRef = stack.pop();
-        stack.push(typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, getFieldInstanceReference(objectRef, ot,  name), ot, name, descriptor));
+        stack.push(typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, getFieldInstanceReference(objectRef, to,  name), to, name, descriptor));
     }
 
     private void parsePutField(Statements statements, DefaultStack<Expression> stack, ConstantPool constants, int lineNumber, int index) {
         ConstantCP constantMemberRef = constants.getConstant(index);
         String typeName = constants.getConstantString(constantMemberRef.getClassIndex(), CONSTANT_Class);
-        ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
+        ObjectType to = typeMaker.makeFromInternalTypeName(typeName);
         ConstantNameAndType constantNameAndType = constants.getConstant(constantMemberRef.getNameAndTypeIndex());
         String name = constants.getConstantString(constantNameAndType.getNameIndex(), CONSTANT_Utf8);
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
-        Type type = makeFieldType(ot.getInternalName(), name, descriptor);
+        Type type = makeFieldType(to.getInternalName(), name, descriptor);
         Expression valueRef = stack.pop();
         Expression objectRef = stack.pop();
-        FieldReferenceExpression fieldRef = typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, getFieldInstanceReference(objectRef, ot,  name), ot, name, descriptor);
+        FieldReferenceExpression fieldRef = typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, getFieldInstanceReference(objectRef, to,  name), to, name, descriptor);
         parsePUT(statements, stack, lineNumber, fieldRef, valueRef);
     }
 
@@ -2100,11 +2100,11 @@ public class ByteCodeParser {
     /**
      * @return expression, 'this' or 'super'
      */
-    private Expression getFieldInstanceReference(Expression expression, ObjectType ot, String name) {
+    private Expression getFieldInstanceReference(Expression expression, ObjectType to, String name) {
         if (expression.isThisExpression()) {
             String internalName = expression.getType().getInternalName();
 
-            if (!ot.getInternalName().equals(internalName)) {
+            if (!to.getInternalName().equals(internalName)) {
                 memberVisitor.init(name, null);
                 for (ClassFileFieldDeclaration field : bodyDeclaration.getFieldDeclarations()) {
                     field.getFieldDeclarators().accept(memberVisitor);
@@ -2121,19 +2121,19 @@ public class ByteCodeParser {
     /**
      * @return expression, 'this' or 'super'
      */
-    private Expression getMethodInstanceReference(Expression expression, ObjectType ot, String name, String descriptor) {
+    private Expression getMethodInstanceReference(Expression expression, ObjectType to, String name, String descriptor) {
         if (bodyDeclaration.getMethodDeclarations() != null && expression.isThisExpression()) {
             String internalName = expression.getType().getInternalName();
 
-            if (!ot.getInternalName().equals(internalName)) {
+            if (!to.getInternalName().equals(internalName)) {
                 memberVisitor.init(name, descriptor);
 
                 for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {
                     member.accept(memberVisitor);
                     if (memberVisitor.found()) {
                         String[] interfaceTypeNames = member.getClassFile().getInterfaceTypeNames();
-                        if (Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
-                            return new QualifiedSuperExpression(expression.getLineNumber(), ot);
+                        if (Arrays.asList(interfaceTypeNames).contains(to.getInternalName())) {
+                            return new QualifiedSuperExpression(expression.getLineNumber(), to);
                         }
                         return new SuperExpression(expression.getLineNumber(), expression.getType());
                     }

@@ -554,7 +554,7 @@ public class StatementMaker {
                 BasicBlock bb = exceptionHandler.getBasicBlock();
                 int lineNumber = bb.getControlFlowGraph().getLineNumber(bb.getFromOffset());
                 int index = ByteCodeParser.getExceptionLocalVariableIndex(bb);
-                ObjectType ot = typeMaker.makeFromInternalTypeName(exceptionHandler.getInternalThrowableName());
+                ObjectType to = typeMaker.makeFromInternalTypeName(exceptionHandler.getInternalThrowableName());
                 int offset = bb.getFromOffset();
                 byte[] code = bb.getControlFlowGraph().getMethod().getCode().getCode();
 
@@ -564,7 +564,7 @@ public class StatementMaker {
                     offset++;    // POP, ASTORE_1 ... ASTORE_3
                 }
 
-                AbstractLocalVariable exception = localVariableMaker.getExceptionLocalVariable(index, offset, ot);
+                AbstractLocalVariable exception = localVariableMaker.getExceptionLocalVariable(index, offset, to);
 
                 if (bb != null && bb.getNext().getPredecessors().size() > 1) {
                     bb.getNext().getPredecessors().remove(bb);
@@ -585,7 +585,7 @@ public class StatementMaker {
 
                 replacePreOperatorWithPostOperator(catchStatements);
 
-                ClassFileTryStatement.CatchClause cc = new ClassFileTryStatement.CatchClause(lineNumber, ot, exception, catchStatements);
+                ClassFileTryStatement.CatchClause cc = new ClassFileTryStatement.CatchClause(lineNumber, to, exception, catchStatements);
 
                 if (exceptionHandler.getOtherInternalThrowableNames() != null) {
                     for (String name : exceptionHandler.getOtherInternalThrowableNames()) {
@@ -946,10 +946,10 @@ public class StatementMaker {
 
     protected Expression parseTernaryOperator(int lineNumber, Expression condition, Expression exp1, Expression exp2) {
         if (ObjectType.TYPE_CLASS.equals(exp1.getType()) && ObjectType.TYPE_CLASS.equals(exp2.getType()) && condition.isBinaryOperatorExpression() && condition.getLeftExpression().isFieldReferenceExpression() && condition.getRightExpression().isNullExpression()) {
-            FieldReferenceExpression freCond = (FieldReferenceExpression) condition.getLeftExpression();
+            FieldReferenceExpression freeCond = (FieldReferenceExpression) condition.getLeftExpression();
 
-            if (freCond.getInternalTypeName().equals(internalTypeName)) {
-                String fieldName = freCond.getName();
+            if (freeCond.getInternalTypeName().equals(internalTypeName)) {
+                String fieldName = freeCond.getName();
 
                 if (fieldName.startsWith(StringConstants.CLASS_DOLLAR)) {
                     if ("==".equals(condition.getOperator()) && exp1.isBinaryOperatorExpression() && checkFieldReference(fieldName, exp2)) {
@@ -1024,25 +1024,25 @@ public class StatementMaker {
         return new TernaryOperatorExpression(lineNumber, type, condition, expressionTrue, expressionFalse);
     }
 
-    protected Type getTernaryOperatorExpressionType(ObjectType ot1, ObjectType ot2) {
-        if (ot1.getTypeArguments() != null) {
-            if (ot2.getTypeArguments() == null) {
-                return ot1.createType(null);
+    protected Type getTernaryOperatorExpressionType(ObjectType to1, ObjectType to2) {
+        if (to1.getTypeArguments() != null) {
+            if (to2.getTypeArguments() == null) {
+                return to1.createType(null);
             }
-            if (!ot1.isTypeArgumentAssignableFrom(typeMaker, Collections.emptyMap(), typeBounds, ot2)) {
-                if (ot2.isTypeArgumentAssignableFrom(typeMaker, Collections.emptyMap(), typeBounds, ot1)) {
-                    return ot1.createType(ot2.getTypeArguments());
+            if (!to1.isTypeArgumentAssignableFrom(typeMaker, Collections.emptyMap(), typeBounds, to2)) {
+                if (to2.isTypeArgumentAssignableFrom(typeMaker, Collections.emptyMap(), typeBounds, to1)) {
+                    return to1.createType(to2.getTypeArguments());
                 }
-                return ot1.createType(null);
+                return to1.createType(null);
             }
         }
-        return ot1;
+        return to1;
     }
 
     protected boolean checkFieldReference(String fieldName, Expression expression) {
         if (expression.isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = (FieldReferenceExpression) expression;
-            return fre.getName().equals(fieldName) && fre.getInternalTypeName().equals(internalTypeName);
+            FieldReferenceExpression free = (FieldReferenceExpression) expression;
+            return free.getName().equals(fieldName) && free.getInternalTypeName().equals(internalTypeName);
         }
 
         return false;
@@ -1072,9 +1072,9 @@ public class StatementMaker {
         }
 
         String typeName = mie.getParameters().getStringValue();
-        ObjectType ot = typeMaker.makeFromInternalTypeName(typeName.replace('.', '/'));
+        ObjectType to = typeMaker.makeFromInternalTypeName(typeName.replace('.', '/'));
 
-        return new TypeReferenceDotClassExpression(lineNumber, ot);
+        return new TypeReferenceDotClassExpression(lineNumber, to);
     }
 
     protected void parseByteCode(BasicBlock basicBlock, Statements statements) {

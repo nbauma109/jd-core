@@ -47,9 +47,9 @@ public class AnnotationConverterTest extends TestCase {
             // Check class
             assertNotNull(classFile);
 
-            RuntimeVisibleAnnotations visibles = classFile.getAttribute(Const.ATTR_RUNTIME_VISIBLE_ANNOTATIONS);
+            RuntimeVisibleAnnotations visible = classFile.getAttribute(Const.ATTR_RUNTIME_VISIBLE_ANNOTATIONS);
             RuntimeInvisibleAnnotations invisibles = classFile.getAttribute(Const.ATTR_RUNTIME_INVISIBLE_ANNOTATIONS);
-            BaseAnnotationReference annotationReferences = converter.convert(visibles == null ? null : visibles.getAnnotationEntries(),
+            BaseAnnotationReference annotationReferences = converter.convert(visible == null ? null : visible.getAnnotationEntries(),
                                                                            invisibles == null ? null : invisibles.getAnnotationEntries());
 
             assertNotNull(annotationReferences);

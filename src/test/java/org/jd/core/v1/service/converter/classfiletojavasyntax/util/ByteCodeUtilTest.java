@@ -6,7 +6,7 @@ import static org.apache.bcel.Const.ALOAD;
 import static org.apache.bcel.Const.IFEQ;
 import static org.apache.bcel.Const.IFGE;
 import static org.apache.bcel.Const.IFGT;
-import static org.apache.bcel.Const.IFLE;
+import static org.apache.bcel.Const.FILE;
 import static org.apache.bcel.Const.IFLT;
 import static org.apache.bcel.Const.IFNE;
 import static org.apache.bcel.Const.IFNONNULL;
@@ -40,8 +40,8 @@ public class ByteCodeUtilTest {
         assertEquals(IFEQ, ByteCodeUtil.getOppositeOpCode(IFNE));
         assertEquals(IFLT, ByteCodeUtil.getOppositeOpCode(IFGE));
         assertEquals(IFGE, ByteCodeUtil.getOppositeOpCode(IFLT));
-        assertEquals(IFGT, ByteCodeUtil.getOppositeOpCode(IFLE));
-        assertEquals(IFLE, ByteCodeUtil.getOppositeOpCode(IFGT));
+        assertEquals(IFGT, ByteCodeUtil.getOppositeOpCode(FILE));
+        assertEquals(FILE, ByteCodeUtil.getOppositeOpCode(IFGT));
         assertThrows(IllegalArgumentException.class, () -> ByteCodeUtil.getOppositeOpCode(ALOAD));
     }
 }

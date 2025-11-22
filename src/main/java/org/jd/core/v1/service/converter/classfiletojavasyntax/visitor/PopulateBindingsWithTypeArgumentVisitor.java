@@ -89,11 +89,11 @@ public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisi
                     Type t2 = typeArgumentToTypeVisitor.getType();
 
                     if (!t1.createType(0).equals(t2.createType(0)) && t1.isObjectType() && t2.isObjectType()) {
-                        ObjectType ot1 = (ObjectType)t1;
-                        ObjectType ot2 = (ObjectType)t2.createType(Math.max(0, t2.getDimension() - type.getDimension()));
+                        ObjectType to1 = (ObjectType)t1;
+                        ObjectType to2 = (ObjectType)t2.createType(Math.max(0, t2.getDimension() - type.getDimension()));
 
-                        if (!typeMaker.isAssignable(bindings, typeBounds, ot1, ot2)) {
-                            if (typeMaker.isAssignable(bindings, typeBounds, ot2, ot1)) {
+                        if (!typeMaker.isAssignable(bindings, typeBounds, to1, to2)) {
+                            if (typeMaker.isAssignable(bindings, typeBounds, to2, to1)) {
                                 TypeArgument newBoundType = checkTypeClassCheckDimensionAndReturnCurrentAsTypeArgument(type);
                                 if (!ObjectType.TYPE_CLASS_WILDCARD.equals(newBoundType)) {
                                     bindings.put(typeName, newBoundType);
@@ -115,13 +115,13 @@ public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisi
     protected TypeArgument checkTypeClassCheckDimensionAndReturnCurrentAsTypeArgument(GenericType type) {
         if (current != null) {
             if (current.isObjectTypeArgument()) {
-                ObjectType ot = (ObjectType) current;
+                ObjectType to = (ObjectType) current;
 
-                if (ot.getTypeArguments() == null && ot.getInternalName().equals(TYPE_CLASS.getInternalName())) {
-                    return TYPE_CLASS_WILDCARD.createType(Math.max(0, ot.getDimension() - type.getDimension()));
+                if (to.getTypeArguments() == null && to.getInternalName().equals(TYPE_CLASS.getInternalName())) {
+                    return TYPE_CLASS_WILDCARD.createType(Math.max(0, to.getDimension() - type.getDimension()));
                 }
 
-                return ot.createType(Math.max(0, ot.getDimension() - type.getDimension()));
+                return to.createType(Math.max(0, to.getDimension() - type.getDimension()));
             }
             if (current.isInnerObjectTypeArgument() || current.isGenericTypeArgument() || current.isPrimitiveTypeArgument()) {
                 Type t = (Type)current;

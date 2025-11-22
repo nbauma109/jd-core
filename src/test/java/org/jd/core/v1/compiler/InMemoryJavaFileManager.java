@@ -29,11 +29,11 @@ public class InMemoryJavaFileManager extends ForwardingJavaFileManager<JavaFileM
         return super.hasLocation(location);
     }
 
-    public boolean contains(Location location, FileObject fo) throws IOException {
+    public boolean contains(Location location, FileObject of) throws IOException {
         if (location == StandardLocation.SOURCE_PATH) {
-            return sources.contains(fo);
+            return sources.contains(of);
         }
-        return super.contains(location, fo);
+        return super.contains(location, of);
     }
 
     public Iterable<JavaFileObject> list(Location location, String packageName, Set<Kind> kinds, boolean recurse) throws IOException {

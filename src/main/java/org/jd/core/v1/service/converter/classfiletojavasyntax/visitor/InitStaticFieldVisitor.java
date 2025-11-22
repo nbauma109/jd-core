@@ -187,9 +187,9 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
         Expression expression = statement.getExpression();
 
         if (expression.getLeftExpression().isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = (FieldReferenceExpression) expression.getLeftExpression();
+            FieldReferenceExpression free = (FieldReferenceExpression) expression.getLeftExpression();
 
-            if (fre.getType() == PrimitiveType.TYPE_BOOLEAN && fre.getInternalTypeName().equals(internalTypeName) && "$assertionsDisabled".equals(fre.getName())) {
+            if (free.getType() == PrimitiveType.TYPE_BOOLEAN && free.getInternalTypeName().equals(internalTypeName) && "$assertionsDisabled".equals(free.getName())) {
                 return true;
             }
         }
@@ -201,15 +201,15 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
         Expression expression = statement.getExpression();
 
         if (expression.getLeftExpression().isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = (FieldReferenceExpression) expression.getLeftExpression();
+            FieldReferenceExpression free = (FieldReferenceExpression) expression.getLeftExpression();
 
-            if (fre.getInternalTypeName().equals(internalTypeName)) {
-                FieldDeclarator fdr = fields.get(fre.getName());
+            if (free.getInternalTypeName().equals(internalTypeName)) {
+                FieldDeclarator fdr = fields.get(free.getName());
 
                 if (fdr != null && fdr.getVariableInitializer() == null) {
                     FieldDeclaration fdn = fdr.getFieldDeclaration();
 
-                    if ((fdn.getFlags() & Const.ACC_STATIC) != 0 && fdn.getType().getDescriptor().equals(fre.getDescriptor())) {
+                    if ((fdn.getFlags() & Const.ACC_STATIC) != 0 && fdn.getType().getDescriptor().equals(free.getDescriptor())) {
                         expression = expression.getRightExpression();
 
                         searchLocalVariableReferenceVisitor.init(-1, null);

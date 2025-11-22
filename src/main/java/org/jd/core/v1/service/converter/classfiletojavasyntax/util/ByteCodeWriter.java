@@ -55,7 +55,7 @@ import static org.apache.bcel.Const.GOTO_W;
 import static org.apache.bcel.Const.IFEQ;
 import static org.apache.bcel.Const.IFGE;
 import static org.apache.bcel.Const.IFGT;
-import static org.apache.bcel.Const.IFLE;
+import static org.apache.bcel.Const.FILE;
 import static org.apache.bcel.Const.IFLT;
 import static org.apache.bcel.Const.IFNE;
 import static org.apache.bcel.Const.IFNONNULL;
@@ -258,7 +258,7 @@ public class ByteCodeWriter {
                 case IINC:
                     sb.append(" #").append(code[++offset] & 255).append(", ").append((byte)(code[++offset] & 255));
                     break;
-                case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                case IFEQ, IFNE, IFLT, IFGE, IFGT, FILE,
                      IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE, IF_ACMPEQ, IF_ACMPNE,
                      GOTO, JSR:
                     sb.append(" -> ").append(offset + (short)((code[++offset] & 255) << 8 | code[++offset] & 255));
@@ -591,7 +591,7 @@ public class ByteCodeWriter {
         "iand", "land", "ior", "lor", "ixor", "lxor", "iinc", "i2l", "i2f",
         "i2d", "l2i", "l2f", "l2d", "f2i", "f2l", "f2d", "d2i", "d2l", "d2f",
         "i2b", "i2c", "i2s", "lcmp", "fcmpl", "fcmpg",
-        "dcmpl", "dcmpg", "ifeq", "ifne", "iflt", "ifge", "ifgt", "ifle",
+        "dcmpl", "dcmpg", "ifeq", "ifne", "iflt", "ifge", "ifgt", "file",
         "if_icmpeq", "if_icmpne", "if_icmplt", "if_icmpge", "if_icmpgt",
         "if_icmple", "if_acmpeq", "if_acmpne", "goto", "jsr", "ret",
         "tableswitch", "lookupswitch", "ireturn", "lreturn", "freturn",

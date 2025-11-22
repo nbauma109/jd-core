@@ -101,11 +101,11 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         int parameterTypesCount = parameterTypes == null ? 0 : parameterTypes.size();
 
         if (exp.isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = getFieldReferenceExpression(exp);
+            FieldReferenceExpression free = getFieldReferenceExpression(exp);
 
-            expression = parameterTypesCount == 0 ? fre.getExpression() : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? free.getExpression() : mie1.getParameters().getFirst();
 
-            return new FieldReferenceExpression(mie1.getLineNumber(), fre.getType(), expression, fre.getInternalTypeName(), fre.getName(), fre.getDescriptor());
+            return new FieldReferenceExpression(mie1.getLineNumber(), free.getType(), expression, free.getInternalTypeName(), free.getName(), free.getDescriptor());
         }
         if (exp.isMethodInvocationExpression()) {
             MethodInvocationExpression mie2 = (MethodInvocationExpression) exp;
@@ -132,12 +132,12 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
                 return new ClassFileMethodInvocationExpression(mie1.getLineNumber(), methodTypes.getReturnedType(), mie1Parameters.getFirst(), mie2.getInternalTypeName(), mie2.getName(), mie2.getDescriptor(), newParameters, methodTypes);
             }
         } else if (exp.isBinaryOperatorExpression()) {
-            FieldReferenceExpression fre = getFieldReferenceExpression(exp.getLeftExpression());
+            FieldReferenceExpression free = getFieldReferenceExpression(exp.getLeftExpression());
 
             if (parameterTypesCount == 1) {
                 return new BinaryOperatorExpression(
                         mie1.getLineNumber(), mie1.getType(),
-                        new FieldReferenceExpression(fre.getType(), fre.getExpression(), fre.getInternalTypeName(), fre.getName(), fre.getDescriptor()),
+                        new FieldReferenceExpression(free.getType(), free.getExpression(), free.getInternalTypeName(), free.getName(), free.getDescriptor()),
                         exp.getOperator(),
                         mie1.getParameters().getFirst(),
                         exp.getPriority());
@@ -147,29 +147,29 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
 
                 return new BinaryOperatorExpression(
                         mie1.getLineNumber(), mie1.getType(),
-                        new FieldReferenceExpression(fre.getType(), parameters.get(0), fre.getInternalTypeName(), fre.getName(), fre.getDescriptor()),
+                        new FieldReferenceExpression(free.getType(), parameters.get(0), free.getInternalTypeName(), free.getName(), free.getDescriptor()),
                         exp.getOperator(),
                         parameters.get(1),
                         exp.getPriority());
             }
         } else if (exp.isPostOperatorExpression()) {
-            FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
+            FieldReferenceExpression free = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? fre.getExpression() : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? free.getExpression() : mie1.getParameters().getFirst();
 
             return new PostOperatorExpression(
                     mie1.getLineNumber(),
-                    new FieldReferenceExpression(fre.getType(), expression, fre.getInternalTypeName(), fre.getName(), fre.getDescriptor()),
+                    new FieldReferenceExpression(free.getType(), expression, free.getInternalTypeName(), free.getName(), free.getDescriptor()),
                     exp.getOperator());
         } else if (exp.isPreOperatorExpression()) {
-            FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
+            FieldReferenceExpression free = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? fre.getExpression() : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? free.getExpression() : mie1.getParameters().getFirst();
 
             return new PreOperatorExpression(
                     mie1.getLineNumber(),
                     exp.getOperator(),
-                    new FieldReferenceExpression(fre.getType(), expression, fre.getInternalTypeName(), fre.getName(), fre.getDescriptor()));
+                    new FieldReferenceExpression(free.getType(), expression, free.getInternalTypeName(), free.getName(), free.getDescriptor()));
         } else if (exp.isIntegerConstantExpression()) {
             return exp;
         }
@@ -178,14 +178,14 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
     }
 
     protected static FieldReferenceExpression getFieldReferenceExpression(Expression expression) {
-        FieldReferenceExpression fre = (FieldReferenceExpression) expression;
-        Expression freExpression = fre.getExpression();
+        FieldReferenceExpression free = (FieldReferenceExpression) expression;
+        Expression freeExpression = free.getExpression();
 
-        if (freExpression != null && freExpression.isObjectTypeReferenceExpression()) {
-            ((ObjectTypeReferenceExpression)freExpression).setExplicit(true);
+        if (freeExpression != null && freeExpression.isObjectTypeReferenceExpression()) {
+            ((ObjectTypeReferenceExpression)freeExpression).setExplicit(true);
         }
 
-        return fre;
+        return free;
     }
 
     protected class BodyDeclarationsVisitor extends AbstractJavaSyntaxVisitor {
@@ -267,13 +267,13 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
             int parameterTypesCount = parameterTypes == null ? 0 : parameterTypes.size();
 
             if (exp.isFieldReferenceExpression()) {
-                FieldReferenceExpression fre = (FieldReferenceExpression) exp;
+                FieldReferenceExpression free = (FieldReferenceExpression) exp;
 
                 if (parameterTypesCount == 0) {
-                    return fre.getExpression() != null && fre.getExpression().isObjectTypeReferenceExpression();
+                    return free.getExpression() != null && free.getExpression().isObjectTypeReferenceExpression();
                 }
                 if (parameterTypesCount == 1) {
-                    return fre.getExpression() == null || checkLocalVariableReference(fre.getExpression(), 0);
+                    return free.getExpression() == null || checkLocalVariableReference(free.getExpression(), 0);
                 }
             } else if (exp.isMethodInvocationExpression()) {
                 MethodInvocationExpression mie2 = (MethodInvocationExpression) exp;
@@ -329,12 +329,12 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
             } else if (exp.isBinaryOperatorExpression()) {
                 if (parameterTypesCount == 1) {
                     if (exp.getLeftExpression().isFieldReferenceExpression() && checkLocalVariableReference(exp.getRightExpression(), 0)) {
-                        FieldReferenceExpression fre = (FieldReferenceExpression) exp.getLeftExpression();
-                        return fre.getExpression().isObjectTypeReferenceExpression();
+                        FieldReferenceExpression free = (FieldReferenceExpression) exp.getLeftExpression();
+                        return free.getExpression().isObjectTypeReferenceExpression();
                     }
                 } else if (parameterTypesCount == 2 && exp.getLeftExpression().isFieldReferenceExpression() && checkLocalVariableReference(exp.getRightExpression(), 1)) {
-                    FieldReferenceExpression fre = (FieldReferenceExpression) exp.getLeftExpression();
-                    return checkLocalVariableReference(fre.getExpression(), 0);
+                    FieldReferenceExpression free = (FieldReferenceExpression) exp.getLeftExpression();
+                    return checkLocalVariableReference(free.getExpression(), 0);
                 }
             } else if (exp.isPostOperatorExpression() || parameterTypesCount == 1 && exp.isPreOperatorExpression()) {
                 exp = exp.getExpression();

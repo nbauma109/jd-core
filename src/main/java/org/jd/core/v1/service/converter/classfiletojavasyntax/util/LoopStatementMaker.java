@@ -659,8 +659,8 @@ public final class LoopStatementMaker {
 
         if (list instanceof MethodInvocationExpression && item.getType() instanceof ObjectType) {
             MethodInvocationExpression exp = (MethodInvocationExpression) list;
-            ObjectType ot = (ObjectType) item.getType();
-            if (ot.getTypeArguments() instanceof WildcardExtendsTypeArgument || ot.getTypeArguments() instanceof WildcardSuperTypeArgument) {
+            ObjectType to = (ObjectType) item.getType();
+            if (to.getTypeArguments() instanceof WildcardExtendsTypeArgument || to.getTypeArguments() instanceof WildcardSuperTypeArgument) {
                 exp.setNonWildcardTypeArguments(null);
             }
         }

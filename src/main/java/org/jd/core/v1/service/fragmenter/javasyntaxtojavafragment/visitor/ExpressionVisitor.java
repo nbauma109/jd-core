@@ -233,12 +233,12 @@ public class ExpressionVisitor extends TypeVisitor {
 
     @Override
     public void visit(ConstructorReferenceExpression expression) {
-        ObjectType ot = expression.getObjectType();
+        ObjectType to = expression.getObjectType();
 
         tokens.addLineNumberToken(expression);
-        tokens.add(newTypeReferenceToken(ot, currentType));
+        tokens.add(newTypeReferenceToken(to, currentType));
         tokens.add(TextToken.COLON_COLON);
-        //tokens.add(new ReferenceToken(ReferenceToken.CONSTRUCTOR, ot.getInternalName(), "new", expression.getDescriptor(), currentInternalTypeName));
+        //tokens.add(new ReferenceToken(ReferenceToken.CONSTRUCTOR, to.getInternalName(), "new", expression.getDescriptor(), currentInternalTypeName));
         tokens.add(NEW);
     }
 
@@ -477,9 +477,9 @@ public class ExpressionVisitor extends TypeVisitor {
 
         if (!exp.isThisExpression()) {
             if (exp.isObjectTypeReferenceExpression()) {
-                ObjectType ot = exp.getObjectType();
+                ObjectType to = exp.getObjectType();
 
-                if (expression.getNonWildcardTypeArguments() != null || !ot.getInternalName().equals(getCurrentTypeInternalName())) {
+                if (expression.getNonWildcardTypeArguments() != null || !to.getInternalName().equals(getCurrentTypeInternalName())) {
                     visit(expression, exp);
                     tokens.addLineNumberToken(expression);
                     tokens.add(TextToken.DOT);
@@ -662,11 +662,11 @@ public class ExpressionVisitor extends TypeVisitor {
             fragments.addTokensFragment(tokens);
 
             StartBodyFragment start = JavaFragmentFactory.addStartTypeBody(fragments);
-            ObjectType ot = expression.getObjectType();
+            ObjectType to = expression.getObjectType();
 
             storeContext();
             currentType = typeMaker.makeFromInternalTypeName(bodyDeclaration.getInternalTypeName());
-            currentTypeName = ot.getName();
+            currentTypeName = to.getName();
             bodyDeclaration.accept(this);
 
             if (! tokens.isEmpty()) {

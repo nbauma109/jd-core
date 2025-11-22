@@ -70,7 +70,7 @@ import static org.apache.bcel.Const.IASTORE;
 import static org.apache.bcel.Const.IFEQ;
 import static org.apache.bcel.Const.IFGE;
 import static org.apache.bcel.Const.IFGT;
-import static org.apache.bcel.Const.IFLE;
+import static org.apache.bcel.Const.FILE;
 import static org.apache.bcel.Const.IFLT;
 import static org.apache.bcel.Const.IFNE;
 import static org.apache.bcel.Const.IFNONNULL;
@@ -303,7 +303,7 @@ public class ControlFlowGraphMaker {
                     }
                     lastStatementOffset = offset;
                     break;
-                case IFEQ, IFNE, IFLT, IFGE, IFGT, IFLE,
+                case IFEQ, IFNE, IFLT, IFGE, IFGT, FILE,
                      IF_ICMPEQ, IF_ICMPNE, IF_ICMPLT, IF_ICMPGE, IF_ICMPGT, IF_ICMPLE, IF_ACMPEQ, IF_ACMPNE,
                      IFNULL, IFNONNULL:
                     if (lastStatementOffset != -1) {

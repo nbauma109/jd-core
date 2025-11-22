@@ -44,7 +44,7 @@ import static org.jd.core.v1.api.printer.Printer.UNKNOWN_LINE_NUMBER;
 public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final Map<String, FieldDeclarator> fieldDeclarators = new HashMap<>();
-    private final DefaultList<Data> datas = new DefaultList<>();
+    private final DefaultList<Data> data = new DefaultList<>();
     private final DefaultList<Expression> putFields = new DefaultList<>();
     private int lineNumber = UNKNOWN_LINE_NUMBER;
     private boolean containsLocalVariableReference;
@@ -75,7 +75,7 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
 
         // Init attributes
         fieldDeclarators.clear();
-        datas.clear();
+        data.clear();
         putFields.clear();
         // Visit fields
         safeAcceptListDeclaration(bodyDeclaration.getFieldDeclarations());
@@ -104,9 +104,9 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
             if (superConstructorCall != null) {
                 String internalTypeName = cfcd.getClassFile().getInternalTypeName();
 
-                datas.add(new Data(cfcd, statements, iterator.nextIndex()));
+                data.add(new Data(cfcd, statements, iterator.nextIndex()));
 
-                if (datas.size() == 1) {
+                if (data.size() == 1) {
                     int firstLineNumber;
 
                     if ((cfcd.getFlags() & Const.ACC_SYNTHETIC) != 0) {
@@ -180,7 +180,7 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
         Expression expression = null;
 
         Statement statement;
-        FieldReferenceExpression fre;
+        FieldReferenceExpression free;
         String fieldName;
         while (iterator.hasNext()) {
             statement = iterator.next();
@@ -195,13 +195,13 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
                 break;
             }
 
-            fre = (FieldReferenceExpression)expression.getLeftExpression();
+            free = (FieldReferenceExpression)expression.getLeftExpression();
 
-            if (!fre.getInternalTypeName().equals(internalTypeName) || !fre.getExpression().isThisExpression()) {
+            if (!free.getInternalTypeName().equals(internalTypeName) || !free.getExpression().isThisExpression()) {
                 break;
             }
 
-            fieldName = fre.getName();
+            fieldName = free.getName();
 
             if (fieldNames.contains(fieldName)) {
                 break;
@@ -249,7 +249,7 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
         int index = 0;
 
         Expression expression;
-        FieldReferenceExpression fre;
+        FieldReferenceExpression free;
         Expression putField;
         while (iterator.hasNext() && putFieldIterator.hasNext()) {
             expression = iterator.next().getExpression();
@@ -258,15 +258,15 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
                 break;
             }
 
-            fre = (FieldReferenceExpression) expression.getLeftExpression();
+            free = (FieldReferenceExpression) expression.getLeftExpression();
 
-            if (!fre.getInternalTypeName().equals(internalTypeName)) {
+            if (!free.getInternalTypeName().equals(internalTypeName)) {
                 break;
             }
 
             putField = putFieldIterator.next();
 
-            if (expression.getLineNumber() != putField.getLineNumber() || !fre.getName().equals(putField.getLeftExpression().getName())) {
+            if (expression.getLineNumber() != putField.getLineNumber() || !free.getName().equals(putField.getLeftExpression().getName())) {
                 break;
             }
 
@@ -296,7 +296,7 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             // Update data : remove init field statements
-            for (Data data : datas) {
+            for (Data data : data) {
                 data.statements.subList(data.index, data.index + count).clear();
 
                 if (data.statements.isEmpty()) {

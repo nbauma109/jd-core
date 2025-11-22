@@ -294,12 +294,12 @@ public class TypeVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    protected ReferenceToken newTypeReferenceToken(ObjectType ot, ObjectType ownerType) {
-        String internalName = ot.getInternalName();
-        String qualifiedName = ot.getQualifiedName();
+    protected ReferenceToken newTypeReferenceToken(ObjectType to, ObjectType ownerType) {
+        String internalName = to.getInternalName();
+        String qualifiedName = to.getQualifiedName();
         
         int printerType = isInInvokeNew() ? Printer.CONSTRUCTOR : Printer.TYPE;
-        String name = ot.getName();
+        String name = to.getName();
         if (packageContainsType(internalPackageName, internalName)) {
             // In the current package
             if (ownerType != null && ownerType.getInnerTypeNames() != null) {

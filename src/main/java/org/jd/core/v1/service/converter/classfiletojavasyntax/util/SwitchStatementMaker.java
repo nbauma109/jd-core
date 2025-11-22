@@ -119,8 +119,8 @@ public final class SwitchStatementMaker {
 
                                                         if (lb.getLabel() != SwitchStatement.DEFAULT_LABEL) {
                                                             SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) lb.getLabel();
-                                                            IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                                                            el.setExpression(new StringConstantExpression(nce.getLineNumber(), map.get(nce.getIntegerValue())));
+                                                            IntegerConstantExpression nice = (IntegerConstantExpression) el.getExpression();
+                                                            el.setExpression(new StringConstantExpression(nice.getLineNumber(), map.get(nice.getIntegerValue())));
                                                         }
                                                     } else if (block.isSwitchStatementMultiLabelsBlock()) {
                                                         SwitchStatement.MultiLabelsBlock lmb = (SwitchStatement.MultiLabelsBlock) block;
@@ -128,8 +128,8 @@ public final class SwitchStatementMaker {
                                                         for (SwitchStatement.Label label : lmb.getLabels()) {
                                                             if (label != SwitchStatement.DEFAULT_LABEL) {
                                                                 SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) label;
-                                                                IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                                                                el.setExpression(new StringConstantExpression(nce.getLineNumber(), map.get(nce.getIntegerValue())));
+                                                                IntegerConstantExpression nice = (IntegerConstantExpression) el.getExpression();
+                                                                el.setExpression(new StringConstantExpression(nice.getLineNumber(), map.get(nice.getIntegerValue())));
                                                             }
                                                         }
                                                     }
@@ -164,10 +164,10 @@ public final class SwitchStatementMaker {
         Expression expression = switchStatement.getCondition().getExpression();
 
         if (expression.isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = (FieldReferenceExpression)expression;
+            FieldReferenceExpression free = (FieldReferenceExpression)expression;
 
-            if ("[I".equals(fre.getDescriptor()) && fre.getName().startsWith("$SwitchMap$")) {
-                ClassFileTypeDeclaration syntheticClassDeclaration = bodyDeclaration.getInnerTypeDeclaration(fre.getInternalTypeName());
+            if ("[I".equals(free.getDescriptor()) && free.getName().startsWith("$SwitchMap$")) {
+                ClassFileTypeDeclaration syntheticClassDeclaration = bodyDeclaration.getInnerTypeDeclaration(free.getInternalTypeName());
 
                 if (syntheticClassDeclaration != null) {
                     // Javac switch-enum pattern
@@ -178,7 +178,7 @@ public final class SwitchStatementMaker {
                         createInstructionsVisitor.createParametersVariablesAndStatements(methodDeclaration, false);
                     }
                     DefaultList<Statement> statements = methodDeclaration.getStatements().getList();
-                    updateSwitchStatement(switchStatement, searchSwitchMap(fre, statements.iterator()));
+                    updateSwitchStatement(switchStatement, searchSwitchMap(free, statements.iterator()));
                 }
             }
         } else if (expression.isMethodInvocationExpression()) {
@@ -198,8 +198,8 @@ public final class SwitchStatementMaker {
         }
     }
 
-    private static Iterator<Statement> searchSwitchMap(FieldReferenceExpression fre, Iterator<Statement> iterator) {
-        String name = fre.getName();
+    private static Iterator<Statement> searchSwitchMap(FieldReferenceExpression free, Iterator<Statement> iterator) {
+        String name = free.getName();
 
         while (iterator.hasNext()) {
             Expression expression = iterator.next().getExpression().getLeftExpression();
@@ -278,8 +278,8 @@ public final class SwitchStatementMaker {
 
                 if (lb.getLabel() != SwitchStatement.DEFAULT_LABEL) {
                     SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) lb.getLabel();
-                    IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                    el.setExpression(new EnumConstantReferenceExpression(nce.getLineNumber(), type, map.get(nce.getIntegerValue())));
+                    IntegerConstantExpression nice = (IntegerConstantExpression) el.getExpression();
+                    el.setExpression(new EnumConstantReferenceExpression(nice.getLineNumber(), type, map.get(nice.getIntegerValue())));
                 }
             } else if (block.isSwitchStatementMultiLabelsBlock()) {
                 SwitchStatement.MultiLabelsBlock lmb = (SwitchStatement.MultiLabelsBlock) block;
@@ -287,8 +287,8 @@ public final class SwitchStatementMaker {
                 for (SwitchStatement.Label label : lmb.getLabels()) {
                     if (label != SwitchStatement.DEFAULT_LABEL) {
                         SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) label;
-                        IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                        el.setExpression(new EnumConstantReferenceExpression(nce.getLineNumber(), type, map.get(nce.getIntegerValue())));
+                        IntegerConstantExpression nice = (IntegerConstantExpression) el.getExpression();
+                        el.setExpression(new EnumConstantReferenceExpression(nice.getLineNumber(), type, map.get(nice.getIntegerValue())));
                     }
                 }
             }

@@ -42,19 +42,19 @@ public class AnnotationConverter implements ElementValueVisitor {
         this.typeMaker = typeMaker;
     }
 
-    public BaseAnnotationReference convert(AnnotationEntry[] visibles, AnnotationEntry[] invisibles) {
-        if (visibles == null) {
+    public BaseAnnotationReference convert(AnnotationEntry[] visible, AnnotationEntry[] invisibles) {
+        if (visible == null) {
             if (invisibles == null) {
                 return null;
             }
             return convert(invisibles);
         }
         if (invisibles == null) {
-            return convert(visibles);
+            return convert(visible);
         }
         AnnotationReferences<AnnotationReference> aral = new AnnotationReferences<>();
 
-        for (AnnotationEntry a : visibles) {
+        for (AnnotationEntry a : visible) {
             aral.add(convert(a));
         }
         for (AnnotationEntry a : invisibles) {
@@ -83,7 +83,7 @@ public class AnnotationConverter implements ElementValueVisitor {
 
         assert descriptor != null && descriptor.length() > 2 && descriptor.charAt(0) == 'L' && descriptor.charAt(descriptor.length()-1) == ';';
 
-        ObjectType ot = typeMaker.makeFromDescriptor(descriptor);
+        ObjectType to = typeMaker.makeFromDescriptor(descriptor);
         org.apache.bcel.classfile.ElementValuePair[] elementValuePairs = annotation.getElementValuePairs();
 
         if (elementValuePairs.length == 1) {
@@ -92,10 +92,10 @@ public class AnnotationConverter implements ElementValueVisitor {
             ElementValue elemValue = elementValuePair.getValue();
 
             if ("value".equals(elementName)) {
-                return new AnnotationReference(ot, convert(elemValue));
+                return new AnnotationReference(to, convert(elemValue));
             }
             return new AnnotationReference(
-                    ot,
+                    to,
                     new ElementValuePair(elementName, convert(elemValue)));
         }
         ElementValuePairs list = new ElementValuePairs(elementValuePairs.length);
@@ -106,7 +106,7 @@ public class AnnotationConverter implements ElementValueVisitor {
             elemValue = elementValuePair.getValue();
             list.add(new ElementValuePair(elementName, convert(elemValue)));
         }
-        return new AnnotationReference(ot, list);
+        return new AnnotationReference(to, list);
     }
 
     public BaseElementValue convert(ElementValue ev) {
@@ -152,8 +152,8 @@ public class AnnotationConverter implements ElementValueVisitor {
     @Override
     public void visit(ClassElementValue elementValueClassInfo) {
         String classInfo = elementValueClassInfo.getClassString();
-        ObjectType ot = typeMaker.makeFromDescriptor(classInfo);
-        elementValue = new ExpressionElementValue(new TypeReferenceDotClassExpression(ot));
+        ObjectType to = typeMaker.makeFromDescriptor(classInfo);
+        elementValue = new ExpressionElementValue(new TypeReferenceDotClassExpression(to));
     }
 
     @Override
@@ -171,10 +171,10 @@ public class AnnotationConverter implements ElementValueVisitor {
             throw new IllegalArgumentException("AnnotationConverter.visit(elementValueEnumConstValue)");
         }
 
-        ObjectType ot = typeMaker.makeFromDescriptor(descriptor);
+        ObjectType to = typeMaker.makeFromDescriptor(descriptor);
         String constName = elementValueEnumConstValue.getEnumValueString();
         String internalTypeName = descriptor.substring(1, descriptor.length()-1);
-        elementValue = new ExpressionElementValue(new FieldReferenceExpression(ot, new ObjectTypeReferenceExpression(ot), internalTypeName, constName, descriptor));
+        elementValue = new ExpressionElementValue(new FieldReferenceExpression(to, new ObjectTypeReferenceExpression(to), internalTypeName, constName, descriptor));
     }
 
     @Override

@@ -119,8 +119,8 @@ public final class SwitchStatementMaker {
 
                                                         if (lb.getLabel() != SwitchStatement.DEFAULT_LABEL) {
                                                             SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) lb.getLabel();
-                                                            IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                                                            el.setExpression(new StringConstantExpression(nce.getLineNumber(), map.get(nce.getIntegerValue())));
+                                                            IntegerConstantExpression ice = (IntegerConstantExpression) el.getExpression();
+                                                            el.setExpression(new StringConstantExpression(ice.getLineNumber(), map.get(ice.getIntegerValue())));
                                                         }
                                                     } else if (block.isSwitchStatementMultiLabelsBlock()) {
                                                         SwitchStatement.MultiLabelsBlock lmb = (SwitchStatement.MultiLabelsBlock) block;
@@ -128,8 +128,8 @@ public final class SwitchStatementMaker {
                                                         for (SwitchStatement.Label label : lmb.getLabels()) {
                                                             if (label != SwitchStatement.DEFAULT_LABEL) {
                                                                 SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) label;
-                                                                IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                                                                el.setExpression(new StringConstantExpression(nce.getLineNumber(), map.get(nce.getIntegerValue())));
+                                                                IntegerConstantExpression ice = (IntegerConstantExpression) el.getExpression();
+                                                                el.setExpression(new StringConstantExpression(ice.getLineNumber(), map.get(ice.getIntegerValue())));
                                                             }
                                                         }
                                                     }
@@ -278,8 +278,8 @@ public final class SwitchStatementMaker {
 
                 if (lb.getLabel() != SwitchStatement.DEFAULT_LABEL) {
                     SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) lb.getLabel();
-                    IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                    el.setExpression(new EnumConstantReferenceExpression(nce.getLineNumber(), type, map.get(nce.getIntegerValue())));
+                    IntegerConstantExpression ice = (IntegerConstantExpression) el.getExpression();
+                    el.setExpression(new EnumConstantReferenceExpression(ice.getLineNumber(), type, map.get(ice.getIntegerValue())));
                 }
             } else if (block.isSwitchStatementMultiLabelsBlock()) {
                 SwitchStatement.MultiLabelsBlock lmb = (SwitchStatement.MultiLabelsBlock) block;
@@ -287,8 +287,8 @@ public final class SwitchStatementMaker {
                 for (SwitchStatement.Label label : lmb.getLabels()) {
                     if (label != SwitchStatement.DEFAULT_LABEL) {
                         SwitchStatement.ExpressionLabel el = (SwitchStatement.ExpressionLabel) label;
-                        IntegerConstantExpression nce = (IntegerConstantExpression) el.getExpression();
-                        el.setExpression(new EnumConstantReferenceExpression(nce.getLineNumber(), type, map.get(nce.getIntegerValue())));
+                        IntegerConstantExpression ice = (IntegerConstantExpression) el.getExpression();
+                        el.setExpression(new EnumConstantReferenceExpression(ice.getLineNumber(), type, map.get(ice.getIntegerValue())));
                     }
                 }
             }

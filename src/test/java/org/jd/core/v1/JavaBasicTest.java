@@ -86,7 +86,7 @@ public class JavaBasicTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make("/* 188: 188 */", "protected static final Integer INTEGER_255 = new Integer(255);")));
 
             assertEquals(-1, source.indexOf("<init>()"));
-            assertEquals(-1, source.indexOf("NaND"));
+            assertEquals(-1, source.indexOf("NaN"));
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -119,7 +119,7 @@ public class JavaBasicTest extends AbstractJdTest {
             assertNotEquals(-1, source.indexOf("protected static final Integer INTEGER_255 = new Integer(255);"));
 
             assertEquals(-1, source.indexOf("<init>()"));
-            assertEquals(-1, source.indexOf("NaND"));
+            assertEquals(-1, source.indexOf("NaN"));
 
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));

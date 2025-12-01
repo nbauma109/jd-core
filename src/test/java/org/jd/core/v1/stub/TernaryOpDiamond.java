@@ -7,11 +7,11 @@ import java.util.List;
 public class TernaryOpDiamond {
     @SuppressWarnings("unused")
     void ternaryOp(boolean flag) {
-        List<String> list = flag ? new ArrayList<String>() : Collections.<String>emptyList();
+        List<String> list = flag ? new ArrayList<>() : Collections.<String>emptyList();
     }
 
     @SuppressWarnings("unused")
     void ternaryOp2(boolean flag) {
-        List<String> list2 = flag ? Collections.<String>emptyList() : new ArrayList<String>();
+        List<String> list2 = flag ? Collections.<String>emptyList() : new ArrayList<>();
     }
 }

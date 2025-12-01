@@ -82,7 +82,7 @@ public class ControlFlowGraph {
 
         return newBasicBlock(TYPE_JUMP, bb.getFromOffset(), target.getFromOffset(), predecessors);
     }
-    
+
     public void setOffsetToLineNumbers(int[] offsetToLineNumbers) {
         this.offsetToLineNumbers = offsetToLineNumbers;
     }
@@ -90,7 +90,7 @@ public class ControlFlowGraph {
     public int getLineNumber(int offset) {
         return offsetToLineNumbers == null || offset < 0 ? 0 : offsetToLineNumbers[offset];
     }
-    
+
     public void accept(BlockProcessor blockProcessor) {
         blockProcessor.process(this);
     }

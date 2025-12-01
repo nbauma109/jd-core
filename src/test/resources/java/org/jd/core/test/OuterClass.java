@@ -93,7 +93,7 @@ public class OuterClass {
                 innerField1 = localVariable1;
                 innerField2 = localVariable2;
             }
-        };
+        }
 
         LocalClass localClass = new LocalClass(param1, param2);
         localClass.localMethod(localVariable1, localVariable2);

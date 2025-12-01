@@ -133,7 +133,7 @@ public class ExpressionVisitor extends TypeVisitor {
     public DefaultList<Fragment> getFragments() {
         return fragments;
     }
-    
+
     public String getCurrentTypeInternalName() {
         return currentType == null ? null : currentType.getInternalName();
     }
@@ -142,7 +142,7 @@ public class ExpressionVisitor extends TypeVisitor {
     protected boolean isInInvokeNew() {
         return inInvokeNewFlag;
     }
-    
+
     @Override
     public void visit(ArrayExpression expression) {
         visit(expression, expression.getExpression());
@@ -278,7 +278,7 @@ public class ExpressionVisitor extends TypeVisitor {
                     }
                     iterator.next().accept(this);
                     inVarArgParam = ivapf;
-                    
+
                     if (!tokens.isEmpty()) {
                         tokens.add(TextToken.COMMA_SPACE);
                     }
@@ -609,9 +609,9 @@ public class ExpressionVisitor extends TypeVisitor {
         } else {
             tokens.add(NEW);
             tokens.add(TextToken.SPACE);
-    
+
             BaseType type = expression.getType();
-    
+
             type.accept(this);
             tokens.add(TextToken.SPACE);
             expression.getArrayInitializer().accept(this);
@@ -644,7 +644,7 @@ public class ExpressionVisitor extends TypeVisitor {
             expression.setObjectType(newObjectType);
             objectType = expression.getObjectType();
         }
-        
+
         BaseType type = objectType;
 
         type.accept(this);
@@ -758,7 +758,7 @@ public class ExpressionVisitor extends TypeVisitor {
         tokens.add(TextToken.DOT);
         tokens.add(SUPER);
     }
-    
+
     @Override
     public void visit(TernaryOperatorExpression expression) {
         tokens.addLineNumberToken(expression.getCondition());
@@ -782,11 +782,11 @@ public class ExpressionVisitor extends TypeVisitor {
         if (expression.getTrueExpression() instanceof NewExpression newExpression) {
             newExpression.setDiamondPossible(newExpression.isDiamondPossible() && majorVersion > MAJOR_1_7);
         }
-        
+
         if (expression.getFalseExpression() instanceof NewExpression newExpression) {
             newExpression.setDiamondPossible(newExpression.isDiamondPossible() && majorVersion > MAJOR_1_7);
         }
-        
+
         printTernaryOperatorExpression(expression.getCondition());
         tokens.add(TextToken.SPACE_QUESTION_SPACE);
         printTernaryOperatorExpression(expression.getTrueExpression());

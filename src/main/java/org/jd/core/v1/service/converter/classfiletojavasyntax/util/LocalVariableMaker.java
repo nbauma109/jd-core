@@ -139,7 +139,7 @@ public class LocalVariableMaker {
         }
 
         FormalParameters fp = null;
-        
+
         if (parameterTypes != null) {
             int lastParameterIndex = parameterTypes.size() - 1;
             boolean varargs = (method.getAccessFlags() & Const.ACC_VARARGS) != 0;
@@ -190,7 +190,7 @@ public class LocalVariableMaker {
                 }
             }
         }
-        
+
         this.formalParameters = fp;
 
         // Initialize root frame and cache

@@ -17,8 +17,8 @@ public class MergeStatementBlockProcessor implements BlockProcessor {
 
     @Override
     public boolean accept(BasicBlock bb) {
-        return bb.getType() == TYPE_STATEMENTS 
-            && bb.getNext().getType() == TYPE_STATEMENTS 
+        return bb.getType() == TYPE_STATEMENTS
+            && bb.getNext().getType() == TYPE_STATEMENTS
             && bb.getNext().getFromOffset() == bb.getToOffset()
             && Objects.equals(bb.getNext().getSinglePredecessor(TYPE_STATEMENTS), bb);
     }

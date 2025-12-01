@@ -148,7 +148,7 @@ public abstract class ControlFlowGraphReducer {
         }
         BasicBlock linkedBlock = getter.apply(basicBlock);
         if (linkedBlock != null && linkedBlock.getSub1() != null && linkedBlock.getSub2() != null
-         && linkedBlock.getType() == TYPE_CONDITION_TERNARY_OPERATOR 
+         && linkedBlock.getType() == TYPE_CONDITION_TERNARY_OPERATOR
          && linkedBlock.getSub1().getType() == TYPE_CONDITION_TERNARY_OPERATOR
          && linkedBlock.getSub2().getIndex() == linkedBlock.getSub1().getSub2().getIndex()) {
             BasicBlock subCondition1 = linkedBlock.getCondition();
@@ -869,10 +869,10 @@ public abstract class ControlFlowGraphReducer {
 
             updateBlock(tryBB, end, maxOffset);
 
-            if (finallyBB != null && basicBlock.getExceptionHandlers().size() == 1 
-                    && tryBB.getType() == TYPE_TRY 
-                    && tryBB.getNext() == END 
-                    && basicBlock.getFromOffset() == tryBB.getFromOffset() 
+            if (finallyBB != null && basicBlock.getExceptionHandlers().size() == 1
+                    && tryBB.getType() == TYPE_TRY
+                    && tryBB.getNext() == END
+                    && basicBlock.getFromOffset() == tryBB.getFromOffset()
                     && !containsFinally(tryBB)) {
                 // Merge inner try
                 basicBlock.getExceptionHandlers().addAll(0, tryBB.getExceptionHandlers());
@@ -1258,7 +1258,7 @@ public abstract class ControlFlowGraphReducer {
     private static void removeLastContinueLoop(BasicBlock basicBlock) {
         BitSet visited = new BitSet();
         BasicBlock next = basicBlock.getNext();
-        
+
         if (next == null) {
             return;
         }

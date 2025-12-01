@@ -45,7 +45,7 @@ public class AutoUnboxingInLoopTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 45 */       index = null;")));
             assertTrue(source.matches(PatternMaker.make(":  0 */     }")));
             assertTrue(source.matches(PatternMaker.make(": 47 */     return index;")));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }

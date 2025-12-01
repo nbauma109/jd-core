@@ -33,7 +33,6 @@ import java.util.List;
 public final class TryWithResourcesStatementMaker {
 
     private TryWithResourcesStatementMaker() {
-        super();
     }
 
     public static Statement makeLegacy(
@@ -117,7 +116,7 @@ public final class TryWithResourcesStatementMaker {
         }
 
         Statement statement = statements.getLast();
-        
+
         if (!statement.isExpressionStatement()) {
             return null;
         }
@@ -137,9 +136,9 @@ public final class TryWithResourcesStatementMaker {
         }
 
         AbstractLocalVariable lv1 = ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable();
-        
+
         BaseStatement catchStatements = catchClauses.getFirst().getStatements();
-        
+
         if (catchStatements == null || catchStatements.size() != 2) {
             return null;
         }
@@ -148,17 +147,17 @@ public final class TryWithResourcesStatementMaker {
         if (tryStatement == null || !catchStatements.getLast().isThrowStatement()) {
             return null;
         }
-        
+
         ThrowStatement throwStatement = (ThrowStatement) catchStatements.getLast();
-        
+
         expression = throwStatement.getExpression();
 
         if (!expression.isLocalVariableReferenceExpression()) {
             return null;
         }
 
-        AbstractLocalVariable lv2 = ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable(); 
-        
+        AbstractLocalVariable lv2 = ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable();
+
         if (tryStatement.getTryStatements() == null || tryStatement.getTryStatements().size() != 1) {
             return null;
         }
@@ -166,9 +165,9 @@ public final class TryWithResourcesStatementMaker {
         if (!(tryStatement.getTryStatements().getFirst() instanceof ExpressionStatement)) {
             return null;
         }
-        
+
         ExpressionStatement expressionStatement = (ExpressionStatement) tryStatement.getTryStatements().getFirst();
-            
+
         if (!(expressionStatement.getExpression() instanceof MethodInvocationExpression)) {
             return null;
         }
@@ -183,7 +182,7 @@ public final class TryWithResourcesStatementMaker {
         }
 
         CatchClause catchClause = tryStatement.getCatchClauses().getFirst();
-        
+
         if (catchClause.getStatements() == null || catchClause.getStatements().size() != 1) {
             return null;
         }
@@ -191,9 +190,9 @@ public final class TryWithResourcesStatementMaker {
         if (!(catchClause.getStatements().getFirst() instanceof ExpressionStatement)) {
             return null;
         }
-        
+
         expressionStatement = (ExpressionStatement) catchClause.getStatements().getFirst();
-            
+
         if (!(expressionStatement.getExpression() instanceof MethodInvocationExpression)) {
             return null;
         }
@@ -245,7 +244,7 @@ public final class TryWithResourcesStatementMaker {
         }
         return null;
     }
-    
+
     private static Statement parsePatternAddSuppressed(
             LocalVariableMaker localVariableMaker, Statements statements, Statements tryStatements,
             Statements finallyStatements, Expression boe, AbstractLocalVariable lv1, AbstractLocalVariable lv2,
@@ -437,16 +436,14 @@ public final class TryWithResourcesStatementMaker {
                             }
                         }
                         Expression expression = statement.getExpression();
-                        if (expression instanceof MethodInvocationExpression mie) {
-                            if (checkCloseInvocation(mie, lv1)) {
-                                if (finallyStatements == null) {
+                        if ((expression instanceof MethodInvocationExpression mie) && checkCloseInvocation(mie, lv1)) {
+                            if (finallyStatements == null) {
+                                iterator.remove();
+                            } else {
+                                SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
+                                searchFirstLineNumberVisitor.safeAccept(finallyStatements);
+                                if (searchFirstLineNumberVisitor.getLineNumber() == mie.getLineNumber()) {
                                     iterator.remove();
-                                } else {
-                                    SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
-                                    searchFirstLineNumberVisitor.safeAccept(finallyStatements);
-                                    if (searchFirstLineNumberVisitor.getLineNumber() == mie.getLineNumber()) {
-                                        iterator.remove();
-                                    }
                                 }
                             }
                         }

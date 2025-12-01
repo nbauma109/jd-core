@@ -1,27 +1,27 @@
 package org.jd.core.v1.stub;
 
 public class SwitchEnum {
-    
+
     public enum ColourEnum {
         RED, GREEN, BLUE
     }
-    
+
     public enum FruitEnum {
         BANANA, APPLE, KIWI
     }
-    
+
     static class ColourObject {
         public ColourEnum getType() {
             return ColourEnum.BLUE;
         }
     }
-    
+
     static class FruitObject {
         public FruitEnum getType() {
             return FruitEnum.KIWI;
         }
     }
-    
+
     public static void main(String[] args) {
         ColourObject colourObject = new ColourObject();
         print(colourObject);

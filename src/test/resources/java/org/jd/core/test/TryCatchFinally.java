@@ -18,8 +18,9 @@ public class TryCatchFinally
 
         try {
             inTry();
-            if (this == null)
+            if (this == null) {
                 inTry();
+            }
         } catch (RuntimeException runtimeexception) {
             runtimeexception.printStackTrace();
             inCatch1();
@@ -129,7 +130,6 @@ public class TryCatchFinally
 
         try {
             inTry();
-            return;
         } finally {
             inFinally();
         }
@@ -181,8 +181,9 @@ public class TryCatchFinally
 
         try {
             inTry();
-            if (this == null)
+            if (this == null) {
                 return;
+            }
         } finally {
             inFinally();
             System.out.println("ee");
@@ -236,8 +237,9 @@ public class TryCatchFinally
             inTry();
         } catch (RuntimeException runtimeexception) {
             inCatch1();
-            if (this == null)
+            if (this == null) {
                 return;
+            }
             inCatch2();
         } finally {
             inFinally();
@@ -288,20 +290,24 @@ public class TryCatchFinally
         try {
             System.out.println("in try");
 
-            if (this == null)
+            if (this == null) {
                 return;
-            if (this == null)
+            }
+            if (this == null) {
                 throw new RuntimeException();
+            }
 
             // throw new Exception(); //
             return;
         } catch (RuntimeException e) {
             System.out.println("in catch");
 
-            if (this == null)
+            if (this == null) {
                 return;
-            if (this == null)
+            }
+            if (this == null) {
                 throw new RuntimeException();
+            }
 
             System.out.println("in catch");
         } finally {
@@ -332,13 +338,15 @@ public class TryCatchFinally
             } catch (RuntimeException e) {
                 System.out.println("in catch in inner try");
 
-                if (this == null)
+                if (this == null) {
                     throw new RuntimeException();
+                }
 
                 System.out.println("in catch in inner try");
             } finally {
-                for (int i=0; i<10; i++)
+                for (int i=0; i<10; i++) {
                     System.out.println("in finally in inner try");
+                }
             }
 
             System.out.println("in try");
@@ -355,19 +363,22 @@ public class TryCatchFinally
             } catch (RuntimeException e) {
                 System.out.println("in catch in inner try");
 
-                if (this == null)
+                if (this == null) {
                     throw new RuntimeException();
+                }
 
                 System.out.println("in catch in inner try");
             } finally {
-                for (int i=0; i<10; i++)
+                for (int i=0; i<10; i++) {
                     System.out.println("in finally in inner try");
+                }
             }
 
             System.out.println("in try");
         } finally {
-            for (int i=0; i<10; i++)
+            for (int i=0; i<10; i++) {
                 System.out.println("in finally");
+            }
         }
 
         System.out.println("end");
@@ -414,7 +425,6 @@ public class TryCatchFinally
         try {
             try {
                 inTryA();
-                return;
             } finally {
                 inFinallyA();
             }
@@ -429,7 +439,6 @@ public class TryCatchFinally
         try {
             try {
                 inTry();
-                return;
             } finally {
                 inFinally();
             }
@@ -479,22 +488,26 @@ public class TryCatchFinally
         try {
             try {
                 inTry();
-                if (this == null)
+                if (this == null) {
                     return;
+                }
             } finally {
                 inFinally();
-                if (this == null)
+                if (this == null) {
                     return;
+                }
             }
         } finally {
             try {
                 inTryC();
-                if (this == null)
+                if (this == null) {
                     return;
+                }
             } finally {
                 inFinallyC();
-                if (this == null)
+                if (this == null) {
                     return;
+                }
             }
         }
 
@@ -536,8 +549,9 @@ public class TryCatchFinally
 
     public Object testBug155(Object obj) {
         try {
-            if (obj != null)
+            if (obj != null) {
                 return obj;
+            }
         } catch (Exception e) {
         }
 
@@ -885,7 +899,6 @@ public class TryCatchFinally
                 throw e;
             }
         }
-        return;
     }
 
     public void complexMethodTryCatchCatchFinally3() throws Exception {
@@ -900,8 +913,6 @@ public class TryCatchFinally
         } finally {
             System.out.println("8");
         }
-
-        return;
     }
 
     public boolean subContentEquals(String s)

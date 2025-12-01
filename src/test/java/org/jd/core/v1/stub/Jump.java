@@ -30,7 +30,7 @@ public class Jump {
         }
         return flag;
     }
-    
+
     @SuppressWarnings("static-access")
     public static boolean computeFlag2(String paramObj1, Object paramObj2) {
         boolean flag;
@@ -57,7 +57,7 @@ public class Jump {
         }
         return flag;
     }
-    
+
     @SuppressWarnings("static-access")
     public static boolean computeFlag3(String paramObj1, Object paramObj2) {
         boolean flag;

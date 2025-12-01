@@ -170,7 +170,9 @@ public class For {
     public void emptyFor() {
         System.out.println("start");
 
-        for (int i=0; i<10; i++);
+        for (int i=0; i<10; i++) {
+
+        }
 
         System.out.println("end");
     }
@@ -178,7 +180,9 @@ public class For {
     public void emptyForTestUpdate(int i) {
         System.out.println("start");
 
-        for (; i<10; i++);
+        for (; i<10; i++) {
+
+        }
 
         System.out.println("end");
     }
@@ -186,67 +190,89 @@ public class For {
     public void emptyForInitUpdate() {
         System.out.println("start");
 
-        for (int i=0;; i++);
+        for (int i=0;; i++) {
+
+        }
     }
 
     public void emptyForUpdate(int i) {
         System.out.println("start");
 
-        for (;; i++);
+        for (;; i++) {
+
+        }
     }
 
     public void emptyForInitTest1() {
         System.out.println("start");
 
-        for (int i=0; i<10;);
+        for (int i=0; i<10;) {
+
+        }
     }
 
     public void emptyForInitTest2() {
         System.out.println("start");
 
-        for (int[] i={0}; i.length<10;);
+        for (int[] i={0}; i.length<10;) {
+
+        }
     }
 
     public void emptyForInitTest3() {
         System.out.println("start");
 
-        for (int i=0, j=i, k=i; i<10;);
+        for (int i=0, j=i, k=i; i<10;) {
+
+        }
     }
 
     public void emptyForInitTest4() {
         System.out.println("start");
 
-        for (int[] i={0}, j=i, k=j; i.length<10;);
+        for (int[] i={0}, j=i, k=j; i.length<10;) {
+
+        }
     }
 
     public void emptyForInitTest5() {
         System.out.println("start");
 
-        for (int i=0, j[]={1}; i<10;);
+        for (int i=0, j[]={1}; i<10;) {
+
+        }
     }
 
     public void emptyForTest(int i) {
         System.out.println("start");
 
-        for (; i<10;);
+        for (; i<10;) {
+
+        }
     }
 
     public void emptyForInit() {
         System.out.println("start");
 
-        for (int i=0;;);
+        for (int i=0;;) {
+
+        }
     }
 
     public void emptyForInfiniteLoop() {
         System.out.println("start");
 
-        for (;;);
+        for (;;) {
+
+        }
     }
 
     public void emptyForMultipleVariables() {
         System.out.println("start");
 
-        for (int i=0, j=i, size=10; i<size; i++, j+=i);
+        for (int i=0, j=i, size=10; i<size; i++, j+=i) {
+
+        }
 
         System.out.println("end");
     }
@@ -256,8 +282,9 @@ public class For {
 
         for (;;) {
             System.out.println("infinite loop");
-            if (this == null)
+            if (this == null) {
                 System.out.println("infinite loop");
+            }
             System.out.println("infinite loop");
         }
     }
@@ -265,8 +292,9 @@ public class For {
     public void testForEach(List<String> list) {
         System.out.println("start");
 
-        for (String s : list)
+        for (String s : list) {
             System.out.println(s);
+        }
 
         System.out.println("end");
     }
@@ -307,7 +335,9 @@ public class For {
 
         for (int i=0; i<5; ++i)
         {
-            if (this == null) return null;
+            if (this == null) {
+                return null;
+            }
             System.out.println(i);
         }
 
@@ -330,13 +360,15 @@ public class For {
         for (int i=0; i<10; i++)
         {
             System.out.println("b");
-            if (i == 4)
+            if (i == 4) {
                 System.out.println("c");
+            }
             System.out.println("d");
         }
 
-        if (this == null)
+        if (this == null) {
             System.out.println("e");
+        }
 
         System.out.println("end");
     }
@@ -346,11 +378,13 @@ public class For {
 
         int i;
 
-        for (i=0; i<20; i++)
+        for (i=0; i<20; i++) {
             System.out.println(i);
+        }
 
-        do;
-        while (i < 10);
+        do {
+
+        } while (i < 10);
 
         System.out.println("end");
     }
@@ -360,11 +394,13 @@ public class For {
 
         int i;
 
-        for (i=0; i<10; i++)
+        for (i=0; i<10; i++) {
             System.out.println(i);
+        }
 
-        do;
-        while ((i < 20) || (i < 10) || (i < 0));
+        do {
+
+        } while ((i < 20) || (i < 10) || (i < 0));
 
         System.out.println("end");
     }
@@ -374,11 +410,13 @@ public class For {
 
         int i;
 
-        for (i=0; i<10; i++)
+        for (i=0; i<10; i++) {
             System.out.println(i);
+        }
 
-        do;
-        while ((i < 20) && (i < 10) && (i < 0));
+        do {
+
+        } while ((i < 20) && (i < 10) && (i < 0));
 
         System.out.println("end");
     }
@@ -422,16 +460,16 @@ public class For {
     }
 
     public static void forUnderscore(String[] __) {
-        for (int ___ = 0; ___ < __.length; ___++)
-            System.out.println(__[___]);
+        for (String element : __) {
+            System.out.println(element);
+        }
     }
 
     private byte[] forTryReturn() throws Exception
     {
         for(int i=0; i<3; i++) {
             try {
-                byte[] data = null;
-                return data;
+                return null;
             } catch (Exception e) {
                 Thread.sleep(300);
             }
@@ -442,13 +480,14 @@ public class For {
     protected boolean ifForIfReturn(int[] array) {
         boolean flag = false;
 
-        if (flag == false) {
+        if (!flag) {
             for (int i : array) {
-                if (flag != false)
+                if (flag) {
                     break;
+                }
             }
 
-            if (flag == false) {
+            if (!flag) {
                 flag = true;
             }
         }
@@ -476,10 +515,8 @@ public class For {
 
     public void forIfIfContinue() {
         for (int i=0; i<100; i++) {
-            if (i == 1) {
-                if (i != 2) {
-                    continue;
-                }
+            if ((i == 1) && (i != 2)) {
+                continue;
             }
             i += 42;
         }

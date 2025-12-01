@@ -11,6 +11,7 @@ import java.io.Serializable;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 @SuppressWarnings("all")
@@ -36,9 +37,7 @@ public class GenericClass<T1,                                                   
     }
 
     public <T> void fromArrayToCollection(T[] a, Collection<T> c) {
-        for (T o : a) {
-            c.add(o);
-        }
+        Collections.addAll(c, a);
     }
 
     public <T> void copy(List<T> dest, List<? extends T> src) {

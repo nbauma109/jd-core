@@ -36,7 +36,6 @@ public class Synchronized
         synchronized (paramStringBuilder)
         {
             inSynchronized();
-            return;
         }
     }
 
@@ -44,8 +43,9 @@ public class Synchronized
     {
         synchronized (paramStringBuilder)
         {
-            if (paramStringBuilder == null)
+            if (paramStringBuilder == null) {
                 throw new RuntimeException();
+            }
         }
     }
 
@@ -90,8 +90,9 @@ public class Synchronized
 
         synchronized (paramStringBuilder)
         {
-            if (paramStringBuilder == null)
+            if (paramStringBuilder == null) {
                 throw new RuntimeException();
+            }
         }
 
         after();

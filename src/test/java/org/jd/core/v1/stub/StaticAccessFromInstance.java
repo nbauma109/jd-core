@@ -13,9 +13,9 @@ public class StaticAccessFromInstance {
     private Map<Object, Objects> values;
     private File f;
     private JOptionPane p;
-    
+
     public static final String SEP =  "" + File.separatorChar;
-    
+
     @SuppressWarnings({ "static-access", "unused" })
     protected Object getValue(int p1, int p2, int p3) { // Non-redundant test for ALOAD
         Objects objects = null;
@@ -29,7 +29,6 @@ public class StaticAccessFromInstance {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            System.out.println("after try");
        } else {
             objects = values.get(value);
             System.out.println("before try");
@@ -40,8 +39,8 @@ public class StaticAccessFromInstance {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            System.out.println("after try");
        }
+        System.out.println("after try");
         return objects;
     }
 

@@ -50,8 +50,6 @@ public class IfElse {
 
         if (this == null) {
             System.out.println("what? 'this' is null?");
-        } else if (this == null) {
-            System.out.println("how this message can be written?");
         } else {
             System.out.println("whew!");
         }
@@ -62,11 +60,8 @@ public class IfElse {
     public void ifIf(int i) {
         System.out.println("start");
 
-        if (i == 0) {
-
-            if (i == 1) {
-                System.out.println("0");
-            }
+        if ((i == 0) && (i == 1)) {
+            System.out.println("0");
         }
 
         System.out.println("end");
@@ -139,12 +134,13 @@ public class IfElse {
     public void ANDAndORConditions(int i) {
         System.out.println("start");
 
-        if ((i == 3) || (i == 5) || (i == 6))
+        if ((i == 3) || (i == 5) || (i == 6)) {
             System.out.println("a");
-        else if ((i != 4) && (i > 7) && (i > 8))
+        } else if ((i != 4) && (i > 7) && (i > 8)) {
             System.out.println("b");
-        else
+        } else {
             System.out.println("c");
+        }
 
         System.out.println("end");
     }
@@ -200,8 +196,9 @@ public class IfElse {
     public void ifThrow() {
         System.out.println("start");
 
-        if (this == null)
+        if (this == null) {
             throw null;
+        }
 
         System.out.println("end");
     }

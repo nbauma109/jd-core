@@ -32,7 +32,7 @@ public abstract class Layout extends Number implements Serializable, Comparable,
         public int getLevel() {
             return level;
         }
-    };
+    }
 
     public static void main(String[] args) {
         int b = 0;

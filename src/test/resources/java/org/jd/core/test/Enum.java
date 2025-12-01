@@ -54,8 +54,9 @@ public class Enum {
             }
             double earthWeight = Double.parseDouble(args[0]);
             double mass = earthWeight/EARTH.surfaceGravity();
-            for (Planet p : Planet.values())
+            for (Planet p : Planet.values()) {
                 System.out.printf("Your weight on %s is %f%n", p, p.surfaceWeight(mass));
+            }
         }
     }
 

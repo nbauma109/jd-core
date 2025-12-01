@@ -28,13 +28,13 @@ public class DoWhile {
         while (i<10);
     }
 
-	
+
 	public void doWhile() {
 		System.out.println("start");
 
-		do
-			System.out.println("'this' is null!!");
-		while (this == null);
+		do {
+            System.out.println("'this' is null!!");
+        } while (this == null);
 
 		System.out.println("end");
 	}
@@ -61,8 +61,9 @@ public class DoWhile {
 		do
 		{
 			System.out.println("b");
-			if (i == 4)
-				System.out.println("c");
+			if (i == 4) {
+                System.out.println("c");
+            }
 			System.out.println("d");
 			i++;
 		}
@@ -89,8 +90,9 @@ public class DoWhile {
 	private static void emptyDoWhile() {
 		int i = 10;
 
-		do;
-		while (i < 10);
+		do {
+
+        } while (i < 10);
 	}
 
 	private static void doWhileTestPreInc() {

@@ -10,7 +10,7 @@ package org.jd.core.test;
 import java.io.Serializable;
 
 public interface Interface extends Serializable {
-    static final long serialVersionUID = 9506606333927795L;
+    long serialVersionUID = 9506606333927795L;
 
     void hello();
 }

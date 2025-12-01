@@ -48,7 +48,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testBCEL() throws Exception {
         test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", "6.7.0");
     }
-    
+
     @Test
     public void testCommonsIO() throws Exception {
         test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", "2.15.0");
@@ -73,7 +73,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testCommonsLang3() throws Exception {
         test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.12.0");
     }
-    
+
 //    @Test
 //    public void testCommonsMath3() throws Exception {
 //        test(org.apache.commons.math3.Field.class);
@@ -134,7 +134,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testLog4jCore() throws Exception {
         test("org.apache.logging.log4j", "log4j-core", "2.20.0");
     }
-    
+
 //    @Test
 //    public void testGuava() throws Exception {
 //        test(com.google.common.collect.Collections2.class);
@@ -143,11 +143,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     protected void test(String groupId, String artifactId, String version) throws Exception {
     	test(null, null, null, groupId, artifactId, version, false);
     }
-    
+
     protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version) throws Exception {
     	test(repo, repoName, tagPrefix, groupId, artifactId, version, true);
     }
-    
+
     protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version, boolean runUnitTests) throws Exception {
     	String tag = tagPrefix + version;
     	if (runUnitTests) {
@@ -159,7 +159,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         File projectDir = null;
         if (repoName != null && runUnitTests) {
             File repoDir = new File("target/" + repoName);  // Directory for extracted project files
-    
+
             // If repoDir exists, delete it
             if (repoDir.exists()) {
                 try {
@@ -168,17 +168,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     throw new RuntimeException("Error deleting directory " + repoDir, e);
                 }
             }
-    
+
             // Prepare URL of the .zip file for the tag
             String repoZipURL = repo + "/archive/refs/tags/" + tag + ".zip";
-    
+
             // Directory where the project files are extracted
             projectDir = new File(repoDir, repoName + "-" + tag.replace("/", "-"));
-            
+
             // Download and extract .zip file for the tag
             try (InputStream in = new URL(repoZipURL).openStream();
                  ZipInputStream zin = new ZipInputStream(in)) {
-    
+
                 ZipEntry entry;
                 while ((entry = zin.getNextEntry()) != null) {
                     File file = new File(repoDir, entry.getName());
@@ -353,7 +353,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         public CounterPrinter() {
             super(true);
         }
-        
+
         @Override
         public void printText(String text) {
             if (text != null) {
@@ -366,8 +366,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
         @Override
         public void printDeclaration(int type, String internalTypeName, String name, String descriptor) {
-            if (type == TYPE) classCounter++;
-            if ((type == METHOD) || (type == CONSTRUCTOR)) methodCounter++;
+            if (type == TYPE) {
+                classCounter++;
+            }
+            if ((type == METHOD) || (type == CONSTRUCTOR)) {
+                methodCounter++;
+            }
             super.printDeclaration(type, internalTypeName, name, descriptor);
         }
 

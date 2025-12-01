@@ -686,7 +686,7 @@ public class CompilationUnitVisitor extends StatementVisitor {
                 tokens.add(NewLineToken.NEWLINE_1);
                 emptyConstants = false;
             }
-            
+
             // Build fragments for annotations
             BaseAnnotationReference annotationReferences = declaration.getAnnotationReferences();
 

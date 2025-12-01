@@ -960,7 +960,7 @@ public class JavaFragmentToTokenTest extends TestCase {
 
         DecompileContext decompileContext = new DecompileContext(fragments);
         decompileContext.setBody(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(lineNumber2));
+        decompileContext.setMaxLineNumber(lineNumber2);
 
         return decompileContext;
     }
@@ -1031,7 +1031,7 @@ public class JavaFragmentToTokenTest extends TestCase {
         JavaFragmentFactory.addSpacerBetweenStatements(fragments);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(lineNumber3));
+        decompileContext.setMaxLineNumber(lineNumber3);
 
         return decompileContext;
     }
@@ -1121,7 +1121,7 @@ public class JavaFragmentToTokenTest extends TestCase {
         JavaFragmentFactory.addEndTypeBody(fragments, classStart);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(lineNumber));
+        decompileContext.setMaxLineNumber(lineNumber);
 
         return decompileContext;
     }
@@ -1200,7 +1200,7 @@ public class JavaFragmentToTokenTest extends TestCase {
         JavaFragmentFactory.addEndTypeBody(fragments, classStart);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(lineNumber));
+        decompileContext.setMaxLineNumber(lineNumber);
 
         return decompileContext;
     }
@@ -1304,7 +1304,7 @@ public class JavaFragmentToTokenTest extends TestCase {
         JavaFragmentFactory.addEndTypeBody(fragments, startMainClass);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(lineNumber));
+        decompileContext.setMaxLineNumber(lineNumber);
 
         return decompileContext;
     }
@@ -1552,8 +1552,9 @@ public class JavaFragmentToTokenTest extends TestCase {
         fragments.add(EndMovableJavaBlockFragment.END_MOVABLE_BLOCK);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        if (factor != 0)
-            decompileContext.setMaxLineNumber(Integer.valueOf(22 * factor));
+        if (factor != 0) {
+            decompileContext.setMaxLineNumber(22 * factor);
+        }
 
         return decompileContext;
     }
@@ -1688,7 +1689,7 @@ public class JavaFragmentToTokenTest extends TestCase {
         fragments.add(EndMovableJavaBlockFragment.END_MOVABLE_BLOCK);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(8));
+        decompileContext.setMaxLineNumber(8);
         //message.setStart("containsByteCode", Boolean.TRUE);
 
         return decompileContext;
@@ -1833,7 +1834,7 @@ public class JavaFragmentToTokenTest extends TestCase {
         fragments.add(EndMovableJavaBlockFragment.END_MOVABLE_BLOCK);
 
         DecompileContext decompileContext = new DecompileContext(fragments);
-        decompileContext.setMaxLineNumber(Integer.valueOf(8));
+        decompileContext.setMaxLineNumber(8);
         //message.setStart("containsByteCode", Boolean.TRUE);
 
         return decompileContext;

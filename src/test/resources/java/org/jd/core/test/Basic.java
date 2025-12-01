@@ -146,7 +146,9 @@ public class Basic implements Serializable {
                 return result.length() == 0 ? null : result.toString();
             }
             char c = (char)intRead;
-            if (c == '\n') break;
+            if (c == '\n') {
+                break;
+            }
             result.append(c);
         }
         return result.toString();
@@ -168,16 +170,13 @@ public class Basic implements Serializable {
     }
 
     private String doSomethingWithString(String str) {
-        if (str == null) {
-            str = "null";
-        } else {
+        if (str != null) {
             if (str.isEmpty()) {
                 return "empty";
             }
             return str + str;
         }
-
-        return str;
+        return "null";
     }
 
     public Basic getLast(Object[] objects) {
@@ -189,5 +188,5 @@ public class Basic implements Serializable {
         return ((Basic)objects[index]).int78;
     }
 
-    protected static final Integer INTEGER_255 = new Integer(255);
+    protected static final Integer INTEGER_255 = 255;
 }

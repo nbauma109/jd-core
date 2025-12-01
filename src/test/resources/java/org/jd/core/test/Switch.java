@@ -299,8 +299,9 @@ public class Switch {
         switch (i) {
             case 0:
                 System.out.println("0");
-                if (i != 1)
+                if (i != 1) {
                     break;
+                }
             case 1:
                 System.out.println("1");
                 break;

@@ -23,7 +23,6 @@ import java.util.StringTokenizer;
 public final class StringConcatenationUtil {
 
     private StringConcatenationUtil() {
-        super();
     }
 
     public static Expression create(Expression expression, int lineNumber, String typeName) {

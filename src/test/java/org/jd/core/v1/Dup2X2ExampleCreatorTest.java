@@ -18,12 +18,12 @@ public class Dup2X2ExampleCreatorTest extends AbstractJdTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         creator.create(out);
         Loader loader = new ClassPathLoader() {
-            
+
             @Override
             public byte[] load(String internalName) throws IOException {
                 return "org/jd/core/v1/Dup2X2Example".equals(internalName) ? out.toByteArray() : super.load(internalName);
             }
-            
+
             @Override
             public boolean canLoad(String internalName) {
                 return "org/jd/core/v1/Dup2X2Example".equals(internalName) || super.canLoad(internalName);
@@ -40,12 +40,12 @@ public class Dup2X2ExampleCreatorTest extends AbstractJdTest {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         creator.create(out);
         Loader loader = new ClassPathLoader() {
-            
+
             @Override
             public byte[] load(String internalName) throws IOException {
                 return "org/jd/core/v1/Dup2X2Example".equals(internalName) ? out.toByteArray() : super.load(internalName);
             }
-            
+
             @Override
             public boolean canLoad(String internalName) {
                 return "org/jd/core/v1/Dup2X2Example".equals(internalName) || super.canLoad(internalName);

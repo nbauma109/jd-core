@@ -216,7 +216,7 @@ public class StatementVisitor extends ExpressionVisitor {
             tokens.add(StatementVisitor.FINAL);
             tokens.add(TextToken.SPACE);
         }
-        
+
         BaseType type = statement.getType();
 
         type.accept(this);
@@ -631,12 +631,12 @@ public class StatementVisitor extends ExpressionVisitor {
                 tokens = new Tokens();
                 tokens.add(CATCH);
                 tokens.add(TextToken.SPACE_LEFTROUNDBRACKET);
-                
+
                 if (cc.isFinal()) {
                     tokens.add(StatementVisitor.FINAL);
                     tokens.add(TextToken.SPACE);
                 }
-                
+
                 type.accept(this);
 
                 if (cc.getOtherTypes() != null) {

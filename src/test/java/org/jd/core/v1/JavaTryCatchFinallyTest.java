@@ -101,7 +101,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
             Loader loader = new ZipLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
-            
+
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make(":  12 */", "try (FileInputStream input = new FileInputStream(path))")));
 
@@ -124,12 +124,12 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 162 */", "return 3;")));
 
             assertNotEquals(-1, source.indexOf("/* 162: 162 */"));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("11", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
-    
+
     @Test
     public void testJdk17TryWithResources() throws Exception {
         String internalClassName = "org/jd/core/test/TryWithResources";
@@ -137,14 +137,14 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
             Loader loader = new ZipLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
-            
+
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make(":  12 */", "try (FileInputStream input = new FileInputStream(path))")));
-            
+
             assertTrue(source.matches(PatternMaker.make(":  49 */", "try (FileInputStream input = new FileInputStream(path))")));
             assertTrue(source.matches(PatternMaker.make(":  57 */", "e.printStackTrace();")));
             assertTrue(source.matches(PatternMaker.make(":  59 */", "System.out.println(\"finally\");")));
-            
+
             assertTrue(source.matches(PatternMaker.make(": 121 */", "try(FileInputStream input = new FileInputStream(pathIn);")));
             assertTrue(source.matches(PatternMaker.make(": 122 */", "BufferedInputStream bufferedInput = new BufferedInputStream(input);")));
             assertTrue(source.matches(PatternMaker.make(": 123 */", "FileOutputStream output = new FileOutputStream(pathOut);")));
@@ -158,14 +158,14 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 156 */", "System.out.println(\"finally, after loop\");")));
             assertTrue(source.matches(PatternMaker.make(": 159 */", "System.out.println(\"finally\");")));
             assertTrue(source.matches(PatternMaker.make(": 162 */", "return 3;")));
-            
+
             assertNotEquals(-1, source.indexOf("/* 162: 162 */"));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("11", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
-    
+
     @Test
     public void testEclipseJavaCompiler321TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";

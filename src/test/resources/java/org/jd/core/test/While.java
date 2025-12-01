@@ -40,8 +40,9 @@ public class While {
     public void whileTryThrow(int i0) throws Exception {
         int $i1 = 1;
 
-        if ($i1 == 2)
+        if ($i1 == 2) {
             throw new Exception("2");
+        }
 
         while (i0 > 20)
         {
@@ -51,16 +52,15 @@ public class While {
                 i0 = i0 -1;
                 System.out.println($i1);
 
-                if ($i1 == 3)
+                if ($i1 == 3) {
                     throw new Exception("3");
+                }
             }
             catch (RuntimeException $r3)
             {
                 System.out.println("RuntimeException caught: " + $r3);
             }
         }
-
-        return;
     }
 
     public void loop3() {
@@ -82,8 +82,9 @@ public class While {
             System.out.println("b");
             i++;
 
-            if (i == 3)
+            if (i == 3) {
                 throw new RuntimeException();
+            }
         }
 
         System.out.println("c");
@@ -98,8 +99,9 @@ public class While {
             System.out.println("b");
             i++;
 
-            if (i == 3)
+            if (i == 3) {
                 return;
+            }
         }
 
         System.out.println("c");
@@ -113,8 +115,9 @@ public class While {
         {
             System.out.println("b");
             i++;
-            if (i > 5)
+            if (i > 5) {
                 continue;
+            }
             System.out.println("bb");
         }
         System.out.println("c");
@@ -128,8 +131,9 @@ public class While {
         {
             System.out.println("b");
             i++;
-            if (i > 8)
+            if (i > 8) {
                 break;
+            }
             System.out.println("bb");
         }
         System.out.println("c");
@@ -143,12 +147,15 @@ public class While {
         {
             System.out.println("b");
             i++;
-            if (i > 5)
+            if (i > 5) {
                 continue;
-            if (i > 8)
+            }
+            if (i > 8) {
                 break;
-            if (i > 10)
+            }
+            if (i > 10) {
                 break;
+            }
             System.out.println("bb");
         }
         System.out.println("c");
@@ -162,12 +169,15 @@ public class While {
         {
             System.out.println("b");
             i++;
-            if (i > 5)
+            if (i > 5) {
                 continue;
-            if (i > 8)
+            }
+            if (i > 8) {
                 break;
-            if (i > 10)
+            }
+            if (i > 10) {
                 break;
+            }
             System.out.println("bb");
         }
 
@@ -184,11 +194,12 @@ public class While {
             System.out.println("b");
             if (i == 4)
             {
-                for (int j=0; j<10; j++)
+                for (int j=0; j<10; j++) {
                     System.out.println("c");
+                }
                 break;
             }
-            else if (i == 5)
+            if (i == 5)
             {
                 System.out.println("d");
                 continue;

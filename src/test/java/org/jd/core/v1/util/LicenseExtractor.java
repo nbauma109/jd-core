@@ -14,7 +14,7 @@ public class LicenseExtractor {
     public static String extractLicense(Path filePath) throws IOException {
         String source = new String(Files.readAllBytes(filePath));
         ASTParser parser = ASTParser.newParser(AST.getJLSLatest());
-        
+
         parser.setSource(source.toCharArray());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
 

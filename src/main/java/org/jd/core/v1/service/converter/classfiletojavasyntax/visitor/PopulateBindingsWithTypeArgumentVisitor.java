@@ -76,7 +76,7 @@ public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisi
                 if (current.isWildcardTypeArgument() && type.isGenericTypeArgument()) {
                     return; // Incompatible bounds
                 }
-                
+
                 if (typeArgument == null) {
                     bindings.put(typeName, checkTypeClassCheckDimensionAndReturnCurrentAsTypeArgument(type));
                 } else if (!current.equals(typeArgument)) {

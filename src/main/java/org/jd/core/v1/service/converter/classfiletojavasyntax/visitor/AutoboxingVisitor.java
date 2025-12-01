@@ -117,7 +117,7 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
     protected void maybeUpdateParameters(ConstructorInvocationExpression expression) {
         // disable (un)boxing due to possible constructor overloading
     }
-    
+
     @Override
     protected void maybeUpdateParameters(MethodInvocationExpression expression) {
         // disable (un)boxing due to possible method overloading

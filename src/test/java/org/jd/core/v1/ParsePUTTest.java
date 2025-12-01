@@ -15,7 +15,7 @@ public class ParsePUTTest extends AbstractJdTest {
     public void test() throws Exception {
         String internalClassName = ParsePUT.class.getName().replace('.', '/');
         String output = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Check output
         assertEqualsIgnoreEOL(IOUtils.toString(getClass().getResource("/txt/ParsePUT.txt"), StandardCharsets.UTF_8), output);
 

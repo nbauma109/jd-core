@@ -17,7 +17,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = Subtract.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i - (j - k);")));
     }
@@ -32,7 +32,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = SubtractMultiply.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i - j * k;")));
     }
@@ -47,7 +47,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = Add.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i + j + k;")));
     }
@@ -62,7 +62,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = Multiply.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i * j * k;")));
     }
@@ -77,7 +77,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = Divide.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i / (j / k);")));
     }
@@ -92,7 +92,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = Modulo.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i % (j % k);")));
     }
@@ -107,7 +107,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = DivideMultiply.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i / (j * k);")));
     }
@@ -122,7 +122,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = MultiplyDivide.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i * j / k;")));
     }
@@ -136,7 +136,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = MultiplyAdd.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i * (j + k);")));
     }
@@ -151,7 +151,7 @@ public class BinaryOpTest extends AbstractJdTest {
         }
         String internalClassName = And.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-            
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return i & j & k;")));
     }

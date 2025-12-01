@@ -35,7 +35,7 @@ public class CompilerUtil {
         InMemoryClassLoader classLoader = new InMemoryClassLoader();
         return compile(preferredJavaVersion, classLoader, javaFileObjects);
     }
-    
+
     public static boolean compile(String preferredJavaVersion, InMemoryClassLoader classLoader, InMemoryJavaSourceFileObject... javaFileObjects) throws Exception {
         boolean compilationSuccess = false;
         String javaVersion = getJavaVersion(preferredJavaVersion);
@@ -50,7 +50,7 @@ public class CompilerUtil {
         try (StandardJavaFileManager standardFileManager = compiler.getStandardFileManager(diagnostics, Locale.US, StandardCharsets.UTF_8)) {
             try (InMemoryJavaFileManager fileManager = new InMemoryJavaFileManager(standardFileManager, compilationUnits, classLoader)) {
                 compilationSuccess = compiler.getTask(writer, fileManager, diagnostics, options, null, compilationUnits).call();
-    
+
                 if (!diagnostics.getDiagnostics().isEmpty()) {
                     StringBuilder sb = new StringBuilder();
                     Set<Long> lineNumbers = new HashSet<>();
@@ -73,7 +73,7 @@ public class CompilerUtil {
                                 break;
                         }
                     }
-    
+
                     if (sb.length() > 0) {
                         System.err.println(compilationUnits.get(0).getName());
                         System.err.print(sb.toString());

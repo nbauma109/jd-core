@@ -23,27 +23,27 @@ public class BoolExp {
     @SuppressWarnings({ "unchecked", "unlikely-arg-type" })
     public boolean isValid(@SuppressWarnings("rawtypes") Vector v){
         if(field1 == null || "".equals(field1)){
-            v.add( new String ("Field #1 is not valid"));
+            v.add( "Field #1 is not valid");
         }
 
         if(field2 == null || "".equals(field2)){
-            v.add(new String("Field #2 is not valid"));
+            v.add("Field #2 is not valid");
         }
 
         if(field3 == null || "".equals(field3)){
-            v.add( new String("Field #3 is not valid"));
+            v.add( "Field #3 is not valid");
         }
-        
+
         if(field4 == null || "".equals(field4 == null)){
-            v.add(new String("Field #4 is not valid"));
+            v.add("Field #4 is not valid");
         }
 
         if(field5 == null || "".equals(field5)){
-            v.add(new String("Field #5 is not valid"));
+            v.add("Field #5 is not valid");
         }
 
         if(field6 == null || "".equals(field6)){
-            v.add(new String("Field #6 is not valid"));
+            v.add("Field #6 is not valid");
         }
 
         return v.isEmpty();

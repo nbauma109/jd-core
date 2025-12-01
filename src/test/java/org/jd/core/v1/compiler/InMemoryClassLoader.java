@@ -24,11 +24,11 @@ public class InMemoryClassLoader extends ClassLoader implements Loader {
         }
         return null;
     }
-    
+
     public Class<?> findClassByInternalName(String internalName) throws ClassNotFoundException {
         return findClass(internalNameToFullyQualifiedName(internalName));
     }
-    
+
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
         byte[] byteCode = getByteCode(name);

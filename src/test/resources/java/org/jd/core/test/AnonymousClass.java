@@ -71,10 +71,10 @@ public class AnonymousClass {
 
             public String toString(String a, String b) {
                 time = System.currentTimeMillis();
-                if ((s1 == s2) && (i == 5))
+                if ((s1 == s2) && (i == 5)) {
                     return s1;
-                else
-                    return s2;
+                }
+                return s2;
             }
 
         }) + "3");

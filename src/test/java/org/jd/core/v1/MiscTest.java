@@ -210,8 +210,7 @@ public class MiscTest extends AbstractJdTest {
         class SvcLoader {
             @SuppressWarnings("unused")
             static <T> Iterable<T> callServiceLoader(MethodHandle handle, Class<T> serviceType, ClassLoader classLoader) throws Throwable {
-                ServiceLoader<T> serviceLoader = (ServiceLoader<T>) handle.invokeExact(serviceType, classLoader);
-                return serviceLoader;
+                return (ServiceLoader<T>) handle.invokeExact(serviceType, classLoader);
             }
         }
         String internalClassName = SvcLoader.class.getName().replace('.', '/');
@@ -328,7 +327,7 @@ public class MiscTest extends AbstractJdTest {
             Loader loader = new ZipLoader(is);
             String internalClassName = MiscOracleJDK8.Consumer.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
-    
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
@@ -340,7 +339,7 @@ public class MiscTest extends AbstractJdTest {
             @SuppressWarnings({ "unused", "unchecked" })
             static List<Object> allParameters(Object parameters) throws Throwable {
                 if (parameters instanceof Iterable) {
-                    List<Object> result = new ArrayList<Object>();
+                    List<Object> result = new ArrayList<>();
                     for (Object entry : ((Iterable<Object>) parameters)) {
                         result.add(entry);
                     }
@@ -658,7 +657,7 @@ public class MiscTest extends AbstractJdTest {
         abstract class VarArgTest1 implements IDefault {
             @SuppressWarnings("unused")
             void test1() {
-                test(new Object[0], new Object[0]);
+                test(new Object[0]);
             }
         }
         String internalClassName = VarArgTest1.class.getName().replace('.', '/');
@@ -676,7 +675,7 @@ public class MiscTest extends AbstractJdTest {
         abstract class VarArgTest2 implements IDefault {
             @SuppressWarnings("unused")
             void test2() {
-                test(new Object[] { 0, 1 }, new Object[] { 0, 1 });
+                test(new Object[] { 0, 1 }, 0, 1);
             }
         }
         String internalClassName = VarArgTest2.class.getName().replace('.', '/');
@@ -752,16 +751,16 @@ public class MiscTest extends AbstractJdTest {
             Loader loader = new ZipLoader(is);
             String internalClassName = TernaryOpDiamond.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
-            
+
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make("List<String> list = flag ? new ArrayList<String>() : Collections.<String>emptyList();")));
             assertTrue(source.matches(PatternMaker.make("List<String> list2 = flag ? Collections.<String>emptyList() : new ArrayList<String>();")));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
-    
+
     @Test
     public void testDiamond() throws Exception {
         class Entries {
@@ -793,7 +792,7 @@ public class MiscTest extends AbstractJdTest {
             Loader loader = new ZipLoader(is);
             String internalClassName = MiscOracleJDK8.LambdaVariables.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
-    
+
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make("void test(String str, int intger) {")));
             assertTrue(source.matches(PatternMaker.make("  char chrctr = Character.MAX_VALUE;")));
@@ -806,8 +805,8 @@ public class MiscTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make("        System.out.print(lst);")));
             assertTrue(source.matches(PatternMaker.make("        System.out.print(chrctr);")));
             assertTrue(source.matches(PatternMaker.make("        return Integer.compare(a.intValue(), b.intValue());")));
-    
-    
+
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
@@ -877,7 +876,7 @@ public class MiscTest extends AbstractJdTest {
     public void testLimitFinder() throws Exception {
         String internalClassName = LimitFinder.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
@@ -914,7 +913,7 @@ public class MiscTest extends AbstractJdTest {
     public void testNumericConstants() throws Exception {
         String internalClassName = NumericConstants.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make(":  5 */", "static final Long LONG_INT_MAX_VALUE = Long.valueOf(Integer.MAX_VALUE);")));
         assertTrue(source.matches(PatternMaker.make(":  6 */", "static final Long LONG_INT_MIN_VALUE = Long.valueOf(Integer.MIN_VALUE);")));
@@ -925,7 +924,7 @@ public class MiscTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make(": 13 */", "return (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE);")));
         assertTrue(source.matches(PatternMaker.make(": 17 */", "return (l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE);")));
         assertTrue(source.matches(PatternMaker.make(": 21 */", "return (f >= Integer.MIN_VALUE && f <= Integer.MAX_VALUE);")));
-        
+
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
@@ -945,13 +944,13 @@ public class MiscTest extends AbstractJdTest {
         }
         String internalClassName = StringBuxxxer.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        
+
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return new StringBuilder().append('+').append(flag ? '+' : '-');")));
         assertTrue(source.matches(PatternMaker.make("return new StringBuffer().append('+').append(flag ? '+' : '-');")));
-        
+
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
-        
+
     }
 }

@@ -19,7 +19,7 @@ public class MavenHelper {
      * @param artifactId the artifact ID (e.g., "commons-lang3")
      * @param version    the version (e.g., "3.12.0")
      * @return the URL to the JAR file on Maven Central
-     * @throws MalformedURLException 
+     * @throws MalformedURLException
      */
     public static URL buildJarUrl(String groupId, String artifactId, String version) throws MalformedURLException {
         if (groupId == null || artifactId == null || version == null) {

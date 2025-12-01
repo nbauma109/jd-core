@@ -10,7 +10,6 @@ package org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.util;
 public final class StringUtil {
 
     private StringUtil() {
-        super();
     }
 
     public static String escapeString(String s) {

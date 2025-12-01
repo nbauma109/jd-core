@@ -15,7 +15,7 @@ public class FileAppender extends AbstractFileAppender {
             return new FileAppender();
         }
     }
-    
+
     public static <B extends Builder<B>> B newBuilder() {
         return new Builder<B>().asBuilder();
     }

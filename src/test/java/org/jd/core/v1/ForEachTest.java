@@ -18,7 +18,7 @@ public class ForEachTest extends AbstractJdTest {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/foreach-jdk8u331.jar")) {
             Loader loader = new ZipLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }

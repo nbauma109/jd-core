@@ -46,8 +46,9 @@ public class TernaryOperator {
     public void ternaryOperatorInIf1(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? (s2 == null) : s1.equals(s2))
+        if ((s1 == null) ? (s2 == null) : s1.equals(s2)) {
             System.out.println("a");
+        }
 
         System.out.println("end");
     }
@@ -55,10 +56,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse0(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 != null) && (!s1.isEmpty()))
+        if ((s1 != null) && (!s1.isEmpty())) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -66,10 +68,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse1(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? (s2 == null) : s1.equals(s2))
+        if ((s1 == null) ? (s2 == null) : s1.equals(s2)) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -77,10 +80,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse2(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? false : (!s1.isEmpty()))
+        if ((s1 == null) ? false : (!s1.isEmpty())) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -88,10 +92,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse3(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 != null) ? (!s1.isEmpty()) : false)
+        if ((s1 != null) ? (!s1.isEmpty()) : false) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -100,10 +105,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse4(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? s1.equals(s2) : (s2 == null))
+        if ((s1 == null) ? s1.equals(s2) : (s2 == null)) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -111,10 +117,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse5(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? (s2 == null) : (s1 + s2 == null))
+        if ((s1 == null) ? (s2 == null) : (s1 + s2 == null)) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -122,10 +129,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElse6(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? ((s2 == null) ? (s1 != null) : (s2 != null)) : ((s1 + s2 == null) ? (s1 != null) : (s2 != null)))
+        if ((s1 == null) ? ((s2 == null) ? (s1 != null) : (s2 != null)) : ((s1 + s2 == null) ? (s1 != null) : (s2 != null))) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -134,10 +142,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElseFalse(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == null) ? false : false)
+        if ((s1 == null) ? false : false) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -145,10 +154,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElseANDCondition(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == s2) && ((s1 == null) ? (s2 == null) : s1.equals(s2)) && (s1 == s2))
+        if ((s1 == s2) && ((s1 == null) ? (s2 == null) : s1.equals(s2)) && (s1 == s2)) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }
@@ -156,10 +166,11 @@ public class TernaryOperator {
     public void ternaryOperatorInIfElseORCondition(String s1, String s2) {
         System.out.println("start");
 
-        if ((s1 == s2) || ((s1 == null) ? (s2 == null) : s1.equals(s2)) || (s1 == s2))
+        if ((s1 == s2) || ((s1 == null) ? (s2 == null) : s1.equals(s2)) || (s1 == s2)) {
             System.out.println("a");
-        else
+        } else {
             System.out.println("b");
+        }
 
         System.out.println("end");
     }

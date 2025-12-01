@@ -542,7 +542,7 @@ public class JavaSyntaxToJavaSourceTest extends TestCase {
                                         new ObjectTypeReferenceExpression(new ObjectType("org/jd/core/v1/service/test/Planet", "org.jd.core.v1.service.test.Planet", "Planet")),
                                         "org/jd/core/v1/service/test/Planet",
                                         "values",
-                                        "()[Lorg/jd/core/v1/service/test/Planet;", 
+                                        "()[Lorg/jd/core/v1/service/test/Planet;",
                                         null),
                                     new ExpressionStatement(new MethodInvocationExpression(
                                         PrimitiveType.TYPE_VOID,

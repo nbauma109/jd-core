@@ -1,7 +1,7 @@
 package org.jd.core.v1;
 
 public abstract class JSONUtils {
-    
+
     private static final int[] ESC_CODES = {};
 
     public void quoteAsString1(final CharSequence input, final StringBuilder output) {
@@ -68,7 +68,7 @@ public abstract class JSONUtils {
                 : _appendNamed(escCode, qbuf);
         System.out.println(length);
     }
-    
+
     protected abstract int _appendNamed(int escCode, char[] qbuf);
     protected abstract int _appendNumeric(char d, char[] qbuf);
 }

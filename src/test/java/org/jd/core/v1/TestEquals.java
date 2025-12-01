@@ -1,9 +1,9 @@
 package org.jd.core.v1;
 
 public class TestEquals {
-    
+
     private String text;
-    
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) {

@@ -110,7 +110,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         initEnumVisitor.visit(cfed.getBodyDeclaration());
         cfed.setConstants(initEnumVisitor.getConstants());
     }
-    
+
     @Override
     public void visit(CompilationUnit compilationUnit) {
         SORT_MEMBERS_VISITOR.init();

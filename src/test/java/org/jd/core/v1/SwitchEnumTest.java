@@ -85,7 +85,7 @@ public class SwitchEnumTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(":  0 */     } ")));
             assertTrue(source.matches(PatternMaker.make(":  0 */   }")));
             assertTrue(source.matches(PatternMaker.make(":  0 */ }")));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }

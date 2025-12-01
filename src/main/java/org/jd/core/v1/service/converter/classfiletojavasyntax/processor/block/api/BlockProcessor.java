@@ -10,7 +10,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlo
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.ControlFlowGraph;
 
 public interface BlockProcessor {
-    
+
     boolean accept(BasicBlock bb);
 
     void process(BasicBlock bb);

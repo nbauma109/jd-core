@@ -2,10 +2,10 @@ package org.jd.core.v1.stub;
 
 public class NumericConstants {
 
-    static final Long LONG_INT_MAX_VALUE = Long.valueOf(Integer.MAX_VALUE);
-    static final Long LONG_INT_MIN_VALUE = Long.valueOf(Integer.MIN_VALUE);
-    static final Double DOUBLE_FLOAT_MIN_VALUE = Double.valueOf(Float.MIN_VALUE);
-    static final Double DOUBLE_FLOAT_MAX_VALUE = Double.valueOf(Float.MAX_VALUE);
+    static final Long LONG_INT_MAX_VALUE = (long) Integer.MAX_VALUE;
+    static final Long LONG_INT_MIN_VALUE = (long) Integer.MIN_VALUE;
+    static final Double DOUBLE_FLOAT_MIN_VALUE = (double) Float.MIN_VALUE;
+    static final Double DOUBLE_FLOAT_MAX_VALUE = (double) Float.MAX_VALUE;
     static final Float FLOAT_MIN_VALUE = Float.MIN_VALUE;
     static final Double DOUBLE_MIN_VALUE = Double.MIN_VALUE;
 

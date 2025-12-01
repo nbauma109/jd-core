@@ -242,7 +242,7 @@ public class MergeMembersUtilTest {
 
     protected DefaultList<ClassFileMemberDeclaration> newMethods() throws Exception {
         DefaultList<ClassFileMemberDeclaration> methods = new DefaultList<>();
-        
+
         ClassFile classFile = createClassFile();
         Method method = getMethod(classFile, "method");
 
@@ -263,7 +263,7 @@ public class MergeMembersUtilTest {
     private static Method getMethod(ClassFile classFile, String name) {
         for (Method method : classFile.getMethods()) {
             if (name.equals(method.getName())) {
-               return method; 
+               return method;
             }
         }
         return null;

@@ -102,7 +102,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
             assertTrue(CompilerUtil.compile("1.3", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
-    
+
     @Test
     public void testJdk131Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
@@ -110,10 +110,10 @@ public class JavaMetaInfTest extends AbstractJdTest {
             Loader loader = new ZipLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
-            
+
             // Check decompiled source code
             assertTrue(source.contains("Java compiler version: 1.1 (45.3)"));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.4", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }

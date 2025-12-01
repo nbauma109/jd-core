@@ -313,7 +313,7 @@ public class ConvertClassFileProcessor {
 
         AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
-        
+
         return converter.convert(visibleEntries, invisibleEntries);
     }
 
@@ -323,7 +323,7 @@ public class ConvertClassFileProcessor {
 
         AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
-        
+
         return converter.convert(visibleEntries, invisibleEntries);
     }
 
@@ -402,7 +402,7 @@ public class ConvertClassFileProcessor {
         }
         return list;
     }
-    
+
     protected List<ModuleDeclaration.ServiceInfo> convertModuleProvidesToServiceInfo(ModuleProvides[] moduleProvides, ConstantPool constantPool) {
         if (moduleProvides == null || moduleProvides.length == 0) {
             return null;

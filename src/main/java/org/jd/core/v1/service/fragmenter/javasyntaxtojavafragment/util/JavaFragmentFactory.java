@@ -31,7 +31,6 @@ import java.util.List;
 public final class JavaFragmentFactory {
 
     private JavaFragmentFactory() {
-        super();
     }
 
     public static void addSpacerAfterPackage(List<Fragment> fragments) {

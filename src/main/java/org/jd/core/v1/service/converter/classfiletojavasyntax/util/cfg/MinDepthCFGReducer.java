@@ -24,7 +24,7 @@ public class MinDepthCFGReducer extends ControlFlowGraphReducer {
     public MinDepthCFGReducer(boolean preReduce) {
         this.preReduce = preReduce;
     }
-    
+
     @Override
     protected boolean needToUpdateConditionTernaryOperator(BasicBlock basicBlock, BasicBlock nextNext) {
         return ByteCodeUtil.getMinDepth(nextNext) == -1;
@@ -53,7 +53,7 @@ public class MinDepthCFGReducer extends ControlFlowGraphReducer {
     protected boolean needToCreateIfElse(BasicBlock branch, BasicBlock nextNext, BasicBlock branchNext) {
         return nextNext.getFromOffset() > branch.getFromOffset() && branchNext.matchType(GROUP_END);
     }
-    
+
     @Override
     protected boolean reduceTryDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
         BasicBlock next = basicBlock.getNext();
@@ -70,7 +70,7 @@ public class MinDepthCFGReducer extends ControlFlowGraphReducer {
     public boolean doPreReduce() {
         return preReduce;
     }
-    
+
     @Override
     public String getLabel() {
         return "Show Minimum-Depth Control Flow Graph";

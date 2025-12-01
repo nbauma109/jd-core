@@ -20,9 +20,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 
 public abstract class AbstractTypeParametersToTypeArgumentsBinder {
-    
+
     protected BaseType exceptionTypes;
-    
+
     public abstract ClassFileConstructorInvocationExpression newConstructorInvocationExpression(
             int lineNumber, ObjectType objectType, String descriptor,
             TypeMaker.MethodTypes methodTypes, BaseExpression parameters);

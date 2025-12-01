@@ -59,7 +59,6 @@ import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_OBJECT;
 public final class LoopStatementMaker {
 
     private LoopStatementMaker() {
-        super();
     }
 
     private static final RemoveLastContinueStatementVisitor REMOVE_LAST_CONTINUE_STATEMENT_VISITOR = new RemoveLastContinueStatementVisitor();
@@ -516,7 +515,7 @@ public final class LoopStatementMaker {
                 return new ClassFileForEachStatement(item, castExpression.getExpression(), subStatements);
             }
         }
-        
+
         return new ClassFileForEachStatement(item, array, subStatements);
     }
 
@@ -645,10 +644,8 @@ public final class LoopStatementMaker {
                             olv.setType(typeBounds, type);
                         }
                     } else if (item.getType().isGenericType()) {
-                        if (item instanceof GenericLocalVariable glv) {
-                            if (type instanceof GenericType) {
-                                glv.setType((GenericType) type);
-                            }
+                        if ((item instanceof GenericLocalVariable glv) && (type instanceof GenericType)) {
+                            glv.setType((GenericType) type);
                         }
                     } else {
                         item.typeOnRight(typeBounds, type);
@@ -664,7 +661,7 @@ public final class LoopStatementMaker {
                 exp.setNonWildcardTypeArguments(null);
             }
         }
-        
+
         return new ClassFileForEachStatement(item, list, subStatements);
     }
 

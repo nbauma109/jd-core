@@ -163,11 +163,10 @@ public class BreakContinue {
         label_0: do {
             while (i0 < 10) {
                 try {
-                    if (i0 / i1 != 2) {
-                        i0 = i0 + 1;
-                    } else {
+                    if (i0 / i1 == 2) {
                         break label_0;
                     }
+                    i0 = i0 + 1;
                 } catch (ArithmeticException e) {
                     System.out.println("div by 0");
                 }

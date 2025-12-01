@@ -20,7 +20,7 @@ public class EqualsTest extends AbstractJdTest {
 
             // Check decompiled source code
             assertTrue(source.matches(PatternMaker.make(": 16 */", "return !((this.text != null) ? !this.text.equals(that.text) : (that.text != null))")));
-            
+
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }

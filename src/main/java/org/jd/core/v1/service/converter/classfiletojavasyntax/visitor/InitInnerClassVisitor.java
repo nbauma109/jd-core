@@ -594,7 +594,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 // Remove last synthetic parameter
                 cie.setParameters(removeLastSyntheticParameter(cie.getParameters(), cie.getParameterTypes()));
             }
-            
+
             safeAccept(parameters);
         }
 
@@ -658,7 +658,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
                 super.visit(statement);
             }
-            
+
             @Override
             public void visit(LocalVariableDeclarationStatement statement) {
                 fina1 = false;

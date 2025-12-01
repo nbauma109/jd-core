@@ -21,7 +21,6 @@ import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
-import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ByteCodeWriter;
@@ -41,7 +40,7 @@ import static org.apache.bcel.Const.ACC_SYNTHETIC;
 
 public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
-    
+
     public CreateInstructionsVisitor(TypeMaker typeMaker) {
         this.typeMaker = typeMaker;
     }
@@ -61,12 +60,10 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
         for (ClassFileConstructorOrMethodDeclaration method : methods) {
             if ((method.getFlags() & (ACC_SYNTHETIC|ACC_BRIDGE)) != 0) {
                 method.accept(this);
-            } else if ((method.getFlags() & (ACC_STATIC|ACC_BRIDGE)) == ACC_STATIC) {
-                if (method.getMethod().getName().startsWith("access$")) {
-                    // Accessor -> bridge method
-                    method.setFlags(method.getFlags() | ACC_BRIDGE);
-                    method.accept(this);
-                }
+            } else if (((method.getFlags() & (ACC_STATIC|ACC_BRIDGE)) == ACC_STATIC) && method.getMethod().getName().startsWith("access$")) {
+                // Accessor -> bridge method
+                method.setFlags(method.getFlags() | ACC_BRIDGE);
+                method.accept(this);
             }
         }
         for (ClassFileConstructorOrMethodDeclaration method : methods) {

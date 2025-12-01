@@ -463,7 +463,7 @@ public abstract class AbstractJavaSyntaxVisitor extends AbstractTypeArgumentVisi
         BaseType type = expression.getType();
         type.accept(this);
     }
-    
+
     @Override
     public void visit(TernaryOperatorExpression expression) {
         expression.getCondition().accept(this);

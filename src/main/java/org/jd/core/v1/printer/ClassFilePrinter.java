@@ -14,7 +14,7 @@ public class ClassFilePrinter extends LineNumberStringBuilderPrinter {
 
     private final Map<String, ReferenceData> referencesCache = new HashMap<>();
     private final DecompilationResult result = new DecompilationResult();
-    
+
     // Manage line number and misalignment
     private int textAreaLineNumber = 1;
 

@@ -49,13 +49,13 @@ public class RenameLocalVariablesVisitor extends AbstractJavaSyntaxVisitor {
         super.visit(expression);
         visitingLambda = false;
     }
-    
+
     @Override
     public void visit(LocalVariableReferenceExpression expression) {
         if (visitingLambda) {
             ClassFileLocalVariableReferenceExpression lvre = (ClassFileLocalVariableReferenceExpression)expression;
             String newName = nameMapping.get(lvre.getName());
-    
+
             if (newName != null) {
                 lvre.getLocalVariable().setName(newName);
             }

@@ -318,7 +318,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, exceptionType);
             mieExceptionType.accept(populateBindingsWithTypeArgumentVisitor);
         }
-        
+
         boolean bindingsContainsNull = bindings.containsValue(null);
 
         if (bindingsContainsNull) {
@@ -547,11 +547,11 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 Type typeBeforeVisitingExpression = this.type;
                 exp.accept(this);
                 this.type = typeBeforeVisitingExpression;
-                
+
                 Type typeBeforeBindParameters = this.type;
                 bindParameters(parameterTypes, parameters);
                 this.type = typeBeforeBindParameters;
-            }            
+            }
 
             if (staticMethod || mie.getTypeParameters() != null || !mie.getInternalTypeName().equals(internalTypeName)) {
                 TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(mie.getInternalTypeName());
@@ -716,15 +716,11 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isNonWildcardableTypeArgument(TypeArgument typeArgument, BaseTypeArgument nonWildcardTypeArgument) {
-        if (typeArgument instanceof WildcardExtendsTypeArgument weta) {
-            if (weta.type().equals(nonWildcardTypeArgument)) {
-                return false;
-            }
+        if ((typeArgument instanceof WildcardExtendsTypeArgument weta) && weta.type().equals(nonWildcardTypeArgument)) {
+            return false;
         }
-        if (typeArgument instanceof WildcardSuperTypeArgument wsta) {
-            if (wsta.type().equals(nonWildcardTypeArgument)) {
-                return false;
-            }
+        if ((typeArgument instanceof WildcardSuperTypeArgument wsta) && wsta.type().equals(nonWildcardTypeArgument)) {
+            return false;
         }
         return true;
     }

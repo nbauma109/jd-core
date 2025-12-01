@@ -715,11 +715,11 @@ public class ControlFlowGraphMaker {
 
         return false;
     }
-    
+
     public static String makeShortKey(CodeException ce) {
         return ce.getStartPC() + "-" + ce.getEndPC();
     }
-    
+
     /** 1) Smaller 'startPc' first 2) Smaller 'endPc' first. */
     public static class CodeExceptionComparator implements java.io.Serializable, Comparator<CodeException> {
         /**

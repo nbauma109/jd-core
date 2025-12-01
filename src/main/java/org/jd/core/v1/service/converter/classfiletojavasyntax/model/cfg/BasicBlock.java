@@ -361,7 +361,7 @@ public class BasicBlock {
     public boolean isLoopExitCondition(Loop loop) {
         return loop != null && index == loop.getStart().getIndex() && branch == LOOP_END;
     }
-    
+
     public boolean isOutsideLoop(Loop loop) {
         return loop != null && !loop.getMembers().contains(this);
     }
@@ -479,7 +479,7 @@ public class BasicBlock {
             this.basicBlock = basicBlock;
             this.defaultCase = defaultCase;
         }
-        
+
         public int getValue() {
             return value;
         }

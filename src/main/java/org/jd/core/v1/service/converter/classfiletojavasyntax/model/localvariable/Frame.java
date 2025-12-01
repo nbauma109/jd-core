@@ -297,7 +297,7 @@ public class Frame {
             renameLocalVariablesVisitor.init(mapping, false);
             statements.accept(renameLocalVariablesVisitor);
         }
-        
+
         // Recursive call
         if (children != null) {
             for (Frame child : children) {
@@ -555,16 +555,16 @@ public class Frame {
                 }
 
                 if (createDeclaration) {
-                
+
                     Expressions expressions = new Expressions();
-    
+
                     splitMultiAssignment(Integer.MAX_VALUE, undeclaredLocalVariablesInStatement, expressions, boe);
                     iterator.remove();
-    
+
                     for (Expression exp : expressions) {
                         iterator.add(newDeclarationStatement(undeclaredLocalVariables, undeclaredLocalVariablesInStatement, exp));
                     }
-    
+
                     if (expressions.isEmpty()) {
                         iterator.add(es);
                     }
@@ -673,9 +673,9 @@ public class Frame {
         boolean[] createDeclaration = { true };
         if (localVariable.getOldName() != null && parent != null && parent.statements != null) {
             parent.statements.accept(new AbstractJavaSyntaxVisitor() {
-                
+
                 boolean foundFor;
-                
+
                 @Override
                 public void visit(ForStatement statement) {
                     if (statement == forStatement) {
@@ -699,16 +699,16 @@ public class Frame {
                 }
             }
         }
-        
+
         if (createDeclaration[0]) {
             undeclaredLocalVariables.remove(localVariable);
             undeclaredLocalVariablesInStatement.remove(localVariable);
             localVariable.setDeclared(true);
-    
+
             VariableInitializer variableInitializer = init.getRightExpression().isNewInitializedArray() ?
                     ((NewInitializedArray)init.getRightExpression()).getArrayInitializer() :
                     new ExpressionVariableInitializer(init.getRightExpression());
-    
+
             forStatement.setDeclaration(new LocalVariableDeclaration(localVariable.getType(), new ClassFileLocalVariableDeclarator(init.getLineNumber(), reference.getLocalVariable(), variableInitializer)));
             forStatement.setInit(null);
         } else {

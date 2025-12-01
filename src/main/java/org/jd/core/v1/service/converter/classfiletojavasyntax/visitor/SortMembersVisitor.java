@@ -37,7 +37,7 @@ public class SortMembersVisitor extends AbstractJavaSyntaxVisitor {
     public void init() {
         declaredTypes.clear();
     }
-    
+
     @Override
     public void visit(AnnotationDeclaration declaration) {
         safeAccept(declaration.getBodyDeclaration());

@@ -620,7 +620,7 @@ public class StatementMaker {
 
         statements.add(statement);
         makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
-        
+
     }
 
     protected void removeExceptionReference(Statements catchStatements) {
@@ -701,15 +701,13 @@ public class StatementMaker {
                 BaseStatement thenStatements = ifStatement.getStatements();
                 if (thenStatements.size() == 1) {
                     Statement thenStatement = thenStatements.getFirst();
-                    if (thenStatement instanceof ReturnExpressionStatement returnExp) {
-                        if (returnExp.getExpression().getType().equals(stack.peek().getType())) {
-                            Expression exp = stack.pop();
-                            statements.add(new ReturnExpressionStatement(exp.getLineNumber(), exp));
-                        }
+                    if ((thenStatement instanceof ReturnExpressionStatement returnExp) && returnExp.getExpression().getType().equals(stack.peek().getType())) {
+                        Expression exp = stack.pop();
+                        statements.add(new ReturnExpressionStatement(exp.getLineNumber(), exp));
                     }
                 }
             }
-            
+
             if (subStatements.size() == 1 &&
                     index+1 == statements.size() &&
                     subStatements.getFirst().isReturnExpressionStatement() &&

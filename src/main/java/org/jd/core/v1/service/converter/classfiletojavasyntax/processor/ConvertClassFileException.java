@@ -12,7 +12,6 @@ public class ConvertClassFileException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     public ConvertClassFileException() {
-        super();
     }
 
     public ConvertClassFileException(String s) {

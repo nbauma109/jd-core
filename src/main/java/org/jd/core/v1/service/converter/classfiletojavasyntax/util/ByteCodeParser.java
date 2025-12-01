@@ -784,11 +784,11 @@ public class ByteCodeParser {
                     constantNameAndType = constants.getConstant(constantMemberRef.getNameAndTypeIndex());
                     name = constants.getConstantString(constantNameAndType.getNameIndex(), CONSTANT_Utf8);
                     descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
-                    
+
                     TypeMaker.MethodTypes methodTypes = makeMethodTypes(ot.getInternalName(), name, descriptor);
 
                     methodTypes.handlePolymorphicSignature(typeName, name);
-                    
+
                     BaseExpression parameters = extractParametersFromStack(statements, stack, methodTypes.getParameterTypes());
 
                     if (opcode == INVOKESTATIC) {
@@ -893,7 +893,7 @@ public class ByteCodeParser {
                                 if (typeTypes != null && typeTypes.getTypeParameters() instanceof TypeParameterWithTypeBounds) {
                                     TypeParameterWithTypeBounds typeParameterWithTypeBounds = (TypeParameterWithTypeBounds) typeTypes.getTypeParameters();
                                     String identifier = typeParameterWithTypeBounds.getIdentifier();
-                                    if (identifier.equals(expression1.getType().getName()) 
+                                    if (identifier.equals(expression1.getType().getName())
                                             && type1 instanceof ObjectType
                                             && typeParameterWithTypeBounds.getTypeBounds() instanceof ObjectType
                                             && typeMaker.isRawTypeAssignable((ObjectType) type1, (ObjectType) typeParameterWithTypeBounds.getTypeBounds())) {
@@ -1429,7 +1429,7 @@ public class ByteCodeParser {
         String indyMethodName = constants.getConstantString(indyCnat.getNameIndex(), CONSTANT_Utf8);
         String indyDescriptor = constants.getConstantString(indyCnat.getSignatureIndex(), CONSTANT_Utf8);
         TypeMaker.MethodTypes indyMethodTypes = typeMaker.makeMethodTypes(internalTypeName, indyMethodName, indyDescriptor);
-        
+
         BaseExpression indyParameters = extractParametersFromStack(statements, stack, indyMethodTypes.getParameterTypes());
         BootstrapMethod bootstrapMethod = attributeBootstrapMethods.getBootstrapMethods()[constantMemberRef.getClassIndex()];
         int[] bootstrapArguments = bootstrapMethod.getBootstrapArguments();
@@ -1612,18 +1612,18 @@ public class ByteCodeParser {
 
     private void parseAASTORE(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression valueRef) {
         Expression oldValueRef = valueRef;
-        
+
         if (valueRef.isNewArray()) {
             valueRef = NewArrayMaker.make(statements, valueRef);
         }
-        
+
         if (oldValueRef != valueRef) {
             stack.replace(oldValueRef, valueRef);
         }
-        
+
         createAssignment(statements, stack, lineNumber, leftExpression, valueRef);
     }
-    
+
     private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression) {
         if (!stack.isEmpty() && stack.peek() == rightExpression) {
             stack.push(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", stack.pop(), 16));

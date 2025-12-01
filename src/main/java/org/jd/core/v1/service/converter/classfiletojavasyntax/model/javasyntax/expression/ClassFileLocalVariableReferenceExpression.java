@@ -43,7 +43,7 @@ public class ClassFileLocalVariableReferenceExpression extends LocalVariableRefe
         super.setName(name);
         localVariable.setName(name);
     }
-    
+
     @Override
     public AbstractLocalVariable getLocalVariable() {
         return localVariable;

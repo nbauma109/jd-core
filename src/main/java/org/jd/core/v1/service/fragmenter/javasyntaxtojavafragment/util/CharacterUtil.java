@@ -10,7 +10,6 @@ package org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.util;
 public final class CharacterUtil {
 
     private CharacterUtil() {
-        super();
     }
 
     public static String escapeChar(int c) {

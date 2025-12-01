@@ -21,9 +21,8 @@ public final class ControlFlowGraphPreReducer {
         blockProcessors.add(new MergeStatementBlockProcessor());
         blockProcessors.add(new InLoopConditionalBranchProcessor());
     }
-    
+
     private ControlFlowGraphPreReducer() {
-        super();
     }
 
     public static void reduce(ControlFlowGraph cfg) {

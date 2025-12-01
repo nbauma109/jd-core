@@ -297,7 +297,7 @@ public class TypeVisitor extends AbstractJavaSyntaxVisitor {
     protected ReferenceToken newTypeReferenceToken(ObjectType ot, ObjectType ownerType) {
         String internalName = ot.getInternalName();
         String qualifiedName = ot.getQualifiedName();
-        
+
         int printerType = isInInvokeNew() ? Printer.CONSTRUCTOR : Printer.TYPE;
         String name = ot.getName();
         if (packageContainsType(internalPackageName, internalName)) {
@@ -307,7 +307,6 @@ public class TypeVisitor extends AbstractJavaSyntaxVisitor {
                 if (ownerType.getInnerTypeNames().contains(innerTypeName)) {
                     return new QualifiedReferenceToken(printerType, internalName, qualifiedName, null, ownerType);
                 }
-                return new ReferenceToken(printerType, internalName, name, null, ownerType);
             }
             return new ReferenceToken(printerType, internalName, name, null, ownerType);
         }
@@ -352,18 +351,18 @@ public class TypeVisitor extends AbstractJavaSyntaxVisitor {
 
     private static final class QualifiedReferenceToken extends ReferenceToken {
         private String qualifiedName;
-        
+
         public QualifiedReferenceToken(int printerType, String internalTypeName, String qualifiedName, String name, ObjectType ownerType) {
             super(printerType, internalTypeName, name, null, ownerType);
             this.qualifiedName = qualifiedName;
         }
-        
+
         @Override
         public String getName() {
             return qualifiedName;
         }
     }
-    
+
     protected TextToken newTextToken(String text) {
         return textTokenCache.computeIfAbsent(text, TextToken::new);
     }

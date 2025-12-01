@@ -33,10 +33,9 @@ import java.util.Map;
 public final class SwitchStatementMaker {
 
     private SwitchStatementMaker() {
-        super();
     }
 
-    private static final Integer MINUS_ONE = Integer.valueOf(-1);
+    private static final Integer MINUS_ONE = -1;
 
     public static void makeSwitchString(LocalVariableMaker localVariableMaker, Statements statements, SwitchStatement switchStatement) {
         int size = statements.size();

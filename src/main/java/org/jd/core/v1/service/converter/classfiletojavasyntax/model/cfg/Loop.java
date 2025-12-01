@@ -65,7 +65,7 @@ public class Loop {
 
         Loop loop = (Loop) o;
 
-        return Objects.equals(start, loop.start) 
+        return Objects.equals(start, loop.start)
             && Objects.equals(members, loop.members)
             && Objects.equals(end, loop.end);
     }

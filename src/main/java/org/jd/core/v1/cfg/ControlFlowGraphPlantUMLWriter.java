@@ -69,12 +69,12 @@ public final class ControlFlowGraphPlantUMLWriter {
     private static final String AS = "\" as ";
 
     private static final String STATE = "state \"";
-    
+
     private static final int MAX_OFFSET = Integer.MAX_VALUE;
 
     private ControlFlowGraphPlantUMLWriter() {
     }
-    
+
     public static String write(ControlFlowGraph cfg) {
         if (cfg.getBasicBlocks() == null) {
             return null;

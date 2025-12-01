@@ -20,7 +20,6 @@ import static org.apache.bcel.Const.*;
 public final class ByteCodeUtil {
 
     private ByteCodeUtil() {
-        super();
     }
 
     public static int searchNextOpcode(final BasicBlock basicBlock, final int maxOffset) {
@@ -91,7 +90,7 @@ public final class ByteCodeUtil {
         code[lastOffset+1] = (byte) ((delta >> 8) & 0xFF);
         code[lastOffset+2] = (byte) (delta & 0xFF);
     }
-    
+
     static int getOppositeOpCode(final int opCode) {
         return switch(opCode) {
             case IFNONNULL -> IFNULL;

@@ -90,7 +90,7 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                     methods.get(i).accept(this);
 
                     if (deleteStaticDeclaration != null) {
-                        if (deleteStaticDeclaration.booleanValue()) {
+                        if (deleteStaticDeclaration) {
                             methods.remove(i);
                         }
                         break;

@@ -49,14 +49,14 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
             }
         }
     }
-    
+
     @Override
     public void visit(LambdaIdentifiersExpression expression) {
         lambdas.push(expression);
         super.visit(expression);
         lambdas.pop();
     }
-    
+
     private boolean isLambdaParameter(String name) {
         for (LambdaIdentifiersExpression lambda : lambdas) {
             if (lambda.getParameterNames().contains(name)) {

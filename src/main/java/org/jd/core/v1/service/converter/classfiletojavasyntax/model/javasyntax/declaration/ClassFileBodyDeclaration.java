@@ -30,7 +30,7 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
     private final ClassFileBodyDeclaration outerBodyDeclaration;
     private final Map<String, TypeArgument> bindings;
     private final Map<String, BaseType> typeBounds;
-    
+
     public ClassFileBodyDeclaration(ClassFile classFile, Map<String, TypeArgument> bindings, Map<String, BaseType> typeBounds, ClassFileBodyDeclaration outerBodyDeclaration) {
         super(classFile.getInternalTypeName(), null);
         this.classFile = classFile;
@@ -147,7 +147,7 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
     public boolean isMainBodyDeclaration() {
         return outerBodyDeclaration == null;
     }
-    
+
     public Map<String, TypeArgument> getBindings() {
         return bindings;
     }

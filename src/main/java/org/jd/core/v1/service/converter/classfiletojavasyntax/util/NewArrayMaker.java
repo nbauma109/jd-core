@@ -26,7 +26,6 @@ import java.util.ListIterator;
 public final class NewArrayMaker {
 
     private NewArrayMaker() {
-        super();
     }
 
     private static final ArrayVariableInitializer EMPTY_ARRAY = new ArrayVariableInitializer(PrimitiveType.TYPE_VOID);

@@ -16,7 +16,6 @@ import java.util.List;
 public final class AggregateFieldsUtil {
 
     private AggregateFieldsUtil() {
-        super();
     }
 
     public static void aggregate(List<ClassFileFieldDeclaration> fields) {

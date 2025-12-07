@@ -30,7 +30,6 @@ import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.FloatConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
-import org.jd.core.v1.model.javasyntax.expression.LambdaFormalParametersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -207,14 +206,6 @@ public class SearchImportsVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(InstanceOfExpression expression) {
-        if (maxLineNumber < expression.getLineNumber()) {
-            maxLineNumber = expression.getLineNumber();
-        }
-        super.visit(expression);
-    }
-
-    @Override
-    public void visit(LambdaFormalParametersExpression expression) {
         if (maxLineNumber < expression.getLineNumber()) {
             maxLineNumber = expression.getLineNumber();
         }

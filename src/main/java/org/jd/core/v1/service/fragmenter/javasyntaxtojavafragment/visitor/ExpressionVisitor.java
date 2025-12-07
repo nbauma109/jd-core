@@ -35,7 +35,6 @@ import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.FloatConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
-import org.jd.core.v1.model.javasyntax.expression.LambdaFormalParametersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -356,40 +355,6 @@ public class ExpressionVisitor extends TypeVisitor {
         BaseType type = expression.getInstanceOfType();
 
         type.accept(this);
-    }
-
-    @Override
-    public void visit(LambdaFormalParametersExpression expression) {
-        BaseFormalParameter parameters = expression.getFormalParameters();
-
-        if (parameters == null) {
-            tokens.add(TextToken.LEFTRIGHTROUNDBRACKETS);
-        } else {
-            int size = parameters.size();
-
-            switch (size) {
-                case 0:
-                    tokens.add(TextToken.LEFTRIGHTROUNDBRACKETS);
-                    break;
-                case 1:
-                    parameters.getFirst().accept(this);
-                    break;
-                default:
-                    tokens.add(TextToken.LEFTROUNDBRACKET);
-                    Iterator<FormalParameter> iterator = parameters.iterator();
-                    iterator.next().accept(this);
-
-                    while (iterator.hasNext()) {
-                        tokens.add(TextToken.COMMA_SPACE);
-                        iterator.next().accept(this);
-                    }
-
-                    tokens.add(TextToken.RIGHTROUNDBRACKET);
-                    break;
-            }
-        }
-
-        visitLambdaBody(expression.getStatements());
     }
 
     @Override
@@ -934,8 +899,6 @@ public class ExpressionVisitor extends TypeVisitor {
         public void visit(FloatConstantExpression expression) { ExpressionVisitor.this.visit(expression); }
         @Override
         public void visit(InstanceOfExpression expression) { ExpressionVisitor.this.visit(expression); }
-        @Override
-        public void visit(LambdaFormalParametersExpression expression) { ExpressionVisitor.this.visit(expression); }
         @Override
         public void visit(LambdaIdentifiersExpression expression) { ExpressionVisitor.this.visit(expression); }
         @Override

@@ -25,7 +25,6 @@ import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.FloatConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
-import org.jd.core.v1.model.javasyntax.expression.LambdaFormalParametersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -883,8 +882,6 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     public void visit(IntegerConstantExpression expression) {}
     @Override
     public void visit(InstanceOfExpression expression) {}
-    @Override
-    public void visit(LambdaFormalParametersExpression expression) {}
     @Override
     public void visit(LambdaIdentifiersExpression expression) {}
     @Override

@@ -183,7 +183,7 @@
     <dependency>
       <groupId>io.github.nbauma109</groupId>
       <artifactId>jd-util</artifactId>
-      <version>1.2.3</version>
+      <version>1.2.4</version>
     </dependency>
     <!-- test dependencies -->
     <dependency>

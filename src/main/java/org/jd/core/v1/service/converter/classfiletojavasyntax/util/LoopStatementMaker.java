@@ -144,21 +144,21 @@ public final class LoopStatementMaker {
                     // Unknown line numbers => Just try to find 'for (expression;;expression)'
                     return createForStatementWithoutLineNumber(localVariableMaker, loopBasicBlock, statements, condition, subStatements);
                 }
-            // Known line numbers
-            SearchFirstLineNumberVisitor visitor = new SearchFirstLineNumberVisitor();
-
-            subStatements.getFirst().accept(visitor);
-
-            int firstLineNumber = visitor.getLineNumber();
-
-            // Populates 'update'
-            Expressions update = extractUpdate(subStatements, firstLineNumber);
-            BaseExpression init = extractInit(statements, lineNumber);
-
-            if (init != null || !update.isEmpty()) {
-                return newClassFileForStatement(
-                    localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, update, subStatements);
-            }
+                // Known line numbers
+                SearchFirstLineNumberVisitor visitor = new SearchFirstLineNumberVisitor();
+                
+                subStatements.getFirst().accept(visitor);
+                
+                int firstLineNumber = visitor.getLineNumber();
+                
+                // Populates 'update'
+                Expressions update = extractUpdate(subStatements, firstLineNumber);
+                BaseExpression init = extractInit(statements, lineNumber);
+                
+                if (init != null || !update.isEmpty()) {
+                    return newClassFileForStatement(
+                        localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, update, subStatements);
+                }
                 break;
         }
 

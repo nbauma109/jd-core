@@ -803,24 +803,36 @@ public class ExpressionVisitor extends TypeVisitor {
         visit(parent, child, false);
     }
 
-    protected void visit(Expression parent, Expression child, boolean alwaysUseParenthesis) {
-        if (parent.getPriority() < child.getPriority() || parent.getPriority() == 14 && child.getPriority() == 13 || alwaysUseParenthesis) {
+    protected void visit(Expression parent, Expression child, boolean overridePrecedence) {
+        final int parentPriority = parent.getPriority();
+        final int childPriority = child.getPriority();
+
+        final boolean needsParentheses = overridePrecedence || childPriority > parentPriority;
+
+        if (needsParentheses) {
             tokens.add(TextToken.LEFTROUNDBRACKET);
             child.accept(this);
             tokens.add(TextToken.RIGHTROUNDBRACKET);
-        } else {
-            child.accept(this);
+            return;
         }
+
+        child.accept(this);
     }
 
     protected void visitHexa(Expression parent, Expression child) {
-        if (parent.getPriority() < child.getPriority() || parent.getPriority() == 14 && child.getPriority() == 13) {
+        final int parentPriority = parent.getPriority();
+        final int childPriority = child.getPriority();
+
+        final boolean needsParentheses = childPriority > parentPriority;
+
+        if (needsParentheses) {
             tokens.add(TextToken.LEFTROUNDBRACKET);
             child.accept(hexaExpressionVisitor);
             tokens.add(TextToken.RIGHTROUNDBRACKET);
-        } else {
-            child.accept(hexaExpressionVisitor);
+            return;
         }
+
+        child.accept(hexaExpressionVisitor);
     }
 
     protected static class Context {

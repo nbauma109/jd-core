@@ -45,4 +45,6 @@ public interface ClassFileConstructorOrMethodDeclaration extends ClassFileMember
 
     BaseStatement getStatements();
     void setStatements(BaseStatement statements);
+
+    void setFirstLineNumber(int firstLineNumber);
 }

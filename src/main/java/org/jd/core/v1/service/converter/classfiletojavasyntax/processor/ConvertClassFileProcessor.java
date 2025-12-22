@@ -6,6 +6,7 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.processor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +43,7 @@ import org.jd.core.v1.model.javasyntax.declaration.Declaration;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.ModuleDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.RecordDeclaration.RecordComponent;
 import org.jd.core.v1.model.javasyntax.declaration.TypeDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.DoubleConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
@@ -54,6 +56,7 @@ import org.jd.core.v1.model.javasyntax.reference.BaseElementValue;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeParameter;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeParameter;
@@ -68,9 +71,11 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileInterfaceDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileRecordDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.AnnotationConverter;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.RecordHelper;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.PopulateBindingsWithTypeParameterVisitor;
 import org.jd.core.v1.util.DefaultList;
@@ -108,6 +113,8 @@ public class ConvertClassFileProcessor {
             typeDeclaration = convertModuleDeclaration(classFile);
         } else if (classFile.isInterface()) {
             typeDeclaration = convertInterfaceDeclaration(typeMaker, annotationConverter, classFile, null);
+        } else if (ObjectType.TYPE_RECORD.getInternalName().equals(classFile.getSuperTypeName())) {
+            typeDeclaration = convertRecordDeclaration(typeMaker, annotationConverter, classFile, null);
         } else {
             typeDeclaration = convertClassDeclaration(typeMaker, annotationConverter, classFile, null);
         }
@@ -162,7 +169,24 @@ public class ConvertClassFileProcessor {
                 typeTypes.getInterfaces(), bodyDeclaration);
     }
 
+    protected ClassFileRecordDeclaration convertRecordDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
+        BaseAnnotationReference annotationReferences = convertAnnotationReferences(converter, classFile);
+        TypeMaker.TypeTypes typeTypes = parser.parseClassFileSignature(classFile);
+        List<RecordComponent> recordComponents = new ArrayList<>();
+        ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration, recordComponents);
+
+        return new ClassFileRecordDeclaration(
+                annotationReferences, classFile.getAccessFlags(),
+                typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
+                typeTypes.getTypeParameters(), recordComponents,
+                typeTypes.getInterfaces(), bodyDeclaration);
+    }
+
     protected ClassFileBodyDeclaration convertBodyDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, BaseTypeParameter typeParameters, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
+        return convertBodyDeclaration(parser, converter, classFile, typeParameters, outerClassFileBodyDeclaration, null);
+    }
+
+    protected ClassFileBodyDeclaration convertBodyDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, BaseTypeParameter typeParameters, ClassFileBodyDeclaration outerClassFileBodyDeclaration, List<RecordComponent> recordComponents) {
         Map<String, TypeArgument> bindings;
         Map<String, BaseType> typeBounds;
 
@@ -183,14 +207,14 @@ public class ConvertClassFileProcessor {
 
         ClassFileBodyDeclaration bodyDeclaration = new ClassFileBodyDeclaration(classFile, bindings, typeBounds, outerClassFileBodyDeclaration);
 
-        bodyDeclaration.setFieldDeclarations(convertFields(parser, converter, classFile));
-        bodyDeclaration.setMethodDeclarations(convertMethods(parser, converter, bodyDeclaration, classFile));
+        bodyDeclaration.setFieldDeclarations(convertFields(parser, converter, classFile, recordComponents));
+        bodyDeclaration.setMethodDeclarations(convertMethods(parser, converter, bodyDeclaration, classFile, recordComponents));
         bodyDeclaration.setInnerTypeDeclarations(convertInnerTypes(parser, converter, classFile, bodyDeclaration));
 
         return bodyDeclaration;
     }
 
-    protected List<ClassFileFieldDeclaration> convertFields(TypeMaker parser, AnnotationConverter converter, ClassFile classFile) {
+    protected List<ClassFileFieldDeclaration> convertFields(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, List<RecordComponent> recordComponents) {
         Field[] fields = classFile.getFields();
 
         DefaultList<ClassFileFieldDeclaration> list = new DefaultList<>(fields.length);
@@ -203,15 +227,20 @@ public class ConvertClassFileProcessor {
             typeField = parser.parseFieldSignature(classFile, field);
             variableInitializer = convertFieldInitializer(field, typeField);
             fieldDeclarator = new FieldDeclarator(field.getName(), variableInitializer);
-
-            list.add(new ClassFileFieldDeclaration(annotationReferences, field.getAccessFlags(), typeField, fieldDeclarator));
+            if (recordComponents == null) {
+                list.add(new ClassFileFieldDeclaration(annotationReferences, field.getAccessFlags(), typeField, fieldDeclarator));
+            } else {
+                recordComponents.add(new RecordComponent(annotationReferences, typeField, field.getName()));
+            }
         }
         return list;
     }
 
-    protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile) {
+    protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile, List<RecordComponent> recordComponents) {
         Method[] methods = classFile.getMethods();
-
+        if (recordComponents != null) {
+            methods = RecordHelper.removeImplicitDefaultRecordMethods(classFile);
+        }
         DefaultList<ClassFileConstructorOrMethodDeclaration> list = new DefaultList<>(methods.length);
         String name;
         BaseAnnotationReference annotationReferences;
@@ -258,9 +287,15 @@ public class ConvertClassFileProcessor {
             }
 
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
-                list.add(new ClassFileConstructorDeclaration(
-                        bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
-                        methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
+                if (recordComponents == null) {
+                    list.add(new ClassFileConstructorDeclaration(
+                            bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
+                            methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
+                } else {
+                    list.add(new ClassFileRecordConstructorDeclaration(
+                            bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
+                            methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
+                }
             } else if (StringConstants.CLASS_CONSTRUCTOR.equals(name)) {
                 list.add(new ClassFileStaticInitializerDeclaration(bodyDeclaration, classFile, method, bindings, typeBounds, firstLineNumber));
             } else {

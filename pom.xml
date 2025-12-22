@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.nbauma109</groupId>
   <artifactId>jd-core</artifactId>
-  <version>1.2.34-SNAPSHOT</version>
+  <version>1.3.0-SNAPSHOT</version>
 
   <name>JD Core</name>
   <description>An analytic Java decompiler built on top of Emmanuel Dupuy's jd-core</description>

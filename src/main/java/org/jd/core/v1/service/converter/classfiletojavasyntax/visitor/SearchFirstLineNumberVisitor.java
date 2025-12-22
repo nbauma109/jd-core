@@ -12,7 +12,6 @@ import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
-import org.jd.core.v1.model.javasyntax.expression.CommentExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.DoubleConstantExpression;
@@ -56,6 +55,7 @@ import org.jd.core.v1.model.javasyntax.statement.SynchronizedStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 
 import java.util.List;
 
@@ -97,8 +97,6 @@ public class SearchFirstLineNumberVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(BooleanExpression expression) { lineNumber = expression.getLineNumber(); }
     @Override
     public void visit(CastExpression expression) { lineNumber = expression.getLineNumber(); }
-    @Override
-    public void visit(CommentExpression expression) { lineNumber = expression.getLineNumber(); }
     @Override
     public void visit(ConstructorInvocationExpression expression) { lineNumber = expression.getLineNumber(); }
     @Override
@@ -245,5 +243,10 @@ public class SearchFirstLineNumberVisitor extends AbstractJavaSyntaxVisitor {
         } else {
             statement.getTryStatements().accept(this);
         }
+    }
+
+    @Override
+    public void visit(YieldExpressionStatement statement) {
+        statement.getExpression().accept(this);
     }
 }

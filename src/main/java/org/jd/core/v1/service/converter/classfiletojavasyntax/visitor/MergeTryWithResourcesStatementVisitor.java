@@ -33,6 +33,7 @@ import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.TypeDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 
 import java.util.List;
@@ -105,6 +106,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
     @Override public void visit(ThrowStatement statement) {}
     @Override public void visit(TryStatement.Resource statement) {}
     @Override public void visit(TypeDeclarationStatement statement) {}
+    @Override public void visit(YieldExpressionStatement statement) {}
 
     protected void safeAccept(BaseStatement list) {
         if (list != null) {

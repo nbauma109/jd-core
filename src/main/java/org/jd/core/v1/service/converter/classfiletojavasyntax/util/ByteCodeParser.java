@@ -62,7 +62,6 @@ import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
-import org.jd.core.v1.model.javasyntax.statement.LambdaExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -1510,55 +1509,43 @@ public class ByteCodeParser {
         return names.subList(names.size() - parameterCount, names.size());
     }
 
-    private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters, BaseStatement baseStatement) {
-        if (baseStatement != null) {
-            if (formalParameters != null && indyParameters != null) {
-                int size = indyParameters.size();
+    private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,
+            BaseStatement baseStatement) {
+        if (baseStatement != null && formalParameters != null && indyParameters != null && indyParameters.size() > 0
+                && indyParameters.size() <= formalParameters.size()) {
+            Map<String, String> mapping = new HashMap<>();
+            Expression expression = indyParameters.getFirst();
 
-                if (size > 0 && size <= formalParameters.size()) {
-                    Map<String, String> mapping = new HashMap<>();
-                    Expression expression = indyParameters.getFirst();
+            if (expression.isLocalVariableReferenceExpression()) {
+                String name = formalParameters.getFirst().getName();
+                String newName = expression.getName();
 
-                    if (expression.isLocalVariableReferenceExpression()) {
-                        String name = formalParameters.getFirst().getName();
-                        String newName = expression.getName();
-
-                        if (!name.equals(newName)) {
-                            mapping.put(name, newName);
-                        }
-                    }
-
-                    if (size > 1) {
-                        DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
-                        DefaultList<Expression> list = indyParameters.getList();
-
-                        for (int i = 1; i < size; i++) {
-                            expression = list.get(i);
-
-                            if (expression.isLocalVariableReferenceExpression()) {
-                                FormalParameter formalParameter = formalParameterList.get(i);
-                                if (formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
-                                    AbstractLocalVariable localVariable = classFileFormalParameter.getLocalVariable();
-                                    if (!localVariable.isAssignableFrom(typeBounds, expression.getType())) {
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (!mapping.isEmpty()) {
-                        renameLocalVariablesVisitor.init(mapping, true);
-                        baseStatement.accept(renameLocalVariablesVisitor);
-                    }
+                if (!name.equals(newName)) {
+                    mapping.put(name, newName);
                 }
             }
 
-            if (baseStatement.size() == 1) {
-                Statement statement = baseStatement.getFirst();
+            if (indyParameters.size() > 1) {
+                DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
+                DefaultList<Expression> list = indyParameters.getList();
 
-                if (statement.isReturnExpressionStatement() || statement.isExpressionStatement()) {
-                    return new LambdaExpressionStatement(statement.getExpression());
+                for (int i = 1; i < indyParameters.size(); i++) {
+                    expression = list.get(i);
+
+                    if (expression.isLocalVariableReferenceExpression()) {
+                        FormalParameter formalParameter = formalParameterList.get(i);
+                        if (formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
+                            AbstractLocalVariable localVariable = classFileFormalParameter.getLocalVariable();
+                            if (!localVariable.isAssignableFrom(typeBounds, expression.getType())) {
+                                continue;
+                            }
+                        }
+                    }
                 }
+            }
+            if (!mapping.isEmpty()) {
+                renameLocalVariablesVisitor.init(mapping, true);
+                baseStatement.accept(renameLocalVariablesVisitor);
             }
         }
 

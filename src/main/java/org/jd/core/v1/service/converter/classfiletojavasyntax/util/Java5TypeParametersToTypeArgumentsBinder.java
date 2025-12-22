@@ -13,7 +13,6 @@ import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
-import org.jd.core.v1.model.javasyntax.expression.CommentExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.DoubleConstantExpression;
@@ -44,6 +43,7 @@ import org.jd.core.v1.model.javasyntax.expression.QualifiedSuperExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
@@ -859,11 +859,19 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     @Override
+    public void visit(SwitchExpression expression) {}
+    @Override
+    public void visit(SwitchExpression.DefaultLabel defaultLabel) {}
+    @Override
+    public void visit(SwitchExpression.ExpressionLabel expressionLabel) {}
+    @Override
+    public void visit(SwitchExpression.RuleExpression ruleExpression) {}
+    @Override
+    public void visit(SwitchExpression.RuleStatement ruleStatement) {}
+    @Override
     public void visit(ArrayExpression expression) {}
     @Override
     public void visit(BooleanExpression expression) {}
-    @Override
-    public void visit(CommentExpression expression) {}
     @Override
     public void visit(ConstructorInvocationExpression expression) {}
     @Override

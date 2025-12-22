@@ -82,7 +82,7 @@ public final class StringConcatenationUtil {
 
                 while (st.hasMoreTokens()) {
                     token = st.nextToken();
-                    Expression e = StringConstants.START_OF_HEADING.equals(token) ? list.get(index++) : new StringConstantExpression(token);
+                    Expression e = StringConstants.START_OF_HEADING.equals(token) ? list.get(++index) : new StringConstantExpression(token);
                     expression = new BinaryOperatorExpression(expression.getLineNumber(), ObjectType.TYPE_STRING, expression, "+", e, 6);
                 }
             } else {

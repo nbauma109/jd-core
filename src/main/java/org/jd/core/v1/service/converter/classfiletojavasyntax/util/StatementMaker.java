@@ -21,6 +21,7 @@ import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
 import org.jd.core.v1.model.javasyntax.statement.AssertStatement;
@@ -38,6 +39,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
@@ -63,6 +65,7 @@ import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
@@ -70,7 +73,6 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.apache.bcel.Const.ASTORE;
 import static org.apache.bcel.Const.MAJOR_1_7;
@@ -94,6 +96,7 @@ import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_FLOAT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_INT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_LONG;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_SHORT;
+import static org.jd.core.v1.parser.util.ASTUtilities.toBaseStatement;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_SINGLE_SUCCESSOR;
@@ -439,65 +442,165 @@ public class StatementMaker {
         return expression;
     }
 
+    private SwitchExpression buildSwitchExpression(
+            int lineNumber,
+            Expression selector,
+            Type selectorType,
+            List<BasicBlock.SwitchCase> switchCases,
+            List<ParsedRuleGroup> parsedGroups) {
+
+        Type resultType = null;
+        List<SwitchExpression.Rule> rules = new ArrayList<>(parsedGroups.size());
+
+        for (ParsedRuleGroup group : parsedGroups) {
+            List<SwitchExpression.Label> labels = new ArrayList<>();
+
+            if (group.defaultCase()) {
+                labels.add(SwitchExpression.DEFAULT_LABEL);
+            } else {
+                for (int k = group.fromIndexInclusive(); k < group.toIndexExclusive(); k++) {
+                    labels.add(new SwitchExpression.ExpressionLabel(
+                            new IntegerConstantExpression(selectorType, switchCases.get(k).getValue())
+                    ));
+                }
+            }
+
+            if (group.result() != null) {
+                if (resultType == null) {
+                    resultType = group.result().getType();
+                }
+
+                if (group.statements().isEmpty()) {
+                    rules.add(new SwitchExpression.RuleExpression(labels, group.result()));
+                } else {
+                    group.statements().add(new YieldExpressionStatement(group.result()));
+                    rules.add(new SwitchExpression.RuleStatement(labels, group.statements()));
+                }
+            } else {
+                rules.add(new SwitchExpression.RuleStatement(labels, toBaseStatement(group.statements())));
+            }
+        }
+
+        if (resultType == null) {
+            resultType = ObjectType.TYPE_OBJECT;
+        }
+
+        return new SwitchExpression(lineNumber, selector, rules, resultType);
+    }
+
+
     protected void parseSwitch(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
         parseByteCode(basicBlock, statements);
 
-        List<SwitchCase> switchCases = basicBlock.getSwitchCases();
-        SwitchStatement switchStatement = (SwitchStatement)statements.getLast();
-        Expression condition = switchStatement.getCondition();
-        Type conditionType = condition.getType();
-        List<SwitchStatement.Block> blocks = switchStatement.getBlocks();
-        DefaultStack<Expression> localStack = new DefaultStack<>(stack);
+        List<BasicBlock.SwitchCase> switchCases = basicBlock.getSwitchCases();
+        SwitchStatement switchStatement = (SwitchStatement) statements.getLast();
+        Expression selector = switchStatement.getCondition();
+        Type selectorType = selector.getType();
+        BasicBlock join = basicBlock.getNext();
+
+        DefaultStack<Expression> entryStack = new DefaultStack<>(stack);
 
         switchCases.sort(SWITCH_CASE_COMPARATOR);
 
-        SwitchCase sc;
-        BasicBlock bb;
-        int j;
-        Statements subStatements;
-        for (int i=0, len=switchCases.size(); i<len; i++) {
-            sc = switchCases.get(i);
-            bb = sc.getBasicBlock();
-            j = i + 1;
+        if (ByteCodeUtil.isSwitchExpressionJoin(join)) {
+            List<ParsedRuleGroup> parsedGroups = new ArrayList<>();
+            boolean matches = true;
+
+            for (int i = 0, len = switchCases.size(); i < len; i++) {
+                BasicBlock.SwitchCase first = switchCases.get(i);
+                BasicBlock target = first.getBasicBlock();
+                int j = i + 1;
+
+                while (j < len && target == switchCases.get(j).getBasicBlock()) {
+                    j++;
+                }
+
+                Statements subStatements = new Statements();
+
+                stack.copy(entryStack);
+                makeStatements(watchdog, target, subStatements, jumps);
+                replacePreOperatorWithPostOperator(subStatements);
+
+                Expression ruleResult = null;
+
+                if (stack.size() == 1) {
+                    ruleResult = stack.pop();
+                } else if (stack.size() != 0) {
+                    matches = false;
+                }
+
+                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
+
+                if (!matches) {
+                    break;
+                }
+
+                i = j - 1;
+            }
+
+            if (matches) {
+
+                SwitchExpression switchExpression =
+                        buildSwitchExpression(selector.getLineNumber(), selector, selectorType, switchCases, parsedGroups);
+
+                statements.remove(statements.size() - 1);
+
+                stack.copy(entryStack);
+                stack.push(switchExpression);
+
+                makeStatements(watchdog, join, statements, jumps);
+                return;
+            }
+        }
+
+        List<SwitchStatement.Block> blocks = switchStatement.getBlocks();
+
+        for (int i = 0, len = switchCases.size(); i < len; i++) {
+            BasicBlock.SwitchCase sc = switchCases.get(i);
+            BasicBlock bb = sc.getBasicBlock();
+            int j = i + 1;
 
             while (j < len && bb == switchCases.get(j).getBasicBlock()) {
                 j++;
             }
 
-            subStatements = new Statements();
+            Statements subStatements = new Statements();
 
-            stack.copy(localStack);
+            stack.copy(entryStack);
             makeStatements(watchdog, bb, subStatements, jumps);
             replacePreOperatorWithPostOperator(subStatements);
 
             if (sc.isDefaultCase()) {
                 blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements));
             } else if (j == i + 1) {
-                SwitchStatement.Label label = new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(conditionType, sc.getValue()));
+                SwitchStatement.Label label =
+                        new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
                 blocks.add(new SwitchStatement.LabelBlock(label, subStatements));
             } else {
                 DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
 
-                for (; i<j; i++) {
-                    labels.add(new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(conditionType, switchCases.get(i).getValue())));
+                for (; i < j; i++) {
+                    labels.add(new SwitchStatement.ExpressionLabel(
+                            new IntegerConstantExpression(selectorType, switchCases.get(i).getValue())
+                    ));
                 }
 
                 blocks.add(new SwitchStatement.MultiLabelsBlock(labels, subStatements));
                 i--;
             }
+
+            i = j - 1;
         }
 
         int size = statements.size();
 
-        if (size > 3 && condition.isLocalVariableReferenceExpression() && statements.get(size-2).isSwitchStatement()) {
-            // Check pattern & make 'switch-string'
+        if (size > 3 && selector.isLocalVariableReferenceExpression() && statements.get(size - 2).isSwitchStatement()) {
             SwitchStatementMaker.makeSwitchString(localVariableMaker, statements, switchStatement);
-        } else if (condition.isArrayExpression()) {
-            // Check pattern & make 'switch-enum'
+        } else if (selector.isArrayExpression()) {
             SwitchStatementMaker.makeSwitchEnum(bodyDeclaration, switchStatement, typeMaker);
         }
 
-        makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
+        makeStatements(watchdog, join, statements, jumps);
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {

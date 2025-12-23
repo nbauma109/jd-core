@@ -15,6 +15,7 @@ import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.ClassDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.EnumDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.RecordDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.TypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileEnumDeclaration;
@@ -90,6 +91,14 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         addCastExpressionVisitor.popContext(declaration);
     }
 
+    @Override
+    public void visit(RecordDeclaration declaration) {
+        this.typeDeclaration = declaration;
+        addCastExpressionVisitor.pushContext(declaration);
+        safeAccept(declaration.getBodyDeclaration());
+        addCastExpressionVisitor.popContext(declaration);
+    }
+    
     @Override
     public void visit(InterfaceDeclaration declaration) {
         this.typeDeclaration = declaration;

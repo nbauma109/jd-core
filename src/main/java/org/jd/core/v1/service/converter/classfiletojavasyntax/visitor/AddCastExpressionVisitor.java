@@ -20,6 +20,7 @@ import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.RecordDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
@@ -69,7 +70,7 @@ import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorInvocationExpression;
@@ -182,7 +183,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 Map<String, BaseType> tb = typeBounds;
                 BaseType et = exceptionTypes;
 
-                typeBounds = ((ClassFileConstructorDeclaration) declaration).getTypeBounds();
+                typeBounds = ((ClassFileConstructorOrMethodDeclaration) declaration).getTypeBounds();
                 exceptionTypes = declaration.getExceptionTypes();
                 statements.accept(this);
                 typeBounds = tb;
@@ -260,6 +261,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    public void pushContext(RecordDeclaration declaration) {
+        if (declaration.getTypeParameters() != null) {
+            typeParameters.push(new TypeParameter(false, declaration.getTypeParameters()));
+        }
+    }
+    
+    public void popContext(RecordDeclaration declaration) {
+        if (declaration.getTypeParameters() != null) {
+            typeParameters.pop();
+        }
+    }
+    
     @Override
     public void visit(LambdaIdentifiersExpression expression) {
         visitingLambda = true;

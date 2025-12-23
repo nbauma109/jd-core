@@ -43,6 +43,7 @@ import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileClassDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMemberDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
@@ -115,7 +116,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
-        ClassFileConstructorDeclaration cfcd = (ClassFileConstructorDeclaration)declaration;
+        ClassFileConstructorOrMethodDeclaration cfcd = (ClassFileConstructorOrMethodDeclaration)declaration;
         ClassFile classFile = cfcd.getClassFile();
         ClassFile outerClassFile = classFile.getOuterClassFile();
         boolean removeFirstParameter = false;
@@ -345,7 +346,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(ConstructorDeclaration declaration) {
-            classFile = ((ClassFileConstructorDeclaration)declaration).getClassFile();
+            classFile = ((ClassFileConstructorOrMethodDeclaration)declaration).getClassFile();
             finalLocalVariableNameMap.clear();
             localClassDeclarations.clear();
 

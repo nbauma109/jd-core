@@ -23,7 +23,6 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMemberDeclaration;
 
@@ -60,7 +59,7 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
     @Override
     public void visit(ConstructorDeclaration declaration) {
         if ((declaration.getFlags() & Const.ACC_ABSTRACT) == 0) {
-            ClassFileConstructorDeclaration cfcd = (ClassFileConstructorDeclaration)declaration;
+            ClassFileConstructorOrMethodDeclaration cfcd = (ClassFileConstructorOrMethodDeclaration)declaration;
 
             if (cfcd.getStatements() != null && cfcd.getStatements().isStatements()) {
                 Statements statements = (Statements) cfcd.getStatements();

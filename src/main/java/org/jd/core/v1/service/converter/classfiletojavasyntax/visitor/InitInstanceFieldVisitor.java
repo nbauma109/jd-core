@@ -27,7 +27,7 @@ import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpr
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
 import org.jd.core.v1.util.DefaultList;
@@ -94,7 +94,7 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
-        ClassFileConstructorDeclaration cfcd = (ClassFileConstructorDeclaration)declaration;
+        ClassFileConstructorOrMethodDeclaration cfcd = (ClassFileConstructorOrMethodDeclaration)declaration;
 
         if (cfcd.getStatements() != null && cfcd.getStatements().isStatements()) {
             Statements statements = (Statements) cfcd.getStatements();
@@ -315,11 +315,11 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     protected static final class Data {
-        private final ClassFileConstructorDeclaration declaration;
+        private final ClassFileConstructorOrMethodDeclaration declaration;
         private final Statements statements;
         private final int index;
 
-        public Data(ClassFileConstructorDeclaration declaration, Statements statements, int index) {
+        public Data(ClassFileConstructorOrMethodDeclaration declaration, Statements statements, int index) {
             this.declaration = declaration;
             this.statements = statements;
             this.index = index;

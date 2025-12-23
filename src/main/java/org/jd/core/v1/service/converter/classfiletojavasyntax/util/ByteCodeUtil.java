@@ -22,6 +22,60 @@ public final class ByteCodeUtil {
     private ByteCodeUtil() {
     }
 
+    public static boolean isStoreOpcode(int opcode) {
+        switch (opcode) {
+            case Const.ISTORE, Const.ISTORE_0, Const.ISTORE_1, Const.ISTORE_2, Const.ISTORE_3,
+                 Const.LSTORE, Const.LSTORE_0, Const.LSTORE_1, Const.LSTORE_2, Const.LSTORE_3,
+                 Const.FSTORE, Const.FSTORE_0, Const.FSTORE_1, Const.FSTORE_2, Const.FSTORE_3,
+                 Const.DSTORE, Const.DSTORE_0, Const.DSTORE_1, Const.DSTORE_2, Const.DSTORE_3,
+                 Const.ASTORE, Const.ASTORE_0, Const.ASTORE_1, Const.ASTORE_2, Const.ASTORE_3:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public static boolean isReturnOpcode(int opcode) {
+        switch (opcode) {
+            case Const.IRETURN, Const.LRETURN, Const.FRETURN, Const.DRETURN, Const.ARETURN:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public static boolean isSwitchExpressionJoinOpcode(int opcode) {
+        return isStoreOpcode(opcode) || isReturnOpcode(opcode);
+    }
+
+    public static boolean isSwitchExpressionJoin(BasicBlock basicBlock) {
+        if (basicBlock == null || basicBlock == BasicBlock.END || basicBlock == BasicBlock.SWITCH_BREAK) {
+            return false;
+        }
+        if (basicBlock.getControlFlowGraph() == null) {
+            return false;
+        }
+
+        final byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
+        final int fromOffset = basicBlock.getFromOffset();
+
+        if (fromOffset < 0 || fromOffset >= code.length) {
+            return false;
+        }
+
+        int opcode = code[fromOffset] & 0xFF;
+
+        if (opcode == Const.WIDE) {
+            final int nextOffset = fromOffset + 1;
+            if (nextOffset >= code.length) {
+                return false;
+            }
+            opcode = code[nextOffset] & 0xFF;
+        }
+
+        return isSwitchExpressionJoinOpcode(opcode);
+    }
+
     public static int searchNextOpcode(final BasicBlock basicBlock, final int maxOffset) {
         final byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
         int offset = basicBlock.getFromOffset();

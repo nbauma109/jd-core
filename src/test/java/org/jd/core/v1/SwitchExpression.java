@@ -20,6 +20,16 @@ public class SwitchExpression {
         return "return:" + s;
     }
 
+    public String returnSwitch(int i) {
+        return switch (i) {
+        case 0 -> "Test.method4 case 0";
+        case 1 -> "Test.method4 case 1";
+        case 2 -> "Test.method4 case 2";
+        case 3 -> "Test.method4 case 3";
+        default -> throw new IllegalArgumentException();
+        };
+    }
+    
     @SuppressWarnings("all")
     public String yieldSwitch(int i) {
         String s = switch (i) {

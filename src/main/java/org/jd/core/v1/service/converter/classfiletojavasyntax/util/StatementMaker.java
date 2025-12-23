@@ -539,11 +539,6 @@ public class StatementMaker {
             }
 
             if (matches) {
-                for (ParsedRuleGroup group : parsedGroups) {
-                    if (!group.statements().isEmpty() && group.statements().getLast().isBreakStatement()) {
-                        group.statements().remove(group.statements().size() - 1);
-                    }
-                }
 
                 SwitchExpression switchExpression =
                         buildSwitchExpression(selector.getLineNumber(), selector, selectorType, switchCases, parsedGroups);

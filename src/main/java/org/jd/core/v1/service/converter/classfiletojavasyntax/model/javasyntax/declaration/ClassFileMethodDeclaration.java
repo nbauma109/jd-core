@@ -108,7 +108,7 @@ public class ClassFileMethodDeclaration extends MethodDeclaration implements Cla
     public int getFirstLineNumber() {
         return firstLineNumber;
     }
-    
+
     @Override
     public void setFirstLineNumber(int firstLineNumber) {
         this.firstLineNumber = firstLineNumber;

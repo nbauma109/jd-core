@@ -50,7 +50,7 @@ public class ClassFileRecordConstructorDeclaration extends RecordConstructorDecl
     public void setFormalParameters(BaseFormalParameter formalParameters) {
         this.formalParameters = formalParameters;
     }
-    
+
     @Override
     public void setStatements(BaseStatement statements) {
         this.statements = statements;
@@ -84,11 +84,11 @@ public class ClassFileRecordConstructorDeclaration extends RecordConstructorDecl
     public Map<String, TypeArgument> getBindings() {
         return bindings;
     }
-    
+
     public Map<String, BaseType> getTypeBounds() {
         return typeBounds;
     }
-    
+
     public int getFirstLineNumber() {
         return firstLineNumber;
     }

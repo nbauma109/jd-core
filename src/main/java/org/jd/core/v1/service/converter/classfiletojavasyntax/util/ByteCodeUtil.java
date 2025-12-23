@@ -23,25 +23,22 @@ public final class ByteCodeUtil {
     }
 
     public static boolean isStoreOpcode(int opcode) {
-        switch (opcode) {
-            case Const.ISTORE, Const.ISTORE_0, Const.ISTORE_1, Const.ISTORE_2, Const.ISTORE_3,
-                 Const.LSTORE, Const.LSTORE_0, Const.LSTORE_1, Const.LSTORE_2, Const.LSTORE_3,
-                 Const.FSTORE, Const.FSTORE_0, Const.FSTORE_1, Const.FSTORE_2, Const.FSTORE_3,
-                 Const.DSTORE, Const.DSTORE_0, Const.DSTORE_1, Const.DSTORE_2, Const.DSTORE_3,
-                 Const.ASTORE, Const.ASTORE_0, Const.ASTORE_1, Const.ASTORE_2, Const.ASTORE_3:
-                return true;
-            default:
-                return false;
-        }
+        return switch (opcode) {
+            case Const.ISTORE, Const.ISTORE_0, Const.ISTORE_1, Const.ISTORE_2, Const.ISTORE_3, Const.LSTORE,
+                    Const.LSTORE_0, Const.LSTORE_1, Const.LSTORE_2, Const.LSTORE_3, Const.FSTORE,
+                    Const.FSTORE_0, Const.FSTORE_1, Const.FSTORE_2, Const.FSTORE_3, Const.DSTORE,
+                    Const.DSTORE_0, Const.DSTORE_1, Const.DSTORE_2, Const.DSTORE_3, Const.ASTORE,
+                    Const.ASTORE_0, Const.ASTORE_1, Const.ASTORE_2, Const.ASTORE_3 ->
+                true;
+            default -> false;
+        };
     }
 
     public static boolean isReturnOpcode(int opcode) {
-        switch (opcode) {
-            case Const.IRETURN, Const.LRETURN, Const.FRETURN, Const.DRETURN, Const.ARETURN:
-                return true;
-            default:
-                return false;
-        }
+        return switch (opcode) {
+            case Const.IRETURN, Const.LRETURN, Const.FRETURN, Const.DRETURN, Const.ARETURN -> true;
+            default -> false;
+        };
     }
 
     public static boolean isSwitchExpressionJoinOpcode(int opcode) {

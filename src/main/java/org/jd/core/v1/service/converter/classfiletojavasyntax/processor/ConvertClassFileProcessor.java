@@ -249,7 +249,7 @@ public class ConvertClassFileProcessor {
         }
         return recordComponents;
     }
-    
+
     protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile) {
         Method[] methods = classFile.getMethods();
         if (classFile.isRecord()) {
@@ -379,13 +379,13 @@ public class ConvertClassFileProcessor {
     protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, RecordComponentInfo recordComponentInfo) {
         Annotations visible = (Annotations) Stream.of(recordComponentInfo.getAttributes()).filter(RuntimeVisibleAnnotations.class::isInstance).findAny().orElse(null);
         Annotations invisibles = (Annotations) Stream.of(recordComponentInfo.getAttributes()).filter(RuntimeInvisibleAnnotations.class::isInstance).findAny().orElse(null);
-        
+
         AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
-        
+
         return converter.convert(visibleEntries, invisibleEntries);
     }
-    
+
     protected ExpressionVariableInitializer convertFieldInitializer(Field field, Type typeField) {
         ConstantValue acv = field.getConstantValue();
         if (acv == null) {

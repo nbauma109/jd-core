@@ -266,13 +266,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             typeParameters.push(new TypeParameter(false, declaration.getTypeParameters()));
         }
     }
-    
+
     public void popContext(RecordDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
             typeParameters.pop();
         }
     }
-    
+
     @Override
     public void visit(LambdaIdentifiersExpression expression) {
         visitingLambda = true;

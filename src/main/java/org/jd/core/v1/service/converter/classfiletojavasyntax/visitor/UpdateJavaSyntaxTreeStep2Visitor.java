@@ -98,7 +98,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         safeAccept(declaration.getBodyDeclaration());
         addCastExpressionVisitor.popContext(declaration);
     }
-    
+
     @Override
     public void visit(InterfaceDeclaration declaration) {
         this.typeDeclaration = declaration;

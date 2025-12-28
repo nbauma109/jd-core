@@ -367,8 +367,8 @@ public class ConvertClassFileProcessor {
     }
 
     protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, FieldOrMethod fieldOrMethod) {
-        Annotations visible = (Annotations) Stream.of(fieldOrMethod.getAttributes()).filter(RuntimeVisibleAnnotations.class::isInstance).findAny().orElse(null);
-        Annotations invisibles = (Annotations) Stream.of(fieldOrMethod.getAttributes()).filter(RuntimeInvisibleAnnotations.class::isInstance).findAny().orElse(null);
+        Annotations visible = fieldOrMethod.getAttribute(Const.ATTR_RUNTIME_VISIBLE_ANNOTATIONS);
+        Annotations invisibles = fieldOrMethod.getAttribute(Const.ATTR_RUNTIME_INVISIBLE_ANNOTATIONS);
 
         AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();

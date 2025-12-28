@@ -35,6 +35,7 @@ import org.apache.bcel.classfile.ModuleExports;
 import org.apache.bcel.classfile.ModuleOpens;
 import org.apache.bcel.classfile.ModuleProvides;
 import org.apache.bcel.classfile.ModuleRequires;
+import org.apache.bcel.classfile.RecordComponentInfo;
 import org.apache.bcel.classfile.RuntimeInvisibleAnnotations;
 import org.apache.bcel.classfile.RuntimeVisibleAnnotations;
 import org.jd.core.v1.model.classfile.ClassFile;
@@ -113,7 +114,7 @@ public class ConvertClassFileProcessor {
             typeDeclaration = convertModuleDeclaration(classFile);
         } else if (classFile.isInterface()) {
             typeDeclaration = convertInterfaceDeclaration(typeMaker, annotationConverter, classFile, null);
-        } else if (ObjectType.TYPE_RECORD.getInternalName().equals(classFile.getSuperTypeName())) {
+        } else if (classFile.isRecord()) {
             typeDeclaration = convertRecordDeclaration(typeMaker, annotationConverter, classFile, null);
         } else {
             typeDeclaration = convertClassDeclaration(typeMaker, annotationConverter, classFile, null);
@@ -172,8 +173,8 @@ public class ConvertClassFileProcessor {
     protected ClassFileRecordDeclaration convertRecordDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
         BaseAnnotationReference annotationReferences = convertAnnotationReferences(converter, classFile);
         TypeMaker.TypeTypes typeTypes = parser.parseClassFileSignature(classFile);
-        List<RecordComponent> recordComponents = new ArrayList<>();
-        ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration, recordComponents);
+        List<RecordComponent> recordComponents = convertRecordComponents(parser, converter, classFile);
+        ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration);
 
         return new ClassFileRecordDeclaration(
                 annotationReferences, classFile.getAccessFlags(),
@@ -183,10 +184,6 @@ public class ConvertClassFileProcessor {
     }
 
     protected ClassFileBodyDeclaration convertBodyDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, BaseTypeParameter typeParameters, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
-        return convertBodyDeclaration(parser, converter, classFile, typeParameters, outerClassFileBodyDeclaration, null);
-    }
-
-    protected ClassFileBodyDeclaration convertBodyDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, BaseTypeParameter typeParameters, ClassFileBodyDeclaration outerClassFileBodyDeclaration, List<RecordComponent> recordComponents) {
         Map<String, TypeArgument> bindings;
         Map<String, BaseType> typeBounds;
 
@@ -207,14 +204,14 @@ public class ConvertClassFileProcessor {
 
         ClassFileBodyDeclaration bodyDeclaration = new ClassFileBodyDeclaration(classFile, bindings, typeBounds, outerClassFileBodyDeclaration);
 
-        bodyDeclaration.setFieldDeclarations(convertFields(parser, converter, classFile, recordComponents));
-        bodyDeclaration.setMethodDeclarations(convertMethods(parser, converter, bodyDeclaration, classFile, recordComponents));
+        bodyDeclaration.setFieldDeclarations(convertFields(parser, converter, classFile));
+        bodyDeclaration.setMethodDeclarations(convertMethods(parser, converter, bodyDeclaration, classFile));
         bodyDeclaration.setInnerTypeDeclarations(convertInnerTypes(parser, converter, classFile, bodyDeclaration));
 
         return bodyDeclaration;
     }
 
-    protected List<ClassFileFieldDeclaration> convertFields(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, List<RecordComponent> recordComponents) {
+    protected List<ClassFileFieldDeclaration> convertFields(TypeMaker parser, AnnotationConverter converter, ClassFile classFile) {
         Field[] fields = classFile.getFields();
 
         DefaultList<ClassFileFieldDeclaration> list = new DefaultList<>(fields.length);
@@ -227,18 +224,35 @@ public class ConvertClassFileProcessor {
             typeField = parser.parseFieldSignature(classFile, field);
             variableInitializer = convertFieldInitializer(field, typeField);
             fieldDeclarator = new FieldDeclarator(field.getName(), variableInitializer);
-            if (recordComponents == null) {
+            if (!classFile.isRecord()) {
                 list.add(new ClassFileFieldDeclaration(annotationReferences, field.getAccessFlags(), typeField, fieldDeclarator));
-            } else {
-                recordComponents.add(new RecordComponent(annotationReferences, typeField, field.getName()));
             }
         }
         return list;
     }
 
-    protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile, List<RecordComponent> recordComponents) {
+    protected List<RecordComponent> convertRecordComponents(TypeMaker parser, AnnotationConverter converter, ClassFile classFile) {
+        List<RecordComponent> recordComponents = new ArrayList<>();
+        org.apache.bcel.classfile.Record recordAttribute = classFile.getAttribute(Const.ATTR_RECORD);
+        BaseAnnotationReference annotationReferences;
+        RecordComponentInfo[] recordComponentInfos = recordAttribute.getComponents();
+        if (recordComponentInfos != null) {
+            for (RecordComponentInfo recordComponentInfo : recordComponentInfos) {
+                annotationReferences = convertAnnotationReferences(converter, recordComponentInfo);
+                int index = recordComponentInfo.getIndex();
+                int descriptorIndex = recordComponentInfo.getDescriptorIndex();
+                String recordComponentName = classFile.getConstantPool().getConstantString(index, Const.CONSTANT_Utf8);
+                String recordComponentSignature = classFile.getConstantPool().getConstantString(descriptorIndex, Const.CONSTANT_Utf8);
+                ObjectType recordComponentType = parser.makeFromDescriptor(recordComponentSignature);
+                recordComponents.add(new RecordComponent(annotationReferences, recordComponentType, recordComponentName));
+            }
+        }
+        return recordComponents;
+    }
+    
+    protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile) {
         Method[] methods = classFile.getMethods();
-        if (recordComponents != null) {
+        if (classFile.isRecord()) {
             methods = RecordHelper.removeImplicitDefaultRecordMethods(classFile);
         }
         DefaultList<ClassFileConstructorOrMethodDeclaration> list = new DefaultList<>(methods.length);
@@ -287,12 +301,12 @@ public class ConvertClassFileProcessor {
             }
 
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
-                if (recordComponents == null) {
-                    list.add(new ClassFileConstructorDeclaration(
+                if (classFile.isRecord()) {
+                    list.add(new ClassFileRecordConstructorDeclaration(
                             bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
                             methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
                 } else {
-                    list.add(new ClassFileRecordConstructorDeclaration(
+                    list.add(new ClassFileConstructorDeclaration(
                             bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
                             methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
                 }
@@ -362,6 +376,16 @@ public class ConvertClassFileProcessor {
         return converter.convert(visibleEntries, invisibleEntries);
     }
 
+    protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, RecordComponentInfo recordComponentInfo) {
+        Annotations visible = (Annotations) Stream.of(recordComponentInfo.getAttributes()).filter(RuntimeVisibleAnnotations.class::isInstance).findAny().orElse(null);
+        Annotations invisibles = (Annotations) Stream.of(recordComponentInfo.getAttributes()).filter(RuntimeInvisibleAnnotations.class::isInstance).findAny().orElse(null);
+        
+        AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
+        AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
+        
+        return converter.convert(visibleEntries, invisibleEntries);
+    }
+    
     protected ExpressionVariableInitializer convertFieldInitializer(Field field, Type typeField) {
         ConstantValue acv = field.getConstantValue();
         if (acv == null) {

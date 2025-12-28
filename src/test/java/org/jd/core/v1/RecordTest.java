@@ -111,4 +111,20 @@ public class RecordTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+    
+    @Test
+    public void testRecordWithAnnotations() throws Exception {
+        String internalClassName = RecordWithAnnotations.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertEqualsIgnoreEOL("""
+                /*   1:   0 */ package org.jd.core.v1;
+                /*   2:   0 */
+                /*   3:   0 */ public record RecordWithAnnotations(@Sensitive("C1") String a, @Sensitive("C0") double d) {}
+                """, source);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
 }

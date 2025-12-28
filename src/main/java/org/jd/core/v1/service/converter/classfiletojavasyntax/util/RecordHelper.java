@@ -132,18 +132,15 @@ public final class RecordHelper {
             return false;
         }
 
-        if (isStrictImplicitCanonicalConstructor(
+        return isStrictImplicitCanonicalConstructor(
                 method,
                 ownerClass,
                 constantPoolGen)
         || isImplicitObjectMethodsBootstrap(
                 method,
                 bootstrapMethods,
-                constantPoolGen)) {
-            return true;
-        }
-
-        return isImplicitRecordComponentAccessor(
+                constantPoolGen)
+        || isImplicitRecordComponentAccessor(
                 method,
                 constantPoolGen,
                 recordComponentNamesByFieldName);

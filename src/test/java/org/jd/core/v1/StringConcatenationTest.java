@@ -53,4 +53,19 @@ public class StringConcatenationTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+
+    @Test
+    public void testStringConcatenationIndy() throws Exception {
+        String internalClassName = StringConcatenation2.class.getName().replace('.', '/');
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/string-concat-indy-jdk21.0.8.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            assertTrue(source.matches(PatternMaker.make("return a + b + c;")));
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
 }

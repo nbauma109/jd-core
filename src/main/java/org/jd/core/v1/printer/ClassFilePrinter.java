@@ -1,8 +1,20 @@
 package org.jd.core.v1.printer;
 
+import org.jd.core.v1.api.Decompiler;
+import org.jd.core.v1.api.loader.Loader;
+
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.apache.bcel.Const.MAJOR_1_1;
+import static org.apache.bcel.Const.MAJOR_1_5;
+import static jd.core.preferences.Preferences.ESCAPE_UNICODE_CHARACTERS;
+import static jd.core.preferences.Preferences.REALIGN_LINE_NUMBERS;
+import static jd.core.preferences.Preferences.WRITE_LINE_NUMBERS;
+import static jd.core.preferences.Preferences.WRITE_METADATA;
+
+import jd.core.ClassUtil;
 import jd.core.DecompilationResult;
 import jd.core.links.DeclarationData;
 import jd.core.links.HyperlinkData;
@@ -133,5 +145,54 @@ public class ClassFilePrinter extends LineNumberStringBuilderPrinter {
 
     public DecompilationResult getResult() {
         return result;
+    }
+
+    public String buildDecompiledOutput(Map<String, String> preferences, Loader loader, String entryPath, Decompiler decompiler) throws IOException {
+        // Init preferences
+        boolean realignmentLineNumbers = Boolean.parseBoolean(preferences.getOrDefault(REALIGN_LINE_NUMBERS, Boolean.FALSE.toString()));
+
+        Map<String, Object> configuration = new HashMap<>();
+        configuration.put("realignLineNumbers", realignmentLineNumbers);
+
+        setRealignmentLineNumber(realignmentLineNumbers);
+        setUnicodeEscape(Boolean.parseBoolean(preferences.getOrDefault(ESCAPE_UNICODE_CHARACTERS, Boolean.FALSE.toString())));
+        setShowLineNumbers(Boolean.parseBoolean(preferences.getOrDefault(WRITE_LINE_NUMBERS, Boolean.TRUE.toString())));
+
+        // Format internal name
+        String entryInternalName = ClassUtil.getInternalName(entryPath);
+
+        // Decompile class file
+        decompiler.decompile(loader, this, entryInternalName, configuration);
+
+        StringBuilder stringBuffer = getStringBuffer();
+
+        // Metadata
+        if (Boolean.parseBoolean(preferences.getOrDefault(WRITE_METADATA, Boolean.TRUE.toString()))) {
+            stringBuffer.append("\n\n/*");
+            // Add Java compiler version
+            int majorVersion = getMajorVersion();
+
+            if (majorVersion >= MAJOR_1_1) {
+                stringBuffer.append("\n * Java compiler version: ");
+
+                if (majorVersion >= MAJOR_1_5) {
+                    stringBuffer.append(majorVersion - (MAJOR_1_5 - 5));
+                } else {
+                    stringBuffer.append("1.");
+                    stringBuffer.append(majorVersion - (MAJOR_1_1 - 1));
+                }
+
+                stringBuffer.append(" (");
+                stringBuffer.append(majorVersion);
+                stringBuffer.append('.');
+                stringBuffer.append(getMinorVersion());
+                stringBuffer.append(')');
+            }
+            // Add JD-Core version
+            stringBuffer.append("\n * JD-Core Version:       ");
+            stringBuffer.append(getVersion());
+            stringBuffer.append("\n */");
+        }
+        return stringBuffer.toString();
     }
 }

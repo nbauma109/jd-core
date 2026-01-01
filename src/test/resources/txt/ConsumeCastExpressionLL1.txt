@@ -7,15 +7,12 @@
 /*  7:  0 */
 /*  8:  0 */ @SuppressFBWarnings
 /*  9:  0 */ public class ConsumeCastExpressionLL1 {
-/* 10:  0 */   Expression[] expressionStack;
+/* 10:  0 */   Expression[] expStack;
 /* 11:  0 */
-/* 12:  0 */   int expressionPtr;
+/* 12:  0 */   int expPtr;
 /* 13:  0 */
 /* 14:  0 */   protected void consumeCastExpressionLL1() {
 /* 15:  0 */     Expression cast, exp;
-/* 16: 21 */     this.expressionStack[this.expressionPtr] =
-/* 17: 22 */       cast = new CastExpression(
-/* 18: 23 */         exp = this.expressionStack[this.expressionPtr + 1],
-/* 19: 24 */         (TypeReference)this.expressionStack[this.expressionPtr]);
-/* 20:  0 */   }
-/* 21:  0 */ }
+/* 16: 21 */     this.expStack[this.expPtr] = cast = new CastExpression(exp = this.expStack[this.expPtr + 1], (TypeReference)this.expStack[this.expPtr]);
+/* 17:  0 */   }
+/* 18:  0 */ }

@@ -9,9 +9,6 @@ package org.jd.core.v1;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
-import org.eclipse.jdt.internal.compiler.ast.CastExpression;
-import org.eclipse.jdt.internal.compiler.ast.Expression;
-import org.eclipse.jdt.internal.compiler.ast.TypeReference;
 import org.jd.core.test.TryResourcesImaging;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
@@ -961,23 +958,6 @@ public class MiscTest extends AbstractJdTest {
 
     @Test
     public void testConsumeCastExpressionLL1() throws Exception {
-        /*
-         * org.eclipse.jdt.internal.compiler.parser.Parser.consumeCastExpressionLL1()
-         */
-        @SuppressWarnings("unused")
-        class ConsumeCastExpressionLL1 {
-            Expression[] expressionStack;
-            int expressionPtr;
-
-            {
-                Expression cast, exp;
-                this.expressionStack[this.expressionPtr] =
-                        cast = new CastExpression(
-                            exp=this.expressionStack[this.expressionPtr+1] ,
-                            (TypeReference) this.expressionStack[this.expressionPtr]);
-            }
-        }
-
         String internalClassName = ConsumeCastExpressionLL1.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 

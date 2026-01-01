@@ -535,7 +535,9 @@ public class Frame {
 
             if ("=".equals(boe.getOperator())) {
 
-                ClassFileLocalVariableReferenceExpression reference = (ClassFileLocalVariableReferenceExpression) boe.getLeftExpression();
+                if (!(boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression reference)) {
+                    return;
+                }
                 AbstractLocalVariable localVariable = reference.getLocalVariable();
 
                 boolean createDeclaration = false;

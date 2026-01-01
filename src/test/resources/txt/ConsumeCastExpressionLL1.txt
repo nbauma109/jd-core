@@ -1,0 +1,19 @@
+/*   1:   0 */ package org.jd.core.v1;
+/*   2:   0 */
+/*   3:   0 */ import org.eclipse.jdt.internal.compiler.ast.CastExpression;
+/*   4:   0 */ import org.eclipse.jdt.internal.compiler.ast.Expression;
+/*   5:   0 */ import org.eclipse.jdt.internal.compiler.ast.TypeReference;
+/*   6:   0 */
+/*   7:   0 */ class ConsumeCastExpressionLL1 {
+/*   8:   0 */   Expression[] expressionStack;
+/*   9:   0 */
+/*  10:   0 */   int expressionPtr;
+/*  11:   0 */
+/*  12:   0 */   ConsumeCastExpressionLL1() {
+/*  13:   0 */     Expression cast, exp;
+/*  14: 975 */     this.expressionStack[this.expressionPtr] =
+/*  15: 976 */       cast = new CastExpression(
+/*  16: 977 */         exp = this.expressionStack[this.expressionPtr + 1],
+/*  17: 978 */         (TypeReference)this.expressionStack[this.expressionPtr]);
+/*  18:   0 */   }
+/*  19:   0 */ }

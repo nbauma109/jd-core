@@ -43,7 +43,7 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
       - name: Build with Maven (excluding JarFileToJavaSourceTest)
-        run: mvn -Dtest=!JarFileToJavaSourceTest test jacoco:report --no-transfer-progress
+        run: mvn "-Dtest=Test*,*Test,*Tests,*TestCase,!JarFileToJavaSourceTest" test jacoco:report --no-transfer-progress
 
       - name: Upload coverage to Codecov (other tests)
         uses: codecov/codecov-action@v5
@@ -93,11 +93,11 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
       - name: Build with Maven (JarFileToJavaSourceTest#${{ matrix.testMethod }})
-        run: mvn -Dtest=JarFileToJavaSourceTest#${{ matrix.testMethod }} test jacoco:report --no-transfer-progress
+        run: mvn "-Dtest=JarFileToJavaSourceTest#${{ matrix.testMethod }}" test jacoco:report --no-transfer-progress
 
-      - name: Upload coverage to Codecov (JarFileToJavaSourceTest)
+      - name: Upload coverage to Codecov (JarFileToJavaSourceTest#${{ matrix.testMethod }})
         uses: codecov/codecov-action@v5
         with:
           files: ./target/site/jacoco/jacoco.xml
           flags: jarfile-to-java-source-tests
-          name: JarFileToJavaSourceTest-${{ matrix.testMethod }}
+          name: JarFileToJavaSourceTest#${{ matrix.testMethod }}

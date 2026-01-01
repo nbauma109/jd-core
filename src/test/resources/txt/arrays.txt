@@ -9,269 +9,320 @@
 //  10: iconst_0
 //  11: iconst_1
 //  12: bastore
-//  13: aastore
-//  14: dup
-//  15: iconst_1
-//  16: iconst_2
-//  17: newarray boolean
-//  19: dup
-//  20: iconst_1
-//  21: iconst_1
-//  22: bastore
-//  23: aastore
-//  24: astore_1
-//  25: iconst_2
-//  26: anewarray [S
-//  29: dup
-//  30: iconst_0
-//  31: iconst_2
-//  32: newarray short
-//  34: dup
-//  35: iconst_1
-//  36: iconst_1
-//  37: sastore
-//  38: aastore
-//  39: dup
-//  40: iconst_1
-//  41: iconst_2
-//  42: newarray short
-//  44: dup
-//  45: iconst_0
-//  46: iconst_1
-//  47: sastore
-//  48: aastore
-//  49: astore_2
-//  50: iconst_2
-//  51: anewarray [B
-//  54: dup
-//  55: iconst_0
-//  56: iconst_2
-//  57: newarray byte
-//  59: dup
-//  60: iconst_1
+//  13: dup
+//  14: iconst_1
+//  15: iconst_0
+//  16: bastore
+//  17: aastore
+//  18: dup
+//  19: iconst_1
+//  20: iconst_2
+//  21: newarray boolean
+//  23: dup
+//  24: iconst_0
+//  25: iconst_0
+//  26: bastore
+//  27: dup
+//  28: iconst_1
+//  29: iconst_1
+//  30: bastore
+//  31: aastore
+//  32: astore_1
+//  33: iconst_2
+//  34: anewarray [S
+//  37: dup
+//  38: iconst_0
+//  39: iconst_2
+//  40: newarray short
+//  42: dup
+//  43: iconst_0
+//  44: iconst_0
+//  45: sastore
+//  46: dup
+//  47: iconst_1
+//  48: iconst_1
+//  49: sastore
+//  50: aastore
+//  51: dup
+//  52: iconst_1
+//  53: iconst_2
+//  54: newarray short
+//  56: dup
+//  57: iconst_0
+//  58: iconst_1
+//  59: sastore
+//  60: dup
 //  61: iconst_1
-//  62: bastore
-//  63: aastore
-//  64: dup
-//  65: iconst_1
+//  62: iconst_0
+//  63: sastore
+//  64: aastore
+//  65: astore_2
 //  66: iconst_2
-//  67: newarray byte
-//  69: dup
-//  70: iconst_0
-//  71: iconst_1
-//  72: bastore
-//  73: aastore
-//  74: astore_3
-//  75: iconst_2
-//  76: anewarray [C
+//  67: anewarray [B
+//  70: dup
+//  71: iconst_0
+//  72: iconst_2
+//  73: newarray byte
+//  75: dup
+//  76: iconst_0
+//  77: iconst_0
+//  78: bastore
 //  79: dup
-//  80: iconst_0
-//  81: iconst_2
-//  82: newarray char
+//  80: iconst_1
+//  81: iconst_1
+//  82: bastore
+//  83: aastore
 //  84: dup
 //  85: iconst_1
-//  86: iconst_1
-//  87: castore
-//  88: aastore
+//  86: iconst_2
+//  87: newarray byte
 //  89: dup
-//  90: iconst_1
-//  91: iconst_2
-//  92: newarray char
-//  94: dup
+//  90: iconst_0
+//  91: iconst_1
+//  92: bastore
+//  93: dup
+//  94: iconst_1
 //  95: iconst_0
-//  96: iconst_1
-//  97: castore
-//  98: aastore
-//  99: astore #4
-//  101: iconst_2
-//  102: anewarray [I
-//  105: dup
-//  106: iconst_0
-//  107: iconst_2
-//  108: newarray int
-//  110: dup
-//  111: iconst_1
-//  112: iconst_1
-//  113: iastore
-//  114: aastore
-//  115: dup
-//  116: iconst_1
-//  117: iconst_2
-//  118: newarray int
-//  120: dup
-//  121: iconst_0
-//  122: iconst_1
-//  123: iastore
-//  124: aastore
-//  125: astore #5
-//  127: iconst_2
-//  128: anewarray [J
-//  131: dup
-//  132: iconst_0
+//  96: bastore
+//  97: aastore
+//  98: astore_3
+//  99: iconst_2
+//  100: anewarray [C
+//  103: dup
+//  104: iconst_0
+//  105: iconst_2
+//  106: newarray char
+//  108: dup
+//  109: iconst_0
+//  110: iconst_0
+//  111: castore
+//  112: dup
+//  113: iconst_1
+//  114: iconst_1
+//  115: castore
+//  116: aastore
+//  117: dup
+//  118: iconst_1
+//  119: iconst_2
+//  120: newarray char
+//  122: dup
+//  123: iconst_0
+//  124: iconst_1
+//  125: castore
+//  126: dup
+//  127: iconst_1
+//  128: iconst_0
+//  129: castore
+//  130: aastore
+//  131: astore #4
 //  133: iconst_2
-//  134: newarray long
-//  136: dup
-//  137: iconst_1
-//  138: lconst_1
-//  139: lastore
-//  140: aastore
-//  141: dup
-//  142: iconst_1
-//  143: iconst_2
-//  144: newarray long
+//  134: anewarray [I
+//  137: dup
+//  138: iconst_0
+//  139: iconst_2
+//  140: newarray int
+//  142: dup
+//  143: iconst_0
+//  144: iconst_0
+//  145: iastore
 //  146: dup
-//  147: iconst_0
-//  148: lconst_1
-//  149: lastore
+//  147: iconst_1
+//  148: iconst_1
+//  149: iastore
 //  150: aastore
-//  151: astore #6
+//  151: dup
+//  152: iconst_1
 //  153: iconst_2
-//  154: anewarray [F
-//  157: dup
-//  158: iconst_0
-//  159: iconst_2
-//  160: newarray float
-//  162: dup
-//  163: iconst_0
-//  164: fconst_0
-//  165: fastore
-//  166: dup
-//  167: iconst_1
-//  168: fconst_1
-//  169: fastore
-//  170: aastore
+//  154: newarray int
+//  156: dup
+//  157: iconst_0
+//  158: iconst_1
+//  159: iastore
+//  160: dup
+//  161: iconst_1
+//  162: iconst_0
+//  163: iastore
+//  164: aastore
+//  165: astore #5
+//  167: iconst_2
+//  168: anewarray [J
 //  171: dup
-//  172: iconst_1
+//  172: iconst_0
 //  173: iconst_2
-//  174: newarray float
+//  174: newarray long
 //  176: dup
 //  177: iconst_0
-//  178: fconst_1
-//  179: fastore
+//  178: lconst_0
+//  179: lastore
 //  180: dup
 //  181: iconst_1
-//  182: fconst_0
-//  183: fastore
+//  182: lconst_1
+//  183: lastore
 //  184: aastore
-//  185: astore #7
+//  185: dup
+//  186: iconst_1
 //  187: iconst_2
-//  188: anewarray [D
-//  191: dup
-//  192: iconst_0
-//  193: iconst_2
-//  194: newarray double
-//  196: dup
-//  197: iconst_0
-//  198: dconst_0
-//  199: dastore
-//  200: dup
-//  201: iconst_1
-//  202: dconst_1
-//  203: dastore
-//  204: aastore
+//  188: newarray long
+//  190: dup
+//  191: iconst_0
+//  192: lconst_1
+//  193: lastore
+//  194: dup
+//  195: iconst_1
+//  196: lconst_0
+//  197: lastore
+//  198: aastore
+//  199: astore #6
+//  201: iconst_2
+//  202: anewarray [F
 //  205: dup
-//  206: iconst_1
+//  206: iconst_0
 //  207: iconst_2
-//  208: newarray double
+//  208: newarray float
 //  210: dup
 //  211: iconst_0
-//  212: dconst_1
-//  213: dastore
+//  212: fconst_0
+//  213: fastore
 //  214: dup
 //  215: iconst_1
-//  216: dconst_0
-//  217: dastore
+//  216: fconst_1
+//  217: fastore
 //  218: aastore
-//  219: astore #8
-//  221: iconst_0
-//  222: iconst_0
-//  223: multianewarray[[I 2
-//  227: astore #5
-//  229: aconst_null
-//  230: astore #9
-//  232: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  235: aload #9
-//  237: invokevirtual println : (Ljava/lang/Object;)V
-//  240: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  243: ldc java/lang/Object
-//  245: invokevirtual println : (Ljava/lang/Object;)V
-//  248: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  251: ldc 3.4028235E38
-//  253: invokevirtual println : (F)V
-//  256: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  259: ldc2_w 1.7976931348623157E308
-//  262: invokevirtual println : (D)V
-//  265: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  268: ldc 2147483647
-//  270: invokevirtual println : (I)V
-//  273: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  276: ldc2_w 9223372036854775807
-//  279: invokevirtual println : (J)V
-//  282: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  285: ldc '\\b\\f\\n\\r\\t '
-//  287: invokevirtual println : (Ljava/lang/String;)V
-//  290: goto -> 322
-//  293: astore_1
-//  294: aload_1
-//  295: invokevirtual printStackTrace : ()V
-//  298: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  301: ldc 'finally'
-//  303: invokevirtual println : (Ljava/lang/String;)V
-//  306: goto -> 330
-//  309: astore #10
-//  311: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  314: ldc 'finally'
-//  316: invokevirtual println : (Ljava/lang/String;)V
-//  319: aload #10
-//  321: athrow
-//  322: getstatic java/lang/System.out : Ljava/io/PrintStream;
-//  325: ldc 'finally'
-//  327: invokevirtual println : (Ljava/lang/String;)V
-//  330: return
+//  219: dup
+//  220: iconst_1
+//  221: iconst_2
+//  222: newarray float
+//  224: dup
+//  225: iconst_0
+//  226: fconst_1
+//  227: fastore
+//  228: dup
+//  229: iconst_1
+//  230: fconst_0
+//  231: fastore
+//  232: aastore
+//  233: astore #7
+//  235: iconst_2
+//  236: anewarray [D
+//  239: dup
+//  240: iconst_0
+//  241: iconst_2
+//  242: newarray double
+//  244: dup
+//  245: iconst_0
+//  246: dconst_0
+//  247: dastore
+//  248: dup
+//  249: iconst_1
+//  250: dconst_1
+//  251: dastore
+//  252: aastore
+//  253: dup
+//  254: iconst_1
+//  255: iconst_2
+//  256: newarray double
+//  258: dup
+//  259: iconst_0
+//  260: dconst_1
+//  261: dastore
+//  262: dup
+//  263: iconst_1
+//  264: dconst_0
+//  265: dastore
+//  266: aastore
+//  267: astore #8
+//  269: iconst_0
+//  270: iconst_0
+//  271: multianewarray[[I 2
+//  275: astore #5
+//  277: aconst_null
+//  278: astore #9
+//  280: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  283: aload #9
+//  285: invokevirtual println : (Ljava/lang/Object;)V
+//  288: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  291: ldc java/lang/Object
+//  293: invokevirtual println : (Ljava/lang/Object;)V
+//  296: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  299: ldc 3.4028235E38
+//  301: invokevirtual println : (F)V
+//  304: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  307: ldc2_w 1.7976931348623157E308
+//  310: invokevirtual println : (D)V
+//  313: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  316: ldc 2147483647
+//  318: invokevirtual println : (I)V
+//  321: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  324: ldc2_w 9223372036854775807
+//  327: invokevirtual println : (J)V
+//  330: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  333: ldc '\\b\\f\\n\\r\\t '
+//  335: invokevirtual println : (Ljava/lang/String;)V
+//  338: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  341: ldc 'finally'
+//  343: invokevirtual println : (Ljava/lang/String;)V
+//  346: goto -> 378
+//  349: astore_1
+//  350: aload_1
+//  351: invokevirtual printStackTrace : ()V
+//  354: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  357: ldc 'finally'
+//  359: invokevirtual println : (Ljava/lang/String;)V
+//  362: goto -> 378
+//  365: astore #10
+//  367: getstatic java/lang/System.out : Ljava/io/PrintStream;
+//  370: ldc 'finally'
+//  372: invokevirtual println : (Ljava/lang/String;)V
+//  375: aload #10
+//  377: athrow
+//  378: return
 //Line number table:
 //  Java source line number -> byte code offset
 //  #10	-> 0
-//  #11	-> 25
-//  #12	-> 50
-//  #13	-> 75
-//  #14	-> 101
-//  #15	-> 127
-//  #16	-> 153
-//  #17	-> 187
-//  #18	-> 221
-//  #19	-> 229
-//  #20	-> 232
-//  #21	-> 240
-//  #22	-> 248
-//  #23	-> 256
-//  #24	-> 265
-//  #25	-> 273
-//  #26	-> 282
-//  #27	-> 290
-//  #28	-> 294
-//  #30	-> 298
-//  #29	-> 309
-//  #30	-> 311
-//  #31	-> 319
-//  #30	-> 322
-//  #32	-> 330
+//  #11	-> 33
+//  #12	-> 66
+//  #13	-> 99
+//  #14	-> 133
+//  #15	-> 167
+//  #16	-> 201
+//  #17	-> 235
+//  #18	-> 269
+//  #19	-> 277
+//  #20	-> 280
+//  #21	-> 288
+//  #22	-> 296
+//  #23	-> 304
+//  #24	-> 313
+//  #25	-> 321
+//  #26	-> 330
+//  #30	-> 338
+//  #31	-> 346
+//  #27	-> 349
+//  #28	-> 350
+//  #30	-> 354
+//  #31	-> 362
+//  #30	-> 365
+//  #31	-> 375
+//  #32	-> 378
 //Local variable table:
 //  start	length	slot	name	descriptor
-//  0	331	0	this	Lorg/jd/core/v1/ArrayTypes;
-//  25	265	1	booleans	[[Z
-//  50	240	2	shorts	[[S
-//  75	215	3	bytes	[[B
-//  101	189	4	chars	[[C
-//  127	163	5	ints	[[I
-//  153	137	6	longs	[[J
-//  187	103	7	floats	[[F
-//  221	69	8	doubles	[[D
-//  232	58	9	value	Ljava/util/List;
-//  294	4	1	e	Ljava/lang/Exception;
+//  33	305	1	booleans	[[Z
+//  66	272	2	shorts	[[S
+//  99	239	3	bytes	[[B
+//  133	205	4	chars	[[C
+//  167	171	5	ints	[[I
+//  201	137	6	longs	[[J
+//  235	103	7	floats	[[F
+//  269	69	8	doubles	[[D
+//  280	58	9	value	Ljava/util/List;
+//  350	4	1	e	Ljava/lang/Exception;
+//  0	379	0	this	Lorg/jd/core/v1/ArrayTypes;
 //Local variable type table:
 //  start	length	slot	name	signature
-//  232	58	9	value	Ljava/util/List<Ljava/lang/String;>;
+//  280	58	9	value	Ljava/util/List<Ljava/lang/String;>;
 //Exception table:
 //  from	to	target	type
-//  0	290	293	java/lang/Exception
-//  0	298	309	finally
+//  0	338	349	java/lang/Exception
+//  0	338	365	finally
+//  349	354	365	finally
+//  365	367	365	finally

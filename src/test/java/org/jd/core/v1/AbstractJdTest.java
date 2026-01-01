@@ -1,8 +1,11 @@
 package org.jd.core.v1;
 
+import org.apache.commons.io.IOUtils;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.api.printer.Printer;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 
@@ -44,5 +47,9 @@ public abstract class AbstractJdTest extends TestCase {
 
     protected void assertEqualsIgnoreEOL(String expected, String actual) {
         assertEquals(expected.replaceAll("\s*\r?\n", "\n"), actual.replaceAll("\s*\r?\n", "\n"));
+    }
+
+    protected String getResourceAsString(String path) throws IOException {
+        return IOUtils.toString(getClass().getResource(path), StandardCharsets.UTF_8);
     }
 }

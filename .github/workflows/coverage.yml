@@ -21,32 +21,83 @@ permissions:
   contents: read
 
 jobs:
-  build:
-
+  other-tests:
     runs-on: windows-latest
     strategy:
       matrix:
-        java: [ 17 ]
+        java: [17]
 
     steps:
-    - uses: actions/checkout@v6
-      with:
-        persist-credentials: false
-    - uses: actions/cache@v5.0.1
-      with:
-        path: ~/.m2/repository
-        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-        restore-keys: |
-          ${{ runner.os }}-maven-
-    - name: Set up JDK ${{ matrix.java }}
-      uses: actions/setup-java@v5
-      with:
-        distribution: 'temurin'
-        java-version: ${{ matrix.java }}
-    - name: Build with Maven
-      run: mvn test jacoco:report --no-transfer-progress
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/cache@v5.0.1
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+      - name: Build with Maven (excluding JarFileToJavaSourceTest)
+        run: mvn -Dtest=!JarFileToJavaSourceTest test jacoco:report --no-transfer-progress
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        files: ./target/site/jacoco/jacoco.xml
+      - name: Upload coverage to Codecov (other tests)
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./target/site/jacoco/jacoco.xml
+          flags: other-tests
+          name: other-tests
+
+  jarfile-to-java-source-tests:
+    needs: other-tests
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [17]
+        testMethod:
+          - testBCEL
+          - testCommonsIO
+          - testCommonsCodec
+          - testCommonsCollections4
+          - testCommonsImaging
+          - testCommonsLang3
+          - testDiskLruCache
+          - testJavaPoet
+          - testJavaWriter
+          - testJSoup
+          - testJUnit4
+          - testMimecraft
+          - testScribe
+          - testSparkCore
+          - testLog4jApi
+          - testLog4jCore
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/cache@v5.0.1
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+      - name: Build with Maven (JarFileToJavaSourceTest#${{ matrix.testMethod }})
+        run: mvn -Dtest=JarFileToJavaSourceTest#${{ matrix.testMethod }} test jacoco:report --no-transfer-progress
+
+      - name: Upload coverage to Codecov (JarFileToJavaSourceTest)
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./target/site/jacoco/jacoco.xml
+          flags: jarfile-to-java-source-tests
+          name: JarFileToJavaSourceTest-${{ matrix.testMethod }}

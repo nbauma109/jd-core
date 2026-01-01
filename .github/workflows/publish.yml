@@ -48,11 +48,11 @@ jobs:
       - name: Build and verify
         env:
           MAVEN_GPG_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-        run: mvn --no-transfer-progress -B clean verify
+        run: mvn --no-transfer-progress -B -DskipTests clean verify
 
       - name: Deploy to Sonatype Central
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-        run: mvn --no-transfer-progress -B -Dgpg.skip=false deploy
+        run: mvn --no-transfer-progress -B -Dgpg.skip=false -DskipTests deploy

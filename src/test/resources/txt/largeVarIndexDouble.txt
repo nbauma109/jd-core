@@ -1,0 +1,14 @@
+//Byte code:
+//  0: ldc2_w 42.0
+//  3: wide dstore #512
+//  7: wide dload #512
+//  11: dreturn
+//Line number table:
+//  Java source line number -> byte code offset
+//  #65	-> 0
+//  #67	-> 7
+//Local variable table:
+//  start	length	slot	name	descriptor
+//  7	5	512	k57	D
+//Exception table:
+//  from	to	target	type

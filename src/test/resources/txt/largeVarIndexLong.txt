@@ -1,0 +1,17 @@
+//Byte code:
+//  0: new java/lang/Long
+//  3: dup
+//  4: ldc2_w 42
+//  7: invokespecial <init> : (J)V
+//  10: wide astore #256
+//  14: wide aload #256
+//  18: areturn
+//Line number table:
+//  Java source line number -> byte code offset
+//  #105	-> 0
+//  #107	-> 14
+//Local variable table:
+//  start	length	slot	name	descriptor
+//  14	5	256	k57	Ljava/lang/Long;
+//Exception table:
+//  from	to	target	type

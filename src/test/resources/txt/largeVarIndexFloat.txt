@@ -1,0 +1,14 @@
+//Byte code:
+//  0: ldc 42.0
+//  2: wide fstore #256
+//  6: wide fload #256
+//  10: freturn
+//Line number table:
+//  Java source line number -> byte code offset
+//  #45	-> 0
+//  #47	-> 6
+//Local variable table:
+//  start	length	slot	name	descriptor
+//  6	5	256	k57	F
+//Exception table:
+//  from	to	target	type

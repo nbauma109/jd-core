@@ -1,0 +1,14 @@
+//Byte code:
+//  0: bipush #42
+//  2: wide istore #256
+//  6: wide iload #256
+//  10: ireturn
+//Line number table:
+//  Java source line number -> byte code offset
+//  #25	-> 0
+//  #27	-> 6
+//Local variable table:
+//  start	length	slot	name	descriptor
+//  6	5	256	k57	I
+//Exception table:
+//  from	to	target	type

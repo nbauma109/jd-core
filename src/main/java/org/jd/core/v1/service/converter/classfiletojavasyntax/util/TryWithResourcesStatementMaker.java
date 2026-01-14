@@ -456,7 +456,7 @@ public final class TryWithResourcesStatementMaker {
         // Create try-with-resources statement
         DefaultList<TryStatement.Resource> resources = new DefaultList<>();
 
-        resources.add(new TryStatement.Resource((ObjectType) lv1.getType(), lv1.getName(), boe.getRightExpression()));
+        resources.add(new TryStatement.Resource(lv1.getType(), lv1.getName(), boe.getRightExpression()));
 
         return new ClassFileTryStatement(resources, tryStatements, null, finallyStatements, false, false);
     }

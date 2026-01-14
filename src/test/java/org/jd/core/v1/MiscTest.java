@@ -162,6 +162,22 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testTryResourcesGeneric() throws Exception {
+        String internalClassName = TryResources.class.getName().replace('.', '/');
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-generic-jdk-1.8.0_331.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/TryResourcesGeneric.txt").toURI()));
+            assertEqualsIgnoreEOL(expected, source);
+
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    @Test
     public void testFastCodeExceptionAnalyzer() throws Exception {
         String internalClassName = FastCodeExceptionAnalyzer.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);

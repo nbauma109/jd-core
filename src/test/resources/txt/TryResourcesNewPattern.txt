@@ -1,0 +1,39 @@
+/*  1:  0 */ package org.jd.core.v1;
+/*  2:  0 */
+/*  3:  0 */ public abstract class TryResourcesNewPattern<T extends AutoCloseable> {
+/*  4:  0 */   void tryResources() {
+/*  5:  5 */     try (T t = getResource()) {
+/*  6:  6 */       System.out.println(t);
+/*  7:  7 */     } catch (Exception e) {
+/*  8:  8 */       e.printStackTrace();
+/*  9:  0 */     }
+/* 10:  0 */   }
+/* 11:  0 */
+/* 12:  0 */   void tryResources(T t) {
+/* 13: 13 */     try (t) {
+/* 14: 14 */       System.out.println(t);
+/* 15: 15 */     } catch (Exception e) {
+/* 16: 16 */       e.printStackTrace();
+/* 17:  0 */     }
+/* 18:  0 */   }
+/* 19:  0 */
+/* 20:  0 */   void tryResources(T t1, T t2) {
+/* 21: 21 */     try (t1; t2) {
+/* 22: 22 */       System.out.println(t1);
+/* 23: 23 */       System.out.println(t2);
+/* 24: 24 */     } catch (Exception e) {
+/* 25: 25 */       e.printStackTrace();
+/* 26:  0 */     }
+/* 27:  0 */   }
+/* 28:  0 */
+/* 29:  0 */   void tryResourcesMixed(T t1, T t2) {
+/* 30: 30 */     try (t1; t2; T t = getResource()) {
+/* 31: 31 */       System.out.println(t1);
+/* 32: 32 */       System.out.println(t2);
+/* 33: 33 */     } catch (Exception e) {
+/* 34: 34 */       e.printStackTrace();
+/* 35:  0 */     }
+/* 36:  0 */   }
+/* 37:  0 */
+/* 38:  0 */   abstract T getResource();
+/* 39:  0 */ }

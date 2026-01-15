@@ -178,6 +178,38 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testTryResourcesNewPatternJDK() throws Exception {
+        String internalClassName = TryResourcesNewPattern.class.getName().replace('.', '/');
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-new-pattern-jdk-17.0.11.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/TryResourcesNewPattern.txt").toURI()));
+            assertEqualsIgnoreEOL(expected, source);
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("11", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    @Test
+    public void testTryResourcesNewPatternECJ() throws Exception {
+        String internalClassName = TryResourcesNewPattern.class.getName().replace('.', '/');
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-new-pattern-ecj-17.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/TryResourcesNewPattern.txt").toURI()));
+            assertEqualsIgnoreEOL(expected, source);
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("11", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+    
+    @Test
     public void testFastCodeExceptionAnalyzer() throws Exception {
         String internalClassName = FastCodeExceptionAnalyzer.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);

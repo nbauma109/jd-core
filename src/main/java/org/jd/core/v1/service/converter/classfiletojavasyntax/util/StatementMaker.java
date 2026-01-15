@@ -17,6 +17,7 @@ import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
@@ -607,6 +608,7 @@ public class StatementMaker {
         Statements tryStatements;
         DefaultList<TryStatement.CatchClause> catchClauses = new DefaultList<>();
         Statements finallyStatements = null;
+        boolean ecjTryWithResources = false;
 
         tryStatements = makeSubStatements(watchdog, basicBlock.getSub1(), statements, jumps);
         if (basicBlock.getNext().getType() == TYPE_LOOP_CONTINUE) {
@@ -618,7 +620,15 @@ public class StatementMaker {
                 // 'finally' handler
                 stack.push(FINALLY_EXCEPTION_EXPRESSION);
 
-                finallyStatements = makeSubStatements(watchdog, exceptionHandler.getBasicBlock(), statements, jumps);
+                Statements handlerStatements = makeSubStatements(watchdog, exceptionHandler.getBasicBlock(), statements, jumps);
+
+                if (containsAddSuppressed(handlerStatements) && (majorVersion > MAJOR_1_8 || eclipse)) {
+                    addThrowableCatchClause(exceptionHandler, handlerStatements, catchClauses);
+                    ecjTryWithResources = true;
+                    continue;
+                }
+
+                finallyStatements = handlerStatements;
 
                 if (!finallyStatements.getFirst().isMonitorEnterStatement()) {
                     removeFinallyStatementsFlag |= !jsr;
@@ -677,6 +687,7 @@ public class StatementMaker {
                 makeStatements(watchdog, bb, catchStatements, jumps);
                 localVariableMaker.popFrame();
                 removeExceptionReference(catchStatements);
+                replaceSyntheticCatchReferences(catchStatements, exception);
 
                 if (lineNumber != UNKNOWN_LINE_NUMBER) {
                     searchFirstLineNumberVisitor.init();
@@ -699,6 +710,15 @@ public class StatementMaker {
                 catchClauses.add(cc);
             }
         }
+        if (!ecjTryWithResources && majorVersion > MAJOR_1_8) {
+            for (TryStatement.CatchClause catchClause : catchClauses) {
+                if (ObjectType.TYPE_THROWABLE.equals(catchClause.getType())
+                        && containsAddSuppressed(catchClause.getStatements())) {
+                    ecjTryWithResources = true;
+                    break;
+                }
+            }
+        }
 
         // 'try', 'try-with-resources' or 'synchronized' ?
         Statement statement = null;
@@ -706,12 +726,28 @@ public class StatementMaker {
         if (finallyStatements != null && !finallyStatements.isEmpty() && finallyStatements.getFirst().isMonitorExitStatement()) {
             statement = SynchronizedStatementMaker.make(localVariableMaker, statements, tryStatements);
         } else {
+            boolean allowResourceExpression = majorVersion > MAJOR_1_8;
+            boolean allowEcjPattern = ecjTryWithResources || eclipse;
             if (majorVersion > MAJOR_1_8) {
-                statement = TryWithResourcesStatementMaker.make(localVariableMaker, statements, tryStatements, catchClauses, finallyStatements);
+                statement = TryWithResourcesStatementMaker.make(
+                        localVariableMaker,
+                        statements,
+                        tryStatements,
+                        catchClauses,
+                        finallyStatements,
+                        allowEcjPattern,
+                        allowResourceExpression);
             } else if (majorVersion >= MAJOR_1_7) {
                 statement = TryWithResourcesStatementMaker.makeLegacy(localVariableMaker, statements, tryStatements, catchClauses, finallyStatements);
                 if (statement == null) {
-                    statement = TryWithResourcesStatementMaker.make(localVariableMaker, statements, tryStatements, catchClauses, finallyStatements);
+                    statement = TryWithResourcesStatementMaker.make(
+                            localVariableMaker,
+                            statements,
+                            tryStatements,
+                            catchClauses,
+                            finallyStatements,
+                            allowEcjPattern,
+                            allowResourceExpression);
                 }
             }
             if (statement == null) {
@@ -755,6 +791,30 @@ public class StatementMaker {
         localVariableMaker.removeLocalVariable(vre.getLocalVariable());
         // Remove first statement (storage of JSR return offset)
         statements.remove(statementCount);
+    }
+
+    private static void replaceSyntheticCatchReferences(
+            BaseStatement catchStatements,
+            AbstractLocalVariable exceptionLocalVariable) {
+        if (catchStatements == null || exceptionLocalVariable == null || exceptionLocalVariable.getIndex() < 0) {
+            return;
+        }
+        catchStatements.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(LocalVariableReferenceExpression expression) {
+                if (expression instanceof ClassFileLocalVariableReferenceExpression ref) {
+                    AbstractLocalVariable localVariable = ref.getLocalVariable();
+                    if (localVariable != null
+                            && localVariable.getIndex() == exceptionLocalVariable.getIndex()
+                            && localVariable.getName() != null
+                            && localVariable.getName().startsWith("SYNTHETIC_LOCAL_VARIABLE_")) {
+                        ref.setLocalVariable(exceptionLocalVariable);
+                        exceptionLocalVariable.addReference(ref);
+                    }
+                }
+                super.visit(expression);
+            }
+        });
     }
 
     protected void parseIf(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
@@ -1255,5 +1315,105 @@ public class StatementMaker {
         public void visit(MethodDeclaration declaration) {
             found |= declaration.getName().equals(name);
         }
+    }
+
+    private static final class AddSuppressedVisitor extends AbstractJavaSyntaxVisitor {
+        private boolean found;
+
+        public boolean found() {
+            return found;
+        }
+
+        @Override
+        public void visit(MethodInvocationExpression expression) {
+            if ("addSuppressed".equals(expression.getName()) && "(Ljava/lang/Throwable;)V".equals(expression.getDescriptor())) {
+                found = true;
+            } else if (!found) {
+                super.visit(expression);
+            }
+        }
+    }
+
+    private static final class LocalVariableIndexVisitor extends AbstractJavaSyntaxVisitor {
+        private final int index;
+        private AbstractLocalVariable localVariable;
+
+        private LocalVariableIndexVisitor(int index) {
+            this.index = index;
+        }
+
+        public AbstractLocalVariable getLocalVariable() {
+            return localVariable;
+        }
+
+        @Override
+        public void visit(LocalVariableReferenceExpression expression) {
+            if (localVariable != null) {
+                return;
+            }
+            ClassFileLocalVariableReferenceExpression ref = (ClassFileLocalVariableReferenceExpression) expression;
+            if (ref.getLocalVariable().getIndex() == index) {
+                localVariable = ref.getLocalVariable();
+            } else {
+                super.visit(expression);
+            }
+        }
+    }
+
+    private static boolean containsAddSuppressed(BaseStatement statements) {
+        if (statements == null || statements.size() == 0) {
+            return false;
+        }
+        AddSuppressedVisitor visitor = new AddSuppressedVisitor();
+        statements.accept(visitor);
+        return visitor.found();
+    }
+
+    private void addThrowableCatchClause(
+            ExceptionHandler exceptionHandler,
+            Statements handlerStatements,
+            DefaultList<TryStatement.CatchClause> catchClauses) {
+        BasicBlock bb = exceptionHandler.getBasicBlock();
+        int lineNumber = bb.getControlFlowGraph().getLineNumber(bb.getFromOffset());
+        int index = ByteCodeParser.getExceptionLocalVariableIndex(bb);
+        ObjectType ot = ObjectType.TYPE_THROWABLE;
+        int offset = bb.getFromOffset();
+        byte[] code = bb.getControlFlowGraph().getMethod().getCode().getCode();
+
+        if (code[offset] == ASTORE) {
+            offset += 2;
+        } else {
+            offset++;    // POP, ASTORE_1 ... ASTORE_3
+        }
+
+        if (bb != null && bb.getNext().getPredecessors().size() > 1) {
+            bb.getNext().getPredecessors().remove(bb);
+            bb.setNext(END);
+        }
+        AbstractLocalVariable exception = null;
+        if (index >= 0 && handlerStatements != null) {
+            LocalVariableIndexVisitor visitor = new LocalVariableIndexVisitor(index);
+            handlerStatements.accept(visitor);
+            exception = visitor.getLocalVariable();
+            if (exception != null) {
+                exception.setDeclared(true);
+            }
+        }
+        if (exception == null) {
+            exception = localVariableMaker.getExceptionLocalVariable(index, offset, ot);
+        }
+
+        removeExceptionReference(handlerStatements);
+
+        if (lineNumber != UNKNOWN_LINE_NUMBER) {
+            searchFirstLineNumberVisitor.init();
+            searchFirstLineNumberVisitor.visit(handlerStatements);
+            if (searchFirstLineNumberVisitor.getLineNumber() == lineNumber) {
+                lineNumber = UNKNOWN_LINE_NUMBER;
+            }
+        }
+
+        ClassFileTryStatement.CatchClause cc = new ClassFileTryStatement.CatchClause(lineNumber, ot, exception, handlerStatements);
+        catchClauses.add(cc);
     }
 }

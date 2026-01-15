@@ -481,17 +481,27 @@ public class LocalVariableMaker {
             }
 
             currentFrame.addLocalVariable(lv);
+            store(lv);
         }
 
         return lv;
     }
 
     public void removeLocalVariable(AbstractLocalVariable lv) {
-        if (lv != null && lv.getIndex() < localVariableCache.length) {
-            // Remove from cache
-            localVariableCache[lv.getIndex()] = null;
-            // Remove from current frame
-            currentFrame.removeLocalVariable(lv);
+        if (lv != null) {
+            int index = lv.getIndex();
+            if (index >= 0 && index < localVariableCache.length) {
+                // Remove from cache
+                if (localVariableCache[index] == lv) {
+                    localVariableCache[index] = null;
+                }
+            }
+            Frame frame = lv.getFrame();
+            if (frame != null) {
+                frame.removeLocalVariable(lv);
+            } else {
+                currentFrame.removeLocalVariable(lv);
+            }
         }
     }
 

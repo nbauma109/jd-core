@@ -9,6 +9,7 @@ package org.jd.core.v1;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.logging.log4j.core.appender.HttpURLConnectionManager;
 import org.jd.core.test.TryResourcesImaging;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
@@ -161,31 +162,100 @@ public class MiscTest extends AbstractJdTest {
         }
     }
 
-    @Test
-    public void testTryResourcesGeneric() throws Exception {
-        String internalClassName = TryResources.class.getName().replace('.', '/');
-        try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-generic-jdk-1.8.0_331.jar")) {
+    private void test(String jarPath, String internalClassName, String expectedOutput, String compilerVersion) throws Exception {
+        try (InputStream is = this.getClass().getResourceAsStream(jarPath)) {
             Loader loader = new ZipLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
             
             // Check decompiled source code
-            String expected = Files.readString(Paths.get(getClass().getResource("/txt/TryResourcesGeneric.txt").toURI()));
+            String expected = Files.readString(Paths.get(getClass().getResource(expectedOutput).toURI()));
             assertEqualsIgnoreEOL(expected, source);
-
+            
             // Recompile decompiled source code and check errors
-            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+            assertTrue(CompilerUtil.compile(compilerVersion, new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
+    
+    @Test
+    public void testTryResourcesGeneric() throws Exception {
+        test("/jar/try-resources-generic-jdk-1.8.0_331.jar", "org/jd/core/v1/TryResources", "/txt/TryResourcesGeneric.txt", "1.8");
+    }
 
+    @Test
+    public void testTryResources2JDK8() throws Exception {
+        test("/jar/try-resources-2-jdk-1.8.0_331.jar", "org/jd/core/v1/TryResources2", "/txt/TryResources2.txt", "1.8");
+    }
+
+    @Test
+    public void testTryResources2JDK17() throws Exception {
+        test("/jar/try-resources-2-jdk-17.0.11.jar", "org/jd/core/v1/TryResources2", "/txt/TryResources2.txt", "1.8");
+    }
+    
+    @Test
+    public void testTryResources2ECJ8() throws Exception {
+        test("/jar/try-resources-2-ecj-8.jar", "org/jd/core/v1/TryResources2", "/txt/TryResources2.txt", "1.8");
+    }
+    
+    @Test
+    public void testTryResources2ECJ17() throws Exception {
+        test("/jar/try-resources-2-ecj-17.jar", "org/jd/core/v1/TryResources2", "/txt/TryResources2.txt", "1.8");
+    }
+    
+    @Test
+    public void testTryResourcesNewPatternJDK() throws Exception {
+        test("/jar/try-resources-new-pattern-jdk-17.0.11.jar", "org/jd/core/v1/TryResourcesNewPattern", "/txt/TryResourcesNewPattern.txt", "11");
+    }
+
+    @Test
+    public void testTryResourcesNewPatternECJ() throws Exception {
+        test("/jar/try-resources-new-pattern-ecj-17.jar", "org/jd/core/v1/TryResourcesNewPattern", "/txt/TryResourcesNewPattern.txt", "11");
+    }
+    
+    @Test
+    public void testTryResourcesMixedExpression() throws Exception {
+        String internalClassName = TryResourcesMixedExpression.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("9", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+//    @Test
+//    public void testTryResourcesThrowableMultiDeclarator() throws Exception {
+//        String internalClassName = TryResourcesThrowableMultiDeclarator.class.getName().replace('.', '/');
+//        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+//        
+//        // Recompile decompiled source code and check errors
+//        assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
+//    }
+    
+    @Test
+    public void testTryResourcesThrowableNullDecl() throws Exception {
+        String internalClassName = TryResourcesThrowableNullDecl.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+//    @Test
+//    public void testTryResourcesThrowableNullDeclUsed() throws Exception {
+//        String internalClassName = TryResourcesThrowableNullDeclUsed.class.getName().replace('.', '/');
+//        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+//        
+//        // Recompile decompiled source code and check errors
+//        assertTrue(CompilerUtil.compile("1.7", new InMemoryJavaSourceFileObject(internalClassName, source)));
+//    }
+    
     @Test
     public void testFastCodeExceptionAnalyzer() throws Exception {
         String internalClassName = FastCodeExceptionAnalyzer.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-
+        
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.6", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
-
+    
     @Test
     public void testCreateDirs() throws Exception {
         class CreateDirs {
@@ -900,6 +970,15 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testHttpURLConnectionManager() throws Exception {
+        String internalClassName = HttpURLConnectionManager.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
     public void testLockableFileWriter() throws Exception {
         class LockableFileWriter {
             @SuppressWarnings("unused")
@@ -984,4 +1063,27 @@ public class MiscTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("21", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+
+    @Test
+    public void testCopyInputStreamToFile() throws Exception {
+        class CopyInputStreamToFile {
+            @SuppressWarnings("unused")
+            void copyInputStreamToFile(InputStream source, File destination) throws IOException {
+                try (InputStream inputStream = source) {
+                    FileUtils.copyToFile(inputStream, destination);
+                }
+            }
+        }
+        String internalClassName = CopyInputStreamToFile.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertFalse(source.matches(PatternMaker.make("null = null;")));
+        assertTrue(source.matches(PatternMaker.make("try (InputStream inputStream = source) {")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        
+    }
+
 }

@@ -178,6 +178,38 @@ public class MiscTest extends AbstractJdTest {
     }
 
     @Test
+    public void testTryResourcesNewPatternJDK() throws Exception {
+        String internalClassName = TryResourcesNewPattern.class.getName().replace('.', '/');
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-new-pattern-jdk-17.0.11.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/TryResourcesNewPattern.txt").toURI()));
+            assertEqualsIgnoreEOL(expected, source);
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("11", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    @Test
+    public void testTryResourcesNewPatternECJ() throws Exception {
+        String internalClassName = TryResourcesNewPattern.class.getName().replace('.', '/');
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-new-pattern-ecj-17.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
+            
+            // Check decompiled source code
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/TryResourcesNewPattern.txt").toURI()));
+            assertEqualsIgnoreEOL(expected, source);
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("11", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+    
+    @Test
     public void testFastCodeExceptionAnalyzer() throws Exception {
         String internalClassName = FastCodeExceptionAnalyzer.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
@@ -984,4 +1016,27 @@ public class MiscTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("21", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+
+    @Test
+    public void testCopyInputStreamToFile() throws Exception {
+        class CopyInputStreamToFile {
+            @SuppressWarnings("unused")
+            void copyInputStreamToFile(InputStream source, File destination) throws IOException {
+                try (InputStream inputStream = source) {
+                    FileUtils.copyToFile(inputStream, destination);
+                }
+            }
+        }
+        String internalClassName = CopyInputStreamToFile.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertFalse(source.matches(PatternMaker.make("null = null;")));
+        assertTrue(source.matches(PatternMaker.make("try (InputStream inputStream = source) {")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        
+    }
+
 }

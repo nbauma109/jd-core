@@ -1016,4 +1016,27 @@ public class MiscTest extends AbstractJdTest {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("21", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
+
+    @Test
+    public void testCopyInputStreamToFile() throws Exception {
+        class CopyInputStreamToFile {
+            @SuppressWarnings("unused")
+            void copyInputStreamToFile(InputStream source, File destination) throws IOException {
+                try (InputStream inputStream = source) {
+                    FileUtils.copyToFile(inputStream, destination);
+                }
+            }
+        }
+        String internalClassName = CopyInputStreamToFile.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertFalse(source.matches(PatternMaker.make("null = null;")));
+        assertTrue(source.matches(PatternMaker.make("try (InputStream inputStream = source) {")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        
+    }
+
 }

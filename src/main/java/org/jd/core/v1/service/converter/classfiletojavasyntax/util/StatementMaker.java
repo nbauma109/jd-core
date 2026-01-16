@@ -725,12 +725,27 @@ public class StatementMaker {
         if (finallyStatements != null && !finallyStatements.isEmpty() && finallyStatements.getFirst().isMonitorExitStatement()) {
             statement = SynchronizedStatementMaker.make(localVariableMaker, statements, tryStatements);
         } else {
+            boolean allowResourceExpression = majorVersion > MAJOR_1_8;
             if (majorVersion > MAJOR_1_8) {
-                statement = TryWithResourcesStatementMaker.make(localVariableMaker, statements, tryStatements, catchClauses, finallyStatements, ecjTryWithResources);
+                statement = TryWithResourcesStatementMaker.make(
+                        localVariableMaker,
+                        statements,
+                        tryStatements,
+                        catchClauses,
+                        finallyStatements,
+                        ecjTryWithResources,
+                        allowResourceExpression);
             } else if (majorVersion >= MAJOR_1_7) {
                 statement = TryWithResourcesStatementMaker.makeLegacy(localVariableMaker, statements, tryStatements, catchClauses, finallyStatements);
                 if (statement == null) {
-                    statement = TryWithResourcesStatementMaker.make(localVariableMaker, statements, tryStatements, catchClauses, finallyStatements, ecjTryWithResources);
+                    statement = TryWithResourcesStatementMaker.make(
+                            localVariableMaker,
+                            statements,
+                            tryStatements,
+                            catchClauses,
+                            finallyStatements,
+                            ecjTryWithResources,
+                            allowResourceExpression);
                 }
             }
             if (statement == null) {

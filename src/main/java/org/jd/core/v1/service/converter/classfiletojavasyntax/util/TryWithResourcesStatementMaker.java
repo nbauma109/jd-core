@@ -1303,8 +1303,6 @@ public final class TryWithResourcesStatementMaker {
             return resourceExpression;
         }
         int lineNumber = Expression.UNKNOWN_LINE_NUMBER;
-        lineNumber = minLineNumber(lineNumber, findResourceDeclarationLineNumber(statements, resourceLocalVariable));
-        lineNumber = minLineNumber(lineNumber, findResourceDeclarationLineNumber(tryStatements, resourceLocalVariable));
         lineNumber = minLineNumber(lineNumber, findFirstLocalVariableLineNumber(statements, resourceLocalVariable));
         lineNumber = minLineNumber(lineNumber, findFirstLocalVariableLineNumber(tryStatements, resourceLocalVariable));
         lineNumber = minLineNumber(lineNumber, findLeadingNullAssignmentLineNumber(statements));
@@ -1378,44 +1376,6 @@ public final class TryWithResourcesStatementMaker {
             return Expression.UNKNOWN_LINE_NUMBER;
         }
         return findNullAssignmentsOnlyLineNumber(list);
-    }
-
-    private static int findResourceDeclarationLineNumber(
-            BaseStatement statements,
-            AbstractLocalVariable localVariable) {
-        if (!(statements instanceof Statements list) || localVariable == null) {
-            return Expression.UNKNOWN_LINE_NUMBER;
-        }
-        for (Statement statement : list) {
-            if (!(statement instanceof LocalVariableDeclarationStatement declarationStatement)) {
-                continue;
-            }
-            BaseLocalVariableDeclarator declarators = declarationStatement.getLocalVariableDeclarators();
-            if (declarators == null) {
-                continue;
-            }
-            if (declarators.isList()) {
-                for (LocalVariableDeclarator declarator : declarators.getList()) {
-                    if (declarator instanceof ClassFileLocalVariableDeclarator cfDeclarator) {
-                        if (matchesLocalVariable(cfDeclarator.getLocalVariable(), localVariable)) {
-                            return declarators.getLineNumber();
-                        }
-                    } else if (localVariable.getName() != null && localVariable.getName().equals(declarator.getName())) {
-                        return declarators.getLineNumber();
-                    }
-                }
-            } else {
-                LocalVariableDeclarator declarator = (LocalVariableDeclarator) declarators.getFirst();
-                if (declarator instanceof ClassFileLocalVariableDeclarator cfDeclarator) {
-                    if (matchesLocalVariable(cfDeclarator.getLocalVariable(), localVariable)) {
-                        return declarators.getLineNumber();
-                    }
-                } else if (localVariable.getName() != null && localVariable.getName().equals(declarator.getName())) {
-                    return declarators.getLineNumber();
-                }
-            }
-        }
-        return Expression.UNKNOWN_LINE_NUMBER;
     }
 
     private static final class LocalVariableLineNumberVisitor extends AbstractJavaSyntaxVisitor {

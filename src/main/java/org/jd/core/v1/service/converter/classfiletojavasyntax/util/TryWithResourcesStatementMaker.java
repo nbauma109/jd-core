@@ -345,11 +345,7 @@ public final class TryWithResourcesStatementMaker {
         }
 
         boolean ecjPatternMatch = false;
-        boolean closeInvocationFromCatch = false;
         CloseInvocationInfo closeInvocationInfo = getCloseInvocationInfo(catchStatements);
-        if (closeInvocationInfo != null) {
-            closeInvocationFromCatch = true;
-        }
         if (closeInvocationInfo == null) {
             if (allowEcjPattern) {
                 closeInvocationInfo = getCloseInvocationInfoFromCatchStatements(catchStatements);
@@ -358,7 +354,6 @@ public final class TryWithResourcesStatementMaker {
                         return null;
                     }
                     ecjPatternMatch = true;
-                    closeInvocationFromCatch = true;
                 }
             }
             if (closeInvocationInfo == null) {
@@ -450,20 +445,6 @@ public final class TryWithResourcesStatementMaker {
                 return chainStatement;
             }
 
-            if (!closeInvocationFromCatch) {
-                ClassFileTryStatement innerTryStatement = findSingleTryWithResources(tryStatements);
-                if (innerTryStatement != null) {
-                    BaseStatement innerBodyStatements = innerTryStatement.getTryStatements();
-                    if (shouldRemoveLocalVariable(innerBodyStatements, finallyStatements, lv2)) {
-                        localVariableMaker.removeLocalVariable(lv2);
-                    }
-                    if (shouldRemoveLocalVariable(innerBodyStatements, finallyStatements, suppressedLocalVariable)) {
-                        localVariableMaker.removeLocalVariable(suppressedLocalVariable);
-                    }
-                    return innerTryStatement;
-                }
-            }
-
             if (resourceAssignment == null) {
                 resourceAssignment = findResourceAssignmentInTryStatements(
                         tryStatements,
@@ -543,19 +524,6 @@ public final class TryWithResourcesStatementMaker {
 
         DefaultList<TryStatement.Resource> prefixResources = null;
         if (ecjPatternMatch) {
-            if (hasLeadingNullAssignments(tryStatements)) {
-                prefixResources = collectResourcesFromTryChain(tryStatements);
-                if (prefixResources != null) {
-                    Statements unwrappedStatements = unwrapTryChain(tryStatements);
-                    if (unwrappedStatements != null) {
-                        SearchFirstLineNumberVisitor lineNumberVisitor = new SearchFirstLineNumberVisitor();
-                        lineNumberVisitor.safeAccept(unwrappedStatements);
-                        if (lineNumberVisitor.getLineNumber() != Expression.UNKNOWN_LINE_NUMBER) {
-                            tryStatementsForResources = unwrappedStatements;
-                        }
-                    }
-                }
-            }
             if (prefixResources == null) {
                 prefixResources = collectResourcesFromTryChain(tryStatements);
             }
@@ -1878,22 +1846,6 @@ public final class TryWithResourcesStatementMaker {
         return visitor.isFound();
     }
 
-    private static boolean hasLeadingNullAssignments(Statements statements) {
-        if (statements == null || statements.isEmpty()) {
-            return false;
-        }
-        int count = 0;
-        for (int i = 0; i < statements.size(); i++) {
-            Statement statement = statements.get(i);
-            if (isNullAssignment(statement)) {
-                count++;
-                continue;
-            }
-            break;
-        }
-        return count >= 2;
-    }
-
     private static boolean isNullAssignment(Statement statement) {
         if (statement == null || !statement.isExpressionStatement()) {
             return false;
@@ -2307,23 +2259,6 @@ public final class TryWithResourcesStatementMaker {
                 resources.add(resource);
             }
         }
-    }
-
-    private static Statements unwrapTryChain(Statements tryStatements) {
-        if (tryStatements == null || tryStatements.isEmpty()) {
-            return null;
-        }
-        Statements current = tryStatements;
-        boolean unwrapped = false;
-        while (current.size() == 1 && current.getFirst() instanceof ClassFileTryStatement tryStatement) {
-            BaseStatement inner = tryStatement.getTryStatements();
-            if (!(inner instanceof Statements)) {
-                break;
-            }
-            current = (Statements) inner;
-            unwrapped = true;
-        }
-        return unwrapped ? current : null;
     }
 
     private static boolean resourceMatchesLocalVariable(TryStatement.Resource resource, AbstractLocalVariable localVariable) {

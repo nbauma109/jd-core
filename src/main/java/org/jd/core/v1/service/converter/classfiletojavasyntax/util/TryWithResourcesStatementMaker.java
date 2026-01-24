@@ -613,36 +613,35 @@ public final class TryWithResourcesStatementMaker {
 
     private static ResourceAssignment findResourceAssignmentInTryStatements(
             Statements tryStatements, AbstractLocalVariable localVariable, boolean removeAssignment) {
-        if (tryStatements == null || tryStatements.isEmpty()) {
-            return null;
-        }
-        for (int i = 0; i < tryStatements.size(); i++) {
-            Statement statement = tryStatements.get(i);
-            if (!statement.isExpressionStatement()) {
-                continue;
-            }
-            Expression expression = statement.getExpression();
-            if (!expression.isBinaryOperatorExpression()) {
-                continue;
-            }
-            Expression leftExpression = expression.getLeftExpression();
-            if (!leftExpression.isLocalVariableReferenceExpression()) {
-                continue;
-            }
-            Expression rightExpression = expression.getRightExpression();
-            if (rightExpression.isNullExpression()) {
-                continue;
-            }
-            AbstractLocalVariable assignedLocalVariable =
-                    ((ClassFileLocalVariableReferenceExpression) leftExpression).getLocalVariable();
-            if (matchesLocalVariable(assignedLocalVariable, localVariable)) {
-                if (isSelfResourceReference(rightExpression, assignedLocalVariable)) {
+        if (tryStatements != null && !tryStatements.isEmpty()) {
+            for (int i = 0; i < tryStatements.size(); i++) {
+                Statement statement = tryStatements.get(i);
+                if (!statement.isExpressionStatement()) {
                     continue;
                 }
-                if (removeAssignment) {
-                    tryStatements.remove(i);
+                Expression expression = statement.getExpression();
+                if (!expression.isBinaryOperatorExpression()) {
+                    continue;
                 }
-                return new ResourceAssignment(assignedLocalVariable, rightExpression);
+                Expression leftExpression = expression.getLeftExpression();
+                if (!leftExpression.isLocalVariableReferenceExpression()) {
+                    continue;
+                }
+                Expression rightExpression = expression.getRightExpression();
+                if (rightExpression.isNullExpression()) {
+                    continue;
+                }
+                AbstractLocalVariable assignedLocalVariable =
+                        ((ClassFileLocalVariableReferenceExpression) leftExpression).getLocalVariable();
+                if (matchesLocalVariable(assignedLocalVariable, localVariable)) {
+                    if (isSelfResourceReference(rightExpression, assignedLocalVariable)) {
+                        continue;
+                    }
+                    if (removeAssignment) {
+                        tryStatements.remove(i);
+                    }
+                    return new ResourceAssignment(assignedLocalVariable, rightExpression);
+                }
             }
         }
         return null;
@@ -650,36 +649,35 @@ public final class TryWithResourcesStatementMaker {
 
     private static ResourceAssignment findResourceAssignmentInStatements(
             Statements statements, AbstractLocalVariable localVariable, boolean removeAssignment) {
-        if (statements == null || statements.isEmpty() || localVariable == null) {
-            return null;
-        }
-        for (int i = statements.size() - 1; i >= 0; i--) {
-            Statement statement = statements.get(i);
-            if (!statement.isExpressionStatement()) {
-                continue;
-            }
-            Expression expression = statement.getExpression();
-            if (!expression.isBinaryOperatorExpression()) {
-                continue;
-            }
-            Expression leftExpression = expression.getLeftExpression();
-            if (!leftExpression.isLocalVariableReferenceExpression()) {
-                continue;
-            }
-            Expression rightExpression = expression.getRightExpression();
-            if (rightExpression.isNullExpression()) {
-                continue;
-            }
-            AbstractLocalVariable assignedLocalVariable =
-                    ((ClassFileLocalVariableReferenceExpression) leftExpression).getLocalVariable();
-            if (matchesLocalVariable(assignedLocalVariable, localVariable)) {
-                if (isSelfResourceReference(rightExpression, assignedLocalVariable)) {
+        if (statements != null && !statements.isEmpty() && localVariable != null) {
+            for (int i = statements.size() - 1; i >= 0; i--) {
+                Statement statement = statements.get(i);
+                if (!statement.isExpressionStatement()) {
                     continue;
                 }
-                if (removeAssignment) {
-                    statements.remove(i);
+                Expression expression = statement.getExpression();
+                if (!expression.isBinaryOperatorExpression()) {
+                    continue;
                 }
-                return new ResourceAssignment(assignedLocalVariable, rightExpression);
+                Expression leftExpression = expression.getLeftExpression();
+                if (!leftExpression.isLocalVariableReferenceExpression()) {
+                    continue;
+                }
+                Expression rightExpression = expression.getRightExpression();
+                if (rightExpression.isNullExpression()) {
+                    continue;
+                }
+                AbstractLocalVariable assignedLocalVariable =
+                        ((ClassFileLocalVariableReferenceExpression) leftExpression).getLocalVariable();
+                if (matchesLocalVariable(assignedLocalVariable, localVariable)) {
+                    if (isSelfResourceReference(rightExpression, assignedLocalVariable)) {
+                        continue;
+                    }
+                    if (removeAssignment) {
+                        statements.remove(i);
+                    }
+                    return new ResourceAssignment(assignedLocalVariable, rightExpression);
+                }
             }
         }
         return null;
@@ -755,16 +753,15 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static boolean isFormalParameter(BaseFormalParameter formalParameters, AbstractLocalVariable localVariable) {
-        if (formalParameters == null || localVariable == null) {
-            return false;
-        }
-        for (FormalParameter parameter : formalParameters) {
-            if (!(parameter instanceof ClassFileFormalParameter classFileFormalParameter)) {
-                continue;
-            }
-            AbstractLocalVariable parameterLocalVariable = classFileFormalParameter.getLocalVariable();
-            if (matchesLocalVariable(parameterLocalVariable, localVariable)) {
-                return true;
+        if (formalParameters != null && localVariable != null) {
+            for (FormalParameter parameter : formalParameters) {
+                if (!(parameter instanceof ClassFileFormalParameter classFileFormalParameter)) {
+                    continue;
+                }
+                AbstractLocalVariable parameterLocalVariable = classFileFormalParameter.getLocalVariable();
+                if (matchesLocalVariable(parameterLocalVariable, localVariable)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -1345,7 +1342,7 @@ public final class TryWithResourcesStatementMaker {
                 resourceLocals.add(resourceInfo.localVariable);
             }
         }
-        removeCloseStatementsForResources(bodyStatements, resourceLocals, finallyStatements);
+        removeCloseStatementsForResources(bodyStatements, resourceLocals);
 
         for (ResourceInfo resourceInfo : resourceInfos) {
             AbstractLocalVariable localVariable = resourceInfo.localVariable;
@@ -1471,23 +1468,22 @@ public final class TryWithResourcesStatementMaker {
     private static void removeTrailingResourceAssignments(
             Statements statements,
             AbstractLocalVariable... locals) {
-        if (statements == null || statements.isEmpty()) {
-            return;
-        }
-        Set<AbstractLocalVariable> targets = new HashSet<>();
-        for (AbstractLocalVariable local : locals) {
-            if (local != null) {
-                targets.add(local);
+        if (statements != null && !statements.isEmpty()) {
+            Set<AbstractLocalVariable> targets = new HashSet<>();
+            for (AbstractLocalVariable local : locals) {
+                if (local != null) {
+                    targets.add(local);
+                }
             }
-        }
-        while (!targets.isEmpty() && !statements.isEmpty()) {
-            Statement lastStatement = statements.getLast();
-            AbstractLocalVariable assignedLocalVariable = getAssignedLocalVariable(lastStatement);
-            if (assignedLocalVariable == null || !targets.contains(assignedLocalVariable)) {
-                break;
+            while (!targets.isEmpty() && !statements.isEmpty()) {
+                Statement lastStatement = statements.getLast();
+                AbstractLocalVariable assignedLocalVariable = getAssignedLocalVariable(lastStatement);
+                if (assignedLocalVariable == null || !targets.contains(assignedLocalVariable)) {
+                    break;
+                }
+                statements.removeLast();
+                targets.remove(assignedLocalVariable);
             }
-            statements.removeLast();
-            targets.remove(assignedLocalVariable);
         }
     }
 
@@ -1697,24 +1693,22 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static ClassFileTryStatement getFirstTryStatement(Statements statements) {
-        if (statements == null || statements.isEmpty()) {
-            return null;
-        }
-        for (Statement statement : statements) {
-            if (statement instanceof ClassFileTryStatement cfTry) {
-                return cfTry;
+        if (statements != null && !statements.isEmpty()) {
+            for (Statement statement : statements) {
+                if (statement instanceof ClassFileTryStatement cfTry) {
+                    return cfTry;
+                }
             }
         }
         return null;
     }
 
     private static int indexOfFirstTryStatement(Statements statements) {
-        if (statements == null || statements.isEmpty()) {
-            return -1;
-        }
-        for (int i = 0; i < statements.size(); i++) {
-            if (statements.get(i) instanceof ClassFileTryStatement) {
-                return i;
+        if (statements != null && !statements.isEmpty()) {
+            for (int i = 0; i < statements.size(); i++) {
+                if (statements.get(i) instanceof ClassFileTryStatement) {
+                    return i;
+                }
             }
         }
         return -1;
@@ -1722,40 +1716,38 @@ public final class TryWithResourcesStatementMaker {
 
     private static void removeCloseStatementsForResources(
             BaseStatement tryStatements,
-            Set<AbstractLocalVariable> resourceLocals,
-            Statements finallyStatements) {
-        if (tryStatements == null || resourceLocals == null || resourceLocals.isEmpty()) {
-            return;
-        }
-        tryStatements.accept(new AbstractJavaSyntaxVisitor() {
-            @Override
-            public void visit(Statements statements) {
-                if (statements.isList()) {
-                    for (Iterator<Statement> iterator = statements.getList().iterator(); iterator.hasNext();) {
-                        Statement statement = iterator.next();
-                        if (statement instanceof IfStatement ifStatement) {
-                            Expression condition = ifStatement.getCondition();
-                            BaseStatement thenStatements = ifStatement.getStatements();
-                            if (condition instanceof BinaryOperatorExpression boe && thenStatements.size() == 1) {
-                                Statement singleStatement = thenStatements.getFirst();
-                                if ("!=".equals(boe.getOperator())
-                                        && boe.getRightExpression() instanceof NullExpression
-                                        && boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression
-                                        && singleStatement.getExpression() instanceof MethodInvocationExpression) {
-                                    AbstractLocalVariable conditionVariable =
-                                            ((ClassFileLocalVariableReferenceExpression) boe.getLeftExpression()).getLocalVariable();
-                                    MethodInvocationExpression mie = (MethodInvocationExpression) singleStatement.getExpression();
-                                    if (resourceLocals.contains(conditionVariable) && checkCloseInvocation(mie, conditionVariable)) {
-                                        iterator.remove();
+            Set<AbstractLocalVariable> resourceLocals) {
+        if (tryStatements != null && resourceLocals != null && !resourceLocals.isEmpty()) {
+            tryStatements.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(Statements statements) {
+                    if (statements.isList()) {
+                        for (Iterator<Statement> iterator = statements.getList().iterator(); iterator.hasNext();) {
+                            Statement statement = iterator.next();
+                            if (statement instanceof IfStatement ifStatement) {
+                                Expression condition = ifStatement.getCondition();
+                                BaseStatement thenStatements = ifStatement.getStatements();
+                                if (condition instanceof BinaryOperatorExpression boe && thenStatements.size() == 1) {
+                                    Statement singleStatement = thenStatements.getFirst();
+                                    if ("!=".equals(boe.getOperator())
+                                            && boe.getRightExpression() instanceof NullExpression
+                                            && boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression
+                                            && singleStatement.getExpression() instanceof MethodInvocationExpression) {
+                                        AbstractLocalVariable conditionVariable =
+                                                ((ClassFileLocalVariableReferenceExpression) boe.getLeftExpression()).getLocalVariable();
+                                        MethodInvocationExpression mie = (MethodInvocationExpression) singleStatement.getExpression();
+                                        if (resourceLocals.contains(conditionVariable) && checkCloseInvocation(mie, conditionVariable)) {
+                                            iterator.remove();
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    super.visit(statements);
                 }
-                super.visit(statements);
-            }
-        });
+            });
+        }
     }
 
     private static DefaultList<TryStatement.Resource> collectResourcesFromCatch(

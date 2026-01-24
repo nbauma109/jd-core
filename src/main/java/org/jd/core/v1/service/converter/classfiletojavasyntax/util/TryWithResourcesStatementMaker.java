@@ -458,7 +458,6 @@ public final class TryWithResourcesStatementMaker {
                 primaryExceptionLocalVariable,
                 suppressedLocalVariable,
                 hasResourceDeclaration,
-                false,
                 prefixResources,
                 allowResourceExpression);
     }
@@ -949,7 +948,6 @@ public final class TryWithResourcesStatementMaker {
                 lv2,
                 null,
                 true,
-                false,
                 null,
                 allowResourceExpression);
     }
@@ -959,7 +957,6 @@ public final class TryWithResourcesStatementMaker {
             Statements finallyStatements, Expression resourceExpression, AbstractLocalVariable resourceLocalVariable,
             AbstractLocalVariable primaryExceptionLocalVariable, AbstractLocalVariable suppressedLocalVariable,
             boolean hasResourceDeclaration,
-            boolean preserveExceptionLocals,
             DefaultList<TryStatement.Resource> prefixResources,
             boolean allowResourceExpression) {
         if (resourceExpression != null
@@ -1048,15 +1045,8 @@ public final class TryWithResourcesStatementMaker {
             }
         });
 
-        boolean removePrimaryException;
-        boolean removeSuppressedException;
-        if (preserveExceptionLocals) {
-            removePrimaryException = shouldRemoveLocalVariable(tryStatements, null, primaryExceptionLocalVariable);
-            removeSuppressedException = shouldRemoveLocalVariable(tryStatements, null, suppressedLocalVariable);
-        } else {
-            removePrimaryException = primaryExceptionLocalVariable != null;
-            removeSuppressedException = suppressedLocalVariable != null;
-        }
+        boolean removePrimaryException = primaryExceptionLocalVariable != null;
+        boolean removeSuppressedException = suppressedLocalVariable != null;
         if (resourceLocalVariable != null) {
             if (primaryExceptionLocalVariable == resourceLocalVariable) {
                 removePrimaryException = false;
@@ -1098,12 +1088,6 @@ public final class TryWithResourcesStatementMaker {
         }
         if (!expressionOnly && resourceLocalVariable != null) {
             resourceLocalVariable.setDeclared(true);
-        }
-        if (expressionOnly && hasResourceDeclaration && resourceLocalVariable != null) {
-            AbstractLocalVariable expressionLocalVariable = getLocalVariableFromExpression(resourceExpression);
-            if (resourceLocalVariable != expressionLocalVariable) {
-                localVariableMaker.removeLocalVariable(resourceLocalVariable);
-            }
         }
 
         // Create try-with-resources statement
@@ -1387,12 +1371,6 @@ public final class TryWithResourcesStatementMaker {
 
             if (!expressionOnly && localVariable != null) {
                 localVariable.setDeclared(true);
-            }
-            if (expressionOnly && resourceInfo.hasDeclaration && localVariable != null) {
-                AbstractLocalVariable expressionLocalVariable = getLocalVariableFromExpression(resourceExpression);
-                if (localVariable != expressionLocalVariable) {
-                    localVariableMaker.removeLocalVariable(localVariable);
-                }
             }
 
             if (expressionOnly) {

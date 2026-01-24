@@ -13,7 +13,6 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
-import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
@@ -25,9 +24,7 @@ import org.jd.core.v1.model.javasyntax.statement.TryStatement.CatchClause;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
-import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
-import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFormalParameter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
@@ -1146,7 +1143,7 @@ public final class TryWithResourcesStatementMaker {
                 resourceLocalVariable,
                 removePrimaryException ? primaryExceptionLocalVariable : null,
                 removeSuppressedException ? suppressedLocalVariable : null);
-        Set<AbstractLocalVariable> leadingNullAssignments = removeLeadingNullAssignments(
+        removeLeadingNullAssignments(
                 statements,
                 resourceLocalVariable,
                 removePrimaryException ? primaryExceptionLocalVariable : null,
@@ -1157,16 +1154,6 @@ public final class TryWithResourcesStatementMaker {
         }
         if (removeSuppressedException) {
             localVariableMaker.removeLocalVariable(suppressedLocalVariable);
-        }
-        if (leadingNullAssignments != null && !leadingNullAssignments.isEmpty()) {
-            for (AbstractLocalVariable localVariable : leadingNullAssignments) {
-                if (localVariable == primaryExceptionLocalVariable || localVariable == suppressedLocalVariable) {
-                    continue;
-                }
-                if (shouldRemoveLocalVariable(tryStatements, finallyStatements, localVariable)) {
-                    localVariableMaker.removeLocalVariable(localVariable);
-                }
-            }
         }
         removeLeadingNullAssignmentsForUnreferencedLocals(
                 localVariableMaker, statements, tryStatements, finallyStatements);
@@ -1257,7 +1244,7 @@ public final class TryWithResourcesStatementMaker {
             return Expression.UNKNOWN_LINE_NUMBER;
         }
         Statement statement = statements.get(0);
-        if (isNullAssignmentOrDeclaration(statement)) {
+        if (isNullAssignment(statement)) {
             return statement.getLineNumber();
         }
         return Expression.UNKNOWN_LINE_NUMBER;
@@ -1275,7 +1262,7 @@ public final class TryWithResourcesStatementMaker {
             return Expression.UNKNOWN_LINE_NUMBER;
         }
         for (Statement statement : statements) {
-            if (!isNullAssignmentOrDeclaration(statement)) {
+            if (!isNullAssignment(statement)) {
                 return Expression.UNKNOWN_LINE_NUMBER;
             }
         }
@@ -1505,7 +1492,7 @@ public final class TryWithResourcesStatementMaker {
         if (removeSuppressedException) {
             leadingNullLocals.add(suppressedLocalVariable);
         }
-        Set<AbstractLocalVariable> leadingNullAssignments = removeLeadingNullAssignments(
+        removeLeadingNullAssignments(
                 statements,
                 leadingNullLocals.toArray(new AbstractLocalVariable[0]));
         if (removePrimaryException) {
@@ -1513,16 +1500,6 @@ public final class TryWithResourcesStatementMaker {
         }
         if (removeSuppressedException) {
             localVariableMaker.removeLocalVariable(suppressedLocalVariable);
-        }
-        if (leadingNullAssignments != null && !leadingNullAssignments.isEmpty()) {
-            for (AbstractLocalVariable localVariable : leadingNullAssignments) {
-                if (localVariable == primaryExceptionLocalVariable || localVariable == suppressedLocalVariable) {
-                    continue;
-                }
-                if (shouldRemoveLocalVariable(bodyStatements, finallyStatements, localVariable)) {
-                    localVariableMaker.removeLocalVariable(localVariable);
-                }
-            }
         }
         removeLeadingNullAssignmentsForUnreferencedLocals(
                 localVariableMaker, statements, bodyStatements, finallyStatements);
@@ -1674,27 +1651,6 @@ public final class TryWithResourcesStatementMaker {
         return boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression;
     }
 
-    private static boolean isNullDeclarationStatement(Statement statement) {
-        if (!(statement instanceof LocalVariableDeclarationStatement declarationStatement)) {
-            return false;
-        }
-        BaseLocalVariableDeclarator declarators = declarationStatement.getLocalVariableDeclarators();
-        if (declarators == null || declarators.isList()) {
-            return false;
-        }
-        LocalVariableDeclarator declarator = declarators.getFirst();
-        if (declarator.getVariableInitializer() == null
-                || !declarator.getVariableInitializer().isExpressionVariableInitializer()) {
-            return false;
-        }
-        Expression initializer = declarator.getVariableInitializer().getExpression();
-        return initializer == null || initializer.isNullExpression();
-    }
-
-    private static boolean isNullAssignmentOrDeclaration(Statement statement) {
-        return isNullAssignment(statement) || isNullDeclarationStatement(statement);
-    }
-
     private static void removeLeadingNullAssignmentsForUnreferencedLocals(
             LocalVariableMaker localVariableMaker,
             Statements statements,
@@ -1705,7 +1661,7 @@ public final class TryWithResourcesStatementMaker {
         }
         while (!statements.isEmpty()) {
             Statement first = statements.getFirst();
-            if (!isNullAssignmentOrDeclaration(first)) {
+            if (!isNullAssignment(first)) {
                 break;
             }
             AbstractLocalVariable assignedLocal = getAssignedLocalVariable(first);
@@ -1721,21 +1677,6 @@ public final class TryWithResourcesStatementMaker {
         if (statement == null) {
             return false;
         }
-        if (statement instanceof LocalVariableDeclarationStatement declarationStatement) {
-            BaseLocalVariableDeclarator declarators = declarationStatement.getLocalVariableDeclarators();
-            if (declarators == null) {
-                return false;
-            }
-            if (declarators.isList()) {
-                for (LocalVariableDeclarator declarator : declarators.getList()) {
-                    if (hasNonNullInitializer(declarator)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            return hasNonNullInitializer(declarators.getFirst());
-        }
         if (!statement.isExpressionStatement()) {
             return false;
         }
@@ -1745,16 +1686,6 @@ public final class TryWithResourcesStatementMaker {
         }
         Expression rightExpression = boe.getRightExpression();
         return rightExpression != null && !rightExpression.isNullExpression();
-    }
-
-    private static boolean hasNonNullInitializer(LocalVariableDeclarator declarator) {
-        if (declarator == null
-                || declarator.getVariableInitializer() == null
-                || !declarator.getVariableInitializer().isExpressionVariableInitializer()) {
-            return false;
-        }
-        Expression initializer = declarator.getVariableInitializer().getExpression();
-        return initializer != null && !initializer.isNullExpression();
     }
 
     private static ClassFileTryStatement findSingleTryWithResources(Statements tryStatements) {
@@ -1776,7 +1707,7 @@ public final class TryWithResourcesStatementMaker {
             return null;
         }
         for (Statement statement : tryStatements) {
-            if (statement == candidate || isNullAssignmentOrDeclaration(statement)) {
+            if (statement == candidate || isNullAssignment(statement)) {
                 continue;
             }
             return null;
@@ -1792,7 +1723,7 @@ public final class TryWithResourcesStatementMaker {
         if (firstTryIndex > 0) {
             for (int i = 0; i < firstTryIndex; i++) {
                 Statement leading = tryStatements.get(i);
-                if (isNullAssignmentOrDeclaration(leading) || isPotentialResourceAssignment(leading)) {
+                if (isNullAssignment(leading) || isPotentialResourceAssignment(leading)) {
                     continue;
                 }
                 return null;

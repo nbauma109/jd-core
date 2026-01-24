@@ -90,7 +90,7 @@ public final class TryWithResourcesStatementMaker {
             if (invocation != null) {
                 return;
             }
-            if ("addSuppressed".equals(expression.getName()) && "(Ljava/lang/Throwable;)V".equals(expression.getDescriptor())) {
+            if (isAddSuppressed(expression)) {
                 Expression target = expression.getExpression();
                 if (target.isLocalVariableReferenceExpression()) {
                     AbstractLocalVariable localVariable = ((ClassFileLocalVariableReferenceExpression) target).getLocalVariable();
@@ -102,6 +102,11 @@ public final class TryWithResourcesStatementMaker {
             }
             super.visit(expression);
         }
+
+    }
+
+    private static boolean isAddSuppressed(MethodInvocationExpression expression) {
+        return "addSuppressed".equals(expression.getName()) && "(Ljava/lang/Throwable;)V".equals(expression.getDescriptor());
     }
 
     private static final class CloseInvocationInCatchVisitor extends AbstractJavaSyntaxVisitor {
@@ -437,7 +442,7 @@ public final class TryWithResourcesStatementMaker {
 
             MethodInvocationExpression mie = (MethodInvocationExpression) expressionStatement.getExpression();
 
-            if (!"addSuppressed".equals(mie.getName()) || !"(Ljava/lang/Throwable;)V".equals(mie.getDescriptor())) {
+            if (!isAddSuppressed(mie)) {
                 return null;
             }
 
@@ -468,10 +473,8 @@ public final class TryWithResourcesStatementMaker {
         }
 
         DefaultList<TryStatement.Resource> prefixResources = null;
-        if (ecjPatternMatch) {
-            if (prefixResources == null) {
-                prefixResources = collectResourcesFromCatch(catchStatements, closeInvocationInfo.localVariable);
-            }
+        if (ecjPatternMatch && prefixResources == null) {
+            prefixResources = collectResourcesFromCatch(catchStatements, closeInvocationInfo.localVariable);
         }
 
         return newTryStatement(
@@ -713,23 +716,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static boolean matchesLocalVariable(AbstractLocalVariable assignedLocalVariable, AbstractLocalVariable expectedLocalVariable) {
-        if (expectedLocalVariable == null || assignedLocalVariable == expectedLocalVariable) {
-            return true;
-        }
-        if (assignedLocalVariable == null || assignedLocalVariable.getIndex() != expectedLocalVariable.getIndex()) {
-            return false;
-        }
-        String assignedName = assignedLocalVariable.getName();
-        String expectedName = expectedLocalVariable.getName();
-        if (assignedName != null && expectedName != null && !assignedName.equals(expectedName)) {
-            return false;
-        }
-        if (assignedName == null || expectedName == null) {
-            return true;
-        }
-        Type assignedType = assignedLocalVariable.getType();
-        Type expectedType = expectedLocalVariable.getType();
-        return assignedType == null || expectedType == null || assignedType.equals(expectedType);
+        return expectedLocalVariable == null || assignedLocalVariable == expectedLocalVariable;
     }
 
     private static AbstractLocalVariable findMatchingTarget(
@@ -897,7 +884,7 @@ public final class TryWithResourcesStatementMaker {
 
         mie = (MethodInvocationExpression) expression;
 
-        if (!"addSuppressed".equals(mie.getName()) || !"(Ljava/lang/Throwable;)V".equals(mie.getDescriptor())) {
+        if (!isAddSuppressed(mie)) {
             return null;
         }
 
@@ -1307,7 +1294,9 @@ public final class TryWithResourcesStatementMaker {
             }
         }
         SearchFirstLineNumberVisitor lineNumberVisitor = new SearchFirstLineNumberVisitor();
-        lineNumberVisitor.safeAccept(chain.bodyStatements);
+        if (chain != null) {
+            lineNumberVisitor.safeAccept(chain.bodyStatements);
+        }
         int bodyLineNumber = lineNumberVisitor.getLineNumber();
         if (bodyLineNumber == Expression.UNKNOWN_LINE_NUMBER) {
             return null;
@@ -1448,7 +1437,7 @@ public final class TryWithResourcesStatementMaker {
 
             if (expressionOnly) {
                 resources.add(new TryStatement.Resource(resourceExpression));
-            } else {
+            } else if (localVariable != null) {
                 resources.add(new TryStatement.Resource(localVariable.getType(), localVariable.getName(), resourceExpression));
             }
             if (localVariable != null) {
@@ -1655,10 +1644,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static boolean isPotentialResourceAssignment(Statement statement) {
-        if (statement == null) {
-            return false;
-        }
-        if (!statement.isExpressionStatement()) {
+        if (statement == null || !statement.isExpressionStatement()) {
             return false;
         }
         Expression expression = statement.getExpression();
@@ -1785,8 +1771,8 @@ public final class TryWithResourcesStatementMaker {
             return null;
         }
         for (Statement statement : statements) {
-            if (statement instanceof ClassFileTryStatement) {
-                return (ClassFileTryStatement) statement;
+            if (statement instanceof ClassFileTryStatement cfTry) {
+                return cfTry;
             }
         }
         return null;
@@ -1830,21 +1816,6 @@ public final class TryWithResourcesStatementMaker {
                                             ((ClassFileLocalVariableReferenceExpression) boe.getLeftExpression()).getLocalVariable();
                                     MethodInvocationExpression mie = (MethodInvocationExpression) singleStatement.getExpression();
                                     if (resourceLocals.contains(conditionVariable) && checkCloseInvocation(mie, conditionVariable)) {
-                                        iterator.remove();
-                                    }
-                                }
-                            }
-                        }
-                        Expression expression = statement.getExpression();
-                        if (expression instanceof MethodInvocationExpression mie) {
-                            AbstractLocalVariable localVariable = getCloseInvocationLocalVariable(mie);
-                            if (localVariable != null && resourceLocals.contains(localVariable)) {
-                                if (finallyStatements == null) {
-                                    iterator.remove();
-                                } else {
-                                    SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
-                                    searchFirstLineNumberVisitor.safeAccept(finallyStatements);
-                                    if (searchFirstLineNumberVisitor.getLineNumber() == mie.getLineNumber()) {
                                         iterator.remove();
                                     }
                                 }

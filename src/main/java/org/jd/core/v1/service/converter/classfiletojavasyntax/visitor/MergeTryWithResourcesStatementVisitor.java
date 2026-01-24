@@ -318,12 +318,6 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
         }
     }
 
-    protected void acceptListStatement(List<? extends Statement> list) {
-        for (Statement statement : list) {
-            statement.accept(this);
-        }
-    }
-
     protected void safeAcceptListStatement(List<? extends Statement> list) {
         if (list != null) {
             for (Statement statement : list) {

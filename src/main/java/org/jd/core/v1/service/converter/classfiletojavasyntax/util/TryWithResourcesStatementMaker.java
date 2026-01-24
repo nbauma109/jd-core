@@ -155,22 +155,6 @@ public final class TryWithResourcesStatementMaker {
         }
     }
 
-    private static final class ResourceCollectorVisitor extends AbstractJavaSyntaxVisitor {
-        private final DefaultList<TryStatement.Resource> resources = new DefaultList<>();
-
-        public DefaultList<TryStatement.Resource> getResources() {
-            return resources;
-        }
-
-        @Override
-        public void visit(TryStatement statement) {
-            if (statement.getResources() != null && !statement.getResources().isEmpty()) {
-                resources.addAll(statement.getResources());
-            }
-            super.visit(statement);
-        }
-    }
-
     private static final class CloseInvocationExpressionCollector extends AbstractJavaSyntaxVisitor {
         private final DefaultList<Expression> expressions = new DefaultList<>();
 
@@ -485,9 +469,6 @@ public final class TryWithResourcesStatementMaker {
 
         DefaultList<TryStatement.Resource> prefixResources = null;
         if (ecjPatternMatch) {
-            if (prefixResources == null) {
-                prefixResources = collectResourcesFromTryChain(tryStatements);
-            }
             if (prefixResources == null) {
                 prefixResources = collectResourcesFromCatch(catchStatements, closeInvocationInfo.localVariable);
             }
@@ -1881,18 +1862,7 @@ public final class TryWithResourcesStatementMaker {
         if (catchStatements == null || catchStatements.size() == 0) {
             return null;
         }
-        ResourceCollectorVisitor visitor = new ResourceCollectorVisitor();
-        catchStatements.accept(visitor);
-        DefaultList<TryStatement.Resource> collected = visitor.getResources();
         DefaultList<TryStatement.Resource> filtered = new DefaultList<>();
-        if (!collected.isEmpty()) {
-            for (TryStatement.Resource resource : collected) {
-                if (resourceMatchesLocalVariable(resource, currentLocalVariable)) {
-                    continue;
-                }
-                filtered.add(resource);
-            }
-        }
         CloseInvocationExpressionCollector closeCollector = new CloseInvocationExpressionCollector();
         catchStatements.accept(closeCollector);
         for (Expression expression : closeCollector.getExpressions()) {
@@ -1907,46 +1877,6 @@ public final class TryWithResourcesStatementMaker {
             filtered.add(resource);
         }
         return filtered.isEmpty() ? null : filtered;
-    }
-
-    private static DefaultList<TryStatement.Resource> collectResourcesFromTryChain(Statements tryStatements) {
-        if (tryStatements == null || tryStatements.isEmpty()) {
-            return null;
-        }
-        for (Statement statement : tryStatements) {
-            if (statement instanceof ClassFileTryStatement tryStatement) {
-                DefaultList<TryStatement.Resource> resources = new DefaultList<>();
-                collectResourcesFromTryChain(tryStatement, resources);
-                return resources.isEmpty() ? null : resources;
-            }
-        }
-        return null;
-    }
-
-    private static void collectResourcesFromTryChain(ClassFileTryStatement tryStatement, DefaultList<TryStatement.Resource> resources) {
-        if (tryStatement == null) {
-            return;
-        }
-        BaseStatement inner = tryStatement.getTryStatements();
-        if (inner instanceof Statements innerStatements && innerStatements.size() == 1 && innerStatements.getFirst() instanceof ClassFileTryStatement cfTry) {
-            collectResourcesFromTryChain(cfTry, resources);
-        }
-    }
-
-    private static boolean resourceMatchesLocalVariable(TryStatement.Resource resource, AbstractLocalVariable localVariable) {
-        if (resource == null || localVariable == null) {
-            return false;
-        }
-        String localName = localVariable.getName();
-        String resourceName = resource.getName();
-        if (resourceName != null && localName != null) {
-            return resourceName.equals(localName);
-        }
-        Expression expression = resource.getExpression();
-        if (expression instanceof ClassFileLocalVariableReferenceExpression ref) {
-            return ref.getLocalVariable() == localVariable;
-        }
-        return false;
     }
 
     private static AbstractLocalVariable getAssignedLocalVariable(Statement statement) {

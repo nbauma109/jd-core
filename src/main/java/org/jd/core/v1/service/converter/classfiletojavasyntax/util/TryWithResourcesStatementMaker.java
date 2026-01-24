@@ -334,11 +334,6 @@ public final class TryWithResourcesStatementMaker {
                     statements,
                     closeInvocationInfo.localVariable,
                     true);
-            if (resourceAssignment != null) {
-                lv1 = resourceAssignment.localVariable;
-                resourceExpression = resourceAssignment.expression;
-                hasResourceDeclaration = true;
-            }
         }
         if (resourceAssignment == null && closeInvocationInfo != null) {
             resourceAssignment = findResourceAssignmentInTryStatements(
@@ -397,30 +392,6 @@ public final class TryWithResourcesStatementMaker {
                     allowResourceExpression);
             if (chainStatement != null) {
                 return chainStatement;
-            }
-
-            if (resourceAssignment == null) {
-                resourceAssignment = findResourceAssignmentInTryStatements(
-                        tryStatements,
-                        closeInvocationInfo.localVariable,
-                        true);
-                if (resourceAssignment != null) {
-                    lv1 = resourceAssignment.localVariable;
-                    resourceExpression = resourceAssignment.expression;
-                    hasResourceDeclaration = true;
-                }
-            }
-
-            if (resourceAssignment == null) {
-                resourceAssignment = findResourceAssignmentInTryStatements(
-                        tryStatementsForResources,
-                        closeInvocationInfo.localVariable,
-                        true);
-                if (resourceAssignment != null) {
-                    lv1 = resourceAssignment.localVariable;
-                    resourceExpression = resourceAssignment.expression;
-                    hasResourceDeclaration = true;
-                }
             }
         } else {
             ClassFileTryStatement tryStatement = closeInvocationInfo.tryStatement;
@@ -925,21 +896,10 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static AbstractLocalVariable getSuppressedLocalVariable(MethodInvocationExpression mie) {
-        if (mie.getParameters() == null) {
-            return null;
-        }
-        Expression suppressedExpression;
-        if (mie.getParameters().isList()) {
-            DefaultList<Expression> parameters = mie.getParameters().getList();
-            if (parameters.isEmpty()) {
-                return null;
-            }
-            suppressedExpression = parameters.getFirst();
-        } else {
-            suppressedExpression = mie.getParameters().getFirst();
-        }
-        if (suppressedExpression.isLocalVariableReferenceExpression()) {
-            return ((ClassFileLocalVariableReferenceExpression) suppressedExpression).getLocalVariable();
+        if (mie.getParameters() != null
+                && !mie.getParameters().isList()
+                && mie.getParameters().getFirst() instanceof ClassFileLocalVariableReferenceExpression suppressedExpression) {
+            return suppressedExpression.getLocalVariable();
         }
         return null;
     }

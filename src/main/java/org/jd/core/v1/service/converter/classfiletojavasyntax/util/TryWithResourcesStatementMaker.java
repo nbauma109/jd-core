@@ -1047,14 +1047,6 @@ public final class TryWithResourcesStatementMaker {
 
         boolean removePrimaryException = primaryExceptionLocalVariable != null;
         boolean removeSuppressedException = suppressedLocalVariable != null;
-        if (resourceLocalVariable != null) {
-            if (primaryExceptionLocalVariable == resourceLocalVariable) {
-                removePrimaryException = false;
-            }
-            if (suppressedLocalVariable == resourceLocalVariable) {
-                removeSuppressedException = false;
-            }
-        }
 
         removeTrailingLocalAssignments(
                 statements,

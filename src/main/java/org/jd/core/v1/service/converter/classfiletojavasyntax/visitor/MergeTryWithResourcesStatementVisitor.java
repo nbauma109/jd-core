@@ -41,11 +41,8 @@ import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
 
@@ -70,10 +67,6 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
         tryStatements.accept(this);
         safeAcceptListStatement(statement.getCatchClauses());
         safeAccept(statement.getFinallyStatements());
-
-        if (tryStatements.isStatements()) {
-            stripLeadingExceptionDeclarations((Statements) tryStatements);
-        }
 
         if (tryStatements.size() == 1) {
             Statement first = tryStatements.getFirst();
@@ -110,7 +103,6 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
                 }
             }
         }
-        stripLeadingExceptionDeclarations(list);
     }
     @Override public void visit(SynchronizedStatement statement) { safeAccept(statement.getStatements()); }
     @Override public void visit(TryStatement.CatchClause statement) { safeAccept(statement.getStatements()); }
@@ -204,95 +196,6 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return false;
         }
         return boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression;
-    }
-
-    private void stripLeadingExceptionDeclarations(Statements list) {
-        if (list == null || list.isEmpty()) {
-            return;
-        }
-        int index = 0;
-        while (index < list.size()) {
-            Statement statement = list.get(index);
-            AbstractLocalVariable localVariable = getExceptionNullStatementLocalVariable(statement);
-            if (localVariable != null || getAssignedLocalVariable(statement) != null) {
-                index++;
-                continue;
-            }
-            break;
-        }
-        if (index == 0 || list.size() - index != 1) {
-            return;
-        }
-        Statement remaining = list.get(index);
-        if (!(remaining instanceof ClassFileTryStatement tryStatement) || tryStatement.getResources() == null
-                || tryStatement.getResources().isEmpty()) {
-            return;
-        }
-        if (tryStatement.getCatchClauses() != null && !tryStatement.getCatchClauses().isEmpty()
-                || tryStatement.getFinallyStatements() != null) {
-            return;
-        }
-        Set<String> resourceNames = getDeclaredResourceNames(tryStatement);
-        for (int i = 0; i < index; i++) {
-            Statement leading = list.get(i);
-            AbstractLocalVariable assignedLocal = getAssignedLocalVariable(leading);
-            if (assignedLocal == null) {
-                return;
-            }
-            String assignedName = assignedLocal.getName();
-            if (assignedName == null || !resourceNames.contains(assignedName)) {
-                return;
-            }
-        }
-        for (int i = 0; i < index; i++) {
-            list.remove(0);
-        }
-    }
-
-    private AbstractLocalVariable getAssignedLocalVariable(Statement statement) {
-        if (!(statement instanceof ExpressionStatement expressionStatement)) {
-            return null;
-        }
-        Expression expression = expressionStatement.getExpression();
-        if (!(expression instanceof BinaryOperatorExpression boe) || boe.getRightExpression() instanceof NullExpression) {
-            return null;
-        }
-        Expression leftExpression = boe.getLeftExpression();
-        if (!(leftExpression instanceof ClassFileLocalVariableReferenceExpression ref)) {
-            return null;
-        }
-        return ref.getLocalVariable();
-    }
-
-    private Set<String> getDeclaredResourceNames(ClassFileTryStatement tryStatement) {
-        Set<String> names = new HashSet<>();
-        List<TryStatement.Resource> resources = tryStatement.getResources();
-        if (resources == null || resources.isEmpty()) {
-            return names;
-        }
-        for (TryStatement.Resource resource : resources) {
-            if (resource == null || resource.isExpressionOnly()) {
-                continue;
-            }
-            String name = resource.getName();
-            if (name != null) {
-                names.add(name);
-            }
-        }
-        return names;
-    }
-
-    private AbstractLocalVariable getExceptionNullStatementLocalVariable(Statement statement) {
-        if (!(statement instanceof ExpressionStatement expressionStatement)) {
-            return null;
-        }
-        Expression expression = expressionStatement.getExpression();
-        if (!(expression instanceof BinaryOperatorExpression boe)
-                || !(boe.getRightExpression() instanceof NullExpression)
-                || !(boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression ref)) {
-            return null;
-        }
-        return ref.getLocalVariable();
     }
 
     protected void safeAccept(BaseStatement list) {

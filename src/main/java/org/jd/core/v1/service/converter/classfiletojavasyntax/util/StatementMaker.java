@@ -1328,8 +1328,6 @@ public class StatementMaker {
         public void visit(MethodInvocationExpression expression) {
             if ("addSuppressed".equals(expression.getName()) && "(Ljava/lang/Throwable;)V".equals(expression.getDescriptor())) {
                 found = true;
-            } else if (!found) {
-                super.visit(expression);
             }
         }
     }

@@ -1,0 +1,15 @@
+/*  1:  0 */ package org.jd.core.v1;
+/*  2:  0 */
+/*  3:  0 */ import java.io.File;
+/*  4:  0 */ import java.io.IOException;
+/*  5:  0 */ import java.io.InputStream;
+/*  6:  0 */
+/*  7:  0 */ public abstract class TryResources2 {
+/*  8:  0 */   void copyInputStreamToFile(InputStream source, File destination) throws IOException {
+/*  9:  9 */     try (InputStream inputStream = source) {
+/* 10: 10 */       copyToFile(inputStream, destination);
+/* 11:  0 */     }
+/* 12:  0 */   }
+/* 13:  0 */
+/* 14:  0 */   abstract void copyToFile(InputStream paramInputStream, File paramFile);
+/* 15:  0 */ }

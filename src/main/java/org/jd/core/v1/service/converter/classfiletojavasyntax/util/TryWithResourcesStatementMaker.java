@@ -17,7 +17,6 @@ import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStateme
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
-import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
@@ -410,10 +409,6 @@ public final class TryWithResourcesStatementMaker {
 
         AbstractLocalVariable suppressedLocalVariable = null;
         AbstractLocalVariable primaryExceptionLocalVariable = lv2;
-        AbstractLocalVariable assignedPrimaryException = findAssignedLocalVariable(catchStatements, lv2);
-        if (assignedPrimaryException != null) {
-            primaryExceptionLocalVariable = assignedPrimaryException;
-        }
         Statements tryStatementsForResources = tryStatements;
         if (ecjPatternMatch) {
             MethodInvocationExpression addSuppressedInvocation = findAddSuppressedInvocation(catchStatements, lv2);
@@ -1253,7 +1248,7 @@ public final class TryWithResourcesStatementMaker {
                 localVariableMaker, statements, tryStatements, finallyStatements);
 
         boolean expressionOnly = shouldUseExpressionOnly(
-                hasResourceDeclaration, resourceLocalVariable, resourceExpression, allowResourceExpression);
+                resourceLocalVariable, resourceExpression, allowResourceExpression);
         if (!expressionOnly
                 && allowResourceExpression
                 && resourceExpression != null
@@ -1543,13 +1538,12 @@ public final class TryWithResourcesStatementMaker {
             }
         }
         removeCloseStatementsForResources(bodyStatements, resourceLocals, finallyStatements);
-        ensureBodyStatementsLineNumbers(bodyStatements, bodyLineNumber);
 
         for (ResourceInfo resourceInfo : resourceInfos) {
             AbstractLocalVariable localVariable = resourceInfo.localVariable;
             Expression resourceExpression = resourceInfo.expression;
             boolean expressionOnly = shouldUseExpressionOnly(
-                    resourceInfo.hasDeclaration, localVariable, resourceExpression, allowResourceExpression);
+                    localVariable, resourceExpression, allowResourceExpression);
             if (!expressionOnly
                     && allowResourceExpression
                     && resourceExpression != null
@@ -1639,47 +1633,7 @@ public final class TryWithResourcesStatementMaker {
         }
     }
 
-    private static void ensureBodyStatementsLineNumbers(BaseStatement statements, int fallbackLineNumber) {
-        if (statements == null || fallbackLineNumber == Expression.UNKNOWN_LINE_NUMBER) {
-            return;
-        }
-        SearchFirstLineNumberVisitor visitor = new SearchFirstLineNumberVisitor();
-        visitor.safeAccept(statements);
-        if (visitor.getLineNumber() != Expression.UNKNOWN_LINE_NUMBER) {
-            return;
-        }
-        statements.accept(new AbstractJavaSyntaxVisitor() {
-            @Override
-            public void visit(ExpressionStatement statement) {
-                Expression expression = statement.getExpression();
-                if (expression != null && expression.getLineNumber() == Expression.UNKNOWN_LINE_NUMBER) {
-                    statement.setExpression(expression.copyTo(fallbackLineNumber));
-                }
-                super.visit(statement);
-            }
-
-            @Override
-            public void visit(ThrowStatement statement) {
-                Expression expression = statement.getExpression();
-                if (expression != null && expression.getLineNumber() == Expression.UNKNOWN_LINE_NUMBER) {
-                    statement.setExpression(expression.copyTo(fallbackLineNumber));
-                }
-                super.visit(statement);
-            }
-
-            @Override
-            public void visit(ReturnExpressionStatement statement) {
-                Expression expression = statement.getExpression();
-                if (expression != null && expression.getLineNumber() == Expression.UNKNOWN_LINE_NUMBER) {
-                    statement.setExpression(expression.copyTo(fallbackLineNumber));
-                }
-                super.visit(statement);
-            }
-        });
-    }
-
     private static boolean shouldUseExpressionOnly(
-            boolean hasResourceDeclaration,
             AbstractLocalVariable resourceLocalVariable,
             Expression resourceExpression,
             boolean allowResourceExpression) {
@@ -2328,32 +2282,4 @@ public final class TryWithResourcesStatementMaker {
         return cfDeclarator.getLocalVariable();
     }
 
-    private static AbstractLocalVariable findAssignedLocalVariable(
-            BaseStatement statements,
-            AbstractLocalVariable sourceLocalVariable) {
-        if (!(statements instanceof Statements list) || list.isEmpty() || sourceLocalVariable == null) {
-            return null;
-        }
-        for (Statement statement : list) {
-            if (!(statement instanceof ExpressionStatement expressionStatement)) {
-                continue;
-            }
-            Expression expression = expressionStatement.getExpression();
-            if (!(expression instanceof BinaryOperatorExpression boe)) {
-                continue;
-            }
-            Expression leftExpression = boe.getLeftExpression();
-            Expression rightExpression = boe.getRightExpression();
-            if (!(leftExpression instanceof ClassFileLocalVariableReferenceExpression leftRef)) {
-                continue;
-            }
-            if (!(rightExpression instanceof ClassFileLocalVariableReferenceExpression rightRef)) {
-                continue;
-            }
-            if (matchesLocalVariable(rightRef.getLocalVariable(), sourceLocalVariable)) {
-                return leftRef.getLocalVariable();
-            }
-        }
-        return null;
-    }
 }

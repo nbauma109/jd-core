@@ -1407,18 +1407,17 @@ public final class TryWithResourcesStatementMaker {
     private static void removeCatchClauseLocalVariables(
             LocalVariableMaker localVariableMaker,
             List<TryStatement.CatchClause> catchClauses) {
-        if (localVariableMaker == null || catchClauses == null || catchClauses.isEmpty()) {
-            return;
-        }
-        for (TryStatement.CatchClause catchClause : catchClauses) {
-            if (!(catchClause instanceof ClassFileTryStatement.CatchClause classFileCatch)) {
-                continue;
+        if (localVariableMaker != null && catchClauses != null && !catchClauses.isEmpty()) {
+            for (TryStatement.CatchClause catchClause : catchClauses) {
+                if (!(catchClause instanceof ClassFileTryStatement.CatchClause classFileCatch)) {
+                    continue;
+                }
+                AbstractLocalVariable localVariable = classFileCatch.getLocalVariable();
+                if (localVariable == null) {
+                    continue;
+                }
+                localVariableMaker.removeLocalVariable(localVariable);
             }
-            AbstractLocalVariable localVariable = classFileCatch.getLocalVariable();
-            if (localVariable == null) {
-                continue;
-            }
-            localVariableMaker.removeLocalVariable(localVariable);
         }
     }
 
@@ -1582,28 +1581,27 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static ClassFileTryStatement findSingleTryWithResources(Statements tryStatements) {
-        if (tryStatements == null || tryStatements.isEmpty()) {
-            return null;
-        }
         ClassFileTryStatement candidate = null;
-        for (Statement statement : tryStatements) {
-            if (statement instanceof ClassFileTryStatement tryStatement
-                    && tryStatement.getResources() != null
-                    && !tryStatement.getResources().isEmpty()) {
-                if (candidate != null) {
-                    return null;
+        if (tryStatements != null && !tryStatements.isEmpty()) {
+            for (Statement statement : tryStatements) {
+                if (statement instanceof ClassFileTryStatement tryStatement
+                        && tryStatement.getResources() != null
+                        && !tryStatement.getResources().isEmpty()) {
+                    if (candidate != null) {
+                        return null;
+                    }
+                    candidate = tryStatement;
                 }
-                candidate = tryStatement;
             }
-        }
-        if (candidate == null) {
-            return null;
-        }
-        for (Statement statement : tryStatements) {
-            if (statement == candidate || isNullAssignment(statement)) {
-                continue;
+            if (candidate == null) {
+                return null;
             }
-            return null;
+            for (Statement statement : tryStatements) {
+                if (statement == candidate || isNullAssignment(statement)) {
+                    continue;
+                }
+                return null;
+            }
         }
         return candidate;
     }

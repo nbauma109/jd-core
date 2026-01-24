@@ -7,10 +7,8 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
-import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
-import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.statement.AssertStatement;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
@@ -40,6 +38,7 @@ import org.jd.core.v1.model.javasyntax.statement.TypeDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.AddSuppressedVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import java.util.List;
@@ -171,20 +170,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
         }
         AddSuppressedVisitor visitor = new AddSuppressedVisitor();
         statements.accept(visitor);
-        return visitor.found;
-    }
-
-    private static final class AddSuppressedVisitor extends AbstractJavaSyntaxVisitor {
-        private boolean found;
-
-        @Override
-        public void visit(MethodInvocationExpression expression) {
-            if ("addSuppressed".equals(expression.getName()) && "(Ljava/lang/Throwable;)V".equals(expression.getDescriptor())) {
-                found = true;
-            } else if (!found) {
-                super.visit(expression);
-            }
-        }
+        return visitor.found();
     }
 
     private boolean isNullAssignment(Statement statement) {

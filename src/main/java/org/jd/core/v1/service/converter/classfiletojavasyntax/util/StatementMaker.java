@@ -1317,21 +1317,6 @@ public class StatementMaker {
         }
     }
 
-    private static final class AddSuppressedVisitor extends AbstractJavaSyntaxVisitor {
-        private boolean found;
-
-        public boolean found() {
-            return found;
-        }
-
-        @Override
-        public void visit(MethodInvocationExpression expression) {
-            if ("addSuppressed".equals(expression.getName()) && "(Ljava/lang/Throwable;)V".equals(expression.getDescriptor())) {
-                found = true;
-            }
-        }
-    }
-
     private static final class LocalVariableIndexVisitor extends AbstractJavaSyntaxVisitor {
         private final int index;
         private AbstractLocalVariable localVariable;

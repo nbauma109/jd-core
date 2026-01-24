@@ -138,10 +138,9 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
     @Override public void visit(YieldExpressionStatement statement) {}
 
     private int unwrapEcjSuppressedWrapper(Statements list, int index, ClassFileTryStatement tryStatement) {
-        if (tryStatement.getResources() == null || tryStatement.getResources().isEmpty()) {
-            return index;
-        }
-        if (tryStatement.getFinallyStatements() != null) {
+        if (tryStatement.getResources() == null
+                || tryStatement.getResources().isEmpty()
+                || tryStatement.getFinallyStatements() != null) {
             return index;
         }
         List<TryStatement.CatchClause> catchClauses = tryStatement.getCatchClauses();
@@ -153,10 +152,10 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return index;
         }
         BaseStatement catchStatements = catchClause.getStatements();
-        if (catchStatements == null || catchStatements.size() == 0 || !catchStatements.getLast().isThrowStatement()) {
-            return index;
-        }
-        if (!containsAddSuppressed(catchStatements)) {
+        if (catchStatements == null 
+                || catchStatements.size() == 0 
+                || !catchStatements.getLast().isThrowStatement()
+                || !containsAddSuppressed(catchStatements)) {
             return index;
         }
         catchClauses.clear();
@@ -201,10 +200,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return false;
         }
         Expression expression = expressionStatement.getExpression();
-        if (!(expression instanceof BinaryOperatorExpression boe)) {
-            return false;
-        }
-        if (!(boe.getRightExpression() instanceof NullExpression)) {
+        if (!(expression instanceof BinaryOperatorExpression boe) || !(boe.getRightExpression() instanceof NullExpression)) {
             return false;
         }
         return boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression;
@@ -218,11 +214,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
         while (index < list.size()) {
             Statement statement = list.get(index);
             AbstractLocalVariable localVariable = getExceptionNullStatementLocalVariable(statement);
-            if (localVariable != null) {
-                index++;
-                continue;
-            }
-            if (getAssignedLocalVariable(statement) != null) {
+            if (localVariable != null || getAssignedLocalVariable(statement) != null) {
                 index++;
                 continue;
             }
@@ -232,13 +224,11 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return;
         }
         Statement remaining = list.get(index);
-        if (!(remaining instanceof ClassFileTryStatement tryStatement)) {
+        if (!(remaining instanceof ClassFileTryStatement tryStatement) || tryStatement.getResources() == null
+                || tryStatement.getResources().isEmpty()) {
             return;
         }
-        if (tryStatement.getResources() == null || tryStatement.getResources().isEmpty()) {
-            return;
-        }
-        if ((tryStatement.getCatchClauses() != null && !tryStatement.getCatchClauses().isEmpty())
+        if (tryStatement.getCatchClauses() != null && !tryStatement.getCatchClauses().isEmpty()
                 || tryStatement.getFinallyStatements() != null) {
             return;
         }
@@ -264,10 +254,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return null;
         }
         Expression expression = expressionStatement.getExpression();
-        if (!(expression instanceof BinaryOperatorExpression boe)) {
-            return null;
-        }
-        if (boe.getRightExpression() instanceof NullExpression) {
+        if (!(expression instanceof BinaryOperatorExpression boe) || boe.getRightExpression() instanceof NullExpression) {
             return null;
         }
         Expression leftExpression = boe.getLeftExpression();
@@ -300,13 +287,9 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return null;
         }
         Expression expression = expressionStatement.getExpression();
-        if (!(expression instanceof BinaryOperatorExpression boe)) {
-            return null;
-        }
-        if (!(boe.getRightExpression() instanceof NullExpression)) {
-            return null;
-        }
-        if (!(boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression ref)) {
+        if (!(expression instanceof BinaryOperatorExpression boe)
+                || !(boe.getRightExpression() instanceof NullExpression)
+                || !(boe.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression ref)) {
             return null;
         }
         return ref.getLocalVariable();

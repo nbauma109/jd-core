@@ -497,11 +497,7 @@ public class LocalVariableMaker {
                 }
             }
             Frame frame = lv.getFrame();
-            if (frame != null) {
-                frame.removeLocalVariable(lv);
-            } else {
-                currentFrame.removeLocalVariable(lv);
-            }
+            frame.removeLocalVariable(lv);
         }
     }
 

@@ -143,8 +143,8 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             return index;
         }
         BaseStatement catchStatements = catchClause.getStatements();
-        if (catchStatements == null 
-                || catchStatements.size() == 0 
+        if (catchStatements == null
+                || catchStatements.size() == 0
                 || !catchStatements.getLast().isThrowStatement()
                 || !containsAddSuppressed(catchStatements)) {
             return index;

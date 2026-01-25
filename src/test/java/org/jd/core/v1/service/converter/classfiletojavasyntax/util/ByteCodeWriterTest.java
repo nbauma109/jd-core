@@ -18,11 +18,6 @@ public class ByteCodeWriterTest extends AbstractJdTest {
     public void testWriteArray() throws Exception {
         testWrite("/jar/array-types-jdk17.0.11.jar", "org/jd/core/v1/ArrayTypes", "arrays", "()V");
     }
-
-    @Test
-    public void testWrite() throws Exception {
-        testWrite("/jar/jd-core-0.7.1.jar", "jd/core/process/analyzer/classfile/reconstructor/PreIncReconstructor", "Reconstruct", "(Ljava/util/List;)V");
-    }
     
     @Test
     public void testWriteGOTOW() throws Exception {

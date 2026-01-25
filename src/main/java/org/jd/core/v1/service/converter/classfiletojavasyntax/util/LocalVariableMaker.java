@@ -491,7 +491,7 @@ public class LocalVariableMaker {
         if (lv != null) {
             int index = lv.getIndex();
             // Remove from cache
-            if ((index >= 0 && index < localVariableCache.length) && (localVariableCache[index] == lv)) {
+            if (index >= 0 && index < localVariableCache.length && localVariableCache[index] == lv) {
                 localVariableCache[index] = null;
             }
             Frame frame = lv.getFrame();

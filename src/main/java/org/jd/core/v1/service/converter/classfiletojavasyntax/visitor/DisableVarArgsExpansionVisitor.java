@@ -14,7 +14,6 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
-import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.util.DefaultList;
@@ -72,9 +71,6 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
 
         if (parameter instanceof NewInitializedArray nia) {
             return isParameterForwardingArray(nia.getArrayInitializer());
-        }
-        if (parameter instanceof NewArray newArray) {
-            return newArray.isEmptyNewArray() && currentParameterNames.isEmpty();
         }
         return false;
     }

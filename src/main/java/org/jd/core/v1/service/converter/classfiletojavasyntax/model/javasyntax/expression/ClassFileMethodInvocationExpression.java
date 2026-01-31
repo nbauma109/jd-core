@@ -22,6 +22,7 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
     private BaseType unboundParameterTypes;
     private Type unboundType;
     private boolean bound;
+    private Boolean varArgsOverride;
 
     public ClassFileMethodInvocationExpression(
             int lineNumber, Type type, Expression expression,
@@ -49,6 +50,18 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
 
     public void setBound(boolean bound) {
         this.bound = bound;
+    }
+
+    @Override
+    public boolean isVarArgs() {
+        if (varArgsOverride != null) {
+            return varArgsOverride.booleanValue();
+        }
+        return super.isVarArgs();
+    }
+
+    public void setVarArgsOverride(Boolean varArgsOverride) {
+        this.varArgsOverride = varArgsOverride;
     }
 
     public BaseType getUnboundParameterTypes() {

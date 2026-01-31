@@ -34,6 +34,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final UpdateBridgeMethodVisitor replaceBridgeMethodVisitor;
     private final InitInnerClassVisitor.UpdateNewExpressionVisitor initInnerClassStep2Visitor;
     private final AddCastExpressionVisitor addCastExpressionVisitor;
+    private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
 
     private TypeDeclaration typeDeclaration;
 
@@ -74,6 +75,8 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             addCastExpressionVisitor.visit(declaration);
             // Autoboxing
             AUTOBOXING_VISITOR.visit(declaration);
+            // Disable varargs expansion for array literals
+            disableVarArgsExpansionVisitor.visit(declaration);
         }
     }
 

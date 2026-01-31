@@ -48,7 +48,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testBCEL() throws Exception {
         test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", "6.7.0");
     }
-    
+
     @Test
     public void testCommonsIO() throws Exception {
         test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", "2.15.0");
@@ -73,7 +73,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testCommonsLang3() throws Exception {
         test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.12.0");
     }
-    
+
 //    @Test
 //    public void testCommonsMath3() throws Exception {
 //        test(org.apache.commons.math3.Field.class);
@@ -134,7 +134,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testLog4jCore() throws Exception {
         test("org.apache.logging.log4j", "log4j-core", "2.20.0");
     }
-    
+
 //    @Test
 //    public void testGuava() throws Exception {
 //        test(com.google.common.collect.Collections2.class);
@@ -143,11 +143,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     protected void test(String groupId, String artifactId, String version) throws Exception {
     	test(null, null, null, groupId, artifactId, version, false);
     }
-    
+
     protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version) throws Exception {
     	test(repo, repoName, tagPrefix, groupId, artifactId, version, true);
     }
-    
+
     protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version, boolean runUnitTests) throws Exception {
     	String tag = tagPrefix + version;
     	if (runUnitTests) {
@@ -159,7 +159,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         File projectDir = null;
         if (repoName != null && runUnitTests) {
             File repoDir = new File("target/" + repoName);  // Directory for extracted project files
-    
+
             // If repoDir exists, delete it
             if (repoDir.exists()) {
                 try {
@@ -168,17 +168,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     throw new RuntimeException("Error deleting directory " + repoDir, e);
                 }
             }
-    
+
             // Prepare URL of the .zip file for the tag
             String repoZipURL = repo + "/archive/refs/tags/" + tag + ".zip";
-    
+
             // Directory where the project files are extracted
             projectDir = new File(repoDir, repoName + "-" + tag.replace("/", "-"));
-            
+
             // Download and extract .zip file for the tag
             try (InputStream in = new URL(repoZipURL).openStream();
                  ZipInputStream zin = new ZipInputStream(in)) {
-    
+
                 ZipEntry entry;
                 while ((entry = zin.getNextEntry()) != null) {
                     File file = new File(repoDir, entry.getName());
@@ -225,7 +225,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             long time0 = System.currentTimeMillis();
 
             for (String path : loader.getMap().keySet()) {
-                if (path.endsWith(StringConstants.CLASS_FILE_SUFFIX) && (path.indexOf('$') == -1)) {
+                if (path.endsWith(StringConstants.CLASS_FILE_SUFFIX) && path.indexOf('$') == -1) {
                     String internalTypeName = ClassUtil.getInternalName(path);
 
                     // TODO DEBUG if (!internalTypeName.endsWith("/Debug")) continue;
@@ -245,7 +245,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         ClassFileToJavaSourceDecompiler classFileToJavaSourceDecompiler = new ClassFileToJavaSourceDecompiler();
                         ctx = classFileToJavaSourceDecompiler.decompile(loader, printer, internalTypeName, configuration);
                     } catch (AssertionError e) {
-                        String msg = (e.getMessage() == null) ? "<?>" : e.getMessage();
+                        String msg = e.getMessage() == null ? "<?>" : e.getMessage();
                         statistics.merge(msg, 1, Integer::sum);
                         assertFailedCounter++;
                     } catch (Throwable t) {
@@ -284,6 +284,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             }
 
             if (projectDir != null && runUnitTests) {
+                // Disable OSGi bundle manifest generation to avoid build failures in some parent POMs.
+                disableBundlePlugin(Paths.get(projectDir.getPath(), "pom.xml"));
+
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
                 ProcessBuilder pbTest = new ProcessBuilder(
@@ -291,7 +294,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         "--batch-mode",
                         "test",
                         "--no-transfer-progress",
-                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
+                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED",
+                        "-Danimal.sniffer.skip=true",
+                        "-Dmaven.repo.local=" + Paths.get(projectDir.getPath(), "target", "m2").toString()
                 );
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");
                 pbTest.directory(projectDir);
@@ -318,10 +323,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             System.out.println("  accessCounter           =" + printer.accessCounter);
             System.out.println("  recompilationFailed     =" + recompilationFailedCounter);
             System.out.println("Percentages:");
-            System.out.println("  % exception             =" + (exceptionCounter * 100F / fileCounter));
-            System.out.println("  % assert failed         =" + (assertFailedCounter * 100F / fileCounter));
-            System.out.println("  % error in method       =" + (printer.errorInMethodCounter * 100F / printer.methodCounter));
-            System.out.println("  % recompilation failed  =" + (recompilationFailedCounter * 100F / fileCounter));
+            System.out.println("  % exception             =" + exceptionCounter * 100F / fileCounter);
+            System.out.println("  % assert failed         =" + assertFailedCounter * 100F / fileCounter);
+            System.out.println("  % error in method       =" + printer.errorInMethodCounter * 100F / printer.methodCounter);
+            System.out.println("  % recompilation failed  =" + recompilationFailedCounter * 100F / fileCounter);
 
             System.out.println("Errors:");
             DefaultList<String> stats = new DefaultList<>();
@@ -344,6 +349,65 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         return Integer.parseInt(stat.substring(0, 5).trim());
     }
 
+    private static void disableBundlePlugin(Path pomPath) throws IOException {
+        if (!Files.exists(pomPath)) {
+            return;
+        }
+        String pom = Files.readString(pomPath);
+        if (pom.contains("maven-bundle-plugin")) {
+            return;
+        }
+
+        String pluginBlock =
+                """
+                  <plugin>
+                    <groupId>org.apache.felix</groupId>
+                    <artifactId>maven-bundle-plugin</artifactId>
+                    <executions>
+                      <execution>
+                        <id>bundle-manifest</id>
+                        <phase>none</phase>
+                      </execution>
+                    </executions>
+                  </plugin>
+            """;
+
+        int buildIndex = pom.indexOf("<build>");
+        if (buildIndex >= 0) {
+            int pluginsIndex = pom.indexOf("<plugins>", buildIndex);
+            if (pluginsIndex >= 0) {
+                int insertPos = pluginsIndex + "<plugins>".length();
+                pom = pom.substring(0, insertPos) + "\n" + pluginBlock + pom.substring(insertPos);
+                Files.writeString(pomPath, pom);
+                return;
+            }
+            int buildEnd = pom.indexOf("</build>", buildIndex);
+            if (buildEnd >= 0) {
+                String buildBlock =
+                        "  <build>\n" +
+                        "    <plugins>\n" +
+                        pluginBlock +
+                        "    </plugins>\n" +
+                        "  </build>\n";
+                pom = pom.substring(0, buildEnd) + buildBlock + pom.substring(buildEnd);
+                Files.writeString(pomPath, pom);
+                return;
+            }
+        }
+
+        int projectEnd = pom.indexOf("</project>");
+        if (projectEnd >= 0) {
+            String buildBlock =
+                    "  <build>\n" +
+                    "    <plugins>\n" +
+                    pluginBlock +
+                    "    </plugins>\n" +
+                    "  </build>\n";
+            pom = pom.substring(0, projectEnd) + buildBlock + pom.substring(projectEnd);
+            Files.writeString(pomPath, pom);
+        }
+    }
+
     protected static class CounterPrinter extends PlainTextPrinter {
         public long classCounter = 0;
         public long methodCounter = 0;
@@ -353,7 +417,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         public CounterPrinter() {
             super(true);
         }
-        
+
         @Override
         public void printText(String text) {
             if (text != null) {
@@ -367,13 +431,13 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         @Override
         public void printDeclaration(int type, String internalTypeName, String name, String descriptor) {
             if (type == TYPE) classCounter++;
-            if ((type == METHOD) || (type == CONSTRUCTOR)) methodCounter++;
+            if (type == METHOD || type == CONSTRUCTOR) methodCounter++;
             super.printDeclaration(type, internalTypeName, name, descriptor);
         }
 
         @Override
         public void printReference(int type, String internalTypeName, String name, String descriptor, String ownerInternalName) {
-            if ((name != null) && name.startsWith("access$")) {
+            if (name != null && name.startsWith("access$")) {
                 accessCounter++;
             }
             super.printReference(type, internalTypeName, name, descriptor, ownerInternalName);

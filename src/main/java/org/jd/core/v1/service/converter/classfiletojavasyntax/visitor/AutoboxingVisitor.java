@@ -12,6 +12,7 @@ import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpressio
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
@@ -58,6 +59,9 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         VALUE_METHODNAME_MAP.put(StringConstants.JAVA_LANG_BOOLEAN, "booleanValue");
     }
 
+    private String currentInternalTypeName;
+    private String currentMethodName;
+
     @Override
     public void visit(BodyDeclaration declaration) {
         ClassFileBodyDeclaration cfbd = (ClassFileBodyDeclaration)declaration;
@@ -66,6 +70,22 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         if (autoBoxingSupported) {
             safeAccept(declaration.getMemberDeclarations());
         }
+    }
+
+    @Override
+    public void visit(org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration declaration) {
+        String previousInternalTypeName = currentInternalTypeName;
+        String previousMethodName = currentMethodName;
+
+        currentMethodName = declaration.getName();
+        if (declaration instanceof org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration cfmd) {
+            currentInternalTypeName = cfmd.getBodyDeclaration().getInternalTypeName();
+        }
+
+        super.visit(declaration);
+
+        currentInternalTypeName = previousInternalTypeName;
+        currentMethodName = previousMethodName;
     }
 
     @Override
@@ -120,6 +140,57 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
 
     @Override
     protected void maybeUpdateParameters(MethodInvocationExpression expression) {
-        // disable (un)boxing due to possible method overloading
+        BaseType parameterTypes = expression instanceof ClassFileMethodInvocationExpression mie ? mie.getParameterTypes() : null;
+
+        if (parameterTypes == null || expression.getParameters() == null) {
+            expression.setParameters(updateBaseExpression(expression.getParameters()));
+            return;
+        }
+
+        boolean isSelfOverload = isSelfOverload(expression);
+
+        if (parameterTypes.isList() && expression.getParameters().isList()) {
+            for (int i = 0; i < expression.getParameters().getList().size() && i < parameterTypes.getList().size(); i++) {
+                Type parameterType = parameterTypes.getList().get(i);
+                if (isSelfOverload && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
+                    continue;
+                }
+                if (shouldUpdateParameter(parameterType)) {
+                    expression.getParameters().getList().set(i, updateExpression(expression.getParameters().getList().get(i)));
+                }
+            }
+        } else if (!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) {
+            if (shouldUpdateParameter(parameterTypes.getFirst())) {
+                expression.setParameters(updateExpression(expression.getParameters().getFirst()));
+            }
+        }
+    }
+
+    private static boolean shouldUpdateParameter(Type parameterType) {
+        if (parameterType == null) {
+            return true;
+        }
+        if (parameterType.isGenericType()) {
+            return false;
+        }
+        if (parameterType.isObjectType()) {
+            return !ObjectType.TYPE_OBJECT.equals(parameterType);
+        }
+        return true;
+    }
+
+    private static boolean isBoxingOrUnboxing(Expression expression) {
+        if (!isJavaLangMethodInvocation(expression)) {
+            return false;
+        }
+        return isBoxingMethod(expression) || isUnboxingMethod(expression);
+    }
+
+    private boolean isSelfOverload(MethodInvocationExpression expression) {
+        if (currentInternalTypeName == null || currentMethodName == null) {
+            return false;
+        }
+        return currentMethodName.equals(expression.getName())
+                && currentInternalTypeName.equals(expression.getInternalTypeName());
     }
 }

@@ -412,6 +412,54 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return localTypeBounds;
     }
 
+    private static void addImplicitObjectBounds(Map<String, BaseType> localTypeBounds, BaseType unboundParameterTypes, Set<String> methodTypeParameters) {
+        if (unboundParameterTypes == null || methodTypeParameters.isEmpty()) {
+            return;
+        }
+
+        if (unboundParameterTypes.isList()) {
+            for (Type type : unboundParameterTypes.getList()) {
+                addImplicitObjectBounds(localTypeBounds, type, methodTypeParameters);
+            }
+        } else {
+            addImplicitObjectBounds(localTypeBounds, unboundParameterTypes.getFirst(), methodTypeParameters);
+        }
+    }
+
+    private static void addImplicitObjectBounds(Map<String, BaseType> localTypeBounds, Type type, Set<String> methodTypeParameters) {
+        if (type instanceof GenericType gt) {
+            if (methodTypeParameters.contains(gt.getName())) {
+                localTypeBounds.putIfAbsent(gt.getName(), ObjectType.TYPE_OBJECT);
+            }
+            return;
+        }
+
+        if (type instanceof ObjectType ot) {
+            BaseTypeArgument typeArguments = ot.getTypeArguments();
+            if (typeArguments != null) {
+                for (String identifier : typeArguments.findTypeParametersInType()) {
+                    if (methodTypeParameters.contains(identifier)) {
+                        localTypeBounds.putIfAbsent(identifier, ObjectType.TYPE_OBJECT);
+                    }
+                }
+            }
+            ObjectType outerType = ot.getOuterType();
+            if (outerType != null && !ObjectType.TYPE_UNDEFINED_OBJECT.equals(outerType) && outerType != ot) {
+                addImplicitObjectBounds(localTypeBounds, outerType, methodTypeParameters);
+            }
+        }
+    }
+
+    private static Set<String> getMethodTypeParameterNames(ClassFileMethodInvocationExpression expression) {
+        BaseTypeParameter methodTypeParameters = expression.getTypeParameters();
+        if (methodTypeParameters == null) {
+            return Collections.emptySet();
+        }
+        Set<String> names = new HashSet<>();
+        methodTypeParameters.forEach(typeParameter -> names.add(typeParameter.getIdentifier()));
+        return names;
+    }
+
     @Override
     public void visit(MethodInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
@@ -420,10 +468,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Map<String, BaseType> localTypeBounds = getLocalTypeBounds(expression);
 
         if (parameters != null && parameters.size() > 0) {
-            boolean unique = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false) <= 1;
-            boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1;
             BaseType parameterTypes = ((ClassFileMethodInvocationExpression)expression).getParameterTypes();
             BaseType unboundParameterTypes = ((ClassFileMethodInvocationExpression)expression).getUnboundParameterTypes();
+            if (!expression.isVarArgs()) {
+                Set<String> methodTypeParameterNames = getMethodTypeParameterNames((ClassFileMethodInvocationExpression) expression);
+                addImplicitObjectBounds(localTypeBounds, unboundParameterTypes, methodTypeParameterNames);
+            }
+            boolean unique = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false) <= 1;
+            boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1;
             boolean rawCast = false;
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, forceCast, unique, rawCast));
         }
@@ -633,7 +685,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 expression = new CastExpression(searchFirstLineNumberVisitor.getLineNumber(), type, expression);
             }
         } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
-        } else if (forceCast && unboundType instanceof GenericType gt && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
+        } else if (forceCast && unboundType instanceof GenericType gt && unboundType.getDimension() == 0
+                && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
             expression = addCastExpression(ot, expression);
         } else {
             Type expressionType = expression.getType();

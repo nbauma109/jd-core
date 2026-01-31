@@ -417,12 +417,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return;
         }
 
-        if (unboundParameterTypes.isList()) {
-            for (Type type : unboundParameterTypes.getList()) {
-                addImplicitObjectBounds(localTypeBounds, type, methodTypeParameters);
-            }
-        } else {
-            addImplicitObjectBounds(localTypeBounds, unboundParameterTypes.getFirst(), methodTypeParameters);
+        for (Type type : unboundParameterTypes) {
+            addImplicitObjectBounds(localTypeBounds, type, methodTypeParameters);
         }
     }
 

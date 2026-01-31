@@ -636,17 +636,10 @@ public class Frame {
             Expressions expressions = new Expressions();
             int toOffset = fs.getToOffset();
 
-            if (init.isList()) {
-                for (Expression exp : init) {
-                    splitMultiAssignment(toOffset, undeclaredLocalVariablesInStatement, expressions, exp);
-                    if (expressions.isEmpty()) {
-                        expressions.add(exp);
-                    }
-                }
-            } else {
-                splitMultiAssignment(toOffset, undeclaredLocalVariablesInStatement, expressions, init.getFirst());
+            for (Expression exp : init) {
+                splitMultiAssignment(toOffset, undeclaredLocalVariablesInStatement, expressions, exp);
                 if (expressions.isEmpty()) {
-                    expressions.add(init.getFirst());
+                    expressions.add(exp);
                 }
             }
 

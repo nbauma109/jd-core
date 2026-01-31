@@ -16,7 +16,6 @@ import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
-import org.jd.core.v1.util.DefaultList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -81,13 +80,8 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
         }
 
         List<String> names = new ArrayList<>(formalParameters.size());
-        if (formalParameters.isList()) {
-            DefaultList<FormalParameter> list = formalParameters.getList();
-            for (int i = 0; i < formalParameters.size(); i++) {
-                names.add(list.get(i).getName());
-            }
-        } else {
-            names.add(formalParameters.getFirst().getName());
+        for (FormalParameter formalParameter : formalParameters) {
+            names.add(formalParameter.getName());
         }
         return names;
     }

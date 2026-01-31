@@ -99,12 +99,8 @@ public class LocalVariableMaker {
         }
 
         if (parameterTypes != null) {
-            if (parameterTypes.isList()) {
-                for (Type type : parameterTypes) {
-                    type.accept(populateBlackListNamesVisitor);
-                }
-            } else {
-                parameterTypes.getFirst().accept(populateBlackListNamesVisitor);
+            for (Type type : parameterTypes) {
+                type.accept(populateBlackListNamesVisitor);
             }
         }
 

@@ -677,14 +677,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             return false;
         }
         if (parameters != null) {
-            if (parameters.isList()) {
-                for (Expression parameter : parameters.getList()) {
-                    if (!isNonWildCardableExpression(parameter, nonWildcardTypeArgument)) {
-                        return false;
-                    }
-                }
-            } else {
-                Expression parameter = parameters.getFirst();
+            for (Expression parameter : parameters) {
                 if (!isNonWildCardableExpression(parameter, nonWildcardTypeArgument)) {
                     return false;
                 }

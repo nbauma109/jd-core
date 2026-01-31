@@ -159,10 +159,8 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
                     expression.getParameters().getList().set(i, updateExpression(expression.getParameters().getList().get(i)));
                 }
             }
-        } else if (!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) {
-            if (shouldUpdateParameter(parameterTypes.getFirst())) {
-                expression.setParameters(updateExpression(expression.getParameters().getFirst()));
-            }
+        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
+            expression.setParameters(updateExpression(expression.getParameters().getFirst()));
         }
     }
 

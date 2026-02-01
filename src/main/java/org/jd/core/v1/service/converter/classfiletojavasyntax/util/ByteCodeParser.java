@@ -758,7 +758,7 @@ public class ByteCodeParser {
                     parseXRETURN(statements, stack, lineNumber);
                     break;
                 case Const.RETURN:
-                    if ((method.isSynthetic() && method.getName().contains("lambda$")) && !stack.isEmpty()) {
+                    if (method.isSynthetic() && method.getName().contains("lambda$") && !stack.isEmpty()) {
                         statements.add(new ExpressionStatement(stack.pop()));
                     } else {
                         statements.add(RETURN);
@@ -1563,10 +1563,7 @@ public class ByteCodeParser {
         } else {
             return null;
         }
-        if (dimensionExpression == null || !dimensionExpression.isLocalVariableReferenceExpression()) {
-            return null;
-        }
-        if (!parameterName.equals(dimensionExpression.getName())) {
+        if (dimensionExpression == null || !dimensionExpression.isLocalVariableReferenceExpression() || !parameterName.equals(dimensionExpression.getName())) {
             return null;
         }
         Type arrayType = newArray.getType();
@@ -2030,7 +2027,7 @@ public class ByteCodeParser {
                     localBodyDeclaration = declaration.getBodyDeclaration();
                 }
 
-                boolean diamondPossible = majorVersion > MAJOR_1_8 || (localBodyDeclaration == null && majorVersion >= MAJOR_1_7);
+                boolean diamondPossible = majorVersion > MAJOR_1_8 || localBodyDeclaration == null && majorVersion >= MAJOR_1_7;
                 if (declaration.getInterfaces() != null && declaration.getInterfaces().size() > 0) {
                     return new ClassFileNewExpression(lineNumber, (ObjectType) declaration.getInterfaces(), localBodyDeclaration, true, false, diamondPossible);
                 }

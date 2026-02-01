@@ -12,7 +12,7 @@ import java.util.List;
 public class ToArrayTest extends AbstractJdTest {
 
     @Test
-    public void testToArray() throws Exception {
+    public void testToArray() throws Exception { // https://github.com/java-decompiler/jd-core/issues/16
         @SuppressWarnings("unused")
         class ToArray {
             String[] toArray(List<String> list) {

@@ -9,10 +9,13 @@ import org.junit.Test;
 
 import java.util.List;
 
+/*
+ * https://github.com/java-decompiler/jd-core/issues/16
+ */
 public class ToArrayTest extends AbstractJdTest {
 
     @Test
-    public void testToArray() throws Exception { // https://github.com/java-decompiler/jd-core/issues/16
+    public void testToArray() throws Exception {
         @SuppressWarnings("unused")
         class ToArray {
             String[] toArray(List<String> list) {
@@ -24,6 +27,24 @@ public class ToArrayTest extends AbstractJdTest {
         
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return list.toArray(String[]::new);")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testToBidiArray() throws Exception {
+        @SuppressWarnings("unused")
+        class ToBidiArray {
+            String[][] toArray(List<String[]> list) {
+                return list.toArray(String[][]::new);
+            }
+        }
+        String internalClassName = ToBidiArray.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return list.toArray(String[][]::new);")));
         
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

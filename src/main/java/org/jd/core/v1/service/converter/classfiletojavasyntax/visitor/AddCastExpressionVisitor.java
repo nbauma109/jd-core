@@ -38,6 +38,7 @@ import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LongConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
@@ -753,6 +754,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
         Expression nestedExpression = expression.getExpression();
+        if (isArrayConstructorToArrayCast(type, nestedExpression)) {
+            return true;
+        }
         if (nestedExpression.getExpression() instanceof FieldReferenceExpression fre && fieldNamesInLambda.contains(fre.getName())) {
             return false;
         }
@@ -774,6 +778,45 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return false;
+    }
+
+    private static boolean isArrayConstructorToArrayCast(Type castType, Expression nestedExpression) {
+        if (castType == null || nestedExpression == null || !nestedExpression.isMethodInvocationExpression()) {
+            return false;
+        }
+        if (!"toArray".equals(nestedExpression.getName())) {
+            return false;
+        }
+        BaseExpression parameters = nestedExpression.getParameters();
+        if (parameters == null || parameters.size() != 1) {
+            return false;
+        }
+        Expression parameter;
+        if (parameters.isList()) {
+            parameter = parameters.getFirst();
+        } else if (parameters instanceof Expression) {
+            parameter = (Expression) parameters;
+        } else {
+            return false;
+        }
+        if (!(parameter instanceof MethodReferenceExpression methodReference)) {
+            return false;
+        }
+        if (!"new".equals(methodReference.getName())) {
+            return false;
+        }
+        String castDescriptor = castType.getDescriptor();
+        if (castDescriptor == null || !castDescriptor.equals(methodReference.getInternalTypeName())) {
+            return false;
+        }
+        Expression targetExpression = methodReference.getExpression();
+        if (targetExpression == null || !targetExpression.isObjectTypeReferenceExpression()) {
+            return false;
+        }
+        ObjectType targetType = targetExpression.getObjectType();
+        return targetType != null
+                && targetType.getDimension() > 0
+                && castDescriptor.equals(targetType.getDescriptor());
     }
 
     private boolean hasKnownTypeParameters(BaseTypeArgument type) {

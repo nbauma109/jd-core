@@ -758,7 +758,7 @@ public class ByteCodeParser {
                     parseXRETURN(statements, stack, lineNumber);
                     break;
                 case Const.RETURN:
-                    if ((method.isSynthetic() && method.getName().contains("lambda$")) && !stack.isEmpty()) {
+                    if (method.isSynthetic() && method.getName().contains("lambda$") && !stack.isEmpty()) {
                         statements.add(new ExpressionStatement(stack.pop()));
                     } else {
                         statements.add(RETURN);
@@ -1465,6 +1465,12 @@ public class ByteCodeParser {
                         CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
                         createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
                     }
+                    MethodReferenceExpression arrayConstructorReference = tryMakeArrayConstructorReference(
+                        cfmd, lineNumber, indyMethodTypes, indyParameters, descriptor1);
+                    if (arrayConstructorReference != null) {
+                        stack.push(arrayConstructorReference);
+                        return;
+                    }
                     stack.push(new LambdaIdentifiersExpression(
                             lineNumber, indyMethodTypes.getReturnedType(), indyMethodTypes.getReturnedType(),
                             prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount),
@@ -1507,6 +1513,103 @@ public class ByteCodeParser {
             return names;
         }
         return names.subList(names.size() - parameterCount, names.size());
+    }
+
+    private MethodReferenceExpression tryMakeArrayConstructorReference(
+            ClassFileMethodDeclaration cfmd,
+            int lineNumber,
+            TypeMaker.MethodTypes indyMethodTypes,
+            BaseExpression indyParameters,
+            String methodDescriptor) {
+        if (indyParameters != null && indyParameters.size() > 0) {
+            return null;
+        }
+        BaseFormalParameter formalParameters = cfmd.getFormalParameters();
+        if (formalParameters == null || formalParameters.size() != 1) {
+            return null;
+        }
+        FormalParameter formalParameter = formalParameters.getFirst();
+        String parameterName = formalParameter == null ? null : formalParameter.getName();
+        if (parameterName == null) {
+            return null;
+        }
+        ReturnExpressionStatement returnStatement = extractSingleReturnExpressionStatement(cfmd.getStatements());
+        if (returnStatement == null) {
+            return null;
+        }
+        Expression returnedExpression = returnStatement.getExpression();
+        if (returnedExpression == null) {
+            return null;
+        }
+        if (returnedExpression.isCastExpression()) {
+            returnedExpression = returnedExpression.getExpression();
+        }
+        if (!returnedExpression.isNewArray()) {
+            return null;
+        }
+        NewArray newArray = (NewArray)returnedExpression;
+        BaseExpression dimensions = newArray.getDimensionExpressionList();
+        if (dimensions == null) {
+            return null;
+        }
+        Expression dimensionExpression;
+        if (dimensions.isList()) {
+            if (dimensions.size() != 1) {
+                return null;
+            }
+            dimensionExpression = dimensions.getFirst();
+        } else if (dimensions instanceof Expression) {
+            dimensionExpression = (Expression)dimensions;
+        } else {
+            return null;
+        }
+        if (dimensionExpression == null || !dimensionExpression.isLocalVariableReferenceExpression() || !parameterName.equals(dimensionExpression.getName())) {
+            return null;
+        }
+        Type arrayType = newArray.getType();
+        if (!arrayType.isObjectType()) {
+            return null;
+        }
+        ObjectType arrayObjectType = (ObjectType)arrayType;
+        if (arrayObjectType.getDimension() <= 0) {
+            return null;
+        }
+        Type returnedType = cfmd.getReturnedType();
+        if (returnedType == null || !arrayType.getDescriptor().equals(returnedType.getDescriptor())) {
+            return null;
+        }
+        Type methodReferenceType = indyMethodTypes.getReturnedType();
+        if (methodReferenceType instanceof ObjectType methodObjectType && methodObjectType.getTypeArguments() == null) {
+            methodReferenceType = methodObjectType.createType(arrayType);
+        }
+        Expression typeReference = new ObjectTypeReferenceExpression(lineNumber, arrayObjectType);
+        String internalTypeName = arrayType.getDescriptor();
+        return new MethodReferenceExpression(
+                lineNumber,
+                methodReferenceType,
+                typeReference,
+                internalTypeName,
+                "new",
+                methodDescriptor);
+    }
+
+    private static ReturnExpressionStatement extractSingleReturnExpressionStatement(BaseStatement statements) {
+        if (statements != null) {
+            if (statements.isReturnExpressionStatement()) {
+                return (ReturnExpressionStatement)statements;
+            }
+            if (statements.isStatements()) {
+                Statements list = (Statements)statements;
+                if (list.size() != 1) {
+                    return null;
+                }
+                Statement statement = list.get(0);
+                if (statement instanceof ReturnExpressionStatement ret) {
+                    return ret;
+                }
+            }
+        }
+        return null;
     }
 
     private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,
@@ -1923,7 +2026,7 @@ public class ByteCodeParser {
                     localBodyDeclaration = declaration.getBodyDeclaration();
                 }
 
-                boolean diamondPossible = majorVersion > MAJOR_1_8 || (localBodyDeclaration == null && majorVersion >= MAJOR_1_7);
+                boolean diamondPossible = majorVersion > MAJOR_1_8 || localBodyDeclaration == null && majorVersion >= MAJOR_1_7;
                 if (declaration.getInterfaces() != null && declaration.getInterfaces().size() > 0) {
                     return new ClassFileNewExpression(lineNumber, (ObjectType) declaration.getInterfaces(), localBodyDeclaration, true, false, diamondPossible);
                 }

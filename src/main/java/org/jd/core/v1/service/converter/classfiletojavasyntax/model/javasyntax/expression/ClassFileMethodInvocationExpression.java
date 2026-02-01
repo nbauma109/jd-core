@@ -55,7 +55,7 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
     @Override
     public boolean isVarArgs() {
         if (varArgsOverride != null) {
-            return varArgsOverride.booleanValue();
+            return varArgsOverride;
         }
         return super.isVarArgs();
     }

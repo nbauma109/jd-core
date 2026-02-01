@@ -38,10 +38,8 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
 
     @Override
     protected Expression updateExpression(Expression expression) {
-        if (expression instanceof ClassFileMethodInvocationExpression invocation) {
-            if (shouldDisableVarArgs(invocation)) {
-                invocation.setVarArgsOverride(Boolean.FALSE);
-            }
+        if ((expression instanceof ClassFileMethodInvocationExpression invocation) && shouldDisableVarArgs(invocation)) {
+            invocation.setVarArgsOverride(Boolean.FALSE);
         }
         return expression;
     }

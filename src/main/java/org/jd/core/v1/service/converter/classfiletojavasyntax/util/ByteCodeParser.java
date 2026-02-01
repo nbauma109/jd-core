@@ -1594,20 +1594,19 @@ public class ByteCodeParser {
     }
 
     private static ReturnExpressionStatement extractSingleReturnExpressionStatement(BaseStatement statements) {
-        if (statements == null) {
-            return null;
-        }
-        if (statements.isReturnExpressionStatement()) {
-            return (ReturnExpressionStatement)statements;
-        }
-        if (statements.isStatements()) {
-            Statements list = (Statements)statements;
-            if (list.size() != 1) {
-                return null;
+        if (statements != null) {
+            if (statements.isReturnExpressionStatement()) {
+                return (ReturnExpressionStatement)statements;
             }
-            Statement statement = list.get(0);
-            if (statement instanceof ReturnExpressionStatement) {
-                return (ReturnExpressionStatement)statement;
+            if (statements.isStatements()) {
+                Statements list = (Statements)statements;
+                if (list.size() != 1) {
+                    return null;
+                }
+                Statement statement = list.get(0);
+                if (statement instanceof ReturnExpressionStatement ret) {
+                    return ret;
+                }
             }
         }
         return null;

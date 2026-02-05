@@ -18,6 +18,7 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.StringTokenizer;
 
 public final class StringConcatenationUtil {
@@ -70,14 +71,8 @@ public final class StringConcatenationUtil {
     }
 
     public static Expression create(String recipe, BaseExpression parameters) {
-        if (recipe == null || recipe.isEmpty()) {
-            return StringConstantExpression.EMPTY_STRING;
-        }
 
         StringTokenizer tokenizer = new StringTokenizer(recipe, StringConstants.START_OF_HEADING, true);
-        if (!tokenizer.hasMoreTokens()) {
-            return StringConstantExpression.EMPTY_STRING;
-        }
 
         DefaultList<Expression> parameterList = parameters != null && parameters.isList() ? parameters.getList() : null;
         boolean parametersAreList = parameterList != null;
@@ -120,20 +115,13 @@ public final class StringConcatenationUtil {
     }
 
     private static Expression getSingleExpression(BaseExpression parameters) {
-        if (parameters == null) {
-            return StringConstantExpression.EMPTY_STRING;
-        }
         Expression expression = parameters.getFirst();
-        return expression != null ? expression : StringConstantExpression.EMPTY_STRING;
+        return Optional.ofNullable(expression).orElse(StringConstantExpression.EMPTY_STRING);
     }
 
     private static Expression getListExpression(DefaultList<Expression> parameterList, int index) {
-        try {
-            Expression expression = parameterList.get(index);
-            return expression != null ? expression : StringConstantExpression.EMPTY_STRING;
-        } catch (IndexOutOfBoundsException ex) {
-            return StringConstantExpression.EMPTY_STRING;
-        }
+        Expression expression = parameterList.get(index);
+        return Optional.ofNullable(expression).orElse(StringConstantExpression.EMPTY_STRING);
     }
 
 

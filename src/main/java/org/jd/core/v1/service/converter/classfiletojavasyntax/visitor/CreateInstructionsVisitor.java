@@ -21,6 +21,7 @@ import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.parser.util.ASTUtilities;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ByteCodeWriter;
@@ -125,7 +126,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
             }
             if (!reduced) {
                 System.err.println("Could not reduce control flow graph in method " + method.getName() + method.getSignature() + " from class " + classFile.getInternalTypeName());
-                comd.setStatements(new Statements(ByteCodeWriter.getLineNumberTableAsStatements(method)));
+                comd.setStatements(ASTUtilities.toBaseStatement(ByteCodeWriter.getLineNumberTableAsStatements(method)));
             }
 
             localVariableMaker.make(containsLineNumber, typeMaker);

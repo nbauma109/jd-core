@@ -18,6 +18,7 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.StringTokenizer;
 
 public final class StringConcatenationUtil {
@@ -70,33 +71,59 @@ public final class StringConcatenationUtil {
     }
 
     public static Expression create(String recipe, BaseExpression parameters) {
-        StringTokenizer st = new StringTokenizer(recipe, StringConstants.START_OF_HEADING, true);
 
-        if (st.hasMoreTokens()) {
-            String token = st.nextToken();
-            Expression expression = StringConstants.START_OF_HEADING.equals(token) ? createFirstStringConcatenationItem(parameters.getFirst()) : new StringConstantExpression(token);
+        StringTokenizer tokenizer = new StringTokenizer(recipe, StringConstants.START_OF_HEADING, true);
 
-            if (parameters.isList()) {
-                DefaultList<Expression> list = parameters.getList();
-                int index = 0;
+        DefaultList<Expression> parameterList = parameters != null && parameters.isList() ? parameters.getList() : null;
+        boolean parametersAreList = parameterList != null;
+        int parameterIndex = 0;
 
-                while (st.hasMoreTokens()) {
-                    token = st.nextToken();
-                    Expression e = StringConstants.START_OF_HEADING.equals(token) ? list.get(++index) : new StringConstantExpression(token);
-                    expression = new BinaryOperatorExpression(expression.getLineNumber(), ObjectType.TYPE_STRING, expression, "+", e, 6);
-                }
+        String token = tokenizer.nextToken();
+        Expression expression;
+        if (StringConstants.START_OF_HEADING.equals(token)) {
+            Expression firstParameter = parametersAreList
+                    ? getListExpression(parameterList, parameterIndex++)
+                    : getSingleExpression(parameters);
+            expression = createFirstStringConcatenationItem(firstParameter);
+        } else {
+            expression = new StringConstantExpression(token);
+        }
+
+        while (tokenizer.hasMoreTokens()) {
+            token = tokenizer.nextToken();
+
+            Expression nextExpression;
+            if (StringConstants.START_OF_HEADING.equals(token)) {
+                nextExpression = parametersAreList
+                        ? getListExpression(parameterList, parameterIndex++)
+                        : getSingleExpression(parameters);
             } else {
-                while (st.hasMoreTokens()) {
-                    token = st.nextToken();
-                    Expression e = StringConstants.START_OF_HEADING.equals(token) ? parameters.getFirst() : new StringConstantExpression(token);
-                    expression = new BinaryOperatorExpression(expression.getLineNumber(), ObjectType.TYPE_STRING, expression, "+", e, 6);
-                }
+                nextExpression = new StringConstantExpression(token);
             }
 
-            return expression;
+            expression = new BinaryOperatorExpression(
+                    expression.getLineNumber(),
+                    ObjectType.TYPE_STRING,
+                    expression,
+                    "+",
+                    nextExpression,
+                    6
+            );
         }
-        return StringConstantExpression.EMPTY_STRING;
+
+        return expression;
     }
+
+    private static Expression getSingleExpression(BaseExpression parameters) {
+        Expression expression = parameters.getFirst();
+        return Optional.ofNullable(expression).orElse(StringConstantExpression.EMPTY_STRING);
+    }
+
+    private static Expression getListExpression(DefaultList<Expression> parameterList, int index) {
+        Expression expression = parameterList.get(index);
+        return Optional.ofNullable(expression).orElse(StringConstantExpression.EMPTY_STRING);
+    }
+
 
     public static Expression create(BaseExpression parameters) {
         switch (parameters.size()) {

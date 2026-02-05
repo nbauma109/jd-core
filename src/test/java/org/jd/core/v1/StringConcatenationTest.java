@@ -9,6 +9,7 @@ import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.StringConcatenation;
 import org.jd.core.v1.stub.StringConcatenation2;
+import org.jd.core.v1.stub.StringConcatenation3;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -49,6 +50,18 @@ public class StringConcatenationTest extends AbstractJdTest {
         
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return a + b + c;")));
+        
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testStringConcatenation3() throws Exception {
+        String internalClassName = StringConcatenation3.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        
+        // Check decompiled source code
+        assertTrue(source.matches(PatternMaker.make("return \"(a=\" + a + \", b=\" + b + \", c=\" + c + \")\";")));
         
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

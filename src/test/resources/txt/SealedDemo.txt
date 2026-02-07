@@ -1,0 +1,47 @@
+/*  1:  0 */ package org.jd.core.v1;
+/*  2:  0 */ 
+/*  3:  0 */ 
+/*  4:  0 */ 
+/*  5:  0 */ public class SealedDemo
+/*  6:  0 */ {
+/*  7:  0 */   static final class Circle
+/*  8:  0 */     implements Shape
+/*  9:  0 */   {
+/* 10:  0 */     private final double radius;
+/* 11:  0 */     
+/* 12:  0 */     Circle(double radius) {
+/* 13: 13 */       this.radius = radius;
+/* 14:  0 */     }
+/* 15:  0 */ 
+/* 16:  0 */     
+/* 17:  0 */     public double area() {
+/* 18: 18 */       return Math.PI * this.radius * this.radius;
+/* 19:  0 */     }
+/* 20:  0 */   }
+/* 21:  0 */   
+/* 22:  0 */   static non-sealed class Rectangle implements Shape {
+/* 23:  0 */     private final double width;
+/* 24:  0 */     private final double height;
+/* 25:  0 */     
+/* 26:  0 */     Rectangle(double width, double height) {
+/* 27: 27 */       this.width = width;
+/* 28: 28 */       this.height = height;
+/* 29:  0 */     }
+/* 30:  0 */ 
+/* 31:  0 */     
+/* 32:  0 */     public double area() {
+/* 33: 33 */       return this.width * this.height;
+/* 34:  0 */     }
+/* 35:  0 */   }
+/* 36:  0 */   
+/* 37:  0 */   double sealedSwitch(Shape shape) {
+/* 38: 38 */     return switch (shape) {
+/* 39: 39 */       case Circle circle -> circle.area();
+/* 40: 40 */       case Rectangle rectangle -> rectangle.area();
+/* 41:  0 */     };
+/* 41:  0 */   }
+/* 42:  0 */   
+/* 43:  0 */   sealed interface Shape permits Circle, Rectangle {
+/* 44:  0 */     double area();
+/* 45:  0 */   }
+/* 46:  0 */ }

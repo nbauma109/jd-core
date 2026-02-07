@@ -46,6 +46,12 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_TRY_DECLARATION;
 
 public final class ControlFlowGraphLoopReducer {
+    /*
+     * Limit for optional end-extension of a natural loop.
+     * Larger tails are more likely to be unrelated post-loop code and can merge adjacent loops.
+     */
+    private static final int MAX_END_EXTENSION_BLOCKS = 3;
+
     private ControlFlowGraphLoopReducer() {
     }
 
@@ -315,8 +321,17 @@ public final class ControlFlowGraphLoopReducer {
                 end.getPredecessors().iterator().next().getLastLineNumber() + 1 >= end.getFirstLineNumber())
             {
                 Set<BasicBlock> set = new HashSet<>();
-
-                if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null)) {
+                /*
+                 * 'set' is the candidate tail reachable from 'end' that still respects the loop search zone.
+                 * If accepted, we fold this tail into the loop and recompute the loop end from that tail.
+                 * If rejected, we keep the original members/end, preventing unrelated post-loop code from being absorbed.
+                 *
+                 * Why MAX_END_EXTENSION_BLOCKS == 3:
+                 * This preserves short compiler-generated tails while avoiding broad merges observed on adjacent loops.
+                 */
+                if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null) &&
+                    set.size() <= MAX_END_EXTENSION_BLOCKS)
+                {
                     members.addAll(set);
 
                     for (BasicBlock member : set) {

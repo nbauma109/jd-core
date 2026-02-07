@@ -1,0 +1,299 @@
+/*   1:   0 */ package org.apache.logging.log4j.core.layout;
+/*   2:   0 */
+/*   3:   0 */ import java.nio.ByteBuffer;
+/*   4:   0 */ import java.nio.CharBuffer;
+/*   5:   0 */ import java.nio.charset.CharacterCodingException;
+/*   6:   0 */ import java.nio.charset.Charset;
+/*   7:   0 */ import java.nio.charset.CharsetEncoder;
+/*   8:   0 */ import java.nio.charset.CoderResult;
+/*   9:   0 */
+/*  10:   0 */
+/*  11:   0 */
+/*  12:   0 */
+/*  13:   0 */
+/*  14:   0 */
+/*  15:   0 */
+/*  16:   0 */
+/*  17:   0 */
+/*  18:   0 */
+/*  19:   0 */
+/*  20:   0 */
+/*  21:   0 */
+/*  22:   0 */
+/*  23:   0 */
+/*  24:   0 */
+/*  25:   0 */
+/*  26:   0 */
+/*  27:   0 */
+/*  28:   0 */
+/*  29:   0 */
+/*  30:   0 */
+/*  31:   0 */
+/*  32:   0 */
+/*  33:   0 */
+/*  34:   0 */
+/*  35:   0 */ public class TextEncoderHelper
+/*  36:   0 */ {
+/*  37:   0 */   static void encodeTextFallBack(Charset charset, StringBuilder text, ByteBufferDestination destination) {
+/*  38:  38 */     byte[] bytes = text.toString().getBytes(charset);
+/*  39:  39 */     destination.writeBytes(bytes, 0, bytes.length);
+/*  40:   0 */   }
+/*  41:   0 */
+/*  42:   0 */
+/*  43:   0 */
+/*  44:   0 */
+/*  45:   0 */
+/*  46:   0 */
+/*  47:   0 */
+/*  48:   0 */
+/*  49:   0 */
+/*  50:   0 */
+/*  51:   0 */
+/*  52:   0 */
+/*  53:   0 */   public static void encodeText(CharsetEncoder charsetEncoder, CharBuffer charBuf, ByteBuffer byteBuf, StringBuilder text, ByteBufferDestination destination) {
+/*  54:  54 */     charsetEncoder.reset();
+/*  55:  55 */     if (text.length() > charBuf.capacity()) {
+/*  56:  56 */       encodeChunkedText(charsetEncoder, charBuf, byteBuf, text, destination);
+/*  57:   0 */       return;
+/*  58:   0 */     }
+/*  59:  59 */     charBuf.clear();
+/*  60:  60 */     text.getChars(0, text.length(), charBuf.array(), charBuf.arrayOffset());
+/*  61:  61 */     charBuf.limit(text.length());
+/*  62:  62 */     CoderResult result = charsetEncoder.encode(charBuf, byteBuf, true);
+/*  63:  63 */     writeEncodedText(charsetEncoder, charBuf, byteBuf, destination, result);
+/*  64:   0 */   }
+/*  65:   0 */
+/*  66:   0 */
+/*  67:   0 */
+/*  68:   0 */
+/*  69:   0 */
+/*  70:   0 */
+/*  71:   0 */
+/*  72:   0 */
+/*  73:   0 */
+/*  74:   0 */
+/*  75:   0 */   private static void writeEncodedText(CharsetEncoder charsetEncoder, CharBuffer charBuf, ByteBuffer byteBuf, ByteBufferDestination destination, CoderResult result) {
+/*  76:  76 */     if (!result.isUnderflow()) {
+/*  77:  77 */       writeChunkedEncodedText(charsetEncoder, charBuf, destination, byteBuf, result);
+/*  78:   0 */       return;
+/*  79:   0 */     }
+/*  80:  80 */     result = charsetEncoder.flush(byteBuf);
+/*  81:  81 */     if (!result.isUnderflow()) {
+/*  82:  82 */       synchronized (destination) {
+/*  83:  83 */         flushRemainingBytes(charsetEncoder, destination, byteBuf);
+/*  84:   0 */       }
+/*  85:   0 */
+/*  86:   0 */
+/*  87:   0 */
+/*  88:   0 */       return;
+/*  89:   0 */     }
+/*  90:   0 */
+/*  91:   0 */
+/*  92:  92 */     if (byteBuf != destination.getByteBuffer()) {
+/*  93:  93 */       byteBuf.flip();
+/*  94:  94 */       destination.writeBytes(byteBuf);
+/*  95:  95 */       byteBuf.clear();
+/*  96:   0 */     }
+/*  97:   0 */   }
+/*  98:   0 */
+/*  99:   0 */
+/* 100:   0 */
+/* 101:   0 */
+/* 102:   0 */
+/* 103:   0 */
+/* 104:   0 */
+/* 105:   0 */
+/* 106:   0 */
+/* 107:   0 */
+/* 108:   0 */   private static void writeChunkedEncodedText(CharsetEncoder charsetEncoder, CharBuffer charBuf, ByteBufferDestination destination, ByteBuffer byteBuf, CoderResult result) {
+/* 109: 109 */     synchronized (destination) {
+/* 110: 110 */       byteBuf = writeAndEncodeAsMuchAsPossible(charsetEncoder, charBuf, true, destination, byteBuf, result);
+/* 111:   0 */
+/* 112: 112 */       flushRemainingBytes(charsetEncoder, destination, byteBuf);
+/* 113:   0 */     }
+/* 114:   0 */   }
+/* 115:   0 */
+/* 116:   0 */
+/* 117:   0 */
+/* 118:   0 */
+/* 119:   0 */
+/* 120:   0 */
+/* 121:   0 */
+/* 122:   0 */
+/* 123:   0 */
+/* 124:   0 */
+/* 125:   0 */
+/* 126:   0 */
+/* 127:   0 */
+/* 128:   0 */   private static void encodeChunkedText(CharsetEncoder charsetEncoder, CharBuffer charBuf, ByteBuffer byteBuf, StringBuilder text, ByteBufferDestination destination) {
+/* 129: 129 */     int start = 0;
+/* 130: 130 */     CoderResult result = CoderResult.UNDERFLOW;
+/* 131: 131 */     boolean endOfInput = false;
+/* 132: 132 */     while (!endOfInput && result.isUnderflow()) {
+/* 133: 133 */       charBuf.clear();
+/* 134: 134 */       int copied = copy(text, start, charBuf);
+/* 135: 135 */       start += copied;
+/* 136: 136 */       endOfInput = (start >= text.length());
+/* 137: 137 */       charBuf.flip();
+/* 138: 138 */       result = charsetEncoder.encode(charBuf, byteBuf, endOfInput);
+/* 139:   0 */     }
+/* 140: 140 */     if (endOfInput) {
+/* 141: 141 */       writeEncodedText(charsetEncoder, charBuf, byteBuf, destination, result);
+/* 142:   0 */       return;
+/* 143:   0 */     }
+/* 144: 144 */     synchronized (destination) {
+/* 145: 145 */       byteBuf = writeAndEncodeAsMuchAsPossible(charsetEncoder, charBuf, endOfInput, destination, byteBuf, result);
+/* 146:   0 */
+/* 147: 147 */       while (!endOfInput) {
+/* 148: 148 */         result = CoderResult.UNDERFLOW;
+/* 149: 149 */         while (!endOfInput && result.isUnderflow()) {
+/* 150: 150 */           charBuf.clear();
+/* 151: 151 */           int copied = copy(text, start, charBuf);
+/* 152: 152 */           start += copied;
+/* 153: 153 */           endOfInput = (start >= text.length());
+/* 154: 154 */           charBuf.flip();
+/* 155: 155 */           result = charsetEncoder.encode(charBuf, byteBuf, endOfInput);
+/* 156:   0 */         }
+/* 157: 157 */         byteBuf = writeAndEncodeAsMuchAsPossible(charsetEncoder, charBuf, endOfInput, destination, byteBuf, result);
+/* 158:   0 */       }
+/* 159:   0 */
+/* 160: 160 */       flushRemainingBytes(charsetEncoder, destination, byteBuf);
+/* 161:   0 */     }
+/* 162:   0 */   }
+/* 163:   0 */
+/* 164:   0 */
+/* 165:   0 */
+/* 166:   0 */
+/* 167:   0 */
+/* 168:   0 */   @Deprecated
+/* 169:   0 */   public static void encodeText(CharsetEncoder charsetEncoder, CharBuffer charBuf, ByteBufferDestination destination) {
+/* 170: 170 */     charsetEncoder.reset();
+/* 171: 171 */     synchronized (destination) {
+/* 172: 172 */       ByteBuffer byteBuf = destination.getByteBuffer();
+/* 173: 173 */       byteBuf = encodeAsMuchAsPossible(charsetEncoder, charBuf, true, destination, byteBuf);
+/* 174: 174 */       flushRemainingBytes(charsetEncoder, destination, byteBuf);
+/* 175:   0 */     }
+/* 176:   0 */   }
+/* 177:   0 */
+/* 178:   0 */
+/* 179:   0 */
+/* 180:   0 */
+/* 181:   0 */
+/* 182:   0 */
+/* 183:   0 */
+/* 184:   0 */
+/* 185:   0 */
+/* 186:   0 */
+/* 187:   0 */
+/* 188:   0 */
+/* 189:   0 */
+/* 190:   0 */
+/* 191:   0 */
+/* 192:   0 */
+/* 193:   0 */
+/* 194:   0 */
+/* 195:   0 */   private static ByteBuffer writeAndEncodeAsMuchAsPossible(CharsetEncoder charsetEncoder, CharBuffer charBuf, boolean endOfInput, ByteBufferDestination destination, ByteBuffer temp, CoderResult result) {
+/* 196:   0 */     while (true) {
+/* 197: 197 */       temp = drainIfByteBufferFull(destination, temp, result);
+/* 198: 198 */       if (!result.isOverflow()) {
+/* 199:   0 */         break;
+/* 200:   0 */       }
+/* 201: 201 */       result = charsetEncoder.encode(charBuf, temp, endOfInput);
+/* 202:   0 */     }
+/* 203: 203 */     if (!result.isUnderflow()) {
+/* 204: 204 */       throwException(result);
+/* 205:   0 */     }
+/* 206: 206 */     return temp;
+/* 207:   0 */   }
+/* 208:   0 */
+/* 209:   0 */
+/* 210:   0 */   private static void throwException(CoderResult result) {
+/* 211:   0 */     try {
+/* 212: 212 */       result.throwException();
+/* 213: 213 */     } catch (CharacterCodingException e) {
+/* 214: 214 */       throw new IllegalStateException(e);
+/* 215:   0 */     }
+/* 216:   0 */   }
+/* 217:   0 */
+/* 218:   0 */
+/* 219:   0 */
+/* 220:   0 */   private static ByteBuffer encodeAsMuchAsPossible(CharsetEncoder charsetEncoder, CharBuffer charBuf, boolean endOfInput, ByteBufferDestination destination, ByteBuffer temp) {
+/* 221:   0 */     while (true) {
+/* 222: 222 */       CoderResult result = charsetEncoder.encode(charBuf, temp, endOfInput);
+/* 223: 223 */       temp = drainIfByteBufferFull(destination, temp, result);
+/* 224: 224 */       if (!result.isOverflow()) {
+/* 225: 225 */         if (!result.isUnderflow()) {
+/* 226: 226 */           throwException(result);
+/* 227:   0 */         }
+/* 228: 228 */         return temp;
+/* 229:   0 */       }
+/* 230:   0 */     }
+/* 231:   0 */   }
+/* 232:   0 */
+/* 233:   0 */
+/* 234:   0 */
+/* 235:   0 */
+/* 236:   0 */
+/* 237:   0 */
+/* 238:   0 */
+/* 239:   0 */
+/* 240:   0 */
+/* 241:   0 */
+/* 242:   0 */
+/* 243:   0 */
+/* 244:   0 */
+/* 245:   0 */
+/* 246:   0 */   private static ByteBuffer drainIfByteBufferFull(ByteBufferDestination destination, ByteBuffer temp, CoderResult result) {
+/* 247: 247 */     if (result.isOverflow())
+/* 248:   0 */     {
+/* 249:   0 */
+/* 250: 250 */       synchronized (destination) {
+/* 251: 251 */         ByteBuffer destinationBuffer = destination.getByteBuffer();
+/* 252: 252 */         if (destinationBuffer != temp) {
+/* 253: 253 */           temp.flip();
+/* 254: 254 */           ByteBufferDestinationHelper.writeToUnsynchronized(temp, destination);
+/* 255: 255 */           temp.clear();
+/* 256: 256 */           return destination.getByteBuffer();
+/* 257:   0 */         }
+/* 258: 258 */         return destination.drain(destinationBuffer);
+/* 259:   0 */       }
+/* 260:   0 */     }
+/* 261:   0 */
+/* 262: 262 */     return temp;
+/* 263:   0 */   }
+/* 264:   0 */
+/* 265:   0 */
+/* 266:   0 */
+/* 267:   0 */
+/* 268:   0 */   private static void flushRemainingBytes(CharsetEncoder charsetEncoder, ByteBufferDestination destination, ByteBuffer temp) {
+/* 269:   0 */     CoderResult result;
+/* 270:   0 */     do {
+/* 271: 271 */       result = charsetEncoder.flush(temp);
+/* 272: 272 */       temp = drainIfByteBufferFull(destination, temp, result);
+/* 273: 273 */     } while (result.isOverflow());
+/* 274: 274 */     if (!result.isUnderflow()) {
+/* 275: 275 */       throwException(result);
+/* 276:   0 */     }
+/* 277: 277 */     if (temp.remaining() > 0 && temp != destination.getByteBuffer()) {
+/* 278: 278 */       temp.flip();
+/* 279: 279 */       ByteBufferDestinationHelper.writeToUnsynchronized(temp, destination);
+/* 280: 280 */       temp.clear();
+/* 281:   0 */     }
+/* 282:   0 */   }
+/* 283:   0 */
+/* 284:   0 */
+/* 285:   0 */
+/* 286:   0 */
+/* 287:   0 */
+/* 288:   0 */
+/* 289:   0 */
+/* 290:   0 */
+/* 291:   0 */   static int copy(StringBuilder source, int offset, CharBuffer destination) {
+/* 292: 292 */     int length = Math.min(source.length() - offset, destination.remaining());
+/* 293: 293 */     char[] array = destination.array();
+/* 294: 294 */     int start = destination.position();
+/* 295: 295 */     source.getChars(offset, offset + length, array, destination.arrayOffset() + start);
+/* 296: 296 */     destination.position(start + length);
+/* 297: 297 */     return length;
+/* 298:   0 */   }
+/* 299:   0 */ }

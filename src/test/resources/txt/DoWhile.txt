@@ -1,0 +1,31 @@
+/*  1:  0 */ package org.jd.core.v1.stub;
+/*  2:  0 */
+/*  3:  0 */ public class DoWhile
+/*  4:  0 */ {
+/*  5:  0 */   void doWhileLoop(String[] arguments) {
+/*  6:  6 */     int index = 0;
+/*  7:  0 */     do {
+/*  8:  8 */       log(arguments[index++]);
+/*  9:  9 */     } while (index < arguments.length);
+/* 10: 10 */     index = 0;
+/* 11:  0 */     do {
+/* 12: 12 */       log(arguments[index++]);
+/* 13: 13 */     } while (index < arguments.length);
+/* 14:  0 */   }
+/* 15:  0 */
+/* 16:  0 */
+/* 17:  0 */
+/* 18:  0 */
+/* 19:  0 */   void whileLoop(String[] arguments) {
+/* 20: 20 */     int index = 0;
+/* 21:  0 */     do {
+/* 22: 22 */       log(arguments[index++]);
+/* 23: 23 */     } while (index < arguments.length);
+/* 24: 24 */     index = 0;
+/* 25:  0 */     do {
+/* 26: 26 */       log(arguments[index++]);
+/* 27: 27 */     } while (index < arguments.length);
+/* 28:  0 */   }
+/* 29:  0 */
+/* 30:  0 */   native void log(String paramString);
+/* 31:  0 */ }

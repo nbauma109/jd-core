@@ -7,9 +7,11 @@
 
 package org.jd.core.v1;
 
+import org.apache.logging.log4j.core.layout.TextEncoderHelper;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
@@ -326,4 +328,36 @@ public class JavaLoopTest extends AbstractJdTest {
             assertTrue(CompilerUtil.compile("1.5", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
+
+    @Test
+    public void testDoWhile() throws Exception {
+        String internalClassName = "org/jd/core/v1/stub/DoWhile";
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/do-while-jdk21.0.8.jar")) {
+            Loader loader = new ZipLoader(is);
+            Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
+            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
+
+            // Check decompiled source code
+            String expected = Files.readString(Paths.get(getClass().getResource("/txt/DoWhile.txt").toURI()));
+            assertEqualsIgnoreEOL(expected, source);
+    
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile("1.5", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    @Test
+    public void testDoWhileTextEncoderHelper() throws Exception {
+        String internalClassName = TextEncoderHelper.class.getName().replace('.', '/');
+        Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, configuration);
+
+        // Check decompiled source code
+        String expected = Files.readString(Paths.get(getClass().getResource("/txt/TextEncoderHelper.txt").toURI()));
+        assertEqualsIgnoreEOL(expected, source);
+
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
 }

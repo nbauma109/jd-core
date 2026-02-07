@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
@@ -29,7 +29,7 @@ public class JavaSwitchTest extends AbstractJdTest {
     public void testJdk170Switch() throws Exception {
         String internalClassName = "org/jd/core/test/Switch";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -76,7 +76,7 @@ public class JavaSwitchTest extends AbstractJdTest {
     public void testJdk170AdvancedSwitch() throws Exception {
         String internalClassName = "org/jd/core/test/AdvancedSwitch";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -109,7 +109,7 @@ public class JavaSwitchTest extends AbstractJdTest {
     public void testEclipseJavaCompiler321Switch() throws Exception {
         String internalClassName = "org/jd/core/test/Switch";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-eclipse-java-compiler-3.2.1.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -125,7 +125,7 @@ public class JavaSwitchTest extends AbstractJdTest {
     public void testEclipseJavaCompiler3130Switch() throws Exception {
         String internalClassName = "org/jd/core/test/Switch";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-eclipse-java-compiler-3.13.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -143,7 +143,7 @@ public class JavaSwitchTest extends AbstractJdTest {
         String internalClassName = "com/google/common/collect/BstMutationResult";
         Class<?> mainClass = com.google.common.collect.Collections2.class;
         try (InputStream is = new FileInputStream(Paths.get(mainClass.getProtectionDomain().getCodeSource().getLocation().toURI()).toFile())) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 

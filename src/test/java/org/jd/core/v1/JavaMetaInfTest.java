@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.ClassFilePrinter;
 import org.junit.Test;
 
@@ -26,7 +26,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk170Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -42,7 +42,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk170NoDebugInfoBasic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0-no-debug-info.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -59,7 +59,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk170Constructors() throws Exception {
         String internalClassName = "org/jd/core/test/Constructors";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -75,7 +75,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk170Interface() throws Exception {
         String internalClassName = "org/jd/core/test/Interface";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -91,7 +91,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk118Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.1.8.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -107,7 +107,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk131Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.3.1.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
             
@@ -123,7 +123,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk142Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.4.2.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -139,7 +139,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk901Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-9.0.1.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 
@@ -155,7 +155,7 @@ public class JavaMetaInfTest extends AbstractJdTest {
     public void testJdk1002Basic() throws Exception {
         String internalClassName = "org/jd/core/test/Basic";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-10.0.2.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, String> configuration = Map.of(WRITE_METADATA, "true", REALIGN_LINE_NUMBERS, "true");
             String source = new ClassFilePrinter().buildDecompiledOutput(configuration, loader, internalClassName + ".class", classFileToJavaSourceDecompiler);
 

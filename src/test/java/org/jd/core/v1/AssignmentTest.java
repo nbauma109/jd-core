@@ -3,7 +3,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.Assignment;
@@ -16,7 +16,7 @@ public class AssignmentTest extends AbstractJdTest {
     public void test() throws Exception {
         String internalClassName = Assignment.class.getName().replace('.', '/');
         try (InputStream is = this.getClass().getResourceAsStream("/jar/assignment-jdk8u292.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code

@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
@@ -24,7 +24,7 @@ public class JavaIfElseTest extends AbstractJdTest {
     public void testJdk170IfElse() throws Exception {
         String internalClassName = "org/jd/core/test/IfElse";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 

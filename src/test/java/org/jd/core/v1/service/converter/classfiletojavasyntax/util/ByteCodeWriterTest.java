@@ -4,7 +4,7 @@ import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.AbstractJdTest;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.cfg.MethodUtil;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.junit.Test;
 
@@ -57,7 +57,7 @@ public class ByteCodeWriterTest extends AbstractJdTest {
     @Test
     public void testGetLineNumberTableAsStatements() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/array-types-jdk17.0.11.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             TypeMaker typeMaker = new TypeMaker(loader);
             String internalTypeName = "org/jd/core/v1/ArrayTypes";
             String methodName = "arrays";
@@ -75,7 +75,7 @@ public class ByteCodeWriterTest extends AbstractJdTest {
 
     private void testWrite(String archiveName, String internalTypeName, String methodName, String methodDescriptor) throws IOException {
         try (InputStream is = this.getClass().getResourceAsStream(archiveName)) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             ByteCodeWriter byteCodeWriter = new ByteCodeWriter();
             TypeMaker typeMaker = new TypeMaker(loader);
             Method method = MethodUtil.searchMethod(loader, typeMaker, internalTypeName, methodName, methodDescriptor);

@@ -7,7 +7,7 @@
 
 package org.jd.core.v1;
 
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.services.tokenizer.javafragmenttotoken.TestTokenizeJavaFragmentProcessor;
@@ -27,7 +27,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testJdk118Basic() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.1.8.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
@@ -41,7 +41,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testJdk131TryCatchFinally() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.3.1.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
@@ -55,7 +55,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testTryCatchFinally() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
@@ -68,7 +68,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testAnonymousClass() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
@@ -84,7 +84,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testOuterClass() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
@@ -100,7 +100,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @SuppressWarnings("all")
     public void testEnumClass() throws Exception {
         InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip");
-        ZipLoader loader = new ZipLoader(is);
+        CompositeLoader loader = new CompositeLoader(is);
         //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
         PlainTextPrinter printer = new PlainTextPrinter();
 
@@ -115,7 +115,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testAnnotationQuality() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
@@ -128,7 +128,7 @@ public class LayoutFragmentProcessorTest extends AbstractJdTest {
     @Test
     public void testJdk170Array() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             //PlainTextMetaPrinter printer = new PlainTextMetaPrinter();
             PlainTextPrinter printer = new PlainTextPrinter();
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);

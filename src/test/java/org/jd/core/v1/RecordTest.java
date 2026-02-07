@@ -73,18 +73,21 @@ public class RecordTest extends AbstractJdTest {
                 /*  1:  0 */ package org.jd.core.v1;
                 /*  2:  0 */ 
                 /*  3:  0 */ public record RecordWithOverrides(String a, double d) {
-                /*  4:  0 */   public final int hashCode() {
-                /*  5:  6 */     throw new UnsupportedOperationException();
-                /*  6:  0 */   }
-                /*  7:  0 */   
-                /*  8:  0 */   public final boolean equals(Object o) {
-                /*  9: 11 */     throw new UnsupportedOperationException();
-                /* 10:  0 */   }
-                /* 11:  0 */   
-                /* 12:  0 */   public final String toString() {
-                /* 13: 16 */     throw new UnsupportedOperationException();
-                /* 14:  0 */   }
-                /* 15:  0 */ }
+                /*  4:  0 */   @Override
+                /*  5:  0 */   public final int hashCode() {
+                /*  6:  6 */     throw new UnsupportedOperationException();
+                /*  7:  0 */   }
+                /*  8:  0 */   
+                /*  9:  0 */   @Override
+                /* 10:  0 */   public final boolean equals(Object o) {
+                /* 11: 11 */     throw new UnsupportedOperationException();
+                /* 12:  0 */   }
+                /* 13:  0 */   
+                /* 14:  0 */   @Override
+                /* 15:  0 */   public final String toString() {
+                /* 16: 16 */     throw new UnsupportedOperationException();
+                /* 17:  0 */   }
+                /* 18:  0 */ }
                 """, source);
         
         // Recompile decompiled source code and check errors

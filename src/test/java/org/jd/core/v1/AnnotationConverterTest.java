@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.RuntimeInvisibleAnnotations;
 import org.apache.bcel.classfile.RuntimeVisibleAnnotations;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.reference.AnnotationReference;
 import org.jd.core.v1.model.javasyntax.reference.AnnotationReferences;
@@ -32,7 +32,7 @@ public class AnnotationConverterTest extends TestCase {
     @SuppressWarnings("unchecked")
     public void test() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             TypeMaker typeMaker = new TypeMaker(loader);
             ClassFileDeserializer deserializer = new ClassFileDeserializer();
 

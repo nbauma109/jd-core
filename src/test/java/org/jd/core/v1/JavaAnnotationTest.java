@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
@@ -24,7 +24,7 @@ public class JavaAnnotationTest extends AbstractJdTest {
     public void testJdk170AnnotatedClass() throws Exception {
         String internalClassName = "org/jd/core/test/AnnotatedClass";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code
@@ -58,7 +58,7 @@ public class JavaAnnotationTest extends AbstractJdTest {
     public void testJdk170AnnotationAuthor() throws Exception {
         String internalClassName = "org/jd/core/test/annotation/Author";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code
@@ -79,7 +79,7 @@ public class JavaAnnotationTest extends AbstractJdTest {
     public void testJdk170AnnotationValue() throws Exception {
         String internalClassName = "org/jd/core/test/annotation/Value";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code

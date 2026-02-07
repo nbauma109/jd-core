@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
@@ -26,7 +26,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk170TryWithResources() throws Exception {
         String internalClassName = "org/jd/core/test/TryWithResources";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -62,7 +62,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk180TryWithResources() throws Exception {
         String internalClassName = "org/jd/core/test/TryWithResources";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.8.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -98,7 +98,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk11TryWithResources() throws Exception {
         String internalClassName = "org/jd/core/test/TryWithResources";
         try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-jdk-11.0.12.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
             
@@ -134,7 +134,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk17TryWithResources() throws Exception {
         String internalClassName = "org/jd/core/test/TryWithResources";
         try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-jdk-17.0.1.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
             
@@ -170,7 +170,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testEclipseJavaCompiler321TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-eclipse-java-compiler-3.2.1.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -202,7 +202,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testEclipseJavaCompiler370TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-eclipse-java-compiler-3.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -244,7 +244,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testEclipseJavaCompiler3130TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-eclipse-java-compiler-3.13.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -285,7 +285,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk118TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.1.8.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -327,7 +327,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk131TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.3.1.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 
@@ -364,7 +364,7 @@ public class JavaTryCatchFinallyTest extends AbstractJdTest {
     public void testJdk170TryCatchFinally() throws Exception {
         String internalClassName = "org/jd/core/test/TryCatchFinally";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
 

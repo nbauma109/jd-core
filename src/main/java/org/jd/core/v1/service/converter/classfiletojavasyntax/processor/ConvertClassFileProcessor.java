@@ -6,11 +6,18 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.processor;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.apache.bcel.Const;
@@ -52,6 +59,8 @@ import org.jd.core.v1.model.javasyntax.expression.FloatConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.LongConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
+import org.jd.core.v1.model.javasyntax.reference.AnnotationReference;
+import org.jd.core.v1.model.javasyntax.reference.AnnotationReferences;
 import org.jd.core.v1.model.javasyntax.reference.BaseAnnotationReference;
 import org.jd.core.v1.model.javasyntax.reference.BaseElementValue;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
@@ -63,6 +72,7 @@ import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeParameter;
 import org.jd.core.v1.model.javasyntax.type.TypeParameterWithTypeBounds;
 import org.jd.core.v1.model.message.DecompileContext;
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileAnnotationDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileClassDeclaration;
@@ -89,6 +99,11 @@ import org.jd.core.v1.util.StringConstants;
  * Output: {@link org.jd.core.v1.model.javasyntax.CompilationUnit}<br>
  */
 public class ConvertClassFileProcessor {
+    private static final String JAVA_LANG_OVERRIDE = "java/lang/Override";
+
+    private final Map<String, LoadedType> loadedTypeCache = new HashMap<>();
+    private Loader loader;
+
     private final PopulateBindingsWithTypeParameterVisitor populateBindingsWithTypeParameterVisitor = new PopulateBindingsWithTypeParameterVisitor() {
         @Override
         public void visit(TypeParameter parameter) {
@@ -102,6 +117,9 @@ public class ConvertClassFileProcessor {
     };
 
     public CompilationUnit process(ClassFile classFile, TypeMaker typeMaker, DecompileContext decompileContext) {
+        loader = decompileContext == null ? null : decompileContext.getLoader();
+        loadedTypeCache.clear();
+        loadedTypeCache.put(classFile.getInternalTypeName(), LoadedType.fromClassFile(classFile));
         AnnotationConverter annotationConverter = new AnnotationConverter(typeMaker);
 
         TypeDeclaration typeDeclaration;
@@ -313,6 +331,7 @@ public class ConvertClassFileProcessor {
             } else if (StringConstants.CLASS_CONSTRUCTOR.equals(name)) {
                 list.add(new ClassFileStaticInitializerDeclaration(bodyDeclaration, classFile, method, bindings, typeBounds, firstLineNumber));
             } else {
+                annotationReferences = addOverrideAnnotationIfNecessary(parser, classFile, method, annotationReferences);
                 ClassFileMethodDeclaration methodDeclaration = new ClassFileMethodDeclaration(
                         bodyDeclaration, classFile, method, annotationReferences, name, methodTypes.getTypeParameters(),
                         methodTypes.getReturnedType(), methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), defaultAnnotationValue,
@@ -330,6 +349,407 @@ public class ConvertClassFileProcessor {
             }
         }
         return list;
+    }
+
+    protected BaseAnnotationReference addOverrideAnnotationIfNecessary(TypeMaker typeMaker, ClassFile classFile, Method method, BaseAnnotationReference annotationReferences) {
+        if (classFile.getMajorVersion() < Const.MAJOR_1_5) {
+            return annotationReferences;
+        }
+
+        int accessFlags = method.getAccessFlags();
+        if ((accessFlags & (Const.ACC_STATIC | Const.ACC_PRIVATE | Const.ACC_SYNTHETIC | Const.ACC_BRIDGE)) != 0) {
+            return annotationReferences;
+        }
+
+        String name = method.getName();
+        if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name) || StringConstants.CLASS_CONSTRUCTOR.equals(name)) {
+            return annotationReferences;
+        }
+        if (containsOverrideAnnotation(annotationReferences)) {
+            return annotationReferences;
+        }
+
+        String parameterDescriptor = extractParameterDescriptor(method.getSignature());
+        boolean overrides = overridesClassMethod(classFile, name, parameterDescriptor);
+
+        if (!overrides && classFile.getMajorVersion() >= Const.MAJOR_1_6) {
+            overrides = overridesInterfaceMethod(classFile, name, parameterDescriptor);
+        }
+        if (!overrides) {
+            return annotationReferences;
+        }
+
+        AnnotationReference overrideAnnotation = new AnnotationReference(typeMaker.makeFromInternalTypeName(JAVA_LANG_OVERRIDE));
+        return prependAnnotation(annotationReferences, overrideAnnotation);
+    }
+
+    protected boolean containsOverrideAnnotation(BaseAnnotationReference annotationReferences) {
+        if (annotationReferences == null) {
+            return false;
+        }
+
+        if (annotationReferences instanceof AnnotationReference annotationReference) {
+            ObjectType type = annotationReference.getType();
+            return type != null && JAVA_LANG_OVERRIDE.equals(type.getInternalName());
+        }
+
+        if (annotationReferences instanceof AnnotationReferences<?> annotationReferenceList) {
+            for (Object annotation : annotationReferenceList) {
+                if (annotation instanceof AnnotationReference annotationReference) {
+                    ObjectType type = annotationReference.getType();
+                    if (type != null && JAVA_LANG_OVERRIDE.equals(type.getInternalName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    protected BaseAnnotationReference prependAnnotation(BaseAnnotationReference annotationReferences, AnnotationReference annotationReference) {
+        if (annotationReferences == null) {
+            return annotationReference;
+        }
+
+        if (annotationReferences instanceof AnnotationReference singleAnnotationReference) {
+            AnnotationReferences<AnnotationReference> mergedAnnotations = new AnnotationReferences<>(2);
+            mergedAnnotations.add(annotationReference);
+            mergedAnnotations.add(singleAnnotationReference);
+            return mergedAnnotations;
+        }
+
+        if (annotationReferences instanceof AnnotationReferences<?> annotationReferenceList) {
+            AnnotationReferences<AnnotationReference> mergedAnnotations = new AnnotationReferences<>(annotationReferenceList.size() + 1);
+            mergedAnnotations.add(annotationReference);
+            for (Object annotation : annotationReferenceList) {
+                mergedAnnotations.add((AnnotationReference)annotation);
+            }
+            return mergedAnnotations;
+        }
+
+        return annotationReferences;
+    }
+
+    protected boolean overridesClassMethod(ClassFile classFile, String methodName, String parameterDescriptor) {
+        String currentTypeName = classFile.getInternalTypeName();
+        String parentTypeName = getSuperTypeName(classFile);
+        Set<String> visited = new HashSet<>();
+
+        while (parentTypeName != null && visited.add(parentTypeName)) {
+            LoadedType parentType = loadType(parentTypeName);
+            if (parentType == null) {
+                break;
+            }
+            if (declaresOverridableMethod(parentType, currentTypeName, methodName, parameterDescriptor, false)) {
+                return true;
+            }
+            parentTypeName = parentType.getSuperTypeName();
+        }
+
+        return false;
+    }
+
+    protected boolean overridesInterfaceMethod(ClassFile classFile, String methodName, String parameterDescriptor) {
+        String currentTypeName = classFile.getInternalTypeName();
+        Deque<String> interfacesToScan = new ArrayDeque<>();
+        Set<String> visitedInterfaces = new HashSet<>();
+
+        LoadedType currentType = loadedTypeCache.getOrDefault(classFile.getInternalTypeName(), LoadedType.fromClassFile(classFile));
+        Set<String> visitedClasses = new HashSet<>();
+        while (currentType != null && visitedClasses.add(currentType.getInternalTypeName())) {
+            Collections.addAll(interfacesToScan, currentType.getInterfaceTypeNames());
+            currentType = loadType(currentType.getSuperTypeName());
+        }
+
+        while (!interfacesToScan.isEmpty()) {
+            String interfaceTypeName = interfacesToScan.removeFirst();
+            if (!visitedInterfaces.add(interfaceTypeName)) {
+                continue;
+            }
+            LoadedType interfaceType = loadType(interfaceTypeName);
+            if (interfaceType == null) {
+                continue;
+            }
+            if (declaresOverridableMethod(interfaceType, currentTypeName, methodName, parameterDescriptor, true)) {
+                return true;
+            }
+            Collections.addAll(interfacesToScan, interfaceType.getInterfaceTypeNames());
+        }
+
+        return false;
+    }
+
+    protected static String getSuperTypeName(ClassFile classFile) {
+        if (classFile == null || classFile.getSuperclassNameIndex() == 0) {
+            return null;
+        }
+        return classFile.getSuperTypeName();
+    }
+
+    protected boolean declaresOverridableMethod(LoadedType loadedType, String currentTypeName, String methodName, String parameterDescriptor, boolean fromInterface) {
+        for (LoadedMethod loadedMethod : loadedType.getMethods()) {
+            if (!methodName.equals(loadedMethod.getName())) {
+                continue;
+            }
+            if (!parameterDescriptor.equals(loadedMethod.getParameterDescriptor())) {
+                continue;
+            }
+
+            int accessFlags = loadedMethod.getAccessFlags();
+            if ((accessFlags & (Const.ACC_STATIC | Const.ACC_PRIVATE | Const.ACC_SYNTHETIC | Const.ACC_BRIDGE)) != 0) {
+                continue;
+            }
+            if (!fromInterface && isPackagePrivate(accessFlags) && !isSamePackage(currentTypeName, loadedType.getInternalTypeName())) {
+                continue;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    protected static boolean isPackagePrivate(int accessFlags) {
+        return (accessFlags & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE)) == 0;
+    }
+
+    protected static boolean isSamePackage(String leftInternalTypeName, String rightInternalTypeName) {
+        return packageName(leftInternalTypeName).equals(packageName(rightInternalTypeName));
+    }
+
+    protected static String packageName(String internalTypeName) {
+        if (internalTypeName == null) {
+            return "";
+        }
+        int index = internalTypeName.lastIndexOf('/');
+        return index == -1 ? "" : internalTypeName.substring(0, index);
+    }
+
+    protected static String extractParameterDescriptor(String methodDescriptor) {
+        int index = methodDescriptor.indexOf(')');
+        if (index == -1) {
+            return methodDescriptor;
+        }
+        return methodDescriptor.substring(0, index + 1);
+    }
+
+    protected LoadedType loadType(String internalTypeName) {
+        if (internalTypeName == null) {
+            return null;
+        }
+        if (loadedTypeCache.containsKey(internalTypeName)) {
+            return loadedTypeCache.get(internalTypeName);
+        }
+
+        LoadedType loadedType = loadType(loader, internalTypeName);
+        loadedTypeCache.put(internalTypeName, loadedType);
+        return loadedType;
+    }
+
+    protected LoadedType loadType(Loader classLoader, String internalTypeName) {
+        if ((classLoader == null) || !classLoader.canLoad(internalTypeName)) {
+            return null;
+        }
+
+        try {
+            byte[] data = classLoader.load(internalTypeName);
+            return parseLoadedType(internalTypeName, data);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    protected LoadedType parseLoadedType(String internalTypeName, byte[] data) throws IOException {
+        if (data == null) {
+            return null;
+        }
+
+        try (DataInputStream reader = new DataInputStream(new ByteArrayInputStream(data))) {
+            int magic = reader.readInt();
+            if (magic != 0xCAFEBABE) {
+                return null;
+            }
+
+            // Skip 'minorVersion' & 'majorVersion'
+            reader.skipBytes(2 * 2);
+
+            Object[] constants = loadConstants(reader);
+
+            // Skip 'accessFlags' & 'thisClassIndex'
+            reader.skipBytes(2 * 2);
+
+            int superClassIndex = reader.readUnsignedShort();
+            String superTypeName = constantClassName(constants, superClassIndex);
+
+            int interfaceCount = reader.readUnsignedShort();
+            String[] interfaceTypeNames = new String[interfaceCount];
+            for (int i = 0; i < interfaceCount; i++) {
+                interfaceTypeNames[i] = constantClassName(constants, reader.readUnsignedShort());
+            }
+
+            skipMembers(reader);
+
+            int methodCount = reader.readUnsignedShort();
+            List<LoadedMethod> methods = new ArrayList<>(methodCount);
+            for (int i = 0; i < methodCount; i++) {
+                int accessFlags = reader.readUnsignedShort();
+                String name = constantUtf8(constants, reader.readUnsignedShort());
+                String descriptor = constantUtf8(constants, reader.readUnsignedShort());
+                skipAttributes(reader);
+
+                if (name == null || descriptor == null) {
+                    continue;
+                }
+                methods.add(new LoadedMethod(name, extractParameterDescriptor(descriptor), accessFlags));
+            }
+
+            return new LoadedType(internalTypeName, superTypeName, interfaceTypeNames, methods);
+        }
+    }
+
+    protected static Object[] loadConstants(DataInputStream reader) throws IOException {
+        int count = reader.readUnsignedShort();
+        Object[] constants = new Object[count];
+
+        for (int i = 1; i < count; i++) {
+            int tag = reader.readUnsignedByte();
+            switch (tag) {
+                case Const.CONSTANT_Utf8:
+                    constants[i] = reader.readUTF();
+                    break;
+                case Const.CONSTANT_Integer:
+                case Const.CONSTANT_Float:
+                case Const.CONSTANT_Fieldref:
+                case Const.CONSTANT_Methodref:
+                case Const.CONSTANT_InterfaceMethodref:
+                case Const.CONSTANT_NameAndType:
+                case Const.CONSTANT_Dynamic:
+                case Const.CONSTANT_InvokeDynamic:
+                    reader.skipBytes(4);
+                    break;
+                case Const.CONSTANT_Long:
+                case Const.CONSTANT_Double:
+                    reader.skipBytes(8);
+                    i++;
+                    break;
+                case Const.CONSTANT_Class:
+                case Const.CONSTANT_String:
+                case Const.CONSTANT_MethodType:
+                case Const.CONSTANT_Module:
+                case Const.CONSTANT_Package:
+                    constants[i] = reader.readUnsignedShort();
+                    break;
+                case Const.CONSTANT_MethodHandle:
+                    reader.skipBytes(3);
+                    break;
+                default:
+                    throw new IOException("Invalid constant pool tag: " + tag);
+            }
+        }
+
+        return constants;
+    }
+
+    protected static void skipMembers(DataInputStream reader) throws IOException {
+        int count = reader.readUnsignedShort();
+        for (int i = 0; i < count; i++) {
+            // Skip 'accessFlags', 'nameIndex' & 'descriptorIndex'
+            reader.skipBytes(3 * 2);
+            skipAttributes(reader);
+        }
+    }
+
+    protected static void skipAttributes(DataInputStream reader) throws IOException {
+        int attributeCount = reader.readUnsignedShort();
+        for (int i = 0; i < attributeCount; i++) {
+            reader.skipBytes(2); // attributeNameIndex
+            int attributeLength = reader.readInt();
+            reader.skipBytes(attributeLength);
+        }
+    }
+
+    protected static String constantUtf8(Object[] constants, int index) {
+        if (index <= 0 || index >= constants.length) {
+            return null;
+        }
+        Object value = constants[index];
+        return value instanceof String ? (String)value : null;
+    }
+
+    protected static String constantClassName(Object[] constants, int classIndex) {
+        if (classIndex <= 0 || classIndex >= constants.length) {
+            return null;
+        }
+        Object nameIndex = constants[classIndex];
+        if (!(nameIndex instanceof Integer)) {
+            return null;
+        }
+        return constantUtf8(constants, (Integer)nameIndex);
+    }
+
+    protected static final class LoadedMethod {
+        private final String name;
+        private final String parameterDescriptor;
+        private final int accessFlags;
+
+        protected LoadedMethod(String name, String parameterDescriptor, int accessFlags) {
+            this.name = name;
+            this.parameterDescriptor = parameterDescriptor;
+            this.accessFlags = accessFlags;
+        }
+
+        protected String getName() {
+            return name;
+        }
+
+        protected String getParameterDescriptor() {
+            return parameterDescriptor;
+        }
+
+        protected int getAccessFlags() {
+            return accessFlags;
+        }
+    }
+
+    protected static final class LoadedType {
+        private static final String[] NO_INTERFACES = new String[0];
+
+        private final String internalTypeName;
+        private final String superTypeName;
+        private final String[] interfaceTypeNames;
+        private final List<LoadedMethod> methods;
+
+        protected LoadedType(String internalTypeName, String superTypeName, String[] interfaceTypeNames, List<LoadedMethod> methods) {
+            this.internalTypeName = internalTypeName;
+            this.superTypeName = superTypeName;
+            this.interfaceTypeNames = interfaceTypeNames == null ? NO_INTERFACES : interfaceTypeNames;
+            this.methods = methods;
+        }
+
+        protected static LoadedType fromClassFile(ClassFile classFile) {
+            Method[] methods = classFile.getMethods();
+            List<LoadedMethod> loadedMethods = new ArrayList<>(methods.length);
+            for (Method method : methods) {
+                loadedMethods.add(new LoadedMethod(method.getName(), extractParameterDescriptor(method.getSignature()), method.getAccessFlags()));
+            }
+            return new LoadedType(classFile.getInternalTypeName(), ConvertClassFileProcessor.getSuperTypeName(classFile), classFile.getInterfaceTypeNames(), loadedMethods);
+        }
+
+        protected String getInternalTypeName() {
+            return internalTypeName;
+        }
+
+        protected String getSuperTypeName() {
+            return superTypeName;
+        }
+
+        protected String[] getInterfaceTypeNames() {
+            return interfaceTypeNames;
+        }
+
+        protected List<LoadedMethod> getMethods() {
+            return methods;
+        }
     }
 
     protected List<ClassFileTypeDeclaration> convertInnerTypes(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {

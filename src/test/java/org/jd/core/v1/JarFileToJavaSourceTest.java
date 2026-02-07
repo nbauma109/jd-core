@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.apache.commons.io.FileUtils;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.util.DefaultList;
@@ -215,7 +215,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long recompilationFailedCounter = 0;
 
         try (InputStream is = MavenHelper.buildJarUrl(groupId, artifactId, version).openStream()) {
-            ZipLoader loader = new ZipLoader(is);
+            CompositeLoader loader = new CompositeLoader(is);
             CounterPrinter printer = new CounterPrinter();
             Map<String, Integer> statistics = new HashMap<>();
             Map<String, Object> configuration = new HashMap<>();

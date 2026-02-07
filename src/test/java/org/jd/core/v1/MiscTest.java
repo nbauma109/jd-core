@@ -16,7 +16,7 @@ import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryClassLoader;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.ClassFilePrinter;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
@@ -153,7 +153,7 @@ public class MiscTest extends AbstractJdTest {
     public void testTryResourcesImaging() throws Exception {
         String internalClassName = TryResourcesImaging.class.getName().replace('.', '/');
         try (InputStream is = this.getClass().getResourceAsStream("/jar/try-resources-imaging-jdk-11.0.12.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Recompile decompiled source code and check errors
@@ -163,7 +163,7 @@ public class MiscTest extends AbstractJdTest {
 
     private void test(String jarPath, String internalClassName, String expectedOutput, String compilerVersion) throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream(jarPath)) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
             
             // Check decompiled source code
@@ -302,7 +302,7 @@ public class MiscTest extends AbstractJdTest {
     public void testExpectedExceptionMatcherBuilder() throws Exception {
         String internalClassName = ExpectedExceptionMatcherBuilder.class.getName().replace('.', '/');
         try (InputStream is = this.getClass().getResourceAsStream("/jar/expected-exception-matcher-builder-jdk1.6.0u119.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Recompile decompiled source code and check errors
@@ -347,7 +347,7 @@ public class MiscTest extends AbstractJdTest {
     public void testMapLambda() throws Exception {
         String internalClassName = MapLambda.class.getName().replace('.', '/');
         try (InputStream is = this.getClass().getResourceAsStream("/jar/map-lambda-jdk8u331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code
@@ -402,7 +402,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testConsumer() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/misc-oracle-jdk1.8.0_331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = MiscOracleJDK8.Consumer.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
     
@@ -436,7 +436,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testEnumMap() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/enum-map-jdk8u331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = EnumMapUtil.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -604,7 +604,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testInnerClassConstructorInvocation() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/inner-class-constructor-call-jdk8u331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = Parameterized.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -616,7 +616,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testBoundsAnonymous() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/bounds-anonymous-jdk8u331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = TestBoundsAnonymous.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -634,7 +634,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testBoundsLambda() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/bounds-lambda-jdk8u331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = TestBoundsLambda.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -781,7 +781,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testLambdaStackWalker1() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/lambda-stackwalker-jdk17.0.1.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = LambdaStackWalker1.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -796,7 +796,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testLambdaStackWalker2() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/lambda-stackwalker2-jdk17.0.1.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = LambdaStackWalker2.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -811,7 +811,7 @@ public class MiscTest extends AbstractJdTest {
 
     public void testNoDiamondJDK6() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/entries-test-jdk6u119.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = Entries.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
@@ -826,7 +826,7 @@ public class MiscTest extends AbstractJdTest {
 
     public void testNoDiamondJDK7() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/ternary-op-diamond-jdk7u80.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = TernaryOpDiamond.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
             
@@ -867,7 +867,7 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testLambdaVariables() throws Exception {
         try (InputStream is = this.getClass().getResourceAsStream("/jar/misc-oracle-jdk1.8.0_331.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String internalClassName = MiscOracleJDK8.LambdaVariables.class.getName().replace('.', '/');
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
     

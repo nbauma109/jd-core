@@ -4,7 +4,7 @@ import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.StringConcatenation;
@@ -19,7 +19,7 @@ public class StringConcatenationTest extends AbstractJdTest {
     public void testStringConcatenation() throws Exception {
         String internalClassName = StringConcatenation.class.getName().replace('.', '/');
         try (InputStream is = this.getClass().getResourceAsStream("/jar/string-concatenation-jdk8u292.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code
@@ -71,7 +71,7 @@ public class StringConcatenationTest extends AbstractJdTest {
     public void testStringConcatenationIndy() throws Exception {
         String internalClassName = StringConcatenation2.class.getName().replace('.', '/');
         try (InputStream is = this.getClass().getResourceAsStream("/jar/string-concat-indy-jdk21.0.8.jar")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
             
             // Check decompiled source code

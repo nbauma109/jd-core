@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.loader.CompositeLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
@@ -23,7 +23,7 @@ public class JavaTernaryOperatorTest extends AbstractJdTest {
     public void testJdk118TernaryOperator() throws Exception {
         String internalClassName = "org/jd/core/test/TernaryOperator";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.1.8.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code
@@ -51,7 +51,7 @@ public class JavaTernaryOperatorTest extends AbstractJdTest {
     public void testJdk170TernaryOperator() throws Exception {
         String internalClassName = "org/jd/core/test/TernaryOperator";
         try (InputStream is = this.getClass().getResourceAsStream("/zip/data-java-jdk-1.7.0.zip")) {
-            Loader loader = new ZipLoader(is);
+            Loader loader = new CompositeLoader(is);
             String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
 
             // Check decompiled source code

@@ -8,6 +8,7 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
@@ -141,6 +142,7 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
     @Override
     protected void maybeUpdateParameters(MethodInvocationExpression expression) {
         BaseType parameterTypes = expression instanceof ClassFileMethodInvocationExpression mie ? mie.getParameterTypes() : null;
+        BaseType unboundParameterTypes = expression instanceof ClassFileMethodInvocationExpression mie ? mie.getUnboundParameterTypes() : null;
 
         if (parameterTypes == null || expression.getParameters() == null) {
             expression.setParameters(updateBaseExpression(expression.getParameters()));
@@ -152,21 +154,33 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         if (parameterTypes.isList() && expression.getParameters().isList()) {
             for (int i = 0; i < expression.getParameters().getList().size() && i < parameterTypes.getList().size(); i++) {
                 Type parameterType = parameterTypes.getList().get(i);
+                Type unboundParameterType = unboundParameterTypes != null && unboundParameterTypes.isList() && i < unboundParameterTypes.getList().size()
+                        ? unboundParameterTypes.getList().get(i)
+                        : null;
+                Expression argument = expression.getParameters().getList().get(i);
                 if (isSelfOverload && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
                     continue;
                 }
-                if (shouldUpdateParameter(parameterType)) {
-                    expression.getParameters().getList().set(i, updateExpression(expression.getParameters().getList().get(i)));
+                if (shouldPreserveBoxing(expression, i, parameterType, unboundParameterType, argument)) {
+                    continue;
+                }
+                if (shouldUpdateParameter(parameterType, argument)) {
+                    expression.getParameters().getList().set(i, updateExpression(argument));
                 }
             }
-        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
+        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst()))
+                && !shouldPreserveBoxing(expression, 0, parameterTypes.getFirst(), unboundParameterTypes == null ? null : unboundParameterTypes.getFirst(), expression.getParameters().getFirst())
+                && shouldUpdateParameter(parameterTypes.getFirst(), expression.getParameters().getFirst())) {
             expression.setParameters(updateExpression(expression.getParameters().getFirst()));
         }
     }
 
-    private static boolean shouldUpdateParameter(Type parameterType) {
+    private static boolean shouldUpdateParameter(Type parameterType, Expression argument) {
         if (parameterType == null) {
             return true;
+        }
+        if (parameterType.isPrimitiveType() && isJavaLangMethodInvocation(argument) && isBoxingMethod(argument)) {
+            return false;
         }
         if (parameterType.isGenericType()) {
             return false;
@@ -175,6 +189,101 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
             return !ObjectType.TYPE_OBJECT.equals(parameterType);
         }
         return true;
+    }
+
+    private static boolean shouldPreserveBoxing(MethodInvocationExpression expression, int parameterIndex, Type parameterType, Type unboundParameterType, Expression argument) {
+        if (!isJavaLangMethodInvocation(argument) || !isBoxingMethod(argument)) {
+            return false;
+        }
+        if (!(parameterType instanceof ObjectType objectType)) {
+            return false;
+        }
+        boolean boxedPrimitiveParameter = switch (objectType.getInternalName()) {
+            case StringConstants.JAVA_LANG_BYTE, StringConstants.JAVA_LANG_SHORT, StringConstants.JAVA_LANG_INTEGER,
+                    StringConstants.JAVA_LANG_LONG, StringConstants.JAVA_LANG_FLOAT, StringConstants.JAVA_LANG_DOUBLE,
+                    StringConstants.JAVA_LANG_CHARACTER, StringConstants.JAVA_LANG_BOOLEAN -> true;
+            default -> false;
+        };
+        if (!boxedPrimitiveParameter) {
+            return false;
+        }
+        if (unboundParameterType != null && unboundParameterType.isGenericType()) {
+            return true;
+        }
+        if (hasNullArgument(expression)) {
+            return true;
+        }
+        return isObjectDescriptorParameter(expression, parameterIndex);
+    }
+
+    private static boolean hasNullArgument(MethodInvocationExpression expression) {
+        if (expression == null || expression.getParameters() == null) {
+            return false;
+        }
+        if (expression.getParameters().isList()) {
+            for (Expression parameter : expression.getParameters().getList()) {
+                if (isNullLike(parameter)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        Expression parameter = expression.getParameters().getFirst();
+        return isNullLike(parameter);
+    }
+
+    private static boolean isNullLike(Expression expression) {
+        if (expression == null) {
+            return false;
+        }
+        if (expression.isNullExpression()) {
+            return true;
+        }
+        if (expression instanceof CastExpression castExpression) {
+            return isNullLike(castExpression.getExpression());
+        }
+        return false;
+    }
+
+    private static boolean isObjectDescriptorParameter(MethodInvocationExpression expression, int parameterIndex) {
+        String descriptor = expression.getDescriptor();
+        if (descriptor == null || descriptor.length() < 2 || descriptor.charAt(0) != '(' || parameterIndex < 0) {
+            return false;
+        }
+
+        int currentParameterIndex = 0;
+        int i = 1;
+        while (i < descriptor.length() && descriptor.charAt(i) != ')') {
+            char c = descriptor.charAt(i);
+
+            while (c == '[') {
+                i++;
+                if (i >= descriptor.length()) {
+                    return false;
+                }
+                c = descriptor.charAt(i);
+            }
+
+            if (c == 'L') {
+                int semiColonIndex = descriptor.indexOf(';', i);
+                if (semiColonIndex == -1) {
+                    return false;
+                }
+                if (currentParameterIndex == parameterIndex) {
+                    return "Ljava/lang/Object;".equals(descriptor.substring(i, semiColonIndex + 1));
+                }
+                i = semiColonIndex + 1;
+            } else {
+                if (currentParameterIndex == parameterIndex) {
+                    return false;
+                }
+                i++;
+            }
+
+            currentParameterIndex++;
+        }
+
+        return false;
     }
 
     private static boolean isBoxingOrUnboxing(Expression expression) {

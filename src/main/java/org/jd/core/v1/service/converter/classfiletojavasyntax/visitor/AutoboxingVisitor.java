@@ -152,21 +152,33 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         if (parameterTypes.isList() && expression.getParameters().isList()) {
             for (int i = 0; i < expression.getParameters().getList().size() && i < parameterTypes.getList().size(); i++) {
                 Type parameterType = parameterTypes.getList().get(i);
+                Expression argument = expression.getParameters().getList().get(i);
                 if (isSelfOverload && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
                     continue;
                 }
-                if (shouldUpdateParameter(parameterType)) {
-                    expression.getParameters().getList().set(i, updateExpression(expression.getParameters().getList().get(i)));
+                if (shouldUpdateParameter(parameterType, argument)) {
+                    expression.getParameters().getList().set(i, updateExpression(argument));
                 }
             }
-        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
+        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst()))
+                && shouldUpdateParameter(parameterTypes.getFirst(), expression.getParameters().getFirst())) {
             expression.setParameters(updateExpression(expression.getParameters().getFirst()));
         }
     }
 
-    private static boolean shouldUpdateParameter(Type parameterType) {
+    private static boolean shouldUpdateParameter(Type parameterType, Expression argument) {
         if (parameterType == null) {
             return true;
+        }
+        if (parameterType.isPrimitiveType() && isJavaLangMethodInvocation(argument) && isBoxingMethod(argument)) {
+            // Preserve explicit boxing in invocation arguments. Removing it can switch
+            // overload selection and produce uncompilable chained calls.
+            return false;
+        }
+        if (parameterType.isObjectType() && isJavaLangMethodInvocation(argument) && isBoxingMethod(argument)) {
+            // Keep explicit boxing for reference-type parameters as well. Otherwise an
+            // overloaded primitive method can be selected during recompilation.
+            return false;
         }
         if (parameterType.isGenericType()) {
             return false;

@@ -30,7 +30,7 @@ JD-Core is the engine of JD-GUI.
     - commons-io:commons-io:2.15.1
     - commons-codec:commons-codec:1.18.0
     - org.apache.commons:commons-collections4:4.4
-    - org.apache.commons:commons-lang3:3.12.0
+    - org.apache.commons:commons-lang3:3.20.0
     - org.apache.logging.log4j:log4j-core:2.20.0
     - junit:junit:4.13.2
     - and more ... (check unit tests)

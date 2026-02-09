@@ -8,10 +8,10 @@
 
 JD-Core is a JAVA decompiler written in JAVA.
 
-- Java Decompiler project home page:
-[http://java-decompiler.github.io](https://java-decompiler.github.io)
 - JD-Core source code:
-[https://github.com/java-decompiler/jd-core](https://github.com/java-decompiler/jd-core)
+[https://github.com/nbauma109/jd-core](https://github.com/nbauma109/jd-core)
+- JD-Core legacy (v0) source code:
+[https://github.com/nbauma109/jd-core-v0](https://github.com/nbauma109/jd-core-v0)
 - Jitpack maven repository:
 [https://jitpack.io/](https://jitpack.io/)
 

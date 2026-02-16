@@ -28,6 +28,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.StatementVisitor;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.SwitchStatement.PatternLabel;
 import org.jd.core.v1.model.javasyntax.statement.SynchronizedStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
@@ -280,6 +281,8 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
     @Override
     public void visit(NoStatement statement) {}
     @Override
+    public void visit(PatternLabel patternLabel) {}
+    @Override
     public void visit(ReturnExpressionStatement statement) {}
     @Override
     public void visit(ReturnStatement statement) {}
@@ -309,4 +312,5 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             }
         }
     }
+
 }

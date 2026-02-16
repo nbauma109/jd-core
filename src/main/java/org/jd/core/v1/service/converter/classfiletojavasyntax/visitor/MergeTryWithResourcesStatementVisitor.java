@@ -31,6 +31,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.StatementVisitor;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.SwitchStatement.PatternLabel;
 import org.jd.core.v1.model.javasyntax.statement.SynchronizedStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
@@ -119,6 +120,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
     @Override public void visit(LambdaExpressionStatement statement) {}
     @Override public void visit(LocalVariableDeclarationStatement statement) {}
     @Override public void visit(NoStatement statement) {}
+    @Override public void visit(PatternLabel patternLabel) {}
     @Override public void visit(ReturnExpressionStatement statement) {}
     @Override public void visit(ReturnStatement statement) {}
     @Override public void visit(SwitchStatement.DefaultLabel statement) {}
@@ -197,4 +199,5 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
             }
         }
     }
+
 }

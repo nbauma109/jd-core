@@ -44,6 +44,7 @@ import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression.PatternLabel;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
@@ -903,6 +904,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     public void visit(ObjectTypeReferenceExpression expression) {}
     @Override
     public void visit(ParenthesesExpression expression) {}
+    @Override
+    public void visit(PatternLabel patternLabel) {}
     @Override
     public void visit(PostOperatorExpression expression) {}
     @Override

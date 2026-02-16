@@ -27,6 +27,6 @@ public class ClassFileForEachStatement extends ForEachStatement {
 
     @Override
     public String toString() {
-        return "ClassFileForEachStatement{" + type + " " + localVariable.getName() + " : " + expression + "}";
+        return "ClassFileForEachStatement{" + getType() + " " + localVariable.getName() + " : " + expression + "}";
     }
 }

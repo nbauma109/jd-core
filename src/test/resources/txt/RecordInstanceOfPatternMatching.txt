@@ -1,8 +1,8 @@
-package org.jd.core.v1;
+package org.jd.core.v1.stub;
 
 public class RecordInstanceOfPatternMatching {
   boolean matches(Object o) {
-    return o instanceof Point(int x, int y);
+    return o instanceof Point(int x, int y) && x >= 0 && y >= 0;
   }
 
   record Point(int x, int y) {}

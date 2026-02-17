@@ -2301,7 +2301,7 @@ public class ByteCodeParser {
             case ASTORE -> code[++offset] & 255;
             case ASTORE_0, ASTORE_1, ASTORE_2, ASTORE_3 -> opcode - ASTORE_0;
             case POP, POP2 -> -1;
-            default -> throw new IllegalStateException();
+            default -> -1;
         };
     }
 

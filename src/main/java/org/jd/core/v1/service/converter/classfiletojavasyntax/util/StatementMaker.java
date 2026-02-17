@@ -859,6 +859,10 @@ public class StatementMaker {
             int index = statements.size();
             makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
 
+            if (RecordPatternInstanceOfRewriter.rewrite(cond, subStatements, statements, index)) {
+                return;
+            }
+
             if (stack.size() == 1 && basicBlock.getNext().matchType(TYPE_GOTO_IN_TERNARY_OPERATOR) && !statements.isEmpty() && statements.getLast() instanceof IfStatement) {
                 IfStatement ifStatement = (IfStatement) statements.getLast();
                 BaseStatement thenStatements = ifStatement.getStatements();

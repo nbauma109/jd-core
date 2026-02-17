@@ -161,20 +161,6 @@ public class MiscTest extends AbstractJdTest {
         }
     }
 
-    private void test(String jarPath, String internalClassName, String expectedOutput, String compilerVersion) throws Exception {
-        try (InputStream is = this.getClass().getResourceAsStream(jarPath)) {
-            Loader loader = new ZipLoader(is);
-            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName);
-            
-            // Check decompiled source code
-            String expected = Files.readString(Paths.get(getClass().getResource(expectedOutput).toURI()));
-            assertEqualsIgnoreEOL(expected, source);
-            
-            // Recompile decompiled source code and check errors
-            assertTrue(CompilerUtil.compile(compilerVersion, new InMemoryJavaSourceFileObject(internalClassName, source)));
-        }
-    }
-    
     @Test
     public void testTryResourcesGeneric() throws Exception {
         test("/jar/try-resources-generic-jdk-1.8.0_331.jar", "org/jd/core/v1/TryResources", "/txt/TryResourcesGeneric.txt", "1.8");

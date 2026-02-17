@@ -1,13 +1,19 @@
 package org.jd.core.v1;
 
-import org.apache.commons.io.IOUtils;
-import org.jd.core.v1.api.loader.Loader;
-import org.jd.core.v1.api.printer.Printer;
-
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
+
+import org.apache.commons.io.IOUtils;
+import org.jd.core.v1.api.loader.Loader;
+import org.jd.core.v1.api.printer.Printer;
+import org.jd.core.v1.compiler.CompilerUtil;
+import org.jd.core.v1.compiler.InMemoryClassLoader;
+import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.printer.PlainTextPrinter;
 
 import junit.framework.TestCase;
 
@@ -51,5 +57,40 @@ public abstract class AbstractJdTest extends TestCase {
 
     protected String getResourceAsString(String path) throws IOException {
         return IOUtils.toString(getClass().getResource(path), StandardCharsets.UTF_8);
+    }
+
+    protected void test(String jarPath, String internalClassName, String expectedOutput, String compilerVersion) throws Exception {
+        test(jarPath, internalClassName, expectedOutput, compilerVersion, new PlainTextPrinter());
+    }
+
+    protected void test(String jarPath, String internalClassName, String expectedOutput, String compilerVersion, Printer printer) throws Exception {
+        try (InputStream is = this.getClass().getResourceAsStream(jarPath)) {
+            Loader loader = new ZipLoader(is);
+            String source = decompileSuccess(loader, printer, internalClassName);
+            
+            // Check decompiled source code
+            String expected = getResourceAsString(expectedOutput);
+            assertEqualsIgnoreEOL(expected, source);
+            
+            // Recompile decompiled source code and check errors
+            assertTrue(CompilerUtil.compile(compilerVersion, new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+    
+    protected void testECJ(String jarPath, String internalClassName, String expectedOutput, String compilerVersion) throws Exception {
+        test(jarPath, internalClassName, expectedOutput, compilerVersion, new PlainTextPrinter());
+    }
+    
+    protected void testECJ(String internalClassName, String expectedOutput, String compilerVersion, Printer printer) throws Exception {
+        InMemoryClassLoader classLoader = new InMemoryClassLoader();
+        String expectedSource = getResourceAsString(expectedOutput);
+        InMemoryJavaSourceFileObject object = new InMemoryJavaSourceFileObject(internalClassName, expectedSource);
+        assertTrue(CompilerUtil.compile(compilerVersion, classLoader, object));
+        assertTrue(classLoader.canLoad(internalClassName));
+        assertNotNull(classLoader.load(internalClassName));
+        String actualSource = decompileSuccess(classLoader, printer, internalClassName);
+
+        // Check decompiled source code
+        assertEqualsIgnoreEOL(expectedSource, actualSource);
     }
 }

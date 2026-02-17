@@ -39,11 +39,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
 
 public final class RecordPatternInstanceOfRewriter {
+    private static final Map<String, String> INVERTED_COMPARISON_OPERATORS = Map.of(
+            "==", "!=",
+            "!=", "==",
+            "<", ">=",
+            "<=", ">",
+            ">", "<=",
+            ">=", "<");
+
     private RecordPatternInstanceOfRewriter() {}
 
     public static boolean rewrite(Expression condition, Statements thenStatements, Statements statements, int index) {
@@ -184,7 +193,7 @@ public final class RecordPatternInstanceOfRewriter {
                 return new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, leftExpression, combinedOperator, rightExpression, priority);
             }
 
-            String inverseOperator = invertComparisonOperator(operator);
+            String inverseOperator = INVERTED_COMPARISON_OPERATORS.get(operator);
             if (inverseOperator != null) {
                 return new BinaryOperatorExpression(
                         lineNumber,
@@ -196,18 +205,6 @@ public final class RecordPatternInstanceOfRewriter {
         }
 
         return new PreOperatorExpression(lineNumber, "!", expression);
-    }
-
-    private static String invertComparisonOperator(String operator) {
-        return switch (operator) {
-            case "==" -> "!=";
-            case "!=" -> "==";
-            case "<" -> ">=";
-            case "<=" -> ">";
-            case ">" -> "<=";
-            case ">=" -> "<";
-            default -> null;
-        };
     }
 
     private static Expression combineWithLogicalAnd(int lineNumber, Expression leftExpression, Expression rightExpression) {

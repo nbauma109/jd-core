@@ -114,7 +114,7 @@ public class ConvertClassFileProcessor {
             typeDeclaration = convertModuleDeclaration(classFile);
         } else if (classFile.isInterface()) {
             typeDeclaration = convertInterfaceDeclaration(typeMaker, annotationConverter, classFile, null);
-        } else if (classFile.isRecord()) {
+        } else if (isRecordClass(classFile)) {
             typeDeclaration = convertRecordDeclaration(typeMaker, annotationConverter, classFile, null);
         } else {
             typeDeclaration = convertClassDeclaration(typeMaker, annotationConverter, classFile, null);
@@ -224,7 +224,7 @@ public class ConvertClassFileProcessor {
             typeField = parser.parseFieldSignature(classFile, field);
             variableInitializer = convertFieldInitializer(field, typeField);
             fieldDeclarator = new FieldDeclarator(field.getName(), variableInitializer);
-            if (!classFile.isRecord()) {
+            if (!isRecordClass(classFile)) {
                 list.add(new ClassFileFieldDeclaration(annotationReferences, field.getAccessFlags(), typeField, fieldDeclarator));
             }
         }
@@ -252,7 +252,7 @@ public class ConvertClassFileProcessor {
 
     protected List<ClassFileConstructorOrMethodDeclaration> convertMethods(TypeMaker parser, AnnotationConverter converter, ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile) {
         Method[] methods = classFile.getMethods();
-        if (classFile.isRecord()) {
+        if (isRecordClass(classFile)) {
             methods = RecordHelper.removeImplicitDefaultRecordMethods(classFile);
         }
         DefaultList<ClassFileConstructorOrMethodDeclaration> list = new DefaultList<>(methods.length);
@@ -301,7 +301,7 @@ public class ConvertClassFileProcessor {
             }
 
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
-                if (classFile.isRecord()) {
+                if (isRecordClass(classFile)) {
                     list.add(new ClassFileRecordConstructorDeclaration(
                             bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
                             methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
@@ -347,6 +347,8 @@ public class ConvertClassFileProcessor {
                 innerTypeDeclaration = convertAnnotationDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
             } else if (innerClassFile.isInterface()) {
                 innerTypeDeclaration = convertInterfaceDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
+            } else if (isRecordClass(innerClassFile)) {
+                innerTypeDeclaration = convertRecordDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
             } else {
                 innerTypeDeclaration = convertClassDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
             }
@@ -384,6 +386,10 @@ public class ConvertClassFileProcessor {
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
 
         return converter.convert(visibleEntries, invisibleEntries);
+    }
+
+    protected boolean isRecordClass(ClassFile classFile) {
+        return classFile.isRecord() || classFile.getAttribute(Const.ATTR_RECORD) != null;
     }
 
     protected ExpressionVariableInitializer convertFieldInitializer(Field field, Type typeField) {

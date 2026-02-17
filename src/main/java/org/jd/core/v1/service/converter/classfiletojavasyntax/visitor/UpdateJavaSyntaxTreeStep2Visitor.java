@@ -19,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.declaration.RecordDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.TypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileEnumDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileRecordDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
 public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor {
@@ -96,6 +97,10 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
 
     @Override
     public void visit(RecordDeclaration declaration) {
+        // Remove implicit JVM flags for source-level record declarations.
+        ClassFileRecordDeclaration cfrd = (ClassFileRecordDeclaration) declaration;
+        cfrd.setFlags(cfrd.getFlags() & ~(Const.ACC_STATIC | Const.ACC_FINAL | Const.ACC_ABSTRACT));
+
         this.typeDeclaration = declaration;
         addCastExpressionVisitor.pushContext(declaration);
         safeAccept(declaration.getBodyDeclaration());

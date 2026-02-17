@@ -252,10 +252,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static boolean isSyntheticRecordPatternTryStatement(TryStatement tryStatement) {
-        if (tryStatement.getResources() != null && !tryStatement.getResources().isEmpty()) {
-            return false;
-        }
-        if (tryStatement.getFinallyStatements() != null && tryStatement.getFinallyStatements().size() > 0) {
+        if (tryStatement.getResources() != null && !tryStatement.getResources().isEmpty() || tryStatement.getFinallyStatements() != null && tryStatement.getFinallyStatements().size() > 0) {
             return false;
         }
 

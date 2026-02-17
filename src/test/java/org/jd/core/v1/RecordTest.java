@@ -24,6 +24,44 @@ public class RecordTest extends AbstractJdTest {
     }
 
     @Test
+    public void testLocalRecordWithEmptyBody() throws Exception {
+    	record LocalRecordWithEmptyBody(String a, double d) {}
+    	String internalClassName = LocalRecordWithEmptyBody.class.getName().replace('.', '/');
+    	String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+    	
+    	// Check decompiled source code
+    	assertEqualsIgnoreEOL("""
+                /*   1:   0 */ package org.jd.core.v1;
+                /*   2:   0 */ 
+                /*   3:   0 */ record LocalRecordWithEmptyBody(String a, double d) {}
+                """, source);
+    	
+    	// Recompile decompiled source code and check errors
+    	assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
+    public void testInnerRecordWithEmptyBody() throws Exception {
+    	class RecordHolder {
+    		record InnerRecordWithEmptyBody(String a, double d) {}
+    	}
+    	String internalClassName = RecordHolder.class.getName().replace('.', '/');
+    	String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+    	
+    	// Check decompiled source code
+    	assertEqualsIgnoreEOL("""
+                /*   1:   0 */ package org.jd.core.v1;
+                /*   2:   0 */ 
+                /*   3:   0 */ class RecordHolder {
+                /*   4:   0 */   record InnerRecordWithEmptyBody(String a, double d) {}
+                /*   5:   0 */ }
+                """, source);
+    	
+    	// Recompile decompiled source code and check errors
+    	assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+    
+    @Test
     public void testRecordWithGetters() throws Exception {
         String internalClassName = RecordWithGetters.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);

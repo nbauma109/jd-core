@@ -155,8 +155,7 @@ public final class RecordHelper {
             return false;
         }
         if (!INSTANCE_CONSTRUCTOR.equals(method.getName())
-                || method.isStatic()
-                || !method.isPublic()) {
+                || method.isStatic()) {
             return false;
         }
 
@@ -304,8 +303,7 @@ public final class RecordHelper {
 
         if (method == null
                 || !INSTANCE_CONSTRUCTOR.equals(method.getName())
-                || method.isStatic()
-                || !method.isPublic()) {
+                || method.isStatic()) {
             return false;
         }
         return expectedConstructorSignature.equals(method.getSignature());

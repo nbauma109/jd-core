@@ -347,6 +347,8 @@ public class ConvertClassFileProcessor {
                 innerTypeDeclaration = convertAnnotationDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
             } else if (innerClassFile.isInterface()) {
                 innerTypeDeclaration = convertInterfaceDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
+            } else if (innerClassFile.isRecord()) {
+                innerTypeDeclaration = convertRecordDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
             } else {
                 innerTypeDeclaration = convertClassDeclaration(parser, converter, innerClassFile, outerClassFileBodyDeclaration);
             }

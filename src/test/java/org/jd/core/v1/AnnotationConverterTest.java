@@ -7,10 +7,11 @@
 
 package org.jd.core.v1;
 
+import java.io.InputStream;
+
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.RuntimeInvisibleAnnotations;
 import org.apache.bcel.classfile.RuntimeVisibleAnnotations;
-import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.reference.AnnotationReference;
 import org.jd.core.v1.model.javasyntax.reference.AnnotationReferences;
@@ -20,9 +21,8 @@ import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.AnnotationConverter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.deserializer.classfile.ClassFileDeserializer;
+import org.jd.core.v1.util.ZipLoader;
 import org.junit.Test;
-
-import java.io.InputStream;
 
 import junit.framework.TestCase;
 

@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.apache.commons.io.FileUtils;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.util.ZipLoader;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.util.DefaultList;

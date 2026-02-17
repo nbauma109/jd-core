@@ -4,7 +4,7 @@ import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.AbstractJdTest;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.cfg.MethodUtil;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.util.ZipLoader;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.junit.Test;
 

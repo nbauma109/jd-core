@@ -30,7 +30,7 @@ import org.jd.core.v1.cfg.ControlFlowGraphPlantUMLWriter;
 import org.jd.core.v1.cfg.ControlFlowGraphPlantURLWriter;
 import org.jd.core.v1.cfg.MethodUtil;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.util.ZipLoader;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.ExceptionHandler;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SwitchCase;

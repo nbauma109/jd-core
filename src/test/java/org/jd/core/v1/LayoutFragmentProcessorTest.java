@@ -7,7 +7,7 @@
 
 package org.jd.core.v1;
 
-import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.util.ZipLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.services.tokenizer.javafragmenttotoken.TestTokenizeJavaFragmentProcessor;

@@ -9,7 +9,6 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
-import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
@@ -355,11 +354,7 @@ public final class RecordPatternInstanceOfRewriter {
             return;
         }
 
-        if (declarationStatement.getLocalVariableDeclarators() instanceof LocalVariableDeclarators declarators) {
-            for (LocalVariableDeclarator declarator : declarators) {
-                addTypePattern(componentPatterns, componentType, declarator, guardVariableNames, declaredComponentNames);
-            }
-        } else if (declarationStatement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
+        if (declarationStatement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
             addTypePattern(componentPatterns, componentType, declarator, guardVariableNames, declaredComponentNames);
         }
     }

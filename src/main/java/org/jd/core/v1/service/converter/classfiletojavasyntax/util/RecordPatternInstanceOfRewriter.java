@@ -147,14 +147,67 @@ public final class RecordPatternInstanceOfRewriter {
             Expression falseExpression = unwrapParenthesesExpression(ternaryOperatorExpression.getFalseExpression());
 
             if (isTrueExpression(trueExpression) && isFalseExpression(falseExpression)) {
-                return unwrapParenthesesExpression(ternaryOperatorExpression.getCondition());
+                expression = unwrapParenthesesExpression(ternaryOperatorExpression.getCondition());
             }
             if (isFalseExpression(trueExpression) && isTrueExpression(falseExpression)) {
-                return new PreOperatorExpression(expression.getLineNumber(), "!", unwrapParenthesesExpression(ternaryOperatorExpression.getCondition()));
+                expression = new PreOperatorExpression(expression.getLineNumber(), "!", unwrapParenthesesExpression(ternaryOperatorExpression.getCondition()));
             }
         }
 
-        return expression;
+        return normalizeNegatedBooleanExpression(expression);
+    }
+
+    private static Expression normalizeNegatedBooleanExpression(Expression expression) {
+        expression = unwrapParenthesesExpression(expression);
+
+        if (!(expression instanceof PreOperatorExpression preOperatorExpression) || !"!".equals(preOperatorExpression.getOperator())) {
+            return expression;
+        }
+
+        return negateBooleanExpression(preOperatorExpression.getExpression(), expression.getLineNumber());
+    }
+
+    private static Expression negateBooleanExpression(Expression expression, int lineNumber) {
+        expression = unwrapParenthesesExpression(expression);
+
+        if (expression instanceof PreOperatorExpression preOperatorExpression && "!".equals(preOperatorExpression.getOperator())) {
+            return unwrapParenthesesExpression(preOperatorExpression.getExpression());
+        }
+
+        if (expression instanceof BinaryOperatorExpression binaryOperatorExpression) {
+            String operator = binaryOperatorExpression.getOperator();
+            if ("&&".equals(operator) || "||".equals(operator)) {
+                String combinedOperator = "&&".equals(operator) ? "||" : "&&";
+                int priority = "&&".equals(combinedOperator) ? 13 : 14;
+                Expression leftExpression = negateBooleanExpression(binaryOperatorExpression.getLeftExpression(), lineNumber);
+                Expression rightExpression = negateBooleanExpression(binaryOperatorExpression.getRightExpression(), lineNumber);
+                return new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, leftExpression, combinedOperator, rightExpression, priority);
+            }
+
+            String inverseOperator = invertComparisonOperator(operator);
+            if (inverseOperator != null) {
+                return new BinaryOperatorExpression(
+                        lineNumber,
+                        TYPE_BOOLEAN,
+                        binaryOperatorExpression.getLeftExpression(),
+                        inverseOperator,
+                        binaryOperatorExpression.getRightExpression());
+            }
+        }
+
+        return new PreOperatorExpression(lineNumber, "!", expression);
+    }
+
+    private static String invertComparisonOperator(String operator) {
+        return switch (operator) {
+            case "==" -> "!=";
+            case "!=" -> "==";
+            case "<" -> ">=";
+            case "<=" -> ">";
+            case ">" -> "<=";
+            case ">=" -> "<";
+            default -> null;
+        };
     }
 
     private static Expression combineWithLogicalAnd(int lineNumber, Expression leftExpression, Expression rightExpression) {
@@ -327,13 +380,13 @@ public final class RecordPatternInstanceOfRewriter {
         if (leftExpression == null
                 || !leftExpression.isLocalVariableReferenceExpression()
                 || leftExpression.getName() == null
-                || leftExpression.getType() == null
-                || !guardVariableNames.contains(leftExpression.getName())
-                || !declaredComponentNames.add(leftExpression.getName())) {
+                || leftExpression.getType() == null) {
             return;
         }
 
-        componentPatterns.add(new TypePattern(leftExpression.getType(), leftExpression.getName()));
+        LocalVariableDeclarator syntheticDeclarator = new LocalVariableDeclarator(leftExpression.getName());
+        LocalVariableDeclarationStatement syntheticDeclaration = new LocalVariableDeclarationStatement(leftExpression.getType(), syntheticDeclarator);
+        extractRecordComponentPatternsFromDeclaration(syntheticDeclaration, guardVariableNames, declaredComponentNames, componentPatterns);
     }
 
     private static void addTypePattern(

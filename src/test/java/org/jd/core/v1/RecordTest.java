@@ -70,7 +70,7 @@ public class RecordTest extends AbstractJdTest {
 
     @Test
     public void testRecordInstanceOfPatternMatching() throws Exception {
-        test("/jar/jdk-pattern-matching-new-syntaxes-21.0.8.jar", "org/jd/core/v1/stub/RecordInstanceOfPatternMatching", "/txt/RecordInstanceOfPatternMatching.txt", "21", new StringBuilderPrinter());
+        test("/jar/jdk-pattern-matching-new-syntaxes-21.0.8.jar", "org/jd/core/v1/stub/RecordInstanceOfPatternMatching", "/txt/RecordInstanceOfPatternMatchingJavac.txt", "21", new StringBuilderPrinter());
     }
 
     @Test

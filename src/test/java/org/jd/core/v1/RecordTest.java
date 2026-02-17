@@ -1,9 +1,11 @@
 package org.jd.core.v1;
 
 import org.jd.core.v1.compiler.CompilerUtil;
+import org.jd.core.v1.compiler.InMemoryClassLoader;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.StringBuilderPrinter;
 import org.junit.Test;
 
 public class RecordTest extends AbstractJdTest {
@@ -43,7 +45,8 @@ public class RecordTest extends AbstractJdTest {
     @Test
     public void testInnerRecordWithEmptyBody() throws Exception {
     	class RecordHolder {
-    		record InnerRecordWithEmptyBody(String a, double d) {}
+    		@SuppressWarnings("unused")
+			record InnerRecordWithEmptyBody(String a, double d) {}
     	}
     	String internalClassName = RecordHolder.class.getName().replace('.', '/');
     	String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
@@ -61,6 +64,21 @@ public class RecordTest extends AbstractJdTest {
     	assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
     
+    @Test
+    public void testRecordInstanceOfPatternMatching() throws Exception {
+    	InMemoryClassLoader classLoader = new InMemoryClassLoader();
+		String internalName = "org/jd/core/v1/RecordInstanceOfPatternMatching";
+		String expectedSource = getResourceAsString("/txt/RecordInstanceOfPatternMatching.txt");
+		InMemoryJavaSourceFileObject object = new InMemoryJavaSourceFileObject(internalName, expectedSource);
+		assertTrue(CompilerUtil.compile("21", classLoader, object));
+        assertTrue(classLoader.canLoad(internalName));
+        assertNotNull(classLoader.load(internalName));
+        String actualSource = decompileSuccess(classLoader, new StringBuilderPrinter(), internalName);
+
+        // Check decompiled source code
+        assertEquals(expectedSource, actualSource);
+    }
+
     @Test
     public void testRecordWithGetters() throws Exception {
         String internalClassName = RecordWithGetters.class.getName().replace('.', '/');

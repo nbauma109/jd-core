@@ -76,21 +76,4 @@ public abstract class AbstractJdTest extends TestCase {
             assertTrue(CompilerUtil.compile(compilerVersion, new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
     }
-    
-    protected void testECJ(String jarPath, String internalClassName, String expectedOutput, String compilerVersion) throws Exception {
-        test(jarPath, internalClassName, expectedOutput, compilerVersion, new PlainTextPrinter());
-    }
-    
-    protected void testECJ(String internalClassName, String expectedOutput, String compilerVersion, Printer printer) throws Exception {
-        InMemoryClassLoader classLoader = new InMemoryClassLoader();
-        String expectedSource = getResourceAsString(expectedOutput);
-        InMemoryJavaSourceFileObject object = new InMemoryJavaSourceFileObject(internalClassName, expectedSource);
-        assertTrue(CompilerUtil.compile(compilerVersion, classLoader, object));
-        assertTrue(classLoader.canLoad(internalClassName));
-        assertNotNull(classLoader.load(internalClassName));
-        String actualSource = decompileSuccess(classLoader, printer, internalClassName);
-
-        // Check decompiled source code
-        assertEqualsIgnoreEOL(expectedSource, actualSource);
-    }
 }

@@ -1,0 +1,25 @@
+/*   1:   0 */ package org.jd.core.v1.stub;
+/*   2:   0 */
+/*   3:   0 */ public class RecordInstanceOfPatternMatchingNoDebug {
+/*   4:   0 */   boolean matchesXY(Object paramObject) {
+/*   5:   0 */     return paramObject instanceof Point(int x, int y) && x >= 0 && y >= 0;
+/*   6:   0 */   }
+/*   7:   0 */
+/*   8:   0 */   boolean matchesX(Object paramObject) {
+/*   9:   0 */     return paramObject instanceof Point(int x, int y) && x >= 0;
+/*  10:   0 */   }
+/*  11:   0 */
+/*  12:   0 */   boolean matchesNegated(Object paramObject) {
+/*  13:   0 */     return paramObject instanceof Point(int x, int y) && (x < 0 || y < 0);
+/*  14:   0 */   }
+/*  15:   0 */
+/*  16:   0 */   boolean matchesFromLocals(Object paramObject) {
+/*  17:   0 */     return paramObject instanceof Point(int x, int y) && x >= 0 && y >= 0;
+/*  18:   0 */   }
+/*  19:   0 */
+/*  20:   0 */   boolean matchesTernaryFalseTrue(Object paramObject) {
+/*  21:   0 */     return paramObject instanceof Point(int x, int y) && (x < 0 || y < 0);
+/*  22:   0 */   }
+/*  23:   0 */
+/*  24:   0 */   record Point(int x, int y) {}
+/*  25:   0 */ }

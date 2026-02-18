@@ -7,6 +7,16 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
@@ -15,6 +25,7 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.ParenthesesExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
@@ -24,7 +35,7 @@ import org.jd.core.v1.model.javasyntax.pattern.RecordPattern;
 import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
-import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
+import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -32,16 +43,8 @@ import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.LocalVariableReference;
 import org.jd.core.v1.util.DefaultList;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
 
 public final class RecordPatternInstanceOfRewriter {
     private static final Map<String, String> INVERTED_COMPARISON_OPERATORS = Map.of(
@@ -95,12 +98,18 @@ public final class RecordPatternInstanceOfRewriter {
             return false;
         }
 
+        Map<Object, VariableComponentBinding> variableBindings = collectVariableComponentBindings(tryStatements);
+        if (variableBindings.isEmpty()) {
+            return false;
+        }
+        renameGuardExpressionVariables(guardExpression, variableBindings);
+
         Set<String> guardVariableNames = collectLocalVariableNames(guardExpression);
         if (guardVariableNames.isEmpty()) {
             return false;
         }
 
-        List<Pattern> componentPatterns = extractRecordComponentPatterns(tryStatements, guardVariableNames);
+        List<Pattern> componentPatterns = extractRecordComponentPatterns(tryStatements, variableBindings);
         if (componentPatterns.isEmpty()) {
             return false;
         }
@@ -291,11 +300,61 @@ public final class RecordPatternInstanceOfRewriter {
         }
 
         Statement lastTryStatement = tryStatements.getLast();
-        if (lastTryStatement instanceof ReturnExpressionStatement returnExpressionStatement) {
-            return returnExpressionStatement.getExpression();
+        if (!(lastTryStatement instanceof ReturnExpressionStatement returnExpressionStatement)) {
+            return null;
+        }
+
+        Expression returnExpression = returnExpressionStatement.getExpression();
+        if (!isFalseExpression(returnExpression)) {
+            return returnExpression;
+        }
+
+        // Synthetic javac/ECJ rewrites can end with "return false;" and encode the guard
+        // as nested "if (...) return true;" blocks.
+        return extractConditionThatReturnsTrue(tryStatements);
+    }
+
+    private static Expression extractConditionThatReturnsTrue(BaseStatement statements) {
+        if (statements == null || statements.size() == 0) {
+            return null;
+        }
+
+        for (Statement statement : statements) {
+            if (!(statement instanceof IfStatement ifStatement)) {
+                continue;
+            }
+
+            Expression condition = unwrapParenthesesExpression(ifStatement.getCondition());
+            BaseStatement thenStatements = ifStatement.getStatements();
+
+            Expression nestedTrueCondition = extractConditionThatReturnsTrue(thenStatements);
+            if (nestedTrueCondition != null) {
+                if (isTrueExpression(condition)) {
+                    return nestedTrueCondition;
+                }
+                return combineWithLogicalAnd(condition.getLineNumber(), condition, nestedTrueCondition);
+            }
+
+            if (containsDirectTrueReturn(thenStatements)) {
+                return condition;
+            }
         }
 
         return null;
+    }
+
+    private static boolean containsDirectTrueReturn(BaseStatement statements) {
+        if (statements == null || statements.size() == 0) {
+            return false;
+        }
+
+        for (Statement statement : statements) {
+            if (statement instanceof ReturnExpressionStatement returnExpressionStatement && isTrueExpression(returnExpressionStatement.getExpression())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static Set<String> collectLocalVariableNames(Expression expression) {
@@ -313,80 +372,180 @@ public final class RecordPatternInstanceOfRewriter {
         return variableNames;
     }
 
-    private static List<Pattern> extractRecordComponentPatterns(BaseStatement tryStatements, Set<String> guardVariableNames) {
-        if (tryStatements == null || tryStatements.size() == 0 || guardVariableNames == null || guardVariableNames.isEmpty()) {
+    private static Map<Object, VariableComponentBinding> collectVariableComponentBindings(BaseStatement tryStatements) {
+        if (tryStatements == null || tryStatements.size() == 0) {
+            return Collections.emptyMap();
+        }
+
+        Map<Object, VariableComponentBinding> variableBindings = new LinkedHashMap<>();
+        Map<String, Type> accessorComponentTypes = new LinkedHashMap<>();
+        collectPatternCandidates(tryStatements, variableBindings, accessorComponentTypes);
+        return variableBindings;
+    }
+
+    private static void renameGuardExpressionVariables(Expression guardExpression, Map<Object, VariableComponentBinding> variableBindings) {
+        if (guardExpression == null || variableBindings == null || variableBindings.isEmpty()) {
+            return;
+        }
+
+        guardExpression.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(LocalVariableReferenceExpression expression) {
+                String variableName = expression.getName();
+                if (variableName == null) {
+                    // continue, we can still resolve by local-variable identity
+                }
+
+                VariableComponentBinding variableBinding = variableBindings.get(resolveVariableBindingKey(expression));
+                if (variableBinding != null && variableBinding.componentName() != null) {
+                    expression.setName(variableBinding.componentName());
+                }
+            }
+        });
+    }
+
+    private static List<Pattern> extractRecordComponentPatterns(BaseStatement tryStatements, Map<Object, VariableComponentBinding> variableBindings) {
+        if (tryStatements == null || tryStatements.size() == 0 || variableBindings == null || variableBindings.isEmpty()) {
             return Collections.emptyList();
         }
 
+        Map<String, Type> accessorComponentTypes = new LinkedHashMap<>();
+        collectPatternCandidates(tryStatements, variableBindings, accessorComponentTypes);
+
         List<Pattern> componentPatterns = new ArrayList<>();
         Set<String> declaredComponentNames = new LinkedHashSet<>();
-
-        for (Statement statement : tryStatements) {
-            if (statement.isReturnExpressionStatement()) {
-                continue;
-            }
-
-            if (statement instanceof LocalVariableDeclarationStatement declarationStatement) {
-                extractRecordComponentPatternsFromDeclaration(declarationStatement, guardVariableNames, declaredComponentNames, componentPatterns);
-                continue;
-            }
-
-            if (!(statement instanceof ExpressionStatement expressionStatement)) {
-                return Collections.emptyList();
-            }
-
-            extractRecordComponentPatternsFromAssignment(expressionStatement.getExpression(), guardVariableNames, declaredComponentNames, componentPatterns);
+        for (Map.Entry<String, Type> accessorComponent : accessorComponentTypes.entrySet()) {
+            addTypePattern(componentPatterns, accessorComponent.getValue(), new LocalVariableDeclarator(accessorComponent.getKey()), declaredComponentNames);
         }
 
         return componentPatterns;
     }
 
-    private static void extractRecordComponentPatternsFromDeclaration(
-            LocalVariableDeclarationStatement declarationStatement,
-            Set<String> guardVariableNames,
-            Set<String> declaredComponentNames,
-            List<Pattern> componentPatterns) {
-        Type componentType = declarationStatement.getType();
-        if (componentType == null) {
+    private static void collectPatternCandidates(
+            BaseStatement statements,
+            Map<Object, VariableComponentBinding> variableBindings,
+            Map<String, Type> accessorComponentTypes) {
+        if (statements == null || statements.size() == 0) {
             return;
         }
 
-        if (declarationStatement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
-            addTypePattern(componentPatterns, componentType, declarator, guardVariableNames, declaredComponentNames);
+        for (Statement statement : statements) {
+            if (statement instanceof ExpressionStatement expressionStatement) {
+                collectPatternCandidatesFromAssignment(expressionStatement.getExpression(), variableBindings, accessorComponentTypes);
+                continue;
+            }
+
+            if (statement instanceof IfStatement ifStatement) {
+                collectPatternCandidates(ifStatement.getStatements(), variableBindings, accessorComponentTypes);
+                continue;
+            }
         }
     }
 
-    private static void extractRecordComponentPatternsFromAssignment(
+    private static void collectPatternCandidatesFromAssignment(
             Expression expression,
-            Set<String> guardVariableNames,
-            Set<String> declaredComponentNames,
-            List<Pattern> componentPatterns) {
+            Map<Object, VariableComponentBinding> variableBindings,
+            Map<String, Type> accessorComponentTypes) {
         if (!(expression instanceof BinaryOperatorExpression binaryOperatorExpression) || !"=".equals(binaryOperatorExpression.getOperator())) {
             return;
         }
 
         Expression leftExpression = binaryOperatorExpression.getLeftExpression();
         if (leftExpression == null
-                || !leftExpression.isLocalVariableReferenceExpression()
-                || leftExpression.getName() == null
-                || leftExpression.getType() == null) {
+                || !leftExpression.isLocalVariableReferenceExpression()) {
+            return;
+        }
+        Object leftBindingKey = resolveVariableBindingKey(leftExpression);
+        if (leftBindingKey == null) {
             return;
         }
 
-        LocalVariableDeclarator syntheticDeclarator = new LocalVariableDeclarator(leftExpression.getName());
-        LocalVariableDeclarationStatement syntheticDeclaration = new LocalVariableDeclarationStatement(leftExpression.getType(), syntheticDeclarator);
-        extractRecordComponentPatternsFromDeclaration(syntheticDeclaration, guardVariableNames, declaredComponentNames, componentPatterns);
+        VariableComponentBinding binding = extractComponentBinding(
+                leftExpression.getType(),
+                binaryOperatorExpression.getRightExpression(),
+                variableBindings);
+        if (binding == null) {
+            variableBindings.remove(leftBindingKey);
+            return;
+        }
+
+        variableBindings.put(leftBindingKey, binding);
+        registerComponentType(accessorComponentTypes, binding);
+    }
+
+    private static VariableComponentBinding extractComponentBinding(
+            Type componentType,
+            Expression expression,
+            Map<Object, VariableComponentBinding> variableBindings) {
+        expression = unwrapParenthesesExpression(expression);
+
+        if (expression instanceof BinaryOperatorExpression binaryOperatorExpression && "=".equals(binaryOperatorExpression.getOperator())) {
+            VariableComponentBinding rightBinding =
+                    extractComponentBinding(componentType, binaryOperatorExpression.getRightExpression(), variableBindings);
+            Expression leftExpression = binaryOperatorExpression.getLeftExpression();
+            if (leftExpression != null && leftExpression.isLocalVariableReferenceExpression()) {
+                Object leftBindingKey = resolveVariableBindingKey(leftExpression);
+                if (leftBindingKey != null) {
+                    if (rightBinding == null) {
+                        variableBindings.remove(leftBindingKey);
+                    } else {
+                        Type resolvedType = leftExpression.getType() == null ? rightBinding.componentType() : leftExpression.getType();
+                        variableBindings.put(leftBindingKey, new VariableComponentBinding(resolvedType, rightBinding.componentName()));
+                    }
+                }
+            }
+            return rightBinding;
+        }
+
+        if (expression instanceof LocalVariableReferenceExpression referenceExpression) {
+            VariableComponentBinding sourceBinding = variableBindings.get(resolveVariableBindingKey(referenceExpression));
+            if (sourceBinding == null) {
+                return null;
+            }
+            Type resolvedType = componentType == null ? sourceBinding.componentType() : componentType;
+            return new VariableComponentBinding(resolvedType, sourceBinding.componentName());
+        }
+
+        if (expression instanceof MethodInvocationExpression methodInvocationExpression
+                && methodInvocationExpression.getName() != null
+                && (methodInvocationExpression.getParameters() == null || methodInvocationExpression.getParameters().size() == 0)) {
+            return new VariableComponentBinding(componentType, methodInvocationExpression.getName());
+        }
+
+        return null;
+    }
+
+    private static Object resolveVariableBindingKey(Object candidate) {
+        if (candidate instanceof LocalVariableReference localVariableReference) {
+            return localVariableReference.getLocalVariable();
+        }
+        if (candidate instanceof Expression expression) {
+            return expression.getName();
+        }
+        if (candidate instanceof LocalVariableDeclarator localVariableDeclarator) {
+            return localVariableDeclarator.getName();
+        }
+        return null;
+    }
+
+    private static void registerComponentType(Map<String, Type> accessorComponentTypes, VariableComponentBinding binding) {
+        if (binding == null || binding.componentName() == null || binding.componentType() == null) {
+            return;
+        }
+        accessorComponentTypes.putIfAbsent(binding.componentName(), binding.componentType());
     }
 
     private static void addTypePattern(
             List<Pattern> componentPatterns,
             Type componentType,
             LocalVariableDeclarator declarator,
-            Set<String> guardVariableNames,
             Set<String> declaredComponentNames) {
-        if (declarator == null || declarator.getName() == null || !guardVariableNames.contains(declarator.getName()) || !declaredComponentNames.add(declarator.getName())) {
+        if (declarator == null || declarator.getName() == null || !declaredComponentNames.add(declarator.getName())) {
             return;
         }
         componentPatterns.add(new TypePattern(componentType, declarator.getName()));
+    }
+
+    private record VariableComponentBinding(Type componentType, String componentName) {
     }
 }

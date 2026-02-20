@@ -1,0 +1,307 @@
+name: Generate Fixture Jars and Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      txt_path:
+        description: Path to the .txt Java source fixture (for example src/test/resources/txt/SomeClass.txt)
+        required: true
+        type: string
+      with_debug_info:
+        description: Include debug info (-g)
+        required: true
+        default: true
+        type: boolean
+      javac_8:
+        description: Compile with JAVAC 8
+        required: false
+        default: false
+        type: boolean
+      javac_11:
+        description: Compile with JAVAC 11
+        required: false
+        default: false
+        type: boolean
+      javac_17:
+        description: Compile with JAVAC 17
+        required: false
+        default: false
+        type: boolean
+      javac_21:
+        description: Compile with JAVAC 21
+        required: false
+        default: false
+        type: boolean
+      javac_22:
+        description: Compile with JAVAC 22
+        required: false
+        default: false
+        type: boolean
+      javac_23:
+        description: Compile with JAVAC 23
+        required: false
+        default: false
+        type: boolean
+      javac_24:
+        description: Compile with JAVAC 24
+        required: false
+        default: false
+        type: boolean
+      javac_25:
+        description: Compile with JAVAC 25
+        required: false
+        default: false
+        type: boolean
+      ecj_8:
+        description: Compile with ECJ 8
+        required: false
+        default: false
+        type: boolean
+      ecj_11:
+        description: Compile with ECJ 11
+        required: false
+        default: false
+        type: boolean
+      ecj_17:
+        description: Compile with ECJ 17
+        required: false
+        default: false
+        type: boolean
+      ecj_21:
+        description: Compile with ECJ 21
+        required: false
+        default: false
+        type: boolean
+      ecj_22:
+        description: Compile with ECJ 22
+        required: false
+        default: false
+        type: boolean
+      ecj_23:
+        description: Compile with ECJ 23
+        required: false
+        default: false
+        type: boolean
+      ecj_24:
+        description: Compile with ECJ 24
+        required: false
+        default: false
+        type: boolean
+      ecj_25:
+        description: Compile with ECJ 25
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Generate jars and test class
+        shell: bash
+        env:
+          TXT_PATH: ${{ inputs.txt_path }}
+          WITH_DEBUG_INFO: ${{ inputs.with_debug_info }}
+          JAVAC_8: ${{ inputs.javac_8 }}
+          JAVAC_11: ${{ inputs.javac_11 }}
+          JAVAC_17: ${{ inputs.javac_17 }}
+          JAVAC_21: ${{ inputs.javac_21 }}
+          JAVAC_22: ${{ inputs.javac_22 }}
+          JAVAC_23: ${{ inputs.javac_23 }}
+          JAVAC_24: ${{ inputs.javac_24 }}
+          JAVAC_25: ${{ inputs.javac_25 }}
+          ECJ_8: ${{ inputs.ecj_8 }}
+          ECJ_11: ${{ inputs.ecj_11 }}
+          ECJ_17: ${{ inputs.ecj_17 }}
+          ECJ_21: ${{ inputs.ecj_21 }}
+          ECJ_22: ${{ inputs.ecj_22 }}
+          ECJ_23: ${{ inputs.ecj_23 }}
+          ECJ_24: ${{ inputs.ecj_24 }}
+          ECJ_25: ${{ inputs.ecj_25 }}
+          ECJ_VERSION: 3.44.0
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "$TXT_PATH" ]]; then
+            echo "Input path does not exist: $TXT_PATH" >&2
+            exit 1
+          fi
+
+          declare -a COMBOS=()
+
+          [[ "$JAVAC_8" == "true" ]] && COMBOS+=("JAVAC|8")
+          [[ "$JAVAC_11" == "true" ]] && COMBOS+=("JAVAC|11")
+          [[ "$JAVAC_17" == "true" ]] && COMBOS+=("JAVAC|17")
+          [[ "$JAVAC_21" == "true" ]] && COMBOS+=("JAVAC|21")
+          [[ "$JAVAC_22" == "true" ]] && COMBOS+=("JAVAC|22")
+          [[ "$JAVAC_23" == "true" ]] && COMBOS+=("JAVAC|23")
+          [[ "$JAVAC_24" == "true" ]] && COMBOS+=("JAVAC|24")
+          [[ "$JAVAC_25" == "true" ]] && COMBOS+=("JAVAC|25")
+
+          [[ "$ECJ_8" == "true" ]] && COMBOS+=("ECJ|8")
+          [[ "$ECJ_11" == "true" ]] && COMBOS+=("ECJ|11")
+          [[ "$ECJ_17" == "true" ]] && COMBOS+=("ECJ|17")
+          [[ "$ECJ_21" == "true" ]] && COMBOS+=("ECJ|21")
+          [[ "$ECJ_22" == "true" ]] && COMBOS+=("ECJ|22")
+          [[ "$ECJ_23" == "true" ]] && COMBOS+=("ECJ|23")
+          [[ "$ECJ_24" == "true" ]] && COMBOS+=("ECJ|24")
+          [[ "$ECJ_25" == "true" ]] && COMBOS+=("ECJ|25")
+
+          if [[ ${#COMBOS[@]} -eq 0 ]]; then
+            echo "Select at least one compiler/version checkbox." >&2
+            exit 1
+          fi
+
+          BASE_NAME="$(basename "$TXT_PATH" .txt)"
+          TEST_FILE="src/test/java/org/jd/core/v1/${BASE_NAME}Test.java"
+
+          EXPECTED_RESOURCE="/$TXT_PATH"
+          EXPECTED_RESOURCE="${EXPECTED_RESOURCE#/*src/test/resources/}"
+          EXPECTED_RESOURCE="/${EXPECTED_RESOURCE}"
+
+          PACKAGE_NAME="$(sed -nE 's/^[[:space:]]*package[[:space:]]+([A-Za-z_][A-Za-z0-9_.]*)[[:space:]]*;[[:space:]]*$/\1/p' "$TXT_PATH" | head -n1)"
+          TYPE_NAME="$(sed -nE 's/^[[:space:]]*(public[[:space:]]+)?(class|interface|enum|record)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\3/p' "$TXT_PATH" | head -n1)"
+
+          if [[ -z "$TYPE_NAME" ]]; then
+            TYPE_NAME="$BASE_NAME"
+          fi
+
+          if [[ -n "$PACKAGE_NAME" ]]; then
+            INTERNAL_CLASS_NAME="${PACKAGE_NAME//./\/}/$TYPE_NAME"
+          else
+            INTERNAL_CLASS_NAME="$TYPE_NAME"
+          fi
+
+          DEBUG_SUFFIX=""
+          METHOD_DEBUG_SUFFIX=""
+          DEBUG_FLAG_JAVAC="-g"
+          DEBUG_FLAG_ECJ="-g"
+
+          if [[ "$WITH_DEBUG_INFO" != "true" ]]; then
+            DEBUG_SUFFIX="-no-debug-info"
+            METHOD_DEBUG_SUFFIX="NoDebugInfo"
+            DEBUG_FLAG_JAVAC="-g:none"
+            DEBUG_FLAG_ECJ="-g:none"
+          fi
+
+          TMP_DIR="${RUNNER_TEMP}/fixture-generation"
+          SRC_DIR="$TMP_DIR/src"
+          CLASSES_ROOT="$TMP_DIR/classes"
+
+          rm -rf "$TMP_DIR"
+          mkdir -p "$SRC_DIR" "$CLASSES_ROOT" src/test/resources/jar src/test/java/org/jd/core/v1
+
+          if [[ -n "$PACKAGE_NAME" ]]; then
+            PACKAGE_DIR="$SRC_DIR/${PACKAGE_NAME//./\/}"
+            mkdir -p "$PACKAGE_DIR"
+            SOURCE_FILE="$PACKAGE_DIR/$TYPE_NAME.java"
+          else
+            SOURCE_FILE="$SRC_DIR/$TYPE_NAME.java"
+          fi
+
+          cp "$TXT_PATH" "$SOURCE_FILE"
+
+          NEED_ECJ="false"
+          for combo in "${COMBOS[@]}"; do
+            IFS='|' read -r compiler _ <<< "$combo"
+            if [[ "$compiler" == "ECJ" ]]; then
+              NEED_ECJ="true"
+              break
+            fi
+          done
+
+          ECJ_JAR=""
+          if [[ "$NEED_ECJ" == "true" ]]; then
+            ECJ_JAR="$TMP_DIR/ecj-${ECJ_VERSION}.jar"
+            curl -fsSL "https://repo1.maven.org/maven2/org/eclipse/jdt/ecj/${ECJ_VERSION}/ecj-${ECJ_VERSION}.jar" -o "$ECJ_JAR"
+          fi
+
+          ecj_level() {
+            local v="$1"
+            if [[ "$v" == "8" ]]; then
+              echo "1.8"
+            else
+              echo "$v"
+            fi
+          }
+
+          for combo in "${COMBOS[@]}"; do
+            IFS='|' read -r compiler version <<< "$combo"
+
+            OUT_DIR="$CLASSES_ROOT/${compiler}-${version}${DEBUG_SUFFIX}"
+            rm -rf "$OUT_DIR"
+            mkdir -p "$OUT_DIR"
+
+            if [[ "$compiler" == "JAVAC" ]]; then
+              javac --release "$version" "$DEBUG_FLAG_JAVAC" -d "$OUT_DIR" "$SOURCE_FILE"
+            else
+              level="$(ecj_level "$version")"
+              java -jar "$ECJ_JAR" -proc:none -source "$level" -target "$level" "$DEBUG_FLAG_ECJ" -d "$OUT_DIR" "$SOURCE_FILE"
+            fi
+
+            JAR_PATH="src/test/resources/jar/${BASE_NAME}-${compiler}-${version}${DEBUG_SUFFIX}.jar"
+            jar --create --file "$JAR_PATH" -C "$OUT_DIR" .
+          done
+
+          {
+            echo "package org.jd.core.v1;"
+            echo
+            echo "import org.junit.Test;"
+            echo
+            echo "public class ${BASE_NAME}Test extends AbstractJdTest {"
+            echo
+          } > "$TEST_FILE"
+
+          for combo in "${COMBOS[@]}"; do
+            IFS='|' read -r compiler version <<< "$combo"
+            METHOD_NAME="test${compiler}${version}${METHOD_DEBUG_SUFFIX}"
+            JAR_NAME="${BASE_NAME}-${compiler}-${version}${DEBUG_SUFFIX}.jar"
+
+            {
+              echo "    @Test"
+              echo "    public void ${METHOD_NAME}() throws Exception {"
+              echo "        test(\"/jar/${JAR_NAME}\", \"${INTERNAL_CLASS_NAME}\", \"${EXPECTED_RESOURCE}\", \"${version}\");"
+              echo "    }"
+              echo
+            } >> "$TEST_FILE"
+          done
+
+          echo "}" >> "$TEST_FILE"
+
+      - name: Commit and push generated files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TXT_PATH="${{ inputs.txt_path }}"
+          BASE_NAME="$(basename "$TXT_PATH" .txt)"
+          TEST_FILE="src/test/java/org/jd/core/v1/${BASE_NAME}Test.java"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add "$TEST_FILE"
+          git add src/test/resources/jar/${BASE_NAME}-*.jar
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Generate test fixture jars for ${BASE_NAME}"
+          git push

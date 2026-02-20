@@ -13,13 +13,22 @@ public class InMemoryJavaSourceFileObject extends SimpleJavaFileObject {
     private final String absClassName;
 
     public InMemoryJavaSourceFileObject(String absClassName, String sourceCode) {
-        super(URI.create("memory:///" + absClassName.replace('.', '/') + ".java"), Kind.SOURCE);
+        super(URI.create("memory:///" + normalizeClassName(absClassName).replace('.', '/') + ".java"), Kind.SOURCE);
         this.sourceCode = sourceCode;
-        this.absClassName = absClassName;
+        this.absClassName = normalizeClassName(absClassName);
     }
 
     public String getAbsClassName() {
         return absClassName;
+    }
+
+    public String getPackageName() {
+        int lastDot = absClassName.lastIndexOf('.');
+        return (lastDot < 0) ? "" : absClassName.substring(0, lastDot);
+    }
+
+    private static String normalizeClassName(String className) {
+        return className.replace('/', '.');
     }
 
     @Override

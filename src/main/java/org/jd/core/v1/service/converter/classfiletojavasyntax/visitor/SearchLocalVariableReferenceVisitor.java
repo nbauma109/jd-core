@@ -59,7 +59,7 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
 
     private boolean isLambdaParameter(String name) {
         for (LambdaIdentifiersExpression lambda : lambdas) {
-            if (lambda.getParameterNames().contains(name)) {
+            if (lambda.getParameterNames() != null && lambda.getParameterNames().contains(name)) {
                 return true;
             }
         }

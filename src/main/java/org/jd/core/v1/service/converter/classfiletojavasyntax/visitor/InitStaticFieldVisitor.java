@@ -22,6 +22,9 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -39,6 +42,7 @@ import java.util.Map;
 public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final SearchLocalVariableReferenceVisitor searchLocalVariableReferenceVisitor = new SearchLocalVariableReferenceVisitor();
+    private final QualifySameTypeFieldReferenceVisitor qualifySameTypeFieldReferenceVisitor = new QualifySameTypeFieldReferenceVisitor();
     private String internalTypeName;
     private final Map<String, FieldDeclarator> fields = new HashMap<>();
     private List<ClassFileConstructorOrMethodDeclaration> methods;
@@ -212,6 +216,11 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                     if ((fdn.getFlags() & Const.ACC_STATIC) != 0 && fdn.getType().getDescriptor().equals(fre.getDescriptor())) {
                         expression = expression.getRightExpression();
 
+                        if (expression instanceof LambdaIdentifiersExpression || expression instanceof MethodReferenceExpression) {
+                            qualifySameTypeFieldReferenceVisitor.init(internalTypeName);
+                            expression.accept(qualifySameTypeFieldReferenceVisitor);
+                        }
+
                         searchLocalVariableReferenceVisitor.init(-1, null);
                         expression.accept(searchLocalVariableReferenceVisitor);
 
@@ -239,6 +248,24 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
 	        methods.add(new ClassFileStaticInitializerDeclaration(
 	            sid.getBodyDeclaration(), sid.getClassFile(), sid.getMethod(), sid.getBindings(),
 	            sid.getTypeBounds(), lineNumber, statements));
+        }
+    }
+
+    protected static class QualifySameTypeFieldReferenceVisitor extends AbstractJavaSyntaxVisitor {
+        private String internalTypeName;
+
+        void init(String internalTypeName) {
+            this.internalTypeName = internalTypeName;
+        }
+
+        @Override
+        public void visit(FieldReferenceExpression expression) {
+            if (internalTypeName != null
+                    && internalTypeName.equals(expression.getInternalTypeName())
+                    && expression.getExpression() instanceof ObjectTypeReferenceExpression objectTypeReferenceExpression) {
+                objectTypeReferenceExpression.setExplicit(true);
+            }
+            safeAccept(expression.getExpression());
         }
     }
 }

@@ -350,6 +350,10 @@ public class ByteCodeParser {
                     expression1 = stack.pop();
                     if (expression1.isMethodInvocationExpression() && expression1.getExpression().getType().isInnerObjectType() && "getClass".equals(expression1.getName())) {
                         enclosingInstances.push(expression1.getExpression());
+                    } else if (isSyntheticRequireNonNullDiscard(stack, expression1)) {
+                        // Javac emits "dup; Objects.requireNonNull(x); pop" before some
+                        // bound method references. Keep the receiver on the stack but do
+                        // not materialize the synthetic null-check statement.
                     } else if (!expression1.isLocalVariableReferenceExpression() && !expression1.isFieldReferenceExpression() && !expression1.isThisExpression()) {
                         typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                         statements.add(new ExpressionStatement(expression1.isCastExpression()? expression1.getExpression() : expression1));
@@ -1671,6 +1675,22 @@ public class ByteCodeParser {
         boe.setOperator(operator);
         boe.setPriority(16);
         return boe;
+    }
+
+    private static boolean isSyntheticRequireNonNullDiscard(DefaultStack<Expression> stack, Expression expression) {
+        if (!(expression instanceof MethodInvocationExpression methodInvocationExpression)) {
+            return false;
+        }
+        if (!"java/util/Objects".equals(methodInvocationExpression.getInternalTypeName())
+                || !"requireNonNull".equals(methodInvocationExpression.getName())
+                || !"(Ljava/lang/Object;)Ljava/lang/Object;".equals(methodInvocationExpression.getDescriptor())) {
+            return false;
+        }
+        BaseExpression parameters = methodInvocationExpression.getParameters();
+        if (parameters == null || parameters.size() != 1 || stack.isEmpty()) {
+            return false;
+        }
+        return parameters.getFirst() == stack.peek();
     }
 
     private static boolean isPositiveOne(Expression expression) {

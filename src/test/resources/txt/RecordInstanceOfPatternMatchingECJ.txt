@@ -14,12 +14,14 @@
 /* 14:  0 */   }
 /* 15:  0 */
 /* 16:  0 */   boolean matchesFromLocals(Object o) {
-/* 17: 19 */     return o instanceof Point(int x, int y) && x >= 0 && y >= 0;
-/* 18:  0 */   }
-/* 19:  0 */
-/* 20:  0 */   boolean matchesTernaryFalseTrue(Object o) {
-/* 21: 23 */     return o instanceof Point(int x, int y) && (x < 0 || y < 0);
-/* 22:  0 */   }
-/* 23:  0 */
-/* 24:  0 */   record Point(int x, int y) {}
-/* 25:  0 */ }
+/* 17: 17 */     return o instanceof Point(int x, int y) &&
+/* 18:  0 */
+/* 19: 19 */       x >= 0 && y >= 0;
+/* 20:  0 */   }
+/* 21:  0 */
+/* 22:  0 */   boolean matchesTernaryFalseTrue(Object o) {
+/* 23: 23 */     return o instanceof Point(int x, int y) && (x < 0 || y < 0);
+/* 24:  0 */   }
+/* 25:  0 */
+/* 26:  0 */   record Point(int x, int y) {}
+/* 27:  0 */ }

@@ -486,11 +486,19 @@ public class ControlFlowGraphMaker {
                     offset++;
                 }
 
-                if (lineNumber > lineNumberEntry.getLineNumber()) {
+                boolean syntheticFirstLineDip =
+                        i == 1
+                        && i + 1 < len
+                        && lineNumberEntry.getLineNumber() < lineNumber
+                        && lineNumberTable[i + 1].getLineNumber() == lineNumber;
+
+                if (!syntheticFirstLineDip && lineNumber > lineNumberEntry.getLineNumber()) {
                     map[offset] = MARK;
                 }
 
-                lineNumber = lineNumberEntry.getLineNumber();
+                if (!syntheticFirstLineDip) {
+                    lineNumber = lineNumberEntry.getLineNumber();
+                }
             }
 
             while (offset < length) {

@@ -196,7 +196,11 @@ public abstract class ControlFlowGraphReducer {
                 maxOffset = Integer.MAX_VALUE;
             }
 
-            while (nextLast != nextNext && nextNext.matchType(GROUP_SINGLE_SUCCESSOR) && nextNext.getPredecessors().size() == 1 && cfg.getLineNumber(nextNext.getFromOffset()) >= lineNumber && nextNext.getFromOffset() < maxOffset) {
+            while (nextLast != nextNext
+                    && nextNext.matchType(GROUP_SINGLE_SUCCESSOR)
+                    && nextNext.getPredecessors().size() == 1
+                    && cfg.getLineNumber(nextNext.getFromOffset()) >= lineNumber
+                    && nextNext.getFromOffset() < maxOffset) {
                 watchdog.check(nextNext, nextNext.getNext());
                 nextLast = nextNext;
                 nextNext = nextNext.getNext();
@@ -232,7 +236,10 @@ public abstract class ControlFlowGraphReducer {
 
                 watchdog.clear();
 
-                while (branchLast != branchNext && branchNext.matchType(GROUP_SINGLE_SUCCESSOR) && branchNext.getPredecessors().size() == 1 && cfg.getLineNumber(branchNext.getFromOffset()) >= lineNumber) {
+                while (branchLast != branchNext
+                        && branchNext.matchType(GROUP_SINGLE_SUCCESSOR)
+                        && branchNext.getPredecessors().size() == 1
+                        && cfg.getLineNumber(branchNext.getFromOffset()) >= lineNumber) {
                     watchdog.check(branchNext, branchNext.getNext());
                     branchLast = branchNext;
                     branchNext = branchNext.getNext();
@@ -1036,7 +1043,10 @@ public abstract class ControlFlowGraphReducer {
 
                 last = bb;
 
-                while (last != next && last.matchType(GROUP_SINGLE_SUCCESSOR) && next.getPredecessors().size() == 1 && lineNumber <= cfg.getLineNumber(next.getFromOffset())) {
+                while (last != next
+                        && last.matchType(GROUP_SINGLE_SUCCESSOR)
+                        && next.getPredecessors().size() == 1
+                        && cfg.getLineNumber(next.getFromOffset()) >= lineNumber) {
                     watchdog.check(next, next.getNext());
                     last = next;
                     next = next.getNext();

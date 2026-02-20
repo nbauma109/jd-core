@@ -437,7 +437,6 @@ public final class RecordPatternInstanceOfRewriter {
 
             if (statement instanceof IfStatement ifStatement) {
                 collectPatternCandidates(ifStatement.getStatements(), variableBindings, accessorComponentTypes);
-                continue;
             }
         }
     }

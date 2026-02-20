@@ -39,7 +39,11 @@ public class InMemoryJavaFileManager extends ForwardingJavaFileManager<JavaFileM
     public Iterable<JavaFileObject> list(Location location, String packageName, Set<Kind> kinds, boolean recurse) throws IOException {
         List<JavaFileObject> result = new ArrayList<>();
         if (location == StandardLocation.SOURCE_PATH && kinds.contains(Kind.SOURCE)) {
-            result.addAll(sources);
+            for (InMemoryJavaSourceFileObject source : sources) {
+                if (isSourceInPackage(source, packageName, recurse)) {
+                    result.add(source);
+                }
+            }
         }
         if (super.hasLocation(location)) {
             Iterable<JavaFileObject> superResult = super.list(location, packageName, kinds, recurse);
@@ -53,8 +57,9 @@ public class InMemoryJavaFileManager extends ForwardingJavaFileManager<JavaFileM
     @Override
     public JavaFileObject getJavaFileForInput(Location location, String className, Kind kind) throws IOException {
         if (location == StandardLocation.SOURCE_PATH && kind == Kind.SOURCE) {
+            String normalizedClassName = normalizeClassName(className);
             for (InMemoryJavaSourceFileObject source : sources) {
-                if (source.getAbsClassName().equals(className)) {
+                if (source.getAbsClassName().equals(normalizedClassName)) {
                     return source;
                 }
             }
@@ -65,9 +70,34 @@ public class InMemoryJavaFileManager extends ForwardingJavaFileManager<JavaFileM
         return null;
     }
 
+    @Override
+    public String inferBinaryName(Location location, JavaFileObject file) {
+        if (file instanceof InMemoryJavaSourceFileObject source) {
+            return source.getAbsClassName();
+        }
+        return super.inferBinaryName(location, file);
+    }
+
     public JavaFileObject getJavaFileForOutput(Location location, String name, JavaFileObject.Kind kind, FileObject sibling) throws IOException {
         InMemoryJavaClassFileObject fileObject = new InMemoryJavaClassFileObject(name);
         classLoader.add(name, fileObject);
         return fileObject;
+    }
+
+    private static boolean isSourceInPackage(InMemoryJavaSourceFileObject source, String packageName, boolean recurse) {
+        String sourcePackage = source.getPackageName();
+        String normalizedPackage = (packageName == null) ? "" : packageName;
+
+        if (normalizedPackage.isEmpty()) {
+            return recurse || sourcePackage.isEmpty();
+        }
+        if (sourcePackage.equals(normalizedPackage)) {
+            return true;
+        }
+        return recurse && sourcePackage.startsWith(normalizedPackage + ".");
+    }
+
+    private static String normalizeClassName(String className) {
+        return className.replace('/', '.');
     }
 }

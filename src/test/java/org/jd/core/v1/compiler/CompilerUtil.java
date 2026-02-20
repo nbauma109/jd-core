@@ -92,8 +92,8 @@ public class CompilerUtil {
         }
         int numericPreferredJavaVersion = parseJavaVersion(preferredJavaVersion);
 
-        if (numericPreferredJavaVersion < 6) {
-            return "1.6";
+        if (numericPreferredJavaVersion < 8) {
+            return "1.8";
         }
         return preferredJavaVersion;
     }

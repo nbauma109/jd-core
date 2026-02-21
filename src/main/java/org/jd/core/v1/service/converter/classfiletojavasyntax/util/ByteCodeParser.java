@@ -1681,6 +1681,14 @@ public class ByteCodeParser {
             int capturedParameterCount = Math.max(0, formalParameters.size() - lambdaParameterCount);
             int mappingCount = Math.min(capturedParameterCount, indyParameters.size());
             DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
+            Set<String> capturedFormalParameterNames = new HashSet<>();
+
+            for (int i = 0; i < capturedParameterCount; i++) {
+                String capturedName = formalParameterList.get(i).getName();
+                if (capturedName != null) {
+                    capturedFormalParameterNames.add(capturedName);
+                }
+            }
 
             for (int i = 0; i < mappingCount; i++) {
                 Expression expression = indyParameters.isList() ? indyParameters.getList().get(i) : indyParameters.getFirst();
@@ -1701,6 +1709,13 @@ public class ByteCodeParser {
                     continue;
                 }
                 String newName = expression.getName();
+                if (formalParameterName != null
+                        && newName != null
+                        && !formalParameterName.equals(newName)
+                        && capturedFormalParameterNames.contains(newName)) {
+                    // Avoid ambiguous swaps across captured parameters (can corrupt nested lambda captures).
+                    continue;
+                }
                 if (formalParameterName != null && newName != null && !formalParameterName.equals(newName)) {
                     mapping.put(formalParameterName, newName);
                 }

@@ -65,7 +65,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsCollections4() throws Exception {
-        test("https://github.com/apache/commons-collections", "commons-collections", "commons-commons-collections-", "org.apache.commons", "commons-collections4", "4.4");
+        test("https://github.com/apache/commons-collections", "commons-collections", "rel/commons-collections-", "org.apache.commons", "commons-collections4", "4.5.0");
     }
 
     @Test

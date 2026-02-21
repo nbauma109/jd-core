@@ -350,6 +350,9 @@ public class ByteCodeParser {
                     expression1 = stack.pop();
                     if (expression1.isMethodInvocationExpression() && expression1.getExpression().getType().isInnerObjectType() && "getClass".equals(expression1.getName())) {
                         enclosingInstances.push(expression1.getExpression());
+                    } else if (isSyntheticMethodReferenceNullCheck(expression1, stack)) {
+                        // javac emits 'dup + Objects.requireNonNull + pop' before bound method references
+                        // Keep it on bytecode stack for invokedynamic capture, but don't print as a source statement.
                     } else if (!expression1.isLocalVariableReferenceExpression() && !expression1.isFieldReferenceExpression() && !expression1.isThisExpression()) {
                         typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                         statements.add(new ExpressionStatement(expression1.isCastExpression()? expression1.getExpression() : expression1));
@@ -1499,6 +1502,22 @@ public class ByteCodeParser {
         if (indyParameters instanceof Expressions) {
             stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ((Expressions)indyParameters).getFirst(), typeName, name1, descriptor1));
         }
+    }
+
+    private static boolean isSyntheticMethodReferenceNullCheck(Expression expression, DefaultStack<Expression> stack) {
+        if (!(expression instanceof MethodInvocationExpression methodInvocationExpression) || stack.isEmpty()) {
+            return false;
+        }
+        if (!"java/util/Objects".equals(methodInvocationExpression.getInternalTypeName())
+                || !"requireNonNull".equals(methodInvocationExpression.getName())
+                || !"(Ljava/lang/Object;)Ljava/lang/Object;".equals(methodInvocationExpression.getDescriptor())) {
+            return false;
+        }
+        BaseExpression parameters = methodInvocationExpression.getParameters();
+        if (parameters == null || parameters.isList()) {
+            return false;
+        }
+        return parameters.getFirst() == stack.peek();
     }
 
     private List<String> prepareLambdaParameterNames(BaseFormalParameter formalParameters, int parameterCount) {

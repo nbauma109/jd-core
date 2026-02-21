@@ -6,6 +6,7 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
+import org.apache.commons.lang3.Strings;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.ConstructorDeclaration;
@@ -85,10 +86,16 @@ public class InitEnumVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(MethodDeclaration declaration) {
-        if ((declaration.getFlags() & (ACC_STATIC | ACC_PUBLIC)) != 0 && ("values".equals(declaration.getName()) || "valueOf".equals(declaration.getName()))) {
+        if ((declaration.getFlags() & (ACC_STATIC | ACC_PUBLIC)) == (ACC_STATIC | ACC_PUBLIC)
+                && isCompilerGeneratedEnumMethod(declaration.getName(), declaration.getDescriptor())) {
             ClassFileMethodDeclaration cfmd = (ClassFileMethodDeclaration) declaration;
             cfmd.setFlags(cfmd.getFlags() | ACC_SYNTHETIC);
         }
+    }
+
+    private static boolean isCompilerGeneratedEnumMethod(String name, String descriptor) {
+        return ("values".equals(name) && Strings.CS.startsWith(descriptor, "()[L"))
+           || ("valueOf".equals(name) && Strings.CS.startsWith(descriptor, "(Ljava/lang/String;)L"));
     }
 
     @Override

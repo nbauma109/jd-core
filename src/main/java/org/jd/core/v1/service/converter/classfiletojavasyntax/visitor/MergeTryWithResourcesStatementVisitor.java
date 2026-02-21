@@ -78,7 +78,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
 
                 List<TryStatement.CatchClause> innerCatchClauses = cfswrs2.getCatchClauses();
                 if (cfswrs2.getResources() != null
-                        && Utils.isEmpty(innerCatchClauses)
+                        && Utils.isEmptyCollection(innerCatchClauses)
                         && cfswrs2.getFinallyStatements() == null) {
                     // Merge 'try' and 'try-with-resources" statements
                     cfswrs1.setTryStatements(cfswrs2.getTryStatements());

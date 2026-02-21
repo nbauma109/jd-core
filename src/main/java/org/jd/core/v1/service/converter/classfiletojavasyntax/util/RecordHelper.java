@@ -270,7 +270,7 @@ public final class RecordHelper {
             ClassFile ownerClass,
             ConstantPoolGen constantPoolGen) {
 
-        if (Utils.isEmpty(methods)) {
+        if (Utils.isEmptyCollection(methods)) {
             return;
         }
 

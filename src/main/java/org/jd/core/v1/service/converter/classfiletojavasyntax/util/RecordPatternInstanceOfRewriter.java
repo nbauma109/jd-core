@@ -70,7 +70,7 @@ public final class RecordPatternInstanceOfRewriter {
             return false;
         }
 
-        if (Utils.isEmptyStatements(thenStatements) || index <= 0 || index > statements.size()) {
+        if (Utils.isEmpty(thenStatements) || index <= 0 || index > statements.size()) {
             return false;
         }
 
@@ -261,7 +261,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static boolean isSyntheticRecordPatternTryStatement(TryStatement tryStatement) {
-        if (!Utils.isEmpty(tryStatement.getResources()) || !Utils.isEmpty(tryStatement.getFinallyStatements())) {
+        if (!Utils.isEmptyCollection(tryStatement.getResources()) || !Utils.isEmpty(tryStatement.getFinallyStatements())) {
             return false;
         }
 

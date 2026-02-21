@@ -6,63 +6,33 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
-import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
-import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
-import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
-import org.jd.core.v1.model.javasyntax.statement.Statements;
-import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.util.Base;
 
 public class Utils {
 
-    public static boolean isEmpty(BaseStatement statements) {
-        return statements == null || statements.size() == 0;
+	private Utils() {
+	}
+
+	public static <T> boolean isEmpty(Base<T> base) {
+        return base == null || base.size() == 0;
     }
 
-    public static boolean isEmptyStatements(Statements statements) {
-        return statements == null || statements.size() == 0;
-    }
-    
-    public static boolean isEmpty(BaseExpression expression) {
-        return expression == null || expression.size() == 0;
+	public static <T> boolean isEmptyCollection(Collection<T> coll) {
+		return coll == null || coll.isEmpty();
+	}
+
+	public static <K, V> boolean isEmpty(Map<K, V> map) {
+		return map == null || map.isEmpty();
+	}
+	
+    public static <T> boolean isSingleton(Base<T> base) {
+        return base != null && !base.isList();
     }
 
-    public static boolean isEmpty(BaseType type) {
-        return type == null || type.size() == 0;
-    }
-
-    public static boolean isEmpty(BaseFormalParameter formalParameters) {
-        return formalParameters == null || formalParameters.size() == 0;
-    }
-
-    public static <E> boolean isEmpty(Set<E> set) {
-        return set == null || set.isEmpty();
-    }
-
-    public static <E> boolean isEmpty(List<E> list) {
-        return list == null || list.isEmpty();
-    }
-    
-    public static <K, V> boolean isEmpty(Map<K, V> map) {
-        return map == null || map.isEmpty();
-    }
-
-    public static boolean isSingleton(BaseExpression expressions) {
-        return expressions != null && !expressions.isList();
-    }
-
-    public static boolean isSingleton(BaseType types) {
-        return types != null && !types.isList();
-    }
-
-    public static boolean isList(BaseExpression expressions) {
-        return expressions != null && expressions.isList();
-    }
-
-    public static boolean isList(BaseType types) {
-        return types != null && types.isList();
+    public static <T> boolean isList(Base<T> base) {
+    	return base != null && base.isList();
     }
 }

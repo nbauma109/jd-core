@@ -193,7 +193,7 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             }
         }
 
-        if (ts.isJsr() || Utils.isEmptyStatements(finallyStatements)) {
+        if (ts.isJsr() || Utils.isEmpty(finallyStatements)) {
             tryStatements.accept(this);
             safeAcceptListStatement(statement.getCatchClauses());
         } else {

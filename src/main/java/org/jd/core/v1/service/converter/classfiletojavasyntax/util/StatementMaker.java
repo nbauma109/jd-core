@@ -723,7 +723,7 @@ public class StatementMaker {
         // 'try', 'try-with-resources' or 'synchronized' ?
         Statement statement = null;
 
-        if (!Utils.isEmptyStatements(finallyStatements) && finallyStatements.getFirst().isMonitorExitStatement()) {
+        if (!Utils.isEmpty(finallyStatements) && finallyStatements.getFirst().isMonitorExitStatement()) {
             statement = SynchronizedStatementMaker.make(localVariableMaker, statements, tryStatements);
         } else {
             boolean allowResourceExpression = majorVersion > MAJOR_1_8;

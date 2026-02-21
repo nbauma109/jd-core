@@ -83,7 +83,7 @@ public class Loop {
     public String toString() {
         StringBuilder str = new StringBuilder("Loop{start=").append(start.getIndex()).append(", members=[");
 
-        if (!Utils.isEmpty(members)) {
+        if (!Utils.isEmptyCollection(members)) {
             Iterator<BasicBlock> iterator = members.iterator();
             str.append(iterator.next().getIndex());
 

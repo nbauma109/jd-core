@@ -23,16 +23,16 @@ public class Utils {
     }
 
     public static boolean isEmptyStatements(Statements statements) {
-    	return statements == null || statements.size() == 0;
+        return statements == null || statements.size() == 0;
     }
     
     public static boolean isEmpty(BaseExpression expression) {
         return expression == null || expression.size() == 0;
     }
 
-	public static boolean isEmpty(BaseType type) {
+    public static boolean isEmpty(BaseType type) {
         return type == null || type.size() == 0;
-	}
+    }
 
     public static boolean isEmpty(BaseFormalParameter formalParameters) {
         return formalParameters == null || formalParameters.size() == 0;
@@ -43,11 +43,26 @@ public class Utils {
     }
 
     public static <E> boolean isEmpty(List<E> list) {
-    	return list == null || list.isEmpty();
+        return list == null || list.isEmpty();
     }
     
     public static <K, V> boolean isEmpty(Map<K, V> map) {
         return map == null || map.isEmpty();
     }
 
+    public static boolean isSingleton(BaseExpression expressions) {
+        return expressions != null && !expressions.isList();
+    }
+
+    public static boolean isSingleton(BaseType types) {
+        return types != null && !types.isList();
+    }
+
+    public static boolean isList(BaseExpression expressions) {
+        return expressions != null && expressions.isList();
+    }
+
+    public static boolean isList(BaseType types) {
+        return types != null && types.isList();
+    }
 }

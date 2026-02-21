@@ -843,7 +843,7 @@ public class StatementMaker {
                 Expression e = subStatements.getFirst().getExpression();
                 if (e.isNewExpression()) {
                     BaseExpression parameters = e.getParameters();
-                    if (parameters != null && !parameters.isList()) {
+                    if (Utils.isSingleton(parameters)) {
                         message = parameters.getFirst();
                     }
                 }

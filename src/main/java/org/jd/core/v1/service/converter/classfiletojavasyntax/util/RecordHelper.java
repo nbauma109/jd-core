@@ -7,6 +7,8 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import static org.jd.core.v1.util.StringConstants.INSTANCE_CONSTRUCTOR;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,9 +47,8 @@ import org.apache.bcel.generic.PUTFIELD;
 import org.apache.bcel.generic.ReturnInstruction;
 import org.apache.bcel.generic.TargetLostException;
 import org.apache.bcel.generic.Type;
+import org.apache.commons.lang3.ArrayUtils;
 import org.jd.core.v1.model.classfile.ClassFile;
-
-import static org.jd.core.v1.util.StringConstants.INSTANCE_CONSTRUCTOR;
 
 public final class RecordHelper {
 
@@ -504,7 +505,7 @@ public final class RecordHelper {
         Map<String, String> map = new HashMap<>();
         Field[] fields = ownerClass.getFields();
 
-        if (fields == null || fields.length == 0) {
+        if (ArrayUtils.isEmpty(fields)) {
             return map;
         }
 
@@ -533,7 +534,7 @@ public final class RecordHelper {
         List<Field> result = new ArrayList<>();
         Field[] fields = ownerClass.getFields();
 
-        if (fields == null || fields.length == 0) {
+        if (ArrayUtils.isEmpty(fields)) {
             return result;
         }
 
@@ -566,7 +567,7 @@ public final class RecordHelper {
             ClassFile ownerClass) {
 
         Attribute[] attributes = ownerClass.getAttributes();
-        if (attributes == null || attributes.length == 0) {
+        if (ArrayUtils.isEmpty(attributes)) {
             return null;
         }
 

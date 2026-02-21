@@ -38,6 +38,7 @@ import org.apache.bcel.classfile.ModuleRequires;
 import org.apache.bcel.classfile.RecordComponentInfo;
 import org.apache.bcel.classfile.RuntimeInvisibleAnnotations;
 import org.apache.bcel.classfile.RuntimeVisibleAnnotations;
+import org.apache.commons.lang3.ArrayUtils;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.CompilationUnit;
 import org.jd.core.v1.model.javasyntax.declaration.Declaration;
@@ -423,7 +424,7 @@ public class ConvertClassFileProcessor {
     }
 
     protected List<ModuleDeclaration.ModuleInfo> convertModuleRequiresToModuleInfo(ModuleRequires[] moduleRequires, ConstantPool constantPool) {
-        if (moduleRequires == null || moduleRequires.length == 0) {
+        if (ArrayUtils.isEmpty(moduleRequires)) {
             return null;
         }
         DefaultList<ModuleDeclaration.ModuleInfo> list = new DefaultList<>(moduleRequires.length);
@@ -437,7 +438,7 @@ public class ConvertClassFileProcessor {
     }
 
     protected List<ModuleDeclaration.PackageInfo> convertModuleOpensToPackageInfo(ModuleOpens[] moduleOpens, ConstantPool constantPool) {
-        if (moduleOpens == null || moduleOpens.length == 0) {
+        if (ArrayUtils.isEmpty(moduleOpens)) {
             return null;
         }
         DefaultList<ModuleDeclaration.PackageInfo> list = new DefaultList<>(moduleOpens.length);
@@ -451,7 +452,7 @@ public class ConvertClassFileProcessor {
     }
 
     protected List<ModuleDeclaration.PackageInfo> convertModuleExportsToPackageInfo(ModuleExports[] moduleExports, ConstantPool constantPool) {
-        if (moduleExports == null || moduleExports.length == 0) {
+        if (ArrayUtils.isEmpty(moduleExports)) {
             return null;
         }
         DefaultList<ModuleDeclaration.PackageInfo> list = new DefaultList<>(moduleExports.length);
@@ -465,7 +466,7 @@ public class ConvertClassFileProcessor {
     }
 
     protected List<ModuleDeclaration.ServiceInfo> convertModuleProvidesToServiceInfo(ModuleProvides[] moduleProvides, ConstantPool constantPool) {
-        if (moduleProvides == null || moduleProvides.length == 0) {
+        if (ArrayUtils.isEmpty(moduleProvides)) {
             return null;
         }
         DefaultList<ModuleDeclaration.ServiceInfo> list = new DefaultList<>(moduleProvides.length);

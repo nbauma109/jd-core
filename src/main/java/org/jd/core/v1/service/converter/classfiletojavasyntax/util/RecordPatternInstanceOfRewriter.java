@@ -384,7 +384,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static void renameGuardExpressionVariables(Expression guardExpression, Map<Object, VariableComponentBinding> variableBindings) {
-        if (guardExpression == null || Utils.isEmpty(variableBindings)) {
+        if (guardExpression == null || variableBindings.isEmpty()) {
             return;
         }
 
@@ -405,7 +405,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static List<Pattern> extractRecordComponentPatterns(BaseStatement tryStatements, Map<Object, VariableComponentBinding> variableBindings) {
-        if (Utils.isEmpty(tryStatements) || Utils.isEmpty(variableBindings)) {
+        if (Utils.isEmpty(tryStatements) || variableBindings.isEmpty()) {
             return Collections.emptyList();
         }
 

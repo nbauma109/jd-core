@@ -60,7 +60,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsCodec() throws Exception {
-        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", "1.18.0");
+        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", "1.21.0");
     }
 
     @Test

@@ -36,6 +36,7 @@ import org.jd.core.v1.model.javasyntax.statement.TypeDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.List;
@@ -192,7 +193,7 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             }
         }
 
-        if (ts.isJsr() || finallyStatements == null || finallyStatements.isEmpty()) {
+        if (ts.isJsr() || Utils.isEmptyStatements(finallyStatements)) {
             tryStatements.accept(this);
             safeAcceptListStatement(statement.getCatchClauses());
         } else {

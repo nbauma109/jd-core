@@ -70,7 +70,7 @@ public final class RecordPatternInstanceOfRewriter {
             return false;
         }
 
-        if (thenStatements == null || thenStatements.isEmpty() || index <= 0 || index > statements.size()) {
+        if (Utils.isEmptyStatements(thenStatements) || index <= 0 || index > statements.size()) {
             return false;
         }
 
@@ -261,7 +261,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static boolean isSyntheticRecordPatternTryStatement(TryStatement tryStatement) {
-        if (tryStatement.getResources() != null && !tryStatement.getResources().isEmpty() || tryStatement.getFinallyStatements() != null && tryStatement.getFinallyStatements().size() > 0) {
+        if (!Utils.isEmpty(tryStatement.getResources()) || !Utils.isEmpty(tryStatement.getFinallyStatements())) {
             return false;
         }
 
@@ -295,7 +295,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static Expression extractRecordPatternGuardExpression(BaseStatement tryStatements) {
-        if (tryStatements == null || tryStatements.size() == 0) {
+        if (Utils.isEmpty(tryStatements)) {
             return null;
         }
 
@@ -315,7 +315,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static Expression extractConditionThatReturnsTrue(BaseStatement statements) {
-        if (statements == null || statements.size() == 0) {
+        if (Utils.isEmpty(statements)) {
             return null;
         }
 
@@ -344,7 +344,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static boolean containsDirectTrueReturn(BaseStatement statements) {
-        if (statements == null || statements.size() == 0) {
+        if (Utils.isEmpty(statements)) {
             return false;
         }
 
@@ -373,7 +373,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static Map<Object, VariableComponentBinding> collectVariableComponentBindings(BaseStatement tryStatements) {
-        if (tryStatements == null || tryStatements.size() == 0) {
+        if (Utils.isEmpty(tryStatements)) {
             return Collections.emptyMap();
         }
 
@@ -384,7 +384,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static void renameGuardExpressionVariables(Expression guardExpression, Map<Object, VariableComponentBinding> variableBindings) {
-        if (guardExpression == null || variableBindings == null || variableBindings.isEmpty()) {
+        if (guardExpression == null || Utils.isEmpty(variableBindings)) {
             return;
         }
 
@@ -405,7 +405,7 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static List<Pattern> extractRecordComponentPatterns(BaseStatement tryStatements, Map<Object, VariableComponentBinding> variableBindings) {
-        if (tryStatements == null || tryStatements.size() == 0 || variableBindings == null || variableBindings.isEmpty()) {
+        if (Utils.isEmpty(tryStatements) || Utils.isEmpty(variableBindings)) {
             return Collections.emptyList();
         }
 
@@ -425,7 +425,7 @@ public final class RecordPatternInstanceOfRewriter {
             BaseStatement statements,
             Map<Object, VariableComponentBinding> variableBindings,
             Map<String, Type> accessorComponentTypes) {
-        if (statements == null || statements.size() == 0) {
+        if (Utils.isEmpty(statements)) {
             return;
         }
 
@@ -507,7 +507,7 @@ public final class RecordPatternInstanceOfRewriter {
 
         if (expression instanceof MethodInvocationExpression methodInvocationExpression
                 && methodInvocationExpression.getName() != null
-                && (methodInvocationExpression.getParameters() == null || methodInvocationExpression.getParameters().size() == 0)) {
+                && Utils.isEmpty(methodInvocationExpression.getParameters())) {
             return new VariableComponentBinding(componentType, methodInvocationExpression.getName());
         }
 

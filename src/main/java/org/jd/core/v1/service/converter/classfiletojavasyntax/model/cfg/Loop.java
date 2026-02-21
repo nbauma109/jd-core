@@ -11,6 +11,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
+
 public class Loop {
     private BasicBlock start;
     private final Set<BasicBlock> members;
@@ -81,7 +83,7 @@ public class Loop {
     public String toString() {
         StringBuilder str = new StringBuilder("Loop{start=").append(start.getIndex()).append(", members=[");
 
-        if (members != null && !members.isEmpty()) {
+        if (!Utils.isEmpty(members)) {
             Iterator<BasicBlock> iterator = members.iterator();
             str.append(iterator.next().getIndex());
 

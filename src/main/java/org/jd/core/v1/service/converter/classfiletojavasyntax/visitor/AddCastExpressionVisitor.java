@@ -80,6 +80,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
 
@@ -376,7 +377,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(SuperConstructorInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
 
-        if (parameters != null && parameters.size() > 0) {
+        if (!Utils.isEmpty(parameters)) {
             boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
             boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
             boolean rawCast = false;
@@ -389,7 +390,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(ConstructorInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
 
-        if (parameters != null && parameters.size() > 0) {
+        if (!Utils.isEmpty(parameters)) {
             boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
             boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
             boolean rawCast = false;
@@ -464,7 +465,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Map<String, TypeArgument> typeBindings = getLocalTypeBindings(expression);
         Map<String, BaseType> localTypeBounds = getLocalTypeBounds(expression);
 
-        if (parameters != null && parameters.size() > 0) {
+        if (!Utils.isEmpty(parameters)) {
             BaseType parameterTypes = ((ClassFileMethodInvocationExpression)expression).getParameterTypes();
             BaseType unboundParameterTypes = ((ClassFileMethodInvocationExpression)expression).getUnboundParameterTypes();
             if (!expression.isVarArgs()) {

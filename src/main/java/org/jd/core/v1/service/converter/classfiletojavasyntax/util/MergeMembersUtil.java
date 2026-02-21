@@ -50,7 +50,7 @@ public final class MergeMembersUtil {
     }
 
     private static void merge(List<MemberDeclaration> result, List<? extends ClassFileMemberDeclaration> members) {
-        if (members != null && !members.isEmpty()) {
+        if (!Utils.isEmpty(members)) {
             sort(members);
 
             if (result.isEmpty()) {

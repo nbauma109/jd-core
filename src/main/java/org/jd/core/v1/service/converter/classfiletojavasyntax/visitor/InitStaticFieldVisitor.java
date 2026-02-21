@@ -30,6 +30,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.HashMap;
@@ -173,7 +174,7 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
 
-            if (statements == null || statements.size() == 0) {
+            if (Utils.isEmpty(statements)) {
                 deleteStaticDeclaration = Boolean.TRUE;
             } else {
                 int firstLineNumber = getFirstLineNumber(statements);

@@ -25,6 +25,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMemberDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 
 import java.util.Iterator;
 import java.util.List;
@@ -78,7 +79,7 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
                             break;
                         }
                         BaseExpression parameters = es.getParameters();
-                        if (parameters == null || parameters.size() == 0) {
+                        if (Utils.isEmpty(parameters)) {
                             // Remove 'super();'
                             iterator.remove();
                             break;
@@ -87,7 +88,7 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
                 }
 
                 // Store empty default constructor
-                if (statements.isEmpty() && (cfcd.getFormalParameters() == null || cfcd.getFormalParameters().size() == 0)) {
+                if (statements.isEmpty() && Utils.isEmpty(cfcd.getFormalParameters())) {
                     constructor = cfcd;
                 }
             }

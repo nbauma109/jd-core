@@ -50,7 +50,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testBCEL() throws Exception {
-        test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", "6.7.0");
+        test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", "6.12.0");
     }
 
     @Test
@@ -293,6 +293,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
+                String mavenRepoLocal = Paths.get("target", "m2-local").toAbsolutePath().normalize().toString();
                 ProcessBuilder pbTest = new ProcessBuilder(
                         mvnCommand,
                         "--batch-mode",
@@ -300,7 +301,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         "--no-transfer-progress",
                         "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED",
                         "-Danimal.sniffer.skip=true",
-                        "-Dmaven.repo.local=" + Paths.get(projectDir.getPath(), "target", "m2").toString()
+                        "-Dmaven.repo.local=" + mavenRepoLocal
                 );
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");
                 pbTest.directory(projectDir);

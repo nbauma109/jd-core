@@ -10,6 +10,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -25,6 +26,8 @@ public class RemoveBinaryOpReturnStatementsVisitor extends AbstractJavaSyntaxVis
 
     @Override
     public void visit(Statements statements) {
+        foldSyntheticAssignmentCloseReturnPattern(statements);
+
         if (statements.size() > 1) {
             // Replace pattern "local_var_2 = ...; return local_var_2;" with "return ...;"
             Statement lastStatement = statements.getLast();
@@ -64,6 +67,60 @@ public class RemoveBinaryOpReturnStatementsVisitor extends AbstractJavaSyntaxVis
         }
 
         super.visit(statements);
+    }
+
+    private void foldSyntheticAssignmentCloseReturnPattern(Statements statements) {
+        if (statements.size() <= 2) {
+            return;
+        }
+        Statement lastStatement = statements.getLast();
+        if (!lastStatement.isReturnExpressionStatement() || !lastStatement.getExpression().isLocalVariableReferenceExpression()) {
+            return;
+        }
+        ClassFileLocalVariableReferenceExpression returnLocalReference =
+                (ClassFileLocalVariableReferenceExpression) lastStatement.getExpression();
+        if (returnLocalReference.getName() != null && returnLocalReference.getLocalVariable().getOriginalVariable() == null) {
+            return;
+        }
+        Statement previousStatement = statements.get(statements.size() - 2);
+        if (!isCloseInvocationStatement(previousStatement)) {
+            return;
+        }
+        Statement assignmentStatement = statements.get(statements.size() - 3);
+        if (assignmentStatement.getExpression() == null || !assignmentStatement.getExpression().isBinaryOperatorExpression()) {
+            return;
+        }
+        Expression assignment = assignmentStatement.getExpression();
+        Expression leftExpression = assignment.getLeftExpression();
+        if (!leftExpression.isLocalVariableReferenceExpression()) {
+            return;
+        }
+        ClassFileLocalVariableReferenceExpression assignmentLocalReference =
+                (ClassFileLocalVariableReferenceExpression) leftExpression;
+        if (returnLocalReference.getLocalVariable() != assignmentLocalReference.getLocalVariable()
+                || returnLocalReference.getLocalVariable().getReferences().size() != 2) {
+            return;
+        }
+        ReturnExpressionStatement returnExpressionStatement = (ReturnExpressionStatement) lastStatement;
+        statements.remove(statements.size() - 2); // remove synthetic close statement
+        statements.remove(statements.size() - 2); // remove synthetic assignment statement
+        returnExpressionStatement.setExpression(assignment.getRightExpression());
+        int expressionLineNumber = assignment.getRightExpression().getLineNumber();
+        if (returnExpressionStatement.getLineNumber() > expressionLineNumber) {
+            returnExpressionStatement.setLineNumber(expressionLineNumber);
+        }
+        localVariableMaker.removeLocalVariable(returnLocalReference.getLocalVariable());
+    }
+
+    private static boolean isCloseInvocationStatement(Statement statement) {
+        if (statement == null || !statement.isExpressionStatement()) {
+            return false;
+        }
+        Expression expression = statement.getExpression();
+        if (!(expression instanceof MethodInvocationExpression mie)) {
+            return false;
+        }
+        return "close".equals(mie.getName()) && "()V".equals(mie.getDescriptor());
     }
 
     @Override

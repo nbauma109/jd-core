@@ -1006,8 +1006,9 @@ public final class TryWithResourcesStatementMaker {
             @Override
             public void visit(Statements statements) {
                 if (statements.isList()) {
-                    for (Iterator<Statement> iterator = statements.getList().iterator(); iterator.hasNext();) {
-                        Statement statement = iterator.next();
+                    List<Statement> statementList = statements.getList();
+                    for (int i = 0; i < statementList.size(); i++) {
+                        Statement statement = statementList.get(i);
                         if (statement instanceof IfStatement ifStatement) {
                             Expression condition = ifStatement.getCondition();
                             BaseStatement thenStatements = ifStatement.getStatements();
@@ -1020,7 +1021,8 @@ public final class TryWithResourcesStatementMaker {
                                         && singleStatement.getExpression() instanceof MethodInvocationExpression) {
                                     MethodInvocationExpression mie = (MethodInvocationExpression) singleStatement.getExpression();
                                     if (checkCloseInvocation(mie, resourceLocalVariable)) {
-                                        iterator.remove();
+                                        statementList.remove(i--);
+                                        continue;
                                     }
                                 }
                             }
@@ -1028,12 +1030,14 @@ public final class TryWithResourcesStatementMaker {
                         Expression expression = statement.getExpression();
                         if (expression instanceof MethodInvocationExpression mie && checkCloseInvocation(mie, resourceLocalVariable)) {
                             if (finallyStatements == null) {
-                                iterator.remove();
+                                if (isLikelySyntheticCloseInvocation(statementList, i)) {
+                                    statementList.remove(i--);
+                                }
                             } else {
                                 SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
                                 searchFirstLineNumberVisitor.safeAccept(finallyStatements);
                                 if (searchFirstLineNumberVisitor.getLineNumber() == mie.getLineNumber()) {
-                                    iterator.remove();
+                                    statementList.remove(i--);
                                 }
                             }
                         }
@@ -1747,6 +1751,37 @@ public final class TryWithResourcesStatementMaker {
                 }
             });
         }
+    }
+
+    private static boolean isLikelySyntheticCloseInvocation(List<Statement> statements, int index) {
+        if ((index < 0) || (index >= statements.size())) {
+            return false;
+        }
+        if (index == statements.size() - 1) {
+            return true;
+        }
+        Statement next = statements.get(index + 1);
+        if (next == null) {
+            return true;
+        }
+        if (next.isThrowStatement() || next.isReturnStatement()) {
+            return true;
+        }
+        if (isCloseInvocationStatement(next)) {
+            return true;
+        }
+        return !next.isExpressionStatement();
+    }
+
+    private static boolean isCloseInvocationStatement(Statement statement) {
+        if (statement == null) {
+            return false;
+        }
+        Expression expression = statement.getExpression();
+        if (!(expression instanceof MethodInvocationExpression mie)) {
+            return false;
+        }
+        return "close".equals(mie.getName()) && "()V".equals(mie.getDescriptor());
     }
 
     private static DefaultList<TryStatement.Resource> collectResourcesFromCatch(

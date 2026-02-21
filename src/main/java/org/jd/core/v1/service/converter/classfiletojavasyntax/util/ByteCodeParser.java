@@ -1545,7 +1545,7 @@ public class ByteCodeParser {
     }
 
     private Map<String, String> prepareUniqueLambdaParameterNames(List<String> lambdaParameterNames) {
-        if (lambdaParameterNames == null || lambdaParameterNames.isEmpty()) {
+        if (Utils.isEmptyCollection(lambdaParameterNames)) {
             return Collections.emptyMap();
         }
         Map<String, String> mapping = new HashMap<>();

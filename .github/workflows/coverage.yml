@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   other-tests:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         java: [17]
@@ -54,7 +54,7 @@ jobs:
 
   jarfile-to-java-source-tests:
     needs: other-tests
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:

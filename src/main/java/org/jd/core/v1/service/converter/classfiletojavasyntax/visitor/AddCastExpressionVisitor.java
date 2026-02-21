@@ -534,6 +534,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             visitingAnonymousClass = false;
         }
 
+        if (visitingLambda
+                && expression.getObjectType().getTypeArguments() == null
+                && expression.isDiamondPossible()) {
+            prepareDiamondTypeArgumentsIfPossible(expression);
+        }
+
         if (!hasKnownTypeParameters(expression.getObjectType())) {
             expression.setType(expression.getObjectType().createType(ObjectType.TYPE_UNDEFINED_OBJECT));
         }
@@ -706,7 +712,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!ObjectType.TYPE_OBJECT.equals(type) && !typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)) {
+                        } else if (!isJavaLangObject(type) && !typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
                             BaseTypeArgument ta2 = expressionObjectType.getTypeArguments();
                             Type t = type;
@@ -719,7 +725,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 expression = addCastExpression(t, expression);
                             }
                         }
-                    } else if (type.getDimension() == 0 && expressionType.isGenericType() && (!ObjectType.TYPE_OBJECT.equals(type) || forceCast)) {
+                    } else if (type.getDimension() == 0 && expressionType.isGenericType() && (!isJavaLangObject(type) || forceCast)) {
                         boolean cast = true;
                         if (expressionType instanceof GenericType gt) {
                             BaseType boundType = typeBounds.get(gt.getName());
@@ -756,6 +762,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && "orElseThrow".equals(methodInvocationExpression.getName())) {
             return false;
         }
+        if (isParameterizedJavaLangObject(expression.getType())) {
+            return true;
+        }
         if (!hasKnownTypeParameters(expression.getType())) {
             return true;
         }
@@ -771,6 +780,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (type.isObjectType() && nestedExpressionType.isObjectType()) {
             ObjectType left = (ObjectType) type;
             ObjectType right = (ObjectType) nestedExpressionType;
+            if (unique
+                    && expression.isByteCodeCheckCast()
+                    && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
+                    && methodInvocationExpression.getTypeParameters() != null
+                    && left.getTypeArguments() != null
+                    && isJavaLangObject(right)) {
+                return true;
+            }
+            if (unique
+                    && nestedExpression.isMethodInvocationExpression()
+                    && left.getTypeArguments() != null
+                    && right.getTypeArguments() != null
+                    && !left.rawEquals(right)
+                    && typeMaker.isRawTypeAssignable(left, right)) {
+                return true;
+            }
             if (!visitingLambda
                     && nestedExpression instanceof ClassFileMethodInvocationExpression mie
                     && mie.getUnboundType() instanceof GenericType
@@ -784,6 +809,29 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return false;
+    }
+
+    private boolean prepareDiamondTypeArgumentsIfPossible(NewExpression expression) {
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(expression.getObjectType().getInternalName());
+        if (typeTypes == null || typeTypes.getTypeParameters() == null) {
+            return false;
+        }
+        TypeArguments typeArguments = new TypeArguments(typeTypes.getTypeParameters().size());
+        for (int i = 0; i < typeTypes.getTypeParameters().size(); i++) {
+            typeArguments.add(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
+        }
+        expression.setObjectType(expression.getObjectType().createType(typeArguments));
+        return true;
+    }
+
+    private static boolean isJavaLangObject(Type type) {
+        return type instanceof ObjectType ot && ObjectType.TYPE_OBJECT.rawEquals(ot);
+    }
+
+    private static boolean isParameterizedJavaLangObject(Type type) {
+        return type instanceof ObjectType ot
+                && ObjectType.TYPE_OBJECT.rawEquals(ot)
+                && ot.getTypeArguments() != null;
     }
 
     private static boolean isArrayConstructorToArrayCast(Type castType, Expression nestedExpression) {

@@ -335,8 +335,7 @@ public class ByteCodeParser {
                     valueRef = stack.pop();
                     indexRef = stack.pop();
                     arrayRef = stack.pop();
-                    type1 = arrayRef.getType();
-                    statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, type1.createType(type1.getDimension()-1), new ArrayExpression(lineNumber, arrayRef, indexRef), "=", valueRef, 16)));
+                    createAssignment(statements, stack, lineNumber, new ArrayExpression(lineNumber, arrayRef, indexRef), valueRef);
                     break;
                 case AASTORE:
                     valueRef = stack.pop();
@@ -1788,12 +1787,24 @@ public class ByteCodeParser {
     }
 
     private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression) {
-        if (!stack.isEmpty() && stack.peek() == rightExpression) {
-            stack.push(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", stack.pop(), 16));
+        leftExpression = rewriteArrayIndexPostOperator(statements, leftExpression);
+        String assignmentOperator = "=";
+
+        if (rightExpression.isBinaryOperatorExpression()) {
+            BinaryOperatorExpression boe = (BinaryOperatorExpression) rightExpression;
+            String compoundOperator = toCompoundAssignmentOperator(boe.getOperator());
+            if (compoundOperator != null && sameExpression(stripArrayIndexPostOperator(leftExpression), boe.getLeftExpression())) {
+                assignmentOperator = compoundOperator;
+                rightExpression = boe.getRightExpression();
+            }
+        }
+
+        if ("=".equals(assignmentOperator) && !stack.isEmpty() && stack.peek() == rightExpression) {
+            stack.push(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, assignmentOperator, stack.pop(), 16));
             return;
         }
 
-        if (!statements.isEmpty()) {
+        if ("=".equals(assignmentOperator) && !statements.isEmpty()) {
             Statement lastStatement = statements.getLast();
 
             if (lastStatement.isExpressionStatement()) {
@@ -1859,7 +1870,100 @@ public class ByteCodeParser {
             }
         }
 
-        statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", rightExpression, 16)));
+        statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, assignmentOperator, rightExpression, 16)));
+    }
+
+    private Expression rewriteArrayIndexPostOperator(Statements statements, Expression leftExpression) {
+        if (!(leftExpression instanceof ArrayExpression leftArrayExpression) || statements.isEmpty()) {
+            return leftExpression;
+        }
+        Statement lastStatement = statements.getLast();
+        if (!lastStatement.isExpressionStatement()) {
+            return leftExpression;
+        }
+        String postOperator = extractArrayIndexPostOperator(lastStatement.getExpression(), leftArrayExpression.getIndex());
+        if (postOperator == null) {
+            return leftExpression;
+        }
+        statements.removeLast();
+        return new ArrayExpression(
+                leftArrayExpression.getLineNumber(),
+                leftArrayExpression.getExpression(),
+                new PostOperatorExpression(leftArrayExpression.getIndex().getLineNumber(), leftArrayExpression.getIndex(), postOperator));
+    }
+
+    private static String extractArrayIndexPostOperator(Expression previousExpression, Expression indexExpression) {
+        if (!previousExpression.isBinaryOperatorExpression()) {
+            return null;
+        }
+        BinaryOperatorExpression assignment = (BinaryOperatorExpression) previousExpression;
+        if (!sameExpression(assignment.getLeftExpression(), indexExpression)) {
+            return null;
+        }
+        if ("+=".equals(assignment.getOperator())) {
+            if (isPositiveOne(assignment.getRightExpression())) {
+                return "++";
+            }
+            if (isNegativeOne(assignment.getRightExpression())) {
+                return "--";
+            }
+        }
+        return null;
+    }
+
+    private static String toCompoundAssignmentOperator(String operator) {
+        return switch (operator) {
+            case "*" -> "*=";
+            case "/" -> "/=";
+            case "%" -> "%=";
+            case "+" -> "+=";
+            case "-" -> "-=";
+            case "<<" -> "<<=";
+            case ">>" -> ">>=";
+            case ">>>" -> ">>>=";
+            case "&" -> "&=";
+            case "^" -> "^=";
+            case "|" -> "|=";
+            default -> null;
+        };
+    }
+
+    private static Expression stripArrayIndexPostOperator(Expression expression) {
+        if (!(expression instanceof ArrayExpression arrayExpression)) {
+            return expression;
+        }
+        Expression index = arrayExpression.getIndex();
+        if (index == null || !index.isPostOperatorExpression()) {
+            return expression;
+        }
+        PostOperatorExpression postOperatorExpression = (PostOperatorExpression) index;
+        return new ArrayExpression(arrayExpression.getLineNumber(), arrayExpression.getExpression(), postOperatorExpression.getExpression());
+    }
+
+    private static boolean sameExpression(Expression first, Expression second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null || first.getClass() != second.getClass()) {
+            return false;
+        }
+        if (first.isLocalVariableReferenceExpression()) {
+            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression) first;
+            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression) second;
+            return lvr1.getLocalVariable() == lvr2.getLocalVariable();
+        }
+        if (first.isIntegerConstantExpression()) {
+            return first.getIntegerValue() == second.getIntegerValue();
+        }
+        if (first.isArrayExpression()) {
+            return sameExpression(first.getExpression(), second.getExpression())
+                    && sameExpression(first.getIndex(), second.getIndex());
+        }
+        if (first.isFieldReferenceExpression()) {
+            return first.getName().equals(second.getName())
+                    && sameExpression(first.getExpression(), second.getExpression());
+        }
+        return false;
     }
 
     private void parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {

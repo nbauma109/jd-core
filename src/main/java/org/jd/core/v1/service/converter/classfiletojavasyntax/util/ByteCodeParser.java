@@ -1907,44 +1907,6 @@ public class ByteCodeParser {
             if (isNegativeOne(assignment.getRightExpression())) {
                 return "--";
             }
-            return null;
-        }
-        if ("-=".equals(assignment.getOperator())) {
-            if (isPositiveOne(assignment.getRightExpression())) {
-                return "--";
-            }
-            if (isNegativeOne(assignment.getRightExpression())) {
-                return "++";
-            }
-            return null;
-        }
-        if (!"=".equals(assignment.getOperator())) {
-            return null;
-        }
-        Expression assignmentRight = assignment.getRightExpression();
-        if (!assignmentRight.isBinaryOperatorExpression()) {
-            return null;
-        }
-        BinaryOperatorExpression update = (BinaryOperatorExpression) assignmentRight;
-        if (!sameExpression(update.getLeftExpression(), indexExpression)) {
-            return null;
-        }
-        if ("+".equals(update.getOperator())) {
-            if (isPositiveOne(update.getRightExpression())) {
-                return "++";
-            }
-            if (isNegativeOne(update.getRightExpression())) {
-                return "--";
-            }
-            return null;
-        }
-        if ("-".equals(update.getOperator())) {
-            if (isPositiveOne(update.getRightExpression())) {
-                return "--";
-            }
-            if (isNegativeOne(update.getRightExpression())) {
-                return "++";
-            }
         }
         return null;
     }

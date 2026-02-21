@@ -782,12 +782,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             ObjectType right = (ObjectType) nestedExpressionType;
             if (expression.isByteCodeCheckCast()
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
-                    && methodInvocationExpression.getUnboundType() instanceof GenericType) {
-                return false;
-            }
-            if (expression.isByteCodeCheckCast()
-                    && isJavaLangObject(right)
-                    && !left.rawEquals(right)) {
+                    && methodInvocationExpression.getUnboundType() instanceof GenericType
+                    && hasUnboundedWildcardTypeArgument(methodInvocationExpression.getExpression())) {
                 return false;
             }
             if (unique
@@ -875,6 +871,34 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return targetType != null
                 && targetType.getDimension() > 0
                 && castDescriptor.equals(targetType.getDescriptor());
+    }
+
+    private static boolean hasUnboundedWildcardTypeArgument(Expression expression) {
+        return expression != null && hasUnboundedWildcardTypeArgument(expression.getType());
+    }
+
+    private static boolean hasUnboundedWildcardTypeArgument(Type type) {
+        return type instanceof ObjectType objectType && hasUnboundedWildcardTypeArgument(objectType.getTypeArguments());
+    }
+
+    private static boolean hasUnboundedWildcardTypeArgument(BaseTypeArgument typeArgument) {
+        if (typeArgument == null) {
+            return false;
+        }
+        if (typeArgument.isWildcardTypeArgument() || typeArgument.isWildcardExtendsTypeArgument() || typeArgument.isWildcardSuperTypeArgument()) {
+            return true;
+        }
+        if (typeArgument instanceof TypeArguments typeArguments) {
+            for (TypeArgument argument : typeArguments) {
+                if (argument != null
+                        && (argument.isWildcardTypeArgument()
+                        || argument.isWildcardExtendsTypeArgument()
+                        || argument.isWildcardSuperTypeArgument())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private boolean hasKnownTypeParameters(BaseTypeArgument type) {

@@ -880,7 +880,16 @@ public class ByteCodeParser {
                     typeName = constants.getConstantString((code[++offset] & 255) << 8 | code[++offset] & 255, CONSTANT_Class);
                     type1 = typeMaker.makeFromDescriptorOrInternalTypeName(typeName);
                     expression1 = stack.peek();
-                    if (!type1.isObjectType() || !expression1.getType().isObjectType() || !typeMaker.isRawTypeAssignable((ObjectType) type1, (ObjectType) expression1.getType())) {
+                    boolean skipCast = false;
+                    if (type1.isObjectType() && expression1.getType().isObjectType()) {
+                        ObjectType castObjectType = (ObjectType) type1;
+                        ObjectType expressionObjectType = (ObjectType) expression1.getType();
+                        // A bytecode checkcast from raw Object to a concrete reference type carries semantic type information.
+                        // Keep it even if generic raw-assignability heuristics claim it is assignable.
+                        boolean castFromRawObjectToConcreteType = TYPE_OBJECT.rawEquals(expressionObjectType) && !TYPE_OBJECT.rawEquals(castObjectType);
+                        skipCast = !castFromRawObjectToConcreteType && typeMaker.isRawTypeAssignable(castObjectType, expressionObjectType);
+                    }
+                    if (!type1.isObjectType() || !expression1.getType().isObjectType() || !skipCast) {
                         if (expression1.isCastExpression()) {
                             if (expression1.getExpression() instanceof LambdaIdentifiersExpression && "java/io/Serializable".equals(expression1.getType().getInternalName())) {
                                 ((CastExpression) expression1).setIntersectType(type1);

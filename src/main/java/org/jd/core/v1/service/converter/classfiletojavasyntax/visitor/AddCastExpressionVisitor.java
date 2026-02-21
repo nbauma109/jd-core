@@ -780,6 +780,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (type.isObjectType() && nestedExpressionType.isObjectType()) {
             ObjectType left = (ObjectType) type;
             ObjectType right = (ObjectType) nestedExpressionType;
+            if (expression.isByteCodeCheckCast()
+                    && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
+                    && methodInvocationExpression.getUnboundType() instanceof GenericType) {
+                return false;
+            }
+            if (expression.isByteCodeCheckCast()
+                    && isJavaLangObject(right)
+                    && !left.rawEquals(right)) {
+                return false;
+            }
             if (unique
                     && expression.isByteCodeCheckCast()
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression

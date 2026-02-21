@@ -750,6 +750,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean isCastToBeRemoved(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, CastExpression expression, boolean unique) {
+        if (expression.isByteCodeCheckCast()
+                && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocationExpression
+                && "java/util/Optional".equals(methodInvocationExpression.getInternalTypeName())
+                && "orElseThrow".equals(methodInvocationExpression.getName())) {
+            return false;
+        }
         if (!hasKnownTypeParameters(expression.getType())) {
             return true;
         }

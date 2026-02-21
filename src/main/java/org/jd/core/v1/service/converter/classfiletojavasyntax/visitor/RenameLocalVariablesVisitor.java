@@ -32,34 +32,71 @@ import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
 import java.util.Map;
 
 public class RenameLocalVariablesVisitor extends AbstractJavaSyntaxVisitor {
     private Map<String, String> nameMapping;
-    private boolean visitingLambda;
+    private int lambdaDepth;
+    private final Deque<List<String>> lambdaParameterNames = new ArrayDeque<>();
 
     public void init(Map<String, String> nameMapping, boolean visitingLambda) {
         this.nameMapping = nameMapping;
-        this.visitingLambda = visitingLambda;
+        this.lambdaDepth = visitingLambda ? 1 : 0;
+        this.lambdaParameterNames.clear();
     }
 
     @Override
     public void visit(LambdaIdentifiersExpression expression) {
-        visitingLambda = true;
+        lambdaDepth++;
+        List<String> parameterNames = expression.getParameterNames();
+
+        if (parameterNames != null) {
+            for (int i = 0; i < parameterNames.size(); i++) {
+                String oldName = parameterNames.get(i);
+                String newName = nameMapping.get(oldName);
+                if (newName != null) {
+                    parameterNames.set(i, newName);
+                }
+            }
+            lambdaParameterNames.push(parameterNames);
+        }
+
         super.visit(expression);
-        visitingLambda = false;
+
+        if (parameterNames != null) {
+            lambdaParameterNames.pop();
+        }
+        lambdaDepth--;
     }
 
     @Override
     public void visit(LocalVariableReferenceExpression expression) {
-        if (visitingLambda) {
-            ClassFileLocalVariableReferenceExpression lvre = (ClassFileLocalVariableReferenceExpression)expression;
-            String newName = nameMapping.get(lvre.getName());
+        if (lambdaDepth > 0) {
+            ClassFileLocalVariableReferenceExpression lvre = (ClassFileLocalVariableReferenceExpression) expression;
+            String oldName = lvre.getName();
+
+            if (isLambdaParameter(oldName)) {
+                return;
+            }
+
+            String newName = nameMapping.get(oldName);
 
             if (newName != null) {
                 lvre.getLocalVariable().setName(newName);
             }
         }
+    }
+
+    private boolean isLambdaParameter(String name) {
+        for (List<String> parameterNameList : lambdaParameterNames) {
+            if (parameterNameList.contains(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

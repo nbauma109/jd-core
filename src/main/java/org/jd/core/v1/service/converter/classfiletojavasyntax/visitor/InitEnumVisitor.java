@@ -67,14 +67,32 @@ public class InitEnumVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
-        if ((declaration.getFlags() & Declaration.FLAG_ANONYMOUS) != 0 || declaration.getStatements().size() <= 1) {
+        if ((declaration.getFlags() & (Declaration.FLAG_ANONYMOUS | ACC_SYNTHETIC)) != 0) {
             declaration.setFlags(ACC_SYNTHETIC);
         } else {
             FormalParameters parameters = (FormalParameters) declaration.getFormalParameters();
-            // Remove name & index parameterTypes
-            parameters.subList(0, 2).clear();
-            // Remove super constructor call
-            declaration.getStatements().getList().remove(0);
+            if (parameters != null && parameters.size() >= 2) {
+                // Remove synthetic enum name/index parameters.
+                parameters.subList(0, 2).clear();
+            }
+
+            // Remove implicit super(name, ordinal) call, but keep explicit this(...) chaining.
+            if (declaration.getStatements() != null
+                    && declaration.getStatements().size() > 0
+                    && declaration.getStatements().getFirst().getExpression() != null
+                    && (declaration.getStatements().getFirst().getExpression().isSuperConstructorInvocationExpression()
+                    || declaration.getStatements().getFirst().getExpression().isConstructorInvocationExpression())) {
+                Expression invocation = declaration.getStatements().getFirst().getExpression();
+                BaseExpression invocationParameters = invocation.getParameters();
+                if (invocationParameters instanceof Expressions parametersList && parametersList.size() >= 2) {
+                    // Strip synthetic enum name/index arguments from constructor chaining invocations.
+                    parametersList.subList(0, 2).clear();
+                }
+                if (invocation.isSuperConstructorInvocationExpression()) {
+                    declaration.getStatements().getList().remove(0);
+                }
+            }
+
             // Fix flags
             declaration.setFlags(0);
         }

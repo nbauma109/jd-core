@@ -102,7 +102,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -806,8 +805,8 @@ public class ByteCodeParser {
                         }
                     } else {
                         expression1 = stack.pop();
-                        if (expression1 instanceof NewExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
-                            ((NewExpression)expression1).setQualifier(enclosingInstances.pop());
+                        if (expression1 instanceof NewExpression newExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
+                            newExpression.setQualifier(enclosingInstances.pop());
                         }
                         if (expression1.isLocalVariableReferenceExpression()) {
                             ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable().typeOnLeft(typeBounds, ot);
@@ -894,13 +893,12 @@ public class ByteCodeParser {
                             boolean castNeeded = true;
                             if (expression1.getType().isGenericType()) {
                                 TypeTypes typeTypes = typeMaker.makeTypeTypes(typeName);
-                                if (typeTypes != null && typeTypes.getTypeParameters() instanceof TypeParameterWithTypeBounds) {
-                                    TypeParameterWithTypeBounds typeParameterWithTypeBounds = (TypeParameterWithTypeBounds) typeTypes.getTypeParameters();
+                                if (typeTypes != null && typeTypes.getTypeParameters() instanceof TypeParameterWithTypeBounds typeParameterWithTypeBounds) {
                                     String identifier = typeParameterWithTypeBounds.getIdentifier();
                                     if (identifier.equals(expression1.getType().getName())
-                                            && type1 instanceof ObjectType
-                                            && typeParameterWithTypeBounds.getTypeBounds() instanceof ObjectType
-                                            && typeMaker.isRawTypeAssignable((ObjectType) type1, (ObjectType) typeParameterWithTypeBounds.getTypeBounds())) {
+                                            && type1 instanceof ObjectType ot1
+                                            && typeParameterWithTypeBounds.getTypeBounds() instanceof ObjectType ot2
+                                            && typeMaker.isRawTypeAssignable(ot1, ot2)) {
                                         castNeeded = false;
                                     }
                                 }
@@ -1506,11 +1504,11 @@ public class ByteCodeParser {
         }
 
         // Create method reference
-        if (indyParameters instanceof Expression) {
-            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), (Expression)indyParameters, typeName, name1, descriptor1));
+        if (indyParameters instanceof Expression e) {
+            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e, typeName, name1, descriptor1));
         }
-        if (indyParameters instanceof Expressions) {
-            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ((Expressions)indyParameters).getFirst(), typeName, name1, descriptor1));
+        if (indyParameters instanceof Expressions e) {
+            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1));
         }
     }
 
@@ -1619,8 +1617,8 @@ public class ByteCodeParser {
                 return null;
             }
             dimensionExpression = dimensions.getFirst();
-        } else if (dimensions instanceof Expression) {
-            dimensionExpression = (Expression)dimensions;
+        } else if (dimensions instanceof Expression e) {
+            dimensionExpression = e;
         } else {
             return null;
         }
@@ -2424,10 +2422,8 @@ public class ByteCodeParser {
 
         @Override
         public void visit(FormalParameters declarations) {
-            Iterator<FormalParameter> iterator = declarations.iterator();
-
-            while (iterator.hasNext()) {
-                iterator.next().accept(this);
+            for (FormalParameter formalParameter : declarations) {
+                formalParameter.accept(this);
             }
         }
     }

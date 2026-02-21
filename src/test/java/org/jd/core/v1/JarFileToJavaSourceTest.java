@@ -107,7 +107,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJUnit4() throws Exception {
-        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", "4.13.2", false);
+        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", "4.13.2");
     }
 
     @Test

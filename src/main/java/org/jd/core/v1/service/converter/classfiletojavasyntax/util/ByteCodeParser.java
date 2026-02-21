@@ -1855,8 +1855,14 @@ public class ByteCodeParser {
         if (expression instanceof ClassFileCmpExpression cmp) {
             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(cmp.getLeftExpression().getType(), cmp.getLeftExpression());
             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(cmp.getRightExpression().getType(), cmp.getRightExpression());
-
-            stack.push(new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, cmp.getLeftExpression(), basicBlock.mustInverseCondition() ? operator1 : operator2, cmp.getRightExpression(), priority));
+            boolean inverseCondition = basicBlock.mustInverseCondition();
+            if (inverseCondition && isFloatingPointCmp(cmp) && isRelationalOperator(operator1) && isRelationalOperator(operator2)) {
+                BinaryOperatorExpression nonInvertedCondition =
+                        new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, cmp.getLeftExpression(), operator2, cmp.getRightExpression(), priority);
+                stack.push(new PreOperatorExpression(lineNumber, "!", nonInvertedCondition));
+            } else {
+                stack.push(new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, cmp.getLeftExpression(), inverseCondition ? operator1 : operator2, cmp.getRightExpression(), priority));
+            }
         } else if (expression.getType().isPrimitiveType()) {
             PrimitiveType pt = (PrimitiveType)expression.getType();
 
@@ -1886,6 +1892,18 @@ public class ByteCodeParser {
         } else {
             stack.push(new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, expression, basicBlock.mustInverseCondition() ? operator1 : operator2, new NullExpression(lineNumber, expression.getType()), 9));
         }
+    }
+
+    private static boolean isFloatingPointCmp(ClassFileCmpExpression cmp) {
+        if (!(cmp.getLeftExpression().getType() instanceof PrimitiveType primitiveType)) {
+            return false;
+        }
+        int flags = primitiveType.getJavaPrimitiveFlags();
+        return (flags == FLAG_FLOAT) || (flags == FLAG_DOUBLE);
+    }
+
+    private static boolean isRelationalOperator(String operator) {
+        return "<".equals(operator) || ">".equals(operator) || "<=".equals(operator) || ">=".equals(operator);
     }
 
     private void parseXRETURN(Statements statements, DefaultStack<Expression> stack, int lineNumber) {

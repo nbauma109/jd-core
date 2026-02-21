@@ -101,9 +101,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.bcel.Const.*;
 import static org.jd.core.v1.model.javasyntax.statement.ReturnStatement.RETURN;
@@ -804,8 +805,8 @@ public class ByteCodeParser {
                         }
                     } else {
                         expression1 = stack.pop();
-                        if (expression1 instanceof NewExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
-                            ((NewExpression)expression1).setQualifier(enclosingInstances.pop());
+                        if (expression1 instanceof NewExpression newExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
+                            newExpression.setQualifier(enclosingInstances.pop());
                         }
                         if (expression1.isLocalVariableReferenceExpression()) {
                             ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable().typeOnLeft(typeBounds, ot);
@@ -892,13 +893,12 @@ public class ByteCodeParser {
                             boolean castNeeded = true;
                             if (expression1.getType().isGenericType()) {
                                 TypeTypes typeTypes = typeMaker.makeTypeTypes(typeName);
-                                if (typeTypes != null && typeTypes.getTypeParameters() instanceof TypeParameterWithTypeBounds) {
-                                    TypeParameterWithTypeBounds typeParameterWithTypeBounds = (TypeParameterWithTypeBounds) typeTypes.getTypeParameters();
+                                if (typeTypes != null && typeTypes.getTypeParameters() instanceof TypeParameterWithTypeBounds typeParameterWithTypeBounds) {
                                     String identifier = typeParameterWithTypeBounds.getIdentifier();
                                     if (identifier.equals(expression1.getType().getName())
-                                            && type1 instanceof ObjectType
-                                            && typeParameterWithTypeBounds.getTypeBounds() instanceof ObjectType
-                                            && typeMaker.isRawTypeAssignable((ObjectType) type1, (ObjectType) typeParameterWithTypeBounds.getTypeBounds())) {
+                                            && type1 instanceof ObjectType ot1
+                                            && typeParameterWithTypeBounds.getTypeBounds() instanceof ObjectType ot2
+                                            && typeMaker.isRawTypeAssignable(ot1, ot2)) {
                                         castNeeded = false;
                                     }
                                 }
@@ -1474,10 +1474,18 @@ public class ByteCodeParser {
                         stack.push(arrayConstructorReference);
                         return;
                     }
+                    List<String> lambdaParameterNames = prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount);
+                    BaseStatement lambdaStatements = prepareLambdaStatements(
+                            cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames);
+                    Map<String, String> lambdaParameterMapping = prepareUniqueLambdaParameterNames(lambdaParameterNames);
+                    if (!lambdaParameterMapping.isEmpty() && lambdaStatements != null) {
+                        renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
+                        lambdaStatements.accept(renameLocalVariablesVisitor);
+                    }
                     stack.push(new LambdaIdentifiersExpression(
                             lineNumber, indyMethodTypes.getReturnedType(), indyMethodTypes.getReturnedType(),
-                            prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount),
-                            prepareLambdaStatements(cfmd.getFormalParameters(), indyParameters, cfmd.getStatements())));
+                            lambdaParameterNames,
+                            lambdaStatements));
                     return;
                 }
             }
@@ -1496,11 +1504,11 @@ public class ByteCodeParser {
         }
 
         // Create method reference
-        if (indyParameters instanceof Expression) {
-            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), (Expression)indyParameters, typeName, name1, descriptor1));
+        if (indyParameters instanceof Expression e) {
+            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e, typeName, name1, descriptor1));
         }
-        if (indyParameters instanceof Expressions) {
-            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ((Expressions)indyParameters).getFirst(), typeName, name1, descriptor1));
+        if (indyParameters instanceof Expressions e) {
+            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1));
         }
     }
 
@@ -1532,6 +1540,38 @@ public class ByteCodeParser {
             return names;
         }
         return names.subList(names.size() - parameterCount, names.size());
+    }
+
+    private Map<String, String> prepareUniqueLambdaParameterNames(List<String> lambdaParameterNames) {
+        if (Utils.isEmptyCollection(lambdaParameterNames)) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> mapping = new HashMap<>();
+        Set<String> usedNames = new HashSet<>();
+
+        for (int i = 0; i < lambdaParameterNames.size(); i++) {
+            String oldName = lambdaParameterNames.get(i);
+
+            if (oldName == null) {
+                continue;
+            }
+
+            String newName = oldName;
+            int counter = 1;
+
+            while (localVariableMaker.containsName(newName) || usedNames.contains(newName)) {
+                newName = oldName + counter++;
+            }
+
+            if (!oldName.equals(newName)) {
+                mapping.put(oldName, newName);
+                lambdaParameterNames.set(i, newName);
+            }
+
+            usedNames.add(newName);
+        }
+
+        return mapping;
     }
 
     private MethodReferenceExpression tryMakeArrayConstructorReference(
@@ -1577,8 +1617,8 @@ public class ByteCodeParser {
                 return null;
             }
             dimensionExpression = dimensions.getFirst();
-        } else if (dimensions instanceof Expression) {
-            dimensionExpression = (Expression)dimensions;
+        } else if (dimensions instanceof Expression e) {
+            dimensionExpression = e;
         } else {
             return null;
         }
@@ -1632,39 +1672,53 @@ public class ByteCodeParser {
     }
 
     private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,
-            BaseStatement baseStatement) {
+            BaseStatement baseStatement, int lambdaParameterCount, List<String> lambdaParameterNames) {
         if (baseStatement != null && formalParameters != null && !Utils.isEmpty(indyParameters)
                 && indyParameters.size() <= formalParameters.size()) {
             Map<String, String> mapping = new HashMap<>();
-            Expression expression = indyParameters.getFirst();
+            int capturedParameterCount = Math.max(0, formalParameters.size() - lambdaParameterCount);
+            int mappingCount = Math.min(capturedParameterCount, indyParameters.size());
+            DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
+            Set<String> capturedFormalParameterNames = new HashSet<>();
 
-            if (expression.isLocalVariableReferenceExpression()) {
-                String name = formalParameters.getFirst().getName();
-                String newName = expression.getName();
-
-                if (!name.equals(newName)) {
-                    mapping.put(name, newName);
+            for (int i = 0; i < capturedParameterCount; i++) {
+                String capturedName = formalParameterList.get(i).getName();
+                if (capturedName != null) {
+                    capturedFormalParameterNames.add(capturedName);
                 }
             }
 
-            if (indyParameters.size() > 1) {
-                DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
-                DefaultList<Expression> list = indyParameters.getList();
-
-                for (int i = 1; i < indyParameters.size(); i++) {
-                    expression = list.get(i);
-
-                    if (expression.isLocalVariableReferenceExpression()) {
-                        FormalParameter formalParameter = formalParameterList.get(i);
-                        if (formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
-                            AbstractLocalVariable localVariable = classFileFormalParameter.getLocalVariable();
-                            if (!localVariable.isAssignableFrom(typeBounds, expression.getType())) {
-                                continue;
-                            }
-                        }
+            for (int i = 0; i < mappingCount; i++) {
+                Expression expression = indyParameters.isList() ? indyParameters.getList().get(i) : indyParameters.getFirst();
+                if (!expression.isLocalVariableReferenceExpression()) {
+                    continue;
+                }
+                FormalParameter formalParameter = formalParameterList.get(i);
+                if (formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
+                    AbstractLocalVariable localVariable = classFileFormalParameter.getLocalVariable();
+                    if (!localVariable.isAssignableFrom(typeBounds, expression.getType())) {
+                        continue;
                     }
                 }
+                String formalParameterName = formalParameter.getName();
+                if (formalParameterName != null
+                        && lambdaParameterNames != null
+                        && lambdaParameterNames.contains(formalParameterName)) {
+                    continue;
+                }
+                String newName = expression.getName();
+                if (formalParameterName != null
+                        && newName != null
+                        && !formalParameterName.equals(newName)
+                        && capturedFormalParameterNames.contains(newName)) {
+                    // Avoid ambiguous swaps across captured parameters (can corrupt nested lambda captures).
+                    continue;
+                }
+                if (formalParameterName != null && newName != null && !formalParameterName.equals(newName)) {
+                    mapping.put(formalParameterName, newName);
+                }
             }
+
             if (!mapping.isEmpty()) {
                 renameLocalVariablesVisitor.init(mapping, true);
                 baseStatement.accept(renameLocalVariablesVisitor);
@@ -2368,10 +2422,8 @@ public class ByteCodeParser {
 
         @Override
         public void visit(FormalParameters declarations) {
-            Iterator<FormalParameter> iterator = declarations.iterator();
-
-            while (iterator.hasNext()) {
-                iterator.next().accept(this);
+            for (FormalParameter formalParameter : declarations) {
+                formalParameter.accept(this);
             }
         }
     }

@@ -66,7 +66,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsImaging() throws Exception {
-        test("https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-", "org.apache.commons", "commons-imaging", "1.0-alpha3");
+        test("https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-", "org.apache.commons", "commons-imaging", "1.0.0-alpha6");
     }
 
     @Test

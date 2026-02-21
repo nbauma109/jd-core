@@ -25,6 +25,7 @@ import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileEnumDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileEnumDeclaration.ClassFileConstant;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
@@ -67,15 +68,39 @@ public class InitEnumVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
-        if ((declaration.getFlags() & Declaration.FLAG_ANONYMOUS) != 0 || declaration.getStatements().size() <= 1) {
+        boolean syntheticConstructor = (declaration.getFlags() & (Declaration.FLAG_ANONYMOUS | ACC_SYNTHETIC)) != 0;
+        FormalParameters parameters = declaration.getFormalParameters() instanceof FormalParameters fp ? fp : null;
+
+        if (parameters != null && parameters.size() >= 2) {
+            // Remove synthetic enum name/index parameters.
+            parameters.subList(0, 2).clear();
+        }
+
+        // Remove implicit super(name, ordinal) call, but keep explicit this(...) chaining.
+        if (!Utils.isEmpty(declaration.getStatements())
+                && declaration.getStatements().getFirst().getExpression() != null
+                && (declaration.getStatements().getFirst().getExpression().isSuperConstructorInvocationExpression()
+                || declaration.getStatements().getFirst().getExpression().isConstructorInvocationExpression())) {
+            Expression invocation = declaration.getStatements().getFirst().getExpression();
+            BaseExpression invocationParameters = invocation.getParameters();
+            if (invocationParameters instanceof Expressions parametersList && parametersList.size() >= 2) {
+                // Strip synthetic enum name/index arguments from constructor chaining invocations.
+                parametersList.subList(0, 2).clear();
+            }
+            if (invocation.isSuperConstructorInvocationExpression()) {
+                declaration.getStatements().getList().remove(0);
+            }
+        }
+
+        // Hide compiler-generated enum default constructor while keeping explicit constructors.
+        boolean implicitEnumDefaultConstructor =
+                "(Ljava/lang/String;I)V".equals(declaration.getDescriptor())
+                        && Utils.isEmpty(parameters)
+                        && Utils.isEmpty(declaration.getStatements());
+
+        if (syntheticConstructor || implicitEnumDefaultConstructor) {
             declaration.setFlags(ACC_SYNTHETIC);
         } else {
-            FormalParameters parameters = (FormalParameters) declaration.getFormalParameters();
-            // Remove name & index parameterTypes
-            parameters.subList(0, 2).clear();
-            // Remove super constructor call
-            declaration.getStatements().getList().remove(0);
-            // Fix flags
             declaration.setFlags(0);
         }
     }

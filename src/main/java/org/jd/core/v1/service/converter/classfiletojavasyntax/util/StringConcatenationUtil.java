@@ -30,7 +30,7 @@ public final class StringConcatenationUtil {
         if (expression.isMethodInvocationExpression()) {
             MethodInvocationExpression mie = (MethodInvocationExpression) expression;
 
-            if (mie.getParameters() != null && !mie.getParameters().isList() && "append".equals(mie.getName())) {
+            if (Utils.isSingleton(mie.getParameters()) && "append".equals(mie.getName())) {
                 Expression concatenatedStringExpression = mie.getParameters().getFirst();
                 Expression expr = mie.getExpression();
                 boolean firstParameterHaveGenericType = false;
@@ -74,7 +74,7 @@ public final class StringConcatenationUtil {
 
         StringTokenizer tokenizer = new StringTokenizer(recipe, StringConstants.START_OF_HEADING, true);
 
-        DefaultList<Expression> parameterList = parameters != null && parameters.isList() ? parameters.getList() : null;
+        DefaultList<Expression> parameterList = Utils.isList(parameters) ? parameters.getList() : null;
         boolean parametersAreList = parameterList != null;
         int parameterIndex = 0;
 

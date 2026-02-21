@@ -53,7 +53,7 @@ public abstract class AbstractTypeParametersToTypeArgumentsBinder {
     }
 
     public static BaseType clone(BaseType parameterTypes) {
-        if (parameterTypes != null && parameterTypes.isList()) {
+        if (Utils.isList(parameterTypes)) {
             parameterTypes = switch (parameterTypes.size()) {
                 case 0 -> null;
                 case 1 -> parameterTypes.getFirst();

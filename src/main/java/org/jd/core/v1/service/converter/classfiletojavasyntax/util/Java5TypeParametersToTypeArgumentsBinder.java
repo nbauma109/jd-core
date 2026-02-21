@@ -312,7 +312,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             }
         }
 
-        if (exceptionTypes != null && !exceptionTypes.isList() && mieExceptionTypes != null && !mieExceptionTypes.isList()) {
+        if (Utils.isSingleton(exceptionTypes) && Utils.isSingleton(mieExceptionTypes)) {
             Type exceptionType = exceptionTypes.getFirst();
             Type mieExceptionType = mieExceptionTypes.getFirst();
             populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, exceptionType);

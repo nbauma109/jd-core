@@ -1540,7 +1540,7 @@ public class ByteCodeParser {
             TypeMaker.MethodTypes indyMethodTypes,
             BaseExpression indyParameters,
             String methodDescriptor) {
-        if (indyParameters != null && indyParameters.size() > 0) {
+        if (!Utils.isEmpty(indyParameters)) {
             return null;
         }
         BaseFormalParameter formalParameters = cfmd.getFormalParameters();
@@ -1633,7 +1633,7 @@ public class ByteCodeParser {
 
     private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,
             BaseStatement baseStatement) {
-        if (baseStatement != null && formalParameters != null && indyParameters != null && indyParameters.size() > 0
+        if (baseStatement != null && formalParameters != null && !Utils.isEmpty(indyParameters)
                 && indyParameters.size() <= formalParameters.size()) {
             Map<String, String> mapping = new HashMap<>();
             Expression expression = indyParameters.getFirst();
@@ -2046,7 +2046,7 @@ public class ByteCodeParser {
                 }
 
                 boolean diamondPossible = majorVersion > MAJOR_1_8 || localBodyDeclaration == null && majorVersion >= MAJOR_1_7;
-                if (declaration.getInterfaces() != null && declaration.getInterfaces().size() > 0) {
+                if (!Utils.isEmpty(declaration.getInterfaces())) {
                     return new ClassFileNewExpression(lineNumber, (ObjectType) declaration.getInterfaces(), localBodyDeclaration, true, false, diamondPossible);
                 }
                 if (declaration.getSuperType() != null) {

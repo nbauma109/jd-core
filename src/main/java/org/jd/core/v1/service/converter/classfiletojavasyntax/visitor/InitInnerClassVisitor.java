@@ -54,6 +54,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.Comparator;
@@ -536,7 +537,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         // Is the last parameter synthetic ?
                         parameters = ne.getParameters();
 
-                        if (parameters != null && parameters.size() > 0 && parameters.getLast().isNullExpression()) {
+                        if (!Utils.isEmpty(parameters) && parameters.getLast().isNullExpression()) {
                             parameterTypes = ne.getParameterTypes();
 
                             if (parameterTypes.getLast().getName() == null) {
@@ -562,7 +563,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             ClassFileSuperConstructorInvocationExpression scie = (ClassFileSuperConstructorInvocationExpression)expression;
             BaseExpression parameters = scie.getParameters();
 
-            if (parameters != null && parameters.size() > 0) {
+            if (!Utils.isEmpty(parameters)) {
                 // Remove outer 'this' reference parameter
                 Type firstParameterType = parameters.getFirst().getType();
 
@@ -585,7 +586,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             ClassFileConstructorInvocationExpression cie = (ClassFileConstructorInvocationExpression)expression;
             BaseExpression parameters = cie.getParameters();
 
-            if (parameters != null && parameters.size() > 0) {
+            if (!Utils.isEmpty(parameters)) {
                 // Remove outer this reference parameter
                 if (bodyDeclaration.getOuterTypeFieldName() != null) {
                     cie.setParameters(removeFirstItem(parameters));
@@ -621,7 +622,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         protected BaseExpression removeLastSyntheticParameter(BaseExpression parameters, BaseType parameterTypes) {
             // Is the last parameter synthetic ?
-            if (parameters != null && parameters.size() > 0 && parameters.getLast().isNullExpression() && parameterTypes.getLast().getName() == null) {
+            if (!Utils.isEmpty(parameters) && parameters.getLast().isNullExpression() && parameterTypes.getLast().getName() == null) {
                 // Yes. Remove it.
                 if (parameters.isList()) {
                     parameters.getList().removeLast();

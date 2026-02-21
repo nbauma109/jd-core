@@ -7,7 +7,16 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
+import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -23,20 +32,12 @@ import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement.CatchClause;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
-import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
-import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFormalParameter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFirstLineNumberVisitor;
 import org.jd.core.v1.util.DefaultList;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 
 public final class TryWithResourcesStatementMaker {
     private TryWithResourcesStatementMaker() {
@@ -505,8 +506,8 @@ public final class TryWithResourcesStatementMaker {
         return new CloseInvocationInfo(tryStatement, localVariable, mie.getExpression());
     }
 
-    private static CloseInvocationInfo getCloseInvocationInfoFromTryStatements(Statements tryStatements) {
-        if (tryStatements == null || tryStatements.isEmpty()) {
+    private static CloseInvocationInfo getCloseInvocationInfoFromTryStatements(BaseStatement tryStatements) {
+        if (Utils.isEmpty(tryStatements)) {
             return null;
         }
         CloseInvocationInfoVisitor visitor = new CloseInvocationInfoVisitor();
@@ -515,7 +516,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static CloseInvocationInfo getCloseInvocationInfoFromCatchStatements(BaseStatement catchStatements) {
-        if (catchStatements == null || catchStatements.size() == 0) {
+        if (Utils.isEmpty(catchStatements)) {
             return null;
         }
         CloseInvocationInCatchVisitor visitor = new CloseInvocationInCatchVisitor();
@@ -573,7 +574,7 @@ public final class TryWithResourcesStatementMaker {
 
     private static MethodInvocationExpression findAddSuppressedInvocation(
             BaseStatement catchStatements, AbstractLocalVariable primaryException) {
-        if (catchStatements == null || catchStatements.size() == 0) {
+        if (Utils.isEmpty(catchStatements)) {
             return null;
         }
         AddSuppressedInvocationVisitor visitor = new AddSuppressedInvocationVisitor(primaryException);
@@ -582,7 +583,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static ResourceAssignment findResourceAssignment(Statements statements) {
-        if (statements == null || statements.isEmpty()) {
+        if (Utils.isEmpty(statements)) {
             return null;
         }
         for (int i = statements.size() - 1; i >= 0; i--) {
@@ -613,7 +614,7 @@ public final class TryWithResourcesStatementMaker {
 
     private static ResourceAssignment findResourceAssignmentInTryStatements(
             Statements tryStatements, AbstractLocalVariable localVariable, boolean removeAssignment) {
-        if (tryStatements != null && !tryStatements.isEmpty()) {
+        if (!Utils.isEmpty(tryStatements)) {
             for (int i = 0; i < tryStatements.size(); i++) {
                 Statement statement = tryStatements.get(i);
                 if (!statement.isExpressionStatement()) {
@@ -649,7 +650,7 @@ public final class TryWithResourcesStatementMaker {
 
     private static ResourceAssignment findResourceAssignmentInStatements(
             Statements statements, AbstractLocalVariable localVariable, boolean removeAssignment) {
-        if (statements != null && !statements.isEmpty() && localVariable != null) {
+        if (!Utils.isEmpty(statements) && localVariable != null) {
             for (int i = statements.size() - 1; i >= 0; i--) {
                 Statement statement = statements.get(i);
                 if (!statement.isExpressionStatement()) {
@@ -690,7 +691,7 @@ public final class TryWithResourcesStatementMaker {
     private static AbstractLocalVariable findMatchingTarget(
             AbstractLocalVariable assignedLocalVariable,
             Set<AbstractLocalVariable> targets) {
-        if (assignedLocalVariable == null || targets == null || targets.isEmpty()) {
+        if (assignedLocalVariable == null || Utils.isEmptyCollection(targets)) {
             return null;
         }
         return targets.contains(assignedLocalVariable) ? assignedLocalVariable : null;
@@ -1082,7 +1083,7 @@ public final class TryWithResourcesStatementMaker {
         // Create try-with-resources statement
         DefaultList<TryStatement.Resource> resources = new DefaultList<>();
 
-        if (prefixResources != null && !prefixResources.isEmpty()) {
+        if (!Utils.isEmptyCollection(prefixResources)) {
             resources.addAll(prefixResources);
         }
 
@@ -1141,7 +1142,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static int findLeadingNullAssignmentLineNumber(Statements statements) {
-        if (statements == null || statements.isEmpty()) {
+        if (Utils.isEmpty(statements)) {
             return Expression.UNKNOWN_LINE_NUMBER;
         }
         Statement statement = statements.get(0);
@@ -1159,7 +1160,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static int findNullAssignmentsOnlyLineNumber(Statements statements) {
-        if (statements == null || statements.isEmpty()) {
+        if (Utils.isEmpty(statements)) {
             return Expression.UNKNOWN_LINE_NUMBER;
         }
         for (Statement statement : statements) {
@@ -1407,7 +1408,7 @@ public final class TryWithResourcesStatementMaker {
     private static void removeCatchClauseLocalVariables(
             LocalVariableMaker localVariableMaker,
             List<TryStatement.CatchClause> catchClauses) {
-        if (localVariableMaker != null && catchClauses != null && !catchClauses.isEmpty()) {
+        if (localVariableMaker != null && !Utils.isEmptyCollection(catchClauses)) {
             for (TryStatement.CatchClause catchClause : catchClauses) {
                 if (!(catchClause instanceof ClassFileTryStatement.CatchClause classFileCatch)) {
                     continue;
@@ -1443,7 +1444,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static void removeTrailingLocalAssignments(Statements statements, AbstractLocalVariable... locals) {
-        if (statements == null || statements.isEmpty()) {
+        if (Utils.isEmpty(statements)) {
             return;
         }
         Set<AbstractLocalVariable> targets = new HashSet<>();
@@ -1467,7 +1468,7 @@ public final class TryWithResourcesStatementMaker {
     private static void removeTrailingResourceAssignments(
             Statements statements,
             AbstractLocalVariable... locals) {
-        if (statements != null && !statements.isEmpty()) {
+        if (!Utils.isEmpty(statements)) {
             Set<AbstractLocalVariable> targets = new HashSet<>();
             for (AbstractLocalVariable local : locals) {
                 if (local != null) {
@@ -1488,7 +1489,7 @@ public final class TryWithResourcesStatementMaker {
 
     private static Set<AbstractLocalVariable> removeLeadingNullAssignments(
             Statements statements, AbstractLocalVariable... locals) {
-        if (statements == null || statements.isEmpty()) {
+        if (Utils.isEmpty(statements)) {
             return null;
         }
         Set<AbstractLocalVariable> targets = new HashSet<>();
@@ -1551,7 +1552,7 @@ public final class TryWithResourcesStatementMaker {
             Statements statements,
             BaseStatement tryStatements,
             BaseStatement finallyStatements) {
-        if (localVariableMaker == null || statements == null || statements.isEmpty()) {
+        if (localVariableMaker == null || Utils.isEmpty(statements)) {
             return;
         }
         while (!statements.isEmpty()) {
@@ -1580,9 +1581,9 @@ public final class TryWithResourcesStatementMaker {
         return rightExpression != null && !rightExpression.isNullExpression();
     }
 
-    private static ClassFileTryStatement findSingleTryWithResources(Statements tryStatements) {
+    private static ClassFileTryStatement findSingleTryWithResources(BaseStatement tryStatements) {
         ClassFileTryStatement candidate = null;
-        if (tryStatements != null && !tryStatements.isEmpty()) {
+        if (!Utils.isEmpty(tryStatements)) {
             for (Statement statement : tryStatements) {
                 if (statement instanceof ClassFileTryStatement tryStatement
                         && tryStatement.getResources() != null
@@ -1607,7 +1608,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static ResourceChain extractResourceChain(Statements tryStatements, boolean removeAssignments) {
-        if (tryStatements == null || tryStatements.isEmpty()) {
+        if (Utils.isEmpty(tryStatements)) {
             return null;
         }
         int firstTryIndex = indexOfFirstTryStatement(tryStatements);
@@ -1624,7 +1625,7 @@ public final class TryWithResourcesStatementMaker {
         Statements current = tryStatements;
         Statements bodyStatements = tryStatements;
 
-        while (current != null && !current.isEmpty()) {
+        while (!Utils.isEmpty(current)) {
             ClassFileTryStatement tryStatement = getFirstTryStatement(current);
             if (tryStatement == null) {
                 CloseInvocationExpressionCollector collector = new CloseInvocationExpressionCollector();
@@ -1678,8 +1679,8 @@ public final class TryWithResourcesStatementMaker {
         return new ResourceChain(resources, bodyStatements);
     }
 
-    private static ResourceInfo findResourceInfo(DefaultList<ResourceInfo> resources, AbstractLocalVariable localVariable) {
-        if (resources == null || resources.isEmpty() || localVariable == null) {
+    private static ResourceInfo findResourceInfo(Collection<ResourceInfo> resources, AbstractLocalVariable localVariable) {
+        if (Utils.isEmptyCollection(resources) || localVariable == null) {
             return null;
         }
         for (ResourceInfo resource : resources) {
@@ -1690,8 +1691,8 @@ public final class TryWithResourcesStatementMaker {
         return null;
     }
 
-    private static ClassFileTryStatement getFirstTryStatement(Statements statements) {
-        if (statements != null && !statements.isEmpty()) {
+    private static ClassFileTryStatement getFirstTryStatement(BaseStatement statements) {
+        if (!Utils.isEmpty(statements)) {
             for (Statement statement : statements) {
                 if (statement instanceof ClassFileTryStatement cfTry) {
                     return cfTry;
@@ -1702,7 +1703,7 @@ public final class TryWithResourcesStatementMaker {
     }
 
     private static int indexOfFirstTryStatement(Statements statements) {
-        if (statements != null && !statements.isEmpty()) {
+        if (!Utils.isEmpty(statements)) {
             for (int i = 0; i < statements.size(); i++) {
                 if (statements.get(i) instanceof ClassFileTryStatement) {
                     return i;
@@ -1715,7 +1716,7 @@ public final class TryWithResourcesStatementMaker {
     private static void removeCloseStatementsForResources(
             BaseStatement tryStatements,
             Set<AbstractLocalVariable> resourceLocals) {
-        if (tryStatements != null && resourceLocals != null && !resourceLocals.isEmpty()) {
+        if (tryStatements != null && !Utils.isEmptyCollection(resourceLocals)) {
             tryStatements.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(Statements statements) {
@@ -1750,7 +1751,7 @@ public final class TryWithResourcesStatementMaker {
 
     private static DefaultList<TryStatement.Resource> collectResourcesFromCatch(
             BaseStatement catchStatements, AbstractLocalVariable currentLocalVariable) {
-        if (catchStatements == null || catchStatements.size() == 0) {
+        if (Utils.isEmpty(catchStatements)) {
             return null;
         }
         DefaultList<TryStatement.Resource> filtered = new DefaultList<>();

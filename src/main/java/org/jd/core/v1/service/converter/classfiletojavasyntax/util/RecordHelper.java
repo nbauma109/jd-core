@@ -48,6 +48,7 @@ import org.apache.bcel.generic.ReturnInstruction;
 import org.apache.bcel.generic.TargetLostException;
 import org.apache.bcel.generic.Type;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jd.core.v1.model.classfile.ClassFile;
 
 public final class RecordHelper {
@@ -269,7 +270,7 @@ public final class RecordHelper {
             ClassFile ownerClass,
             ConstantPoolGen constantPoolGen) {
 
-        if (methods == null || methods.isEmpty()) {
+        if (Utils.isEmptyCollection(methods)) {
             return;
         }
 
@@ -518,7 +519,7 @@ public final class RecordHelper {
             }
 
             String name = field.getName();
-            if (name == null || name.isEmpty()) {
+            if (StringUtils.isEmpty(name)) {
                 continue;
             }
 

@@ -40,6 +40,7 @@ import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.AddSuppressedVisitor;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import java.util.List;
@@ -77,7 +78,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
 
                 List<TryStatement.CatchClause> innerCatchClauses = cfswrs2.getCatchClauses();
                 if (cfswrs2.getResources() != null
-                        && (innerCatchClauses == null || innerCatchClauses.isEmpty())
+                        && Utils.isEmptyCollection(innerCatchClauses)
                         && cfswrs2.getFinallyStatements() == null) {
                     // Merge 'try' and 'try-with-resources" statements
                     cfswrs1.setTryStatements(cfswrs2.getTryStatements());
@@ -167,7 +168,7 @@ public class MergeTryWithResourcesStatementVisitor implements StatementVisitor {
     }
 
     private boolean containsAddSuppressed(BaseStatement statements) {
-        if (statements == null || statements.size() == 0) {
+        if (Utils.isEmpty(statements)) {
             return false;
         }
         AddSuppressedVisitor visitor = new AddSuppressedVisitor();

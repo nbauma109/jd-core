@@ -35,6 +35,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.HashMap;
@@ -281,7 +282,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
                 if (mie2.getExpression().isObjectTypeReferenceExpression()) {
                     BaseExpression mie2Parameters = mie2.getParameters();
 
-                    if (mie2Parameters == null || mie2Parameters.size() == 0) {
+                    if (Utils.isEmpty(mie2Parameters)) {
                         return true;
                     }
 
@@ -305,7 +306,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
                 if (parameterTypesCount > 0 && checkLocalVariableReference(mie2.getExpression(), 0)) {
                     BaseExpression mie2Parameters = mie2.getParameters();
 
-                    if (mie2Parameters == null || mie2Parameters.size() == 0) {
+                    if (Utils.isEmpty(mie2Parameters)) {
                         return true;
                     }
 

@@ -723,7 +723,7 @@ public class StatementMaker {
         // 'try', 'try-with-resources' or 'synchronized' ?
         Statement statement = null;
 
-        if (finallyStatements != null && !finallyStatements.isEmpty() && finallyStatements.getFirst().isMonitorExitStatement()) {
+        if (!Utils.isEmpty(finallyStatements) && finallyStatements.getFirst().isMonitorExitStatement()) {
             statement = SynchronizedStatementMaker.make(localVariableMaker, statements, tryStatements);
         } else {
             boolean allowResourceExpression = majorVersion > MAJOR_1_8;
@@ -843,7 +843,7 @@ public class StatementMaker {
                 Expression e = subStatements.getFirst().getExpression();
                 if (e.isNewExpression()) {
                     BaseExpression parameters = e.getParameters();
-                    if (parameters != null && !parameters.isList()) {
+                    if (Utils.isSingleton(parameters)) {
                         message = parameters.getFirst();
                     }
                 }
@@ -1348,7 +1348,7 @@ public class StatementMaker {
     }
 
     private static boolean containsAddSuppressed(BaseStatement statements) {
-        if (statements == null || statements.size() == 0) {
+        if (Utils.isEmpty(statements)) {
             return false;
         }
         AddSuppressedVisitor visitor = new AddSuppressedVisitor();

@@ -19,9 +19,12 @@ import org.jd.core.v1.util.StringConstants;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -31,6 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -300,10 +304,16 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 );
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");
                 pbTest.directory(projectDir);
-                pbTest.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-                pbTest.redirectError(ProcessBuilder.Redirect.INHERIT);
+                pbTest.redirectErrorStream(true);
                 Process pTest = pbTest.start();
+                AtomicReference<IOException> outputForwardError = new AtomicReference<>();
+                Thread outputForwarder = new Thread(() -> forwardProcessOutput(pTest, outputForwardError), "maven-output-forwarder");
+                outputForwarder.start();
                 int exitCode = pTest.waitFor();
+                outputForwarder.join();
+                if (outputForwardError.get() != null) {
+                    throw outputForwardError.get();
+                }
 
                 // Check result
                 assertEquals(0, exitCode);
@@ -347,6 +357,18 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     private int getCount(String stat) {
         return Integer.parseInt(stat.substring(0, 5).trim());
+    }
+
+    private static void forwardProcessOutput(Process process, AtomicReference<IOException> outputForwardError) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line);
+            }
+        } catch (IOException e) {
+            outputForwardError.compareAndSet(null, e);
+        }
     }
 
     private static void disableBundlePlugin(Path pomPath) throws IOException {

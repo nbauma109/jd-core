@@ -18,6 +18,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.CmpDepthC
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.MinDepthCFGReducer;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -731,6 +732,45 @@ public abstract class ControlFlowGraphReducer {
             visit(v, lastSwitchCaseBasicBlock, end.getFromOffset(), ends);
         }
 
+        if (defaultSC != null
+                && defaultSC.getBasicBlock() == end
+                && end.matchType(TYPE_RETURN | TYPE_RETURN_VALUE)) {
+            boolean hasNonTerminalCase = false;
+            for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+                if (!switchCase.isDefaultCase() && !switchCase.getBasicBlock().matchType(GROUP_END)) {
+                    hasNonTerminalCase = true;
+                    break;
+                }
+            }
+
+            if (hasNonTerminalCase) {
+                BitSet seen = new BitSet();
+                ArrayDeque<BasicBlock> queue = new ArrayDeque<>(basicBlock.getPredecessors());
+
+                while (!queue.isEmpty()) {
+                    BasicBlock predecessor = queue.removeFirst();
+
+                    if (predecessor.getIndex() >= 0) {
+                        if (seen.get(predecessor.getIndex())) {
+                            continue;
+                        }
+                        seen.set(predecessor.getIndex());
+                    }
+
+                    if (predecessor.getType() == TYPE_SWITCH
+                            && predecessor.getNext() != basicBlock
+                            && predecessor.getNext().getFromOffset() > end.getFromOffset()) {
+                        end = predecessor.getNext();
+                        break;
+                    }
+
+                    for (BasicBlock parent : predecessor.getPredecessors()) {
+                        queue.addLast(parent);
+                    }
+                }
+            }
+        }
+
         Set<BasicBlock> endPredecessors = end == null ? new HashSet<>() : end.getPredecessors();
         Iterator<BasicBlock> endPredecessorIterator = endPredecessors.iterator();
 
@@ -738,7 +778,9 @@ public abstract class ControlFlowGraphReducer {
         while (endPredecessorIterator.hasNext()) {
             endPredecessor = endPredecessorIterator.next();
 
-            if (v.get(endPredecessor.getIndex())) {
+            if (v.get(endPredecessor.getIndex())
+                    && !isSingleCaseBlockOfAnotherSwitch(endPredecessor, basicBlock)
+                    && !isExitingEnclosingLoop(endPredecessor, end)) {
                 endPredecessor.replace(end, SWITCH_BREAK);
                 endPredecessorIterator.remove();
             }
@@ -797,6 +839,24 @@ public abstract class ControlFlowGraphReducer {
 
         reduced &= reduce(visited, basicBlock.getNext(), jsrTargets);
         return reduced;
+    }
+
+    private static boolean isSingleCaseBlockOfAnotherSwitch(BasicBlock basicBlock, BasicBlock currentSwitch) {
+        if (basicBlock.getPredecessors().size() != 1) {
+            return false;
+        }
+
+        BasicBlock predecessor = basicBlock.getPredecessors().iterator().next();
+        return predecessor != currentSwitch && predecessor.matchType(TYPE_SWITCH | TYPE_SWITCH_DECLARATION);
+    }
+
+    private static boolean isExitingEnclosingLoop(BasicBlock predecessor, BasicBlock end) {
+        if (end == null || end == END || end == SWITCH_BREAK) {
+            return false;
+        }
+
+        Loop enclosingLoop = predecessor.getEnclosingLoop();
+        return enclosingLoop != null && end.isOutsideLoop(enclosingLoop);
     }
 
     protected boolean reduceTryDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
@@ -1327,6 +1387,10 @@ public abstract class ControlFlowGraphReducer {
     }
 
     private static void visit(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends) {
+        visit(visited, basicBlock, maxOffset, ends, 0);
+    }
+
+    private static void visit(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends, int switchDepth) {
         if (basicBlock.getFromOffset() >= maxOffset) {
             ends.add(basicBlock);
         } else if (basicBlock.getIndex() >= 0 && !visited.get(basicBlock.getIndex())) {
@@ -1334,37 +1398,45 @@ public abstract class ControlFlowGraphReducer {
 
             switch (basicBlock.getType()) {
                 case TYPE_CONDITIONAL_BRANCH, TYPE_JSR, TYPE_CONDITION:
-                    visit(visited, basicBlock.getBranch(), maxOffset, ends);
+                    visit(visited, basicBlock.getBranch(), maxOffset, ends, switchDepth);
                     // intended fall through
                 case TYPE_START, TYPE_STATEMENTS, TYPE_GOTO, TYPE_GOTO_IN_TERNARY_OPERATOR, TYPE_LOOP:
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
+                    visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
                     break;
                 case TYPE_TRY, TYPE_TRY_JSR, TYPE_TRY_ECLIPSE:
-                    visit(visited, basicBlock.getSub1(), maxOffset, ends);
+                    visit(visited, basicBlock.getSub1(), maxOffset, ends, switchDepth);
                     // intended fall through
                 case TYPE_TRY_DECLARATION:
                     for (ExceptionHandler exceptionHandler : basicBlock.getExceptionHandlers()) {
-                        visit(visited, exceptionHandler.getBasicBlock(), maxOffset, ends);
+                        visit(visited, exceptionHandler.getBasicBlock(), maxOffset, ends, switchDepth);
                     }
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
+                    visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
                     break;
                 case TYPE_IF_ELSE, TYPE_TERNARY_OPERATOR:
-                    visit(visited, basicBlock.getSub2(), maxOffset, ends);
+                    visit(visited, basicBlock.getSub2(), maxOffset, ends, switchDepth);
                     // intended fall through
                 case TYPE_IF:
-                    visit(visited, basicBlock.getSub1(), maxOffset, ends);
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
+                    visit(visited, basicBlock.getSub1(), maxOffset, ends, switchDepth);
+                    visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
                     break;
                 case TYPE_CONDITION_OR, TYPE_CONDITION_AND:
-                    visit(visited, basicBlock.getSub1(), maxOffset, ends);
-                    visit(visited, basicBlock.getSub2(), maxOffset, ends);
+                    visit(visited, basicBlock.getSub1(), maxOffset, ends, switchDepth);
+                    visit(visited, basicBlock.getSub2(), maxOffset, ends, switchDepth);
                     break;
                 case TYPE_SWITCH:
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
+                    if (switchDepth > 0) {
+                        ends.add(basicBlock);
+                        break;
+                    }
+                    visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth + 1);
                     // intended fall through
                 case TYPE_SWITCH_DECLARATION:
+                    if (switchDepth > 0) {
+                        ends.add(basicBlock);
+                        break;
+                    }
                     for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-                        visit(visited, switchCase.getBasicBlock(), maxOffset, ends);
+                        visit(visited, switchCase.getBasicBlock(), maxOffset, ends, switchDepth + 1);
                     }
                     break;
             }

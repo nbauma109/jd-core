@@ -50,7 +50,7 @@ public final class ControlFlowGraphLoopReducer {
      * Limit for optional end-extension of a natural loop.
      * Larger tails are more likely to be unrelated post-loop code and can merge adjacent loops.
      */
-    private static final int MAX_END_EXTENSION_BLOCKS = 3;
+    private static final int MAX_END_EXTENSION_BLOCKS = 0;
 
     private ControlFlowGraphLoopReducer() {
     }

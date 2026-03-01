@@ -507,6 +507,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
+        if (requiresRawReceiverCast(expression)) {
+            Expression receiver = expression.getExpression();
+            ObjectType receiverType = (ObjectType) receiver.getType();
+            expression.setExpression(addCastExpression(receiverType.createType(null), receiver));
+        }
+
         expression.getExpression().accept(this);
     }
 
@@ -899,6 +905,55 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return false;
+    }
+
+    private static boolean requiresRawReceiverCast(MethodInvocationExpression expression) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression classFileExpression)) {
+            return false;
+        }
+
+        Expression receiver = expression.getExpression();
+        if (receiver == null || receiver.isCastExpression() || !(receiver.getType() instanceof ObjectType receiverType)) {
+            return false;
+        }
+        if (receiverType.getTypeArguments() == null || !hasUnboundedWildcardTypeArgument(receiverType.getTypeArguments())) {
+            return false;
+        }
+
+        BaseExpression parameters = expression.getParameters();
+        BaseType unboundParameterTypes = classFileExpression.getUnboundParameterTypes();
+        if (Utils.isEmpty(parameters) || Utils.isEmpty(unboundParameterTypes)) {
+            return false;
+        }
+
+        if (parameters.isList()) {
+            if (!unboundParameterTypes.isList()) {
+                return false;
+            }
+            DefaultList<Expression> parameterList = parameters.getList();
+            DefaultList<Type> unboundTypeList = unboundParameterTypes.getList();
+            int size = Math.min(parameterList.size(), unboundTypeList.size());
+
+            for (int i = 0; i < size; i++) {
+                if (isWildcardCaptureMismatch(unboundTypeList.get(i), parameterList.get(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        if (unboundParameterTypes.isList()) {
+            return false;
+        }
+        return isWildcardCaptureMismatch(unboundParameterTypes.getFirst(), parameters.getFirst());
+    }
+
+    private static boolean isWildcardCaptureMismatch(Type unboundParameterType, Expression parameterExpression) {
+        if (!(unboundParameterType instanceof GenericType) || parameterExpression == null) {
+            return false;
+        }
+        Type parameterType = parameterExpression.getType();
+        return parameterType instanceof ObjectType objectType && ObjectType.TYPE_OBJECT.rawEquals(objectType);
     }
 
     private boolean hasKnownTypeParameters(BaseTypeArgument type) {

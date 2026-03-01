@@ -1323,9 +1323,7 @@ public class ByteCodeParser {
          && valueRef.getLeftExpression().isFieldReferenceExpression()) {
             FieldReferenceExpression boefr = (FieldReferenceExpression)valueRef.getLeftExpression();
 
-            if (boefr.getName().equals(fr.getName())
-             && boefr.getExpression().getType().equals(fr.getExpression().getType())
-             && boefr.getExpression().getIndex().getIntegerValue() == fr.getExpression().getIndex().getIntegerValue()) {
+            if (sameFieldReference(boefr, fr)) {
                 BinaryOperatorExpression boe = (BinaryOperatorExpression)valueRef;
                 Expression expression;
 
@@ -1741,10 +1739,40 @@ public class ByteCodeParser {
             Expression expression = stack.peek();
 
             if (expression.isFieldReferenceExpression()) {
-                return expression.getName().equals(fr.getName()) && expression.getExpression().getType().equals(fr.getExpression().getType());
+                return sameFieldReference((FieldReferenceExpression)expression, fr);
             }
         }
 
+        return false;
+    }
+
+    private static boolean sameFieldReference(FieldReferenceExpression first, FieldReferenceExpression second) {
+        return first.getName().equals(second.getName())
+                && first.getDescriptor().equals(second.getDescriptor())
+                && sameFieldOwnerExpression(first.getExpression(), second.getExpression());
+    }
+
+    private static boolean sameFieldOwnerExpression(Expression first, Expression second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null || first.getClass() != second.getClass()) {
+            return false;
+        }
+        if (first.isLocalVariableReferenceExpression()) {
+            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression)first;
+            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression)second;
+            return lvr1.getLocalVariable() == lvr2.getLocalVariable();
+        }
+        if (first.isThisExpression() || first.isSuperExpression()) {
+            return first.getType().equals(second.getType());
+        }
+        if (first.isObjectTypeReferenceExpression()) {
+            return first.getObjectType().equals(second.getObjectType());
+        }
+        if (first.isFieldReferenceExpression()) {
+            return sameFieldReference((FieldReferenceExpression)first, (FieldReferenceExpression)second);
+        }
         return false;
     }
 

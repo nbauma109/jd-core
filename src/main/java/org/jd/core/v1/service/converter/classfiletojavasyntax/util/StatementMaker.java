@@ -9,8 +9,10 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
-import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -21,6 +23,7 @@ import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpressi
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
@@ -30,14 +33,17 @@ import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.CommentStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
+import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
+import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
@@ -154,6 +160,8 @@ public class StatementMaker {
     private final UpdateIntegerConstantTypeVisitor updateIntegerConstantTypeVisitor;
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final MemberVisitor memberVisitor = new MemberVisitor();
+    private final Deque<Integer> loopBreakOffsets = new ArrayDeque<>();
+    private int switchDepth;
     private boolean removeFinallyStatementsFlag;
     private boolean mergeTryWithResourcesStatementFlag;
 
@@ -191,6 +199,10 @@ public class StatementMaker {
         if (mergeTryWithResourcesStatementFlag) {
             statements.accept(MERGE_TRY_WITH_RESOURCES_STATEMENT_VISITOR);
         }
+
+        // Fix synthetic "break ...; throw e;" patterns generated from timeout retry loops.
+        rewriteInvalidRethrowPatterns(statements);
+        rewriteOverflowDoWhilePattern(statements);
 
         // Replace pattern "synthetic_local_var = ...; return synthetic_local_var;" with "return ...;"
         statements.accept(removeBinaryOpReturnStatementsVisitor);
@@ -277,7 +289,13 @@ public class StatementMaker {
                 parseSwitch(watchdog, basicBlock, statements, jumps);
                 break;
             case TYPE_SWITCH_BREAK, TYPE_LOOP_END:
-                statements.add(BreakStatement.BREAK);
+                if (basicBlock.getType() == TYPE_LOOP_END && switchDepth > 0 && !loopBreakOffsets.isEmpty()) {
+                    Statement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), loopBreakOffsets.peek());
+                    statements.add(jump);
+                    jumps.add(jump);
+                } else {
+                    statements.add(BreakStatement.BREAK);
+                }
                 break;
             case TYPE_TRY:
                 parseTry(watchdog, basicBlock, statements, jumps, false, false);
@@ -519,7 +537,12 @@ public class StatementMaker {
                 Statements subStatements = new Statements();
 
                 stack.copy(entryStack);
-                makeStatements(watchdog, target, subStatements, jumps);
+                switchDepth++;
+                try {
+                    makeStatements(watchdog, target, subStatements, jumps);
+                } finally {
+                    switchDepth--;
+                }
                 replacePreOperatorWithPostOperator(subStatements);
 
                 Expression ruleResult = null;
@@ -568,7 +591,12 @@ public class StatementMaker {
             Statements subStatements = new Statements();
 
             stack.copy(entryStack);
-            makeStatements(watchdog, bb, subStatements, jumps);
+            switchDepth++;
+            try {
+                makeStatements(watchdog, bb, subStatements, jumps);
+            } finally {
+                switchDepth--;
+            }
             replacePreOperatorWithPostOperator(subStatements);
 
             if (sc.isDefaultCase()) {
@@ -911,7 +939,7 @@ public class StatementMaker {
                 makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
                 statements.add(LoopStatementMaker.makeLoop(
                     majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
-                    makeSubStatements(watchdog, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
+                    makeLoopSubStatements(watchdog, basicBlock, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
                 makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
                 return;
             }
@@ -932,7 +960,7 @@ public class StatementMaker {
                     makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
                     statements.add(LoopStatementMaker.makeLoop(
                         majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
-                        makeSubStatements(watchdog, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
+                        makeLoopSubStatements(watchdog, basicBlock, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
                 }
 
                 makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
@@ -957,7 +985,7 @@ public class StatementMaker {
 
             if (sub1.getType() == TYPE_LOOP && sub1.getNext() == last && countStartLoop(sub1.getSub1()) == 0) {
                 changeEndLoopToStartLoop(new BitSet(), sub1.getSub1());
-                subStatements = makeSubStatements(watchdog, sub1.getSub1(), statements, jumps, updateBasicBlock);
+                subStatements = makeLoopSubStatements(watchdog, basicBlock, sub1.getSub1(), statements, jumps, updateBasicBlock);
 
                 if (subStatements.getLast() != ContinueStatement.CONTINUE) {
                     throw new IllegalStateException("StatementMaker.parseLoop(...) : unexpected basic block for create a do-while loop");
@@ -966,7 +994,7 @@ public class StatementMaker {
                 subStatements.removeLast();
             } else {
                 createDoWhileContinue(last);
-                subStatements = makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock);
+                subStatements = makeLoopSubStatements(watchdog, basicBlock, sub1, statements, jumps, updateBasicBlock);
             }
 
             makeStatements(watchdog, last.getCondition(), subStatements, jumps);
@@ -974,7 +1002,7 @@ public class StatementMaker {
         } else {
             // Infinite loop
             statements.add(LoopStatementMaker.makeLoop(
-                localVariableMaker, basicBlock, statements, makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock), jumps));
+                localVariableMaker, basicBlock, statements, makeLoopSubStatements(watchdog, basicBlock, sub1, statements, jumps, updateBasicBlock), jumps));
         }
 
         makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
@@ -1266,6 +1294,181 @@ public class StatementMaker {
                 }
             }
         }
+    }
+
+    private Statements makeLoopSubStatements(
+            WatchDog watchdog,
+            BasicBlock loopBasicBlock,
+            BasicBlock bodyBasicBlock,
+            Statements statements,
+            Statements jumps,
+            BasicBlock updateBasicBlock) {
+        int breakOffset = loopBasicBlock.getNext().getFromOffset();
+        if (breakOffset <= 0) {
+            breakOffset = loopBasicBlock.getToOffset();
+        }
+
+        loopBreakOffsets.push(breakOffset);
+        try {
+            return makeSubStatements(watchdog, bodyBasicBlock, statements, jumps, updateBasicBlock);
+        } finally {
+            loopBreakOffsets.pop();
+        }
+    }
+
+    protected void rewriteInvalidRethrowPatterns(Statements statements) {
+        for (int i = 0; i + 1 < statements.size(); i++) {
+            Statement current = statements.get(i);
+            Statement next = statements.get(i + 1);
+
+            if (!(current instanceof WhileStatement whileStatement)
+                    || !next.isThrowStatement()
+                    || !(next.getExpression() instanceof ClassFileLocalVariableReferenceExpression rethrowExpression)) {
+                continue;
+            }
+
+            if (rewriteLoopCatchBreakToThrow(whileStatement, rethrowExpression)) {
+                statements.remove(i + 1);
+            }
+        }
+    }
+
+    private static boolean rewriteLoopCatchBreakToThrow(
+            WhileStatement whileStatement,
+            ClassFileLocalVariableReferenceExpression rethrowExpression) {
+        if (!(whileStatement.getStatements() instanceof Statements loopStatements)) {
+            return false;
+        }
+
+        for (Statement loopStatement : loopStatements) {
+            if (!(loopStatement instanceof TryStatement tryStatement)) {
+                continue;
+            }
+
+            List<TryStatement.CatchClause> catchClauses = tryStatement.getCatchClauses();
+            if (catchClauses == null || catchClauses.isEmpty()) {
+                continue;
+            }
+
+            for (TryStatement.CatchClause catchClause : catchClauses) {
+                if (!(catchClause instanceof ClassFileTryStatement.CatchClause classFileCatch)
+                        || classFileCatch.getLocalVariable() != rethrowExpression.getLocalVariable()
+                        || !(catchClause.getStatements() instanceof Statements catchStatements)
+                        || catchStatements.isEmpty()) {
+                    continue;
+                }
+
+                Statement lastCatchStatement = catchStatements.getLast();
+
+                if (lastCatchStatement.isBreakStatement()) {
+                    catchStatements.set(catchStatements.size() - 1, new ThrowStatement(rethrowExpression.copyTo(rethrowExpression.getLineNumber())));
+                    return true;
+                }
+
+                if (lastCatchStatement instanceof IfStatement ifStatement
+                        && ifStatement.getStatements() instanceof Statements ifStatements
+                        && ifStatements.size() == 1
+                        && ifStatements.getFirst().isBreakStatement()) {
+                    ifStatements.set(0, new ThrowStatement(rethrowExpression.copyTo(rethrowExpression.getLineNumber())));
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    protected void rewriteOverflowDoWhilePattern(Statements statements) {
+        for (int i = 0; i + 2 < statements.size(); i++) {
+            Statement current = statements.get(i);
+
+            if (!(current instanceof DoWhileStatement doWhileStatement)
+                    || !(doWhileStatement.getStatements() instanceof Statements loopStatements)
+                    || !(statements.get(i + 1) instanceof IfStatement underflowIf)
+                    || !statements.get(i + 2).isReturnExpressionStatement()) {
+                continue;
+            }
+
+            Expression overflowCondition = doWhileStatement.getCondition();
+            if (!isOverflowUnderflowPair(overflowCondition, underflowIf.getCondition())) {
+                continue;
+            }
+
+            rewriteFirstLoopAssignmentAsDeclaration(loopStatements);
+
+            Statements exitStatements = new Statements();
+            exitStatements.add(underflowIf);
+            exitStatements.add(statements.get(i + 2));
+
+            Statements rewrittenLoopStatements = new Statements();
+            rewrittenLoopStatements.addAll(loopStatements);
+            rewrittenLoopStatements.add(new IfStatement(
+                    new PreOperatorExpression(overflowCondition.getLineNumber(), "!", overflowCondition),
+                    exitStatements));
+
+            statements.set(i, new WhileStatement(BooleanExpression.TRUE, rewrittenLoopStatements));
+            statements.remove(i + 2);
+            statements.remove(i + 1);
+        }
+    }
+
+    private static boolean isOverflowUnderflowPair(Expression overflowCondition, Expression underflowCondition) {
+        if (!(overflowCondition instanceof MethodInvocationExpression overflowInvocation)
+                || !"isOverflow".equals(overflowInvocation.getName())
+                || !(underflowCondition instanceof PreOperatorExpression preOperatorExpression)
+                || !"!".equals(preOperatorExpression.getOperator())
+                || !(preOperatorExpression.getExpression() instanceof MethodInvocationExpression underflowInvocation)
+                || !"isUnderflow".equals(underflowInvocation.getName())) {
+            return false;
+        }
+
+        return hasSameMethodInvocationReceiver(
+                overflowInvocation.getExpression(),
+                underflowInvocation.getExpression());
+    }
+
+    private static boolean hasSameMethodInvocationReceiver(Expression first, Expression second) {
+        if (first == second) {
+            return true;
+        }
+
+        if (first instanceof ClassFileLocalVariableReferenceExpression left
+                && second instanceof ClassFileLocalVariableReferenceExpression right) {
+            return left.getLocalVariable() == right.getLocalVariable();
+        }
+
+        if (first instanceof LocalVariableReferenceExpression left
+                && second instanceof LocalVariableReferenceExpression right) {
+            return left.getName().equals(right.getName());
+        }
+
+        return false;
+    }
+
+    private static void rewriteFirstLoopAssignmentAsDeclaration(Statements loopStatements) {
+        if (loopStatements.isEmpty() || !loopStatements.getFirst().isExpressionStatement()) {
+            return;
+        }
+
+        Expression firstExpression = loopStatements.getFirst().getExpression();
+        if (!firstExpression.isBinaryOperatorExpression()
+                || !"=".equals(firstExpression.getOperator())
+                || !(firstExpression.getLeftExpression() instanceof LocalVariableReferenceExpression localVariableReference)) {
+            return;
+        }
+
+        LocalVariableDeclarator localVariableDeclarator = new LocalVariableDeclarator(
+                firstExpression.getLineNumber(),
+                localVariableReference.getName(),
+                new ExpressionVariableInitializer(firstExpression.getRightExpression()));
+        LocalVariableDeclarationStatement declarationStatement =
+                new LocalVariableDeclarationStatement(firstExpression.getLeftExpression().getType(), localVariableDeclarator);
+
+        if (firstExpression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression classFileLocalVariableReferenceExpression) {
+            classFileLocalVariableReferenceExpression.getLocalVariable().setDeclared(true);
+        }
+
+        loopStatements.set(0, declarationStatement);
     }
 
     protected void updateJumpStatements(Statements jumps, ControlFlowGraph cfg) {

@@ -13,8 +13,12 @@ import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
+import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 
@@ -40,6 +44,7 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
     @Override
     protected Expression updateExpression(Expression expression) {
         if ((expression instanceof ClassFileMethodInvocationExpression invocation) && shouldDisableVarArgs(invocation)) {
+            removeRedundantSingleArrayCast(invocation);
             invocation.setVarArgsOverride(Boolean.FALSE);
         }
         return expression;
@@ -55,7 +60,8 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
             return false;
         }
 
-        return shouldDisableVarArgsExpansion(invocation, parameters.getFirst());
+        return shouldDisableVarArgsExpansion(invocation, parameters.getFirst())
+                || shouldDisableSingleArrayVarArgs(invocation, parameters.getFirst());
     }
 
     private boolean shouldDisableVarArgsExpansion(ClassFileMethodInvocationExpression invocation, Expression parameter) {
@@ -110,5 +116,50 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
             }
         }
         return true;
+    }
+
+    private static boolean shouldDisableSingleArrayVarArgs(ClassFileMethodInvocationExpression invocation, Expression parameter) {
+        if (parameter == null || parameter.getType() == null || parameter.getType().getDimension() == 0) {
+            return false;
+        }
+
+        BaseType parameterTypes = invocation.getParameterTypes();
+        if (parameterTypes == null) {
+            return false;
+        }
+
+        Type declaredVarArgsType = parameterTypes.isList()
+                ? parameterTypes.getList().get(parameterTypes.size() - 1)
+                : parameterTypes.getFirst();
+        return sameRawArrayType(declaredVarArgsType, parameter.getType());
+    }
+
+    private static boolean sameRawArrayType(Type left, Type right) {
+        if (left == null || right == null || left.getDimension() == 0 || left.getDimension() != right.getDimension()) {
+            return false;
+        }
+        if (!left.isObjectType() || !right.isObjectType()) {
+            return left.equals(right);
+        }
+        return ((ObjectType) left).rawEquals((ObjectType) right);
+    }
+
+    private static void removeRedundantSingleArrayCast(ClassFileMethodInvocationExpression invocation) {
+        BaseExpression parameters = invocation.getParameters();
+        if (parameters == null || parameters.size() != 1) {
+            return;
+        }
+
+        Expression parameter = parameters.getFirst();
+        if (!(parameter instanceof CastExpression castExpression)
+                || !sameRawArrayType(castExpression.getType(), castExpression.getExpression().getType())) {
+            return;
+        }
+
+        if (parameters.isList()) {
+            parameters.getList().set(0, castExpression.getExpression());
+        } else {
+            invocation.setParameters(castExpression.getExpression());
+        }
     }
 }

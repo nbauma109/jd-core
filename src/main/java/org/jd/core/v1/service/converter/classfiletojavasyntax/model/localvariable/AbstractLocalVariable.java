@@ -19,6 +19,7 @@ public abstract class AbstractLocalVariable {
     private Frame frame;
     private AbstractLocalVariable next;
     private AbstractLocalVariable originalVariable;
+    private Type declaredType;
     private boolean declared;
     private boolean assigned;
     private final int index;
@@ -155,5 +156,13 @@ public abstract class AbstractLocalVariable {
 
     public void setOriginalVariable(AbstractLocalVariable originalVariable) {
         this.originalVariable = originalVariable;
+    }
+
+    public Type getDeclaredType() {
+        return declaredType;
+    }
+
+    public void setDeclaredType(Type declaredType) {
+        this.declaredType = declaredType;
     }
 }

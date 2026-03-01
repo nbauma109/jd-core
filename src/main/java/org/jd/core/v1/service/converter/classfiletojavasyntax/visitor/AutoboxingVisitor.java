@@ -8,6 +8,7 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
@@ -16,6 +17,7 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.HashMap;
@@ -61,6 +63,11 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
 
     private String currentInternalTypeName;
     private String currentMethodName;
+    private final TypeMaker typeMaker;
+
+    public AutoboxingVisitor(TypeMaker typeMaker) {
+        this.typeMaker = typeMaker;
+    }
 
     @Override
     public void visit(BodyDeclaration declaration) {
@@ -90,6 +97,13 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
 
     @Override
     protected Expression updateExpression(Expression expression) {
+        if (expression instanceof CastExpression castExpression
+                && castExpression.getType() != null
+                && castExpression.getType().isGenericType()
+                && isJavaLangMethodInvocation(castExpression.getExpression())
+                && isBoxingMethod(castExpression.getExpression())) {
+            return castExpression.getExpression();
+        }
         if (isJavaLangMethodInvocation(expression)) {
 
             if (expression.getExpression().isObjectTypeReferenceExpression()) {
@@ -152,29 +166,45 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         if (parameterTypes.isList() && expression.getParameters().isList()) {
             for (int i = 0; i < expression.getParameters().getList().size() && i < parameterTypes.getList().size(); i++) {
                 Type parameterType = parameterTypes.getList().get(i);
-                if (isSelfOverload && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
+                if ((isSelfOverload || shouldPreserveOverloadSensitiveBoxing(expression))
+                        && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
                     continue;
                 }
                 if (shouldUpdateParameter(parameterType)) {
                     expression.getParameters().getList().set(i, updateExpression(expression.getParameters().getList().get(i)));
                 }
             }
-        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
+        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst()))
+                && (!shouldPreserveOverloadSensitiveBoxing(expression) || !isBoxingOrUnboxing(expression.getParameters().getFirst()))
+                && shouldUpdateParameter(parameterTypes.getFirst())) {
             expression.setParameters(updateExpression(expression.getParameters().getFirst()));
         }
     }
 
+    private boolean shouldPreserveOverloadSensitiveBoxing(MethodInvocationExpression expression) {
+        return typeMaker != null
+                && expression.getParameters() != null
+                && typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), expression.getParameters().size(), false) > 1;
+    }
+
     private static boolean shouldUpdateParameter(Type parameterType) {
         if (parameterType == null) {
-            return true;
+            return false;
         }
         if (parameterType.isGenericType()) {
             return false;
         }
         if (parameterType.isObjectType()) {
-            return !ObjectType.TYPE_OBJECT.equals(parameterType);
+            return isPrimitiveWrapperParameterType((ObjectType) parameterType);
         }
         return true;
+    }
+
+    private static boolean isPrimitiveWrapperParameterType(ObjectType parameterType) {
+        if (parameterType == null) {
+            return false;
+        }
+        return VALUEOF_DESCRIPTOR_MAP.containsKey(parameterType.getInternalName());
     }
 
     private static boolean isBoxingOrUnboxing(Expression expression) {

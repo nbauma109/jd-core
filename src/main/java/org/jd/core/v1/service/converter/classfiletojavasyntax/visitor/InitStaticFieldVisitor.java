@@ -22,6 +22,7 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -40,6 +41,7 @@ import java.util.Map;
 public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final SearchLocalVariableReferenceVisitor searchLocalVariableReferenceVisitor = new SearchLocalVariableReferenceVisitor();
+    private final QualifyStaticFieldReferenceVisitor qualifyStaticFieldReferenceVisitor = new QualifyStaticFieldReferenceVisitor();
     private String internalTypeName;
     private final Map<String, FieldDeclarator> fields = new HashMap<>();
     private List<ClassFileConstructorOrMethodDeclaration> methods;
@@ -217,6 +219,8 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                         expression.accept(searchLocalVariableReferenceVisitor);
 
                         if (!searchLocalVariableReferenceVisitor.containsReference()) {
+                            qualifyStaticFieldReferenceVisitor.init(internalTypeName);
+                            expression.accept(qualifyStaticFieldReferenceVisitor);
                             fdr.setVariableInitializer(new ExpressionVariableInitializer(expression));
                             ((ClassFileFieldDeclaration)fdr.getFieldDeclaration()).setFirstLineNumber(expression.getLineNumber());
                             return true;
@@ -240,6 +244,24 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
 	        methods.add(new ClassFileStaticInitializerDeclaration(
 	            sid.getBodyDeclaration(), sid.getClassFile(), sid.getMethod(), sid.getBindings(),
 	            sid.getTypeBounds(), lineNumber, statements));
+        }
+    }
+
+    protected static class QualifyStaticFieldReferenceVisitor extends AbstractJavaSyntaxVisitor {
+        private String internalTypeName;
+
+        void init(String internalTypeName) {
+            this.internalTypeName = internalTypeName;
+        }
+
+        @Override
+        public void visit(FieldReferenceExpression expression) {
+            Expression target = expression.getExpression();
+            if (target instanceof ObjectTypeReferenceExpression objectTypeReferenceExpression
+                    && expression.getInternalTypeName().equals(internalTypeName)) {
+                objectTypeReferenceExpression.setExplicit(true);
+            }
+            safeAccept(target);
         }
     }
 }

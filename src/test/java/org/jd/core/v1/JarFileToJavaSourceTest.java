@@ -47,6 +47,13 @@ import jd.core.ClassUtil;
 public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     private static final Pattern MODULE_INFO_CLASS = Pattern.compile("META-INF/versions/(\\d+)/module-info\\.class");
+    private static final Pattern VERSIONED_CLASS = Pattern.compile("META-INF/versions/(\\d+)/(.*)\\.class");
+    static final String NESTED_TEST_JAVA_OPTIONS = String.join(" ",
+            "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+            "--add-opens", "java.base/java.util=ALL-UNNAMED",
+            "--add-opens", "java.base/java.time=ALL-UNNAMED",
+            "--add-opens", "java.base/java.time.chrono=ALL-UNNAMED");
 
     @Test
     public void testBCEL() throws Exception {
@@ -75,7 +82,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.12.0");
+        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.20.0");
     }
 
 //    @Test
@@ -106,7 +113,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJSoup() throws Exception {
-        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.16.2", false);
+        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.22.1");
     }
 
     @Test
@@ -260,28 +267,47 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     }
 
                     String source = printer.toString();
-                    StringBuilder jdkVersion = new StringBuilder();
                     Matcher m = MODULE_INFO_CLASS.matcher(path);
                     if (m.matches()) {
                         continue;
                     }
+                    Matcher versionedClassMatcher = VERSIONED_CLASS.matcher(path);
+                    int versionFromPath = -1;
+                    String compilationInternalTypeName = internalTypeName;
+                    if (versionedClassMatcher.matches()) {
+                        versionFromPath = Integer.parseInt(versionedClassMatcher.group(1));
+                        compilationInternalTypeName = versionedClassMatcher.group(2);
+                    }
+
+                    String jdkVersion;
+                    if (versionFromPath > 0) {
+                        jdkVersion = Integer.toString(versionFromPath);
+                    } else {
                     int majorVersion = ctx == null ? MAJOR_1_8 : ctx.getMajorVersion();
                     if (majorVersion >= MAJOR_1_1) {
                         if (majorVersion >= MAJOR_1_5) {
-                            jdkVersion.append(majorVersion - (MAJOR_1_5 - 5));
+                                jdkVersion = Integer.toString(majorVersion - (MAJOR_1_5 - 5));
                         } else {
-                            jdkVersion.append(majorVersion - (MAJOR_1_1 - 1));
+                                jdkVersion = Integer.toString(majorVersion - (MAJOR_1_1 - 1));
+                        }
+                    } else {
+                            jdkVersion = "1.8";
                         }
                     }
 
                     if (projectDir != null && runUnitTests) {
+                        if (versionFromPath > 0) {
+                            // Keep project-provided version-specific sources (src/main/java<N>) in repo test mode.
+                            continue;
+                        }
+                        String sourceRoot = projectDir.getPath() + "/src/main/java";
                         // Write source file to source directory src/main/java
-                        Path destinationPath = Paths.get(projectDir.getPath() + "/src/main/java/" + internalTypeName + ".java");
+                        Path destinationPath = Paths.get(sourceRoot + "/" + compilationInternalTypeName + ".java");
                         if (!Files.exists(destinationPath.getParent())) {
                         	destinationPath.getParent().toFile().mkdirs();
                         }
 						Files.writeString(destinationPath, source);
-                    } else if (!CompilerUtil.compile(jdkVersion.toString(), new InMemoryJavaSourceFileObject(internalTypeName, source))) {
+                    } else if (!CompilerUtil.compile(jdkVersion, new InMemoryJavaSourceFileObject(compilationInternalTypeName, source))) {
                         recompilationFailedCounter++;
                     }
                 }
@@ -294,18 +320,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
                 String mavenRepoLocal = Paths.get("target", "m2-local").toAbsolutePath().normalize().toString();
-                ProcessBuilder pbTest = new ProcessBuilder(
-                        mvnCommand,
-                        "--batch-mode",
-                        "test",
-                        "--no-transfer-progress",
-                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED",
-                        "-Danimal.sniffer.skip=true",
-                        "-Dmaven.repo.local=" + mavenRepoLocal
-                );
-                pbTest.environment().remove("JAVA_TOOL_OPTIONS");
-                pbTest.directory(projectDir);
-                pbTest.redirectErrorStream(true);
+                ProcessBuilder pbTest = newProjectTestProcessBuilder(mvnCommand, mavenRepoLocal, projectDir);
                 Process pTest = pbTest.start();
                 AtomicReference<IOException> outputForwardError = new AtomicReference<>();
                 Thread outputForwarder = new Thread(() -> forwardProcessOutput(pTest, outputForwardError), "maven-output-forwarder");
@@ -353,6 +368,33 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             assertEquals(0, assertFailedCounter);
             assertEquals(0, printer.errorInMethodCounter);
             assertEquals(0, recompilationFailedCounter);
+        }
+    }
+
+    static ProcessBuilder newProjectTestProcessBuilder(String mvnCommand, String mavenRepoLocal, File projectDir) {
+        ProcessBuilder pbTest = new ProcessBuilder(
+                mvnCommand,
+                "--batch-mode",
+                "test",
+                "--no-transfer-progress",
+                "-Danimal.sniffer.skip=true",
+                "-DargLine=" + NESTED_TEST_JAVA_OPTIONS,
+                "-Dmaven.repo.local=" + mavenRepoLocal
+        );
+        Map<String, String> environment = pbTest.environment();
+        environment.remove("JAVA_TOOL_OPTIONS");
+        environment.remove("JDK_JAVA_OPTIONS");
+        pbTest.directory(projectDir);
+        pbTest.redirectErrorStream(true);
+        return pbTest;
+    }
+
+    static void appendJvmOptions(Map<String, String> environment, String key, String options) {
+        String existing = environment.get(key);
+        if (existing == null || existing.isBlank()) {
+            environment.put(key, options);
+        } else if (!existing.contains(options)) {
+            environment.put(key, existing + " " + options);
         }
     }
 

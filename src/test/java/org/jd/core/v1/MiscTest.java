@@ -497,7 +497,8 @@ public class MiscTest extends AbstractJdTest {
         // Check decompiled source code
         assertTrue(source.matches(PatternMaker.make("return newInstanceOf(clazz);")));
         assertTrue(source.matches(PatternMaker.make("return newInstanceOf((Class<T>)Class.forName(className));")));
-        assertTrue(source.matches(PatternMaker.make("return clazz.getConstructor().newInstance();")));
+        assertTrue(source.matches(PatternMaker.make("return clazz.getConstructor().newInstance();"))
+                || source.matches(PatternMaker.make("return clazz.getConstructor(new Class<?>[0]).newInstance(new Object[0]);")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

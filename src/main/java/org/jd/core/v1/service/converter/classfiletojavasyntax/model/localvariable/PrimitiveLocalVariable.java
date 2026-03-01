@@ -32,11 +32,13 @@ public class PrimitiveLocalVariable extends AbstractLocalVariable {
     public PrimitiveLocalVariable(int index, int offset, PrimitiveType type, String name) {
         super(index, offset, name);
         this.flags = type.getFlags();
+        setDeclaredType(type);
     }
 
     public PrimitiveLocalVariable(int index, int offset, PrimitiveLocalVariable primitiveLocalVariable) {
         super(index, offset, primitiveLocalVariable.getName());
         int valueFlags = primitiveLocalVariable.flags;
+        setDeclaredType(primitiveLocalVariable.getDeclaredType() != null ? primitiveLocalVariable.getDeclaredType() : primitiveLocalVariable.getType());
 
         if ((valueFlags & FLAG_INT) != 0) {
             this.flags = valueFlags;

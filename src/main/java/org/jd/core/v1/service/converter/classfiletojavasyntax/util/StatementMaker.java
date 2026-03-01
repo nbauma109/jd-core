@@ -9,8 +9,10 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
-import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -21,6 +23,7 @@ import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpressi
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
@@ -30,14 +33,17 @@ import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.CommentStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
+import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
+import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
@@ -71,9 +77,11 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.apache.bcel.Const.ASTORE;
 import static org.apache.bcel.Const.MAJOR_1_7;
@@ -154,6 +162,8 @@ public class StatementMaker {
     private final UpdateIntegerConstantTypeVisitor updateIntegerConstantTypeVisitor;
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final MemberVisitor memberVisitor = new MemberVisitor();
+    private final Deque<Integer> loopBreakOffsets = new ArrayDeque<>();
+    private int switchDepth;
     private boolean removeFinallyStatementsFlag;
     private boolean mergeTryWithResourcesStatementFlag;
 
@@ -191,6 +201,10 @@ public class StatementMaker {
         if (mergeTryWithResourcesStatementFlag) {
             statements.accept(MERGE_TRY_WITH_RESOURCES_STATEMENT_VISITOR);
         }
+
+        // Fix synthetic "break ...; throw e;" patterns generated from timeout retry loops.
+        rewriteInvalidRethrowPatterns(statements);
+        rewriteOverflowDoWhilePattern(statements);
 
         // Replace pattern "synthetic_local_var = ...; return synthetic_local_var;" with "return ...;"
         statements.accept(removeBinaryOpReturnStatementsVisitor);
@@ -277,7 +291,13 @@ public class StatementMaker {
                 parseSwitch(watchdog, basicBlock, statements, jumps);
                 break;
             case TYPE_SWITCH_BREAK, TYPE_LOOP_END:
-                statements.add(BreakStatement.BREAK);
+                if (basicBlock.getType() == TYPE_LOOP_END && switchDepth > 0 && !loopBreakOffsets.isEmpty()) {
+                    Statement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), loopBreakOffsets.peek());
+                    statements.add(jump);
+                    jumps.add(jump);
+                } else {
+                    statements.add(BreakStatement.BREAK);
+                }
                 break;
             case TYPE_TRY:
                 parseTry(watchdog, basicBlock, statements, jumps, false, false);
@@ -506,37 +526,48 @@ public class StatementMaker {
         if (ByteCodeUtil.isSwitchExpressionJoin(join)) {
             List<ParsedRuleGroup> parsedGroups = new ArrayList<>();
             boolean matches = true;
+            int savedJoinType = join.getType();
+            join.setType(TYPE_END);
 
-            for (int i = 0, len = switchCases.size(); i < len; i++) {
-                BasicBlock.SwitchCase first = switchCases.get(i);
-                BasicBlock target = first.getBasicBlock();
-                int j = i + 1;
+            try {
+                for (int i = 0, len = switchCases.size(); i < len; i++) {
+                    BasicBlock.SwitchCase first = switchCases.get(i);
+                    BasicBlock target = first.getBasicBlock();
+                    int j = i + 1;
 
-                while (j < len && target == switchCases.get(j).getBasicBlock()) {
-                    j++;
+                    while (j < len && target == switchCases.get(j).getBasicBlock()) {
+                        j++;
+                    }
+
+                    Statements subStatements = new Statements();
+
+                    stack.copy(entryStack);
+                    switchDepth++;
+                    try {
+                        makeStatements(watchdog, target, subStatements, jumps);
+                    } finally {
+                        switchDepth--;
+                    }
+                    replacePreOperatorWithPostOperator(subStatements);
+
+                    Expression ruleResult = null;
+
+                    if (stack.size() == 1) {
+                        ruleResult = stack.pop();
+                    } else if (stack.size() != 0) {
+                        matches = false;
+                    }
+
+                    parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
+
+                    if (!matches) {
+                        break;
+                    }
+
+                    i = j - 1;
                 }
-
-                Statements subStatements = new Statements();
-
-                stack.copy(entryStack);
-                makeStatements(watchdog, target, subStatements, jumps);
-                replacePreOperatorWithPostOperator(subStatements);
-
-                Expression ruleResult = null;
-
-                if (stack.size() == 1) {
-                    ruleResult = stack.pop();
-                } else if (stack.size() != 0) {
-                    matches = false;
-                }
-
-                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
-
-                if (!matches) {
-                    break;
-                }
-
-                i = j - 1;
+            } finally {
+                join.setType(savedJoinType);
             }
 
             if (matches) {
@@ -555,42 +586,59 @@ public class StatementMaker {
         }
 
         List<SwitchStatement.Block> blocks = switchStatement.getBlocks();
+        int savedJoinType = join.getType();
+        join.setType(TYPE_END);
 
-        for (int i = 0, len = switchCases.size(); i < len; i++) {
-            BasicBlock.SwitchCase sc = switchCases.get(i);
-            BasicBlock bb = sc.getBasicBlock();
-            int j = i + 1;
+        try {
+            for (int i = 0, len = switchCases.size(); i < len; i++) {
+                BasicBlock.SwitchCase sc = switchCases.get(i);
+                BasicBlock bb = sc.getBasicBlock();
+                int j = i + 1;
 
-            while (j < len && bb == switchCases.get(j).getBasicBlock()) {
-                j++;
-            }
-
-            Statements subStatements = new Statements();
-
-            stack.copy(entryStack);
-            makeStatements(watchdog, bb, subStatements, jumps);
-            replacePreOperatorWithPostOperator(subStatements);
-
-            if (sc.isDefaultCase()) {
-                blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements));
-            } else if (j == i + 1) {
-                SwitchStatement.Label label =
-                        new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
-                blocks.add(new SwitchStatement.LabelBlock(label, subStatements));
-            } else {
-                DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
-
-                for (; i < j; i++) {
-                    labels.add(new SwitchStatement.ExpressionLabel(
-                            new IntegerConstantExpression(selectorType, switchCases.get(i).getValue())
-                    ));
+                while (j < len && bb == switchCases.get(j).getBasicBlock()) {
+                    j++;
                 }
 
-                blocks.add(new SwitchStatement.MultiLabelsBlock(labels, subStatements));
-                i--;
-            }
+                Statements subStatements = new Statements();
+                BasicBlock nextCaseBasicBlock = (j < len) ? switchCases.get(j).getBasicBlock() : null;
 
-            i = j - 1;
+                stack.copy(entryStack);
+                switchDepth++;
+                try {
+                    makeStatements(watchdog, bb, subStatements, jumps);
+                } finally {
+                    switchDepth--;
+                }
+                replacePreOperatorWithPostOperator(subStatements);
+
+                if (needsSyntheticSwitchBreak(bb, nextCaseBasicBlock, join)
+                        && (subStatements.isEmpty() || !isTerminalSwitchCaseStatement(subStatements.getLast()))) {
+                    subStatements.add(BreakStatement.BREAK);
+                }
+
+                if (sc.isDefaultCase()) {
+                    blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements));
+                } else if (j == i + 1) {
+                    SwitchStatement.Label label =
+                            new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
+                    blocks.add(new SwitchStatement.LabelBlock(label, subStatements));
+                } else {
+                    DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
+
+                    for (; i < j; i++) {
+                        labels.add(new SwitchStatement.ExpressionLabel(
+                                new IntegerConstantExpression(selectorType, switchCases.get(i).getValue())
+                        ));
+                    }
+
+                    blocks.add(new SwitchStatement.MultiLabelsBlock(labels, subStatements));
+                    i--;
+                }
+
+                i = j - 1;
+            }
+        } finally {
+            join.setType(savedJoinType);
         }
 
         int size = statements.size();
@@ -602,6 +650,131 @@ public class StatementMaker {
         }
 
         makeStatements(watchdog, join, statements, jumps);
+    }
+
+    private static boolean needsSyntheticSwitchBreak(BasicBlock caseBasicBlock, BasicBlock nextCaseBasicBlock, BasicBlock join) {
+        if (caseBasicBlock == null || caseBasicBlock.matchType(GROUP_END)) {
+            return false;
+        }
+
+        if (caseBasicBlock.getNext().matchType(TYPE_SWITCH_BREAK)) {
+            return true;
+        }
+
+        return nextCaseBasicBlock != null
+                && canReachInsideSwitch(caseBasicBlock, join)
+                && !canReachInsideSwitch(caseBasicBlock, nextCaseBasicBlock, join);
+    }
+
+    private static boolean canReachInsideSwitch(BasicBlock start, BasicBlock target) {
+        return canReachInsideSwitch(start, target, null);
+    }
+
+    private static boolean canReachInsideSwitch(BasicBlock start, BasicBlock target, BasicBlock stop) {
+        if (start == null || target == null || start == END || start == stop) {
+            return false;
+        }
+
+        Deque<BasicBlock> queue = new ArrayDeque<>();
+        Set<BasicBlock> seen = new HashSet<>();
+        queue.addLast(start);
+
+        while (!queue.isEmpty()) {
+            BasicBlock current = queue.removeFirst();
+
+            if (current == target) {
+                return true;
+            }
+
+            if (current == null || current == END || current == stop || !seen.add(current)) {
+                continue;
+            }
+
+            enqueueSwitchReachabilitySuccessor(queue, current.getNext(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getBranch(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getCondition(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getSub1(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getSub2(), stop);
+
+            for (SwitchCase switchCase : current.getSwitchCases()) {
+                enqueueSwitchReachabilitySuccessor(queue, switchCase.getBasicBlock(), stop);
+            }
+
+            for (ExceptionHandler exceptionHandler : current.getExceptionHandlers()) {
+                enqueueSwitchReachabilitySuccessor(queue, exceptionHandler.getBasicBlock(), stop);
+            }
+        }
+
+        return false;
+    }
+
+    private static void enqueueSwitchReachabilitySuccessor(Deque<BasicBlock> queue, BasicBlock successor, BasicBlock stop) {
+        if (successor != null && successor != END && successor != stop) {
+            queue.addLast(successor);
+        }
+    }
+
+    private static boolean isTerminalSwitchCaseStatement(Statement statement) {
+        if (statement == null) {
+            return false;
+        }
+
+        return statement.isBreakStatement()
+                || statement.isContinueStatement()
+                || statement.isReturnStatement()
+                || statement.isReturnExpressionStatement()
+                || statement.isThrowStatement()
+                || isTerminalStructuredSwitchCaseStatement(statement)
+                || (statement instanceof ClassFileBreakContinueStatement);
+    }
+
+    private static boolean isTerminalStructuredSwitchCaseStatement(BaseStatement statement) {
+        if (statement == null) {
+            return false;
+        }
+
+        if (statement.isStatements()) {
+            return isTerminalStatements((Statements) statement);
+        }
+
+        if (statement.isIfElseStatement()) {
+            return isTerminalIfElse(statement);
+        }
+
+        if (statement.isTryStatement()) {
+            return isTerminalTry(statement);
+        }
+
+        return false;
+    }
+
+    private static boolean isTerminalStatements(Statements statements) {
+        return !statements.isEmpty() && isTerminalSwitchCaseStatement(statements.getLast());
+    }
+
+    private static boolean isTerminalIfElse(BaseStatement statement) {
+        return isTerminalStructuredSwitchCaseStatement(statement.getStatements())
+                && isTerminalStructuredSwitchCaseStatement(statement.getElseStatements());
+    }
+
+    private static boolean isTerminalTry(BaseStatement statement) {
+        BaseStatement finallyStatements = statement.getFinallyStatements();
+
+        if (!Utils.isEmpty(finallyStatements) && isTerminalStructuredSwitchCaseStatement(finallyStatements)) {
+            return true;
+        }
+
+        if (!isTerminalStructuredSwitchCaseStatement(statement.getTryStatements())) {
+            return false;
+        }
+
+        for (TryStatement.CatchClause catchClause : statement.getCatchClauses()) {
+            if (!isTerminalStructuredSwitchCaseStatement(catchClause.getStatements())) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {
@@ -911,7 +1084,7 @@ public class StatementMaker {
                 makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
                 statements.add(LoopStatementMaker.makeLoop(
                     majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
-                    makeSubStatements(watchdog, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
+                    makeLoopSubStatements(watchdog, basicBlock, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
                 makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
                 return;
             }
@@ -932,7 +1105,7 @@ public class StatementMaker {
                     makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
                     statements.add(LoopStatementMaker.makeLoop(
                         majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
-                        makeSubStatements(watchdog, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
+                        makeLoopSubStatements(watchdog, basicBlock, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
                 }
 
                 makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
@@ -957,7 +1130,7 @@ public class StatementMaker {
 
             if (sub1.getType() == TYPE_LOOP && sub1.getNext() == last && countStartLoop(sub1.getSub1()) == 0) {
                 changeEndLoopToStartLoop(new BitSet(), sub1.getSub1());
-                subStatements = makeSubStatements(watchdog, sub1.getSub1(), statements, jumps, updateBasicBlock);
+                subStatements = makeLoopSubStatements(watchdog, basicBlock, sub1.getSub1(), statements, jumps, updateBasicBlock);
 
                 if (subStatements.getLast() != ContinueStatement.CONTINUE) {
                     throw new IllegalStateException("StatementMaker.parseLoop(...) : unexpected basic block for create a do-while loop");
@@ -966,7 +1139,7 @@ public class StatementMaker {
                 subStatements.removeLast();
             } else {
                 createDoWhileContinue(last);
-                subStatements = makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock);
+                subStatements = makeLoopSubStatements(watchdog, basicBlock, sub1, statements, jumps, updateBasicBlock);
             }
 
             makeStatements(watchdog, last.getCondition(), subStatements, jumps);
@@ -974,7 +1147,7 @@ public class StatementMaker {
         } else {
             // Infinite loop
             statements.add(LoopStatementMaker.makeLoop(
-                localVariableMaker, basicBlock, statements, makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock), jumps));
+                localVariableMaker, basicBlock, statements, makeLoopSubStatements(watchdog, basicBlock, sub1, statements, jumps, updateBasicBlock), jumps));
         }
 
         makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
@@ -1266,6 +1439,341 @@ public class StatementMaker {
                 }
             }
         }
+    }
+
+    private Statements makeLoopSubStatements(
+            WatchDog watchdog,
+            BasicBlock loopBasicBlock,
+            BasicBlock bodyBasicBlock,
+            Statements statements,
+            Statements jumps,
+            BasicBlock updateBasicBlock) {
+        int breakOffset = loopBasicBlock.getNext().getFromOffset();
+        if (breakOffset <= 0) {
+            breakOffset = loopBasicBlock.getToOffset();
+        }
+
+        loopBreakOffsets.push(breakOffset);
+        try {
+            return makeSubStatements(watchdog, bodyBasicBlock, statements, jumps, updateBasicBlock);
+        } finally {
+            loopBreakOffsets.pop();
+        }
+    }
+
+    protected void rewriteInvalidRethrowPatterns(Statements statements) {
+        for (int i = 0; i < statements.size(); i++) {
+            rewriteInvalidRethrowPatternAt(statements, i);
+        }
+    }
+
+    private static void rewriteInvalidRethrowPatternAt(Statements statements, int loopIndex) {
+        Statement current = statements.get(loopIndex);
+
+        if (!(current instanceof WhileStatement whileStatement)) {
+            return;
+        }
+
+        int trailingThrowIndex = findFirstTrailingThrowStatementIndex(statements, loopIndex + 1);
+        if (trailingThrowIndex == -1) {
+            return;
+        }
+
+        ThrowStatement trailingThrowStatement = (ThrowStatement)statements.get(trailingThrowIndex);
+        ClassFileLocalVariableReferenceExpression rethrowExpression =
+                findRethrowLocalVariableReference(trailingThrowStatement.getExpression());
+
+        if (rethrowExpression == null) {
+            return;
+        }
+
+        Statements statementsBetweenLoopAndThrow = copyStatementsRange(statements, loopIndex + 1, trailingThrowIndex);
+
+        if (rewriteLoopCatchBreakToThrow(
+                whileStatement,
+                rethrowExpression,
+                trailingThrowStatement,
+                statementsBetweenLoopAndThrow)) {
+            removeStatementRange(statements, loopIndex + 1, trailingThrowIndex);
+        }
+    }
+
+    private static int findFirstTrailingThrowStatementIndex(Statements statements, int startIndex) {
+        for (int i = startIndex; i < statements.size(); i++) {
+            if (statements.get(i).isThrowStatement()) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static Statements copyStatementsRange(Statements statements, int fromIndex, int toIndexExclusive) {
+        Statements copiedStatements = new Statements();
+
+        for (int i = fromIndex; i < toIndexExclusive; i++) {
+            copiedStatements.add(statements.get(i));
+        }
+
+        return copiedStatements;
+    }
+
+    private static void removeStatementRange(Statements statements, int fromIndex, int toIndexInclusive) {
+        for (int i = toIndexInclusive; i >= fromIndex; i--) {
+            statements.remove(i);
+        }
+    }
+
+    private static ClassFileLocalVariableReferenceExpression findRethrowLocalVariableReference(Expression expression) {
+        if (expression == null || expression == NO_EXPRESSION) {
+            return null;
+        }
+
+        if (expression instanceof ClassFileLocalVariableReferenceExpression classFileLocalVariableReferenceExpression) {
+            return classFileLocalVariableReferenceExpression;
+        }
+
+        ClassFileLocalVariableReferenceExpression nestedReference = findRethrowLocalVariableReference(
+                expression.getExpression(),
+                expression.getLeftExpression(),
+                expression.getRightExpression(),
+                expression.getCondition(),
+                expression.getTrueExpression(),
+                expression.getFalseExpression(),
+                expression.getIndex());
+
+        return (nestedReference != null)
+                ? nestedReference
+                : findRethrowLocalVariableReference(expression.getParameters());
+    }
+
+    private static boolean rewriteLoopCatchBreakToThrow(
+            WhileStatement whileStatement,
+            ClassFileLocalVariableReferenceExpression rethrowExpression,
+            ThrowStatement trailingThrowStatement,
+            Statements statementsBetweenLoopAndThrow) {
+        if (!(whileStatement.getStatements() instanceof Statements loopStatements)) {
+            return false;
+        }
+
+        for (Statement loopStatement : loopStatements) {
+            if (loopStatement instanceof TryStatement tryStatement
+                    && rewriteTryCatchBreakToThrow(
+                    tryStatement,
+                    rethrowExpression,
+                    trailingThrowStatement,
+                    statementsBetweenLoopAndThrow)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static ClassFileLocalVariableReferenceExpression findRethrowLocalVariableReference(Expression... expressions) {
+        for (Expression nestedExpression : expressions) {
+            ClassFileLocalVariableReferenceExpression nestedReference =
+                    findRethrowLocalVariableReference(nestedExpression);
+
+            if (nestedReference != null) {
+                return nestedReference;
+            }
+        }
+
+        return null;
+    }
+
+    private static ClassFileLocalVariableReferenceExpression findRethrowLocalVariableReference(BaseExpression parameters) {
+        if (parameters instanceof Expression parameterExpression) {
+            return findRethrowLocalVariableReference(parameterExpression);
+        }
+        if (parameters instanceof DefaultList<?> parameterList) {
+            for (Object parameter : parameterList) {
+                if (parameter instanceof Expression parameterExpression) {
+                    ClassFileLocalVariableReferenceExpression parameterReference =
+                            findRethrowLocalVariableReference(parameterExpression);
+
+                    if (parameterReference != null) {
+                        return parameterReference;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean rewriteTryCatchBreakToThrow(
+            TryStatement tryStatement,
+            ClassFileLocalVariableReferenceExpression rethrowExpression,
+            ThrowStatement trailingThrowStatement,
+            Statements statementsBetweenLoopAndThrow) {
+        List<TryStatement.CatchClause> catchClauses = tryStatement.getCatchClauses();
+        if (Utils.isEmptyCollection(catchClauses)) {
+            return false;
+        }
+
+        for (TryStatement.CatchClause catchClause : catchClauses) {
+            Statements catchStatements = findMatchingCatchStatements(catchClause, rethrowExpression);
+
+            if (catchStatements != null
+                    && rewriteCatchBreakToThrow(catchStatements, statementsBetweenLoopAndThrow, trailingThrowStatement)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static Statements findMatchingCatchStatements(
+            TryStatement.CatchClause catchClause,
+            ClassFileLocalVariableReferenceExpression rethrowExpression) {
+        if (!(catchClause instanceof ClassFileTryStatement.CatchClause classFileCatch)
+                || classFileCatch.getLocalVariable() != rethrowExpression.getLocalVariable()
+                || !(catchClause.getStatements() instanceof Statements catchStatements)
+                || catchStatements.isEmpty()) {
+            return null;
+        }
+
+        return catchStatements;
+    }
+
+    private static boolean rewriteCatchBreakToThrow(
+            Statements catchStatements,
+            Statements statementsBetweenLoopAndThrow,
+            ThrowStatement trailingThrowStatement) {
+        Statement lastCatchStatement = catchStatements.getLast();
+
+        if (lastCatchStatement.isBreakStatement()) {
+            catchStatements.remove(catchStatements.size() - 1);
+            appendStatements(catchStatements, statementsBetweenLoopAndThrow);
+            catchStatements.add(trailingThrowStatement);
+            return true;
+        }
+
+        return rewriteConditionalCatchBreakToThrow(
+                lastCatchStatement,
+                statementsBetweenLoopAndThrow,
+                trailingThrowStatement);
+    }
+
+    private static boolean rewriteConditionalCatchBreakToThrow(
+            Statement lastCatchStatement,
+            Statements statementsBetweenLoopAndThrow,
+            ThrowStatement trailingThrowStatement) {
+        if (!(lastCatchStatement instanceof IfStatement ifStatement)
+                || !(ifStatement.getStatements() instanceof Statements ifStatements)
+                || ifStatements.size() != 1
+                || !ifStatements.getFirst().isBreakStatement()) {
+            return false;
+        }
+
+        ifStatements.remove(0);
+        appendStatements(ifStatements, statementsBetweenLoopAndThrow);
+        ifStatements.add(trailingThrowStatement);
+        return true;
+    }
+
+    private static void appendStatements(Statements target, Statements extra) {
+        if (extra == null || extra.isEmpty()) {
+            return;
+        }
+        target.addAll(extra);
+    }
+
+    protected void rewriteOverflowDoWhilePattern(Statements statements) {
+        for (int i = 0; i + 2 < statements.size(); i++) {
+            rewriteOverflowDoWhilePatternAt(statements, i);
+        }
+    }
+
+    private static void rewriteOverflowDoWhilePatternAt(Statements statements, int index) {
+        Statement current = statements.get(index);
+
+        if (!(current instanceof DoWhileStatement doWhileStatement)
+                || !(doWhileStatement.getStatements() instanceof Statements loopStatements)
+                || !(statements.get(index + 1) instanceof IfStatement underflowIf)
+                || !statements.get(index + 2).isReturnExpressionStatement()) {
+            return;
+        }
+
+        Expression overflowCondition = doWhileStatement.getCondition();
+        if (!isOverflowUnderflowPair(overflowCondition, underflowIf.getCondition())) {
+            return;
+        }
+
+        rewriteFirstLoopAssignmentAsDeclaration(loopStatements);
+
+        Statements exitStatements = new Statements();
+        exitStatements.add(underflowIf);
+        exitStatements.add(statements.get(index + 2));
+
+        Statements rewrittenLoopStatements = new Statements();
+        rewrittenLoopStatements.addAll(loopStatements);
+        rewrittenLoopStatements.add(new IfStatement(
+                new PreOperatorExpression(overflowCondition.getLineNumber(), "!", overflowCondition),
+                exitStatements));
+
+        statements.set(index, new WhileStatement(BooleanExpression.TRUE, rewrittenLoopStatements));
+        statements.remove(index + 2);
+        statements.remove(index + 1);
+    }
+
+    private static boolean isOverflowUnderflowPair(Expression overflowCondition, Expression underflowCondition) {
+        if (!(overflowCondition instanceof MethodInvocationExpression overflowInvocation)
+                || !(underflowCondition instanceof PreOperatorExpression preOperatorExpression)
+                || !"!".equals(preOperatorExpression.getOperator())
+                || !(preOperatorExpression.getExpression() instanceof MethodInvocationExpression underflowInvocation)) {
+            return false;
+        }
+
+        return hasSameMethodInvocationReceiver(
+                overflowInvocation.getExpression(),
+                underflowInvocation.getExpression());
+    }
+
+    private static boolean hasSameMethodInvocationReceiver(Expression first, Expression second) {
+        if (first == second) {
+            return true;
+        }
+
+        if (first instanceof ClassFileLocalVariableReferenceExpression left
+                && second instanceof ClassFileLocalVariableReferenceExpression right) {
+            return left.getLocalVariable() == right.getLocalVariable();
+        }
+
+        if (first instanceof LocalVariableReferenceExpression left
+                && second instanceof LocalVariableReferenceExpression right) {
+            return left.getName().equals(right.getName());
+        }
+
+        return false;
+    }
+
+    private static void rewriteFirstLoopAssignmentAsDeclaration(Statements loopStatements) {
+        if (loopStatements.isEmpty() || !loopStatements.getFirst().isExpressionStatement()) {
+            return;
+        }
+
+        Expression firstExpression = loopStatements.getFirst().getExpression();
+        if (!firstExpression.isBinaryOperatorExpression()
+                || !"=".equals(firstExpression.getOperator())
+                || !(firstExpression.getLeftExpression() instanceof LocalVariableReferenceExpression localVariableReference)) {
+            return;
+        }
+
+        LocalVariableDeclarator localVariableDeclarator = new LocalVariableDeclarator(
+                firstExpression.getLineNumber(),
+                localVariableReference.getName(),
+                new ExpressionVariableInitializer(firstExpression.getRightExpression()));
+        LocalVariableDeclarationStatement declarationStatement =
+                new LocalVariableDeclarationStatement(firstExpression.getLeftExpression().getType(), localVariableDeclarator);
+
+        if (firstExpression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression classFileLocalVariableReferenceExpression) {
+            classFileLocalVariableReferenceExpression.getLocalVariable().setDeclared(true);
+        }
+
+        loopStatements.set(0, declarationStatement);
     }
 
     protected void updateJumpStatements(Statements jumps, ControlFlowGraph cfg) {

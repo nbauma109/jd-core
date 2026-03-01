@@ -24,6 +24,7 @@ public class GenericLocalVariable extends AbstractLocalVariable {
     public GenericLocalVariable(int index, int offset, GenericType type, String name) {
         super(index, offset, name);
         this.type = type;
+        setDeclaredType(type);
     }
 
     @Override

@@ -24,6 +24,7 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
         super(index, offset, name);
         this.typeMaker = typeMaker;
         this.type = type;
+        setDeclaredType(type);
     }
 
     public ObjectLocalVariable(TypeMaker typeMaker, int index, int offset, Type type, String name, boolean declared) {
@@ -35,18 +36,49 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
         super(index, offset, null);
         this.typeMaker = typeMaker;
         this.type = objectLocalVariable.type;
+        setDeclaredType(objectLocalVariable.getDeclaredType() != null ? objectLocalVariable.getDeclaredType() : objectLocalVariable.type);
     }
 
     @Override
     public Type getType() {
+        if (type instanceof ObjectType currentObjectType
+                && getDeclaredType() instanceof ObjectType declaredObjectType
+                && currentObjectType.rawEquals(declaredObjectType)
+                && currentObjectType.getTypeArguments() == null
+                && declaredObjectType.getTypeArguments() != null) {
+            return declaredObjectType;
+        }
         return type;
     }
 
     public void setType(Map<String, BaseType> typeBounds, Type type) {
         if (!this.type.equals(type)) {
+            rememberOriginalType(type);
             this.type = type;
             fireChangeEvent(typeBounds);
         }
+    }
+
+    private void rememberOriginalType(Type newType) {
+        if (getOriginalVariable() != null
+                || this.type == TYPE_UNDEFINED_OBJECT
+                || newType == TYPE_UNDEFINED_OBJECT
+                || !this.type.isObjectType()
+                || !newType.isObjectType()) {
+            return;
+        }
+
+        ObjectType currentObjectType = (ObjectType) this.type;
+        ObjectType newObjectType = (ObjectType) newType;
+        if (currentObjectType.rawEquals(newObjectType)) {
+            return;
+        }
+
+        AbstractLocalVariable originalVariable =
+                new ObjectLocalVariable(typeMaker, getIndex(), getFromOffset(), this.type, getName(), isDeclared());
+        originalVariable.setAssigned(isAssigned());
+        originalVariable.setOldName(getOldName());
+        setOriginalVariable(originalVariable);
     }
 
     @Override

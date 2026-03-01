@@ -68,6 +68,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
@@ -888,6 +889,15 @@ public class ByteCodeParser {
                         // Keep it even if generic raw-assignability heuristics claim it is assignable.
                         boolean castFromRawObjectToConcreteType = TYPE_OBJECT.rawEquals(expressionObjectType) && !TYPE_OBJECT.rawEquals(castObjectType);
                         skipCast = !castFromRawObjectToConcreteType && typeMaker.isRawTypeAssignable(castObjectType, expressionObjectType);
+                        if (skipCast
+                                && expression1 instanceof ClassFileLocalVariableReferenceExpression localVariableReferenceExpression
+                                && resolveSourceObjectType(localVariableReferenceExpression.getLocalVariable()) instanceof ObjectType sourceObjectType
+                                && !typeMaker.isAssignable(
+                                typeBounds,
+                                castObjectType,
+                                sourceObjectType)) {
+                            skipCast = false;
+                        }
                     }
                     if (!type1.isObjectType() || !expression1.getType().isObjectType() || !skipCast) {
                         if (expression1.isCastExpression()) {
@@ -909,6 +919,13 @@ public class ByteCodeParser {
                                             && typeMaker.isRawTypeAssignable(ot1, ot2)) {
                                         castNeeded = false;
                                     }
+                                }
+                                if (castNeeded
+                                        && expression1.getType() instanceof GenericType genericType
+                                        && type1 instanceof ObjectType castObjectType
+                                        && typeBounds.get(genericType.getName()) instanceof ObjectType boundObjectType
+                                        && castObjectType.rawEquals(boundObjectType)) {
+                                    castNeeded = false;
                                 }
                             }
                             if (castNeeded) {
@@ -1323,9 +1340,7 @@ public class ByteCodeParser {
          && valueRef.getLeftExpression().isFieldReferenceExpression()) {
             FieldReferenceExpression boefr = (FieldReferenceExpression)valueRef.getLeftExpression();
 
-            if (boefr.getName().equals(fr.getName())
-             && boefr.getExpression().getType().equals(fr.getExpression().getType())
-             && boefr.getExpression().getIndex().getIntegerValue() == fr.getExpression().getIndex().getIntegerValue()) {
+            if (sameFieldReference(boefr, fr)) {
                 BinaryOperatorExpression boe = (BinaryOperatorExpression)valueRef;
                 Expression expression;
 
@@ -1491,7 +1506,7 @@ public class ByteCodeParser {
                         lambdaStatements.accept(renameLocalVariablesVisitor);
                     }
                     stack.push(new LambdaIdentifiersExpression(
-                            lineNumber, indyMethodTypes.getReturnedType(), indyMethodTypes.getReturnedType(),
+                            lineNumber, indyMethodTypes.getReturnedType(), cfmd.getReturnedType(),
                             lambdaParameterNames,
                             lambdaStatements));
                     return;
@@ -1741,10 +1756,40 @@ public class ByteCodeParser {
             Expression expression = stack.peek();
 
             if (expression.isFieldReferenceExpression()) {
-                return expression.getName().equals(fr.getName()) && expression.getExpression().getType().equals(fr.getExpression().getType());
+                return sameFieldReference((FieldReferenceExpression)expression, fr);
             }
         }
 
+        return false;
+    }
+
+    private static boolean sameFieldReference(FieldReferenceExpression first, FieldReferenceExpression second) {
+        return first.getName().equals(second.getName())
+                && first.getDescriptor().equals(second.getDescriptor())
+                && sameFieldOwnerExpression(first.getExpression(), second.getExpression());
+    }
+
+    private static boolean sameFieldOwnerExpression(Expression first, Expression second) {
+        if (first == second) {
+            return true;
+        }
+        if (first == null || second == null || first.getClass() != second.getClass()) {
+            return false;
+        }
+        if (first.isLocalVariableReferenceExpression()) {
+            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression)first;
+            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression)second;
+            return lvr1.getLocalVariable() == lvr2.getLocalVariable();
+        }
+        if (first.isThisExpression() || first.isSuperExpression()) {
+            return first.getType().equals(second.getType());
+        }
+        if (first.isObjectTypeReferenceExpression()) {
+            return first.getObjectType().equals(second.getObjectType());
+        }
+        if (first.isFieldReferenceExpression()) {
+            return sameFieldReference((FieldReferenceExpression)first, (FieldReferenceExpression)second);
+        }
         return false;
     }
 
@@ -2604,5 +2649,12 @@ public class ByteCodeParser {
         }
 
         return expression;
+    }
+
+    private static Type resolveSourceObjectType(AbstractLocalVariable localVariable) {
+        if (localVariable.getOriginalVariable() != null) {
+            return localVariable.getOriginalVariable().getType();
+        }
+        return localVariable.getDeclaredType();
     }
 }

@@ -18,6 +18,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.CmpDepthC
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.MinDepthCFGReducer;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -690,113 +691,246 @@ public abstract class ControlFlowGraphReducer {
     }
 
     private boolean reduceSwitchDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
-        SwitchCase defaultSC = null;
-        int maxOffset = -1;
-
-        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-            if (maxOffset < switchCase.getOffset()) {
-                maxOffset = switchCase.getOffset();
-            }
-
-            if (switchCase.isDefaultCase()) {
-                defaultSC = switchCase;
-            }
-        }
-
-        BasicBlock lastSwitchCaseBasicBlock = null;
-        BitSet v = new BitSet();
+        int maxOffset = findMaxSwitchCaseOffset(basicBlock);
+        SwitchCase defaultSC = findDefaultSwitchCase(basicBlock);
+        BitSet switchCaseVisits = new BitSet();
         Set<BasicBlock> ends = new HashSet<>();
+        BasicBlock lastSwitchCaseBasicBlock = collectSwitchCaseEnds(basicBlock, maxOffset, switchCaseVisits, ends);
+        BasicBlock end = resolveSwitchDeclarationEnd(lastSwitchCaseBasicBlock, switchCaseVisits, ends);
 
-        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-            BasicBlock bb = switchCase.getBasicBlock();
+        end = adjustSwitchEndForDefaultReturnCase(basicBlock, defaultSC, end);
 
-            if (switchCase.getOffset() == maxOffset) {
-                lastSwitchCaseBasicBlock = bb;
-            } else {
-                visit(v, bb, maxOffset, ends);
-            }
-        }
+        Set<BasicBlock> endPredecessors = rewriteSwitchEndPredecessors(switchCaseVisits, basicBlock, end);
+        retargetSwitchCases(basicBlock, defaultSC, end);
 
-        BasicBlock end = END;
+        boolean reduced = reduceSwitchCaseBlocks(visited, basicBlock, jsrTargets);
+        detachSharedSwitchCasePredecessors(basicBlock, end);
 
-        for (BasicBlock bb : ends) {
-            if (end == END || end.getFromOffset() < bb.getFromOffset()) {
-                end = bb;
-            }
-        }
-
-        if (end == END) {
-            end = lastSwitchCaseBasicBlock;
-        } else {
-            visit(v, lastSwitchCaseBasicBlock, end.getFromOffset(), ends);
-        }
-
-        Set<BasicBlock> endPredecessors = end == null ? new HashSet<>() : end.getPredecessors();
-        Iterator<BasicBlock> endPredecessorIterator = endPredecessors.iterator();
-
-        BasicBlock endPredecessor;
-        while (endPredecessorIterator.hasNext()) {
-            endPredecessor = endPredecessorIterator.next();
-
-            if (v.get(endPredecessor.getIndex())) {
-                endPredecessor.replace(end, SWITCH_BREAK);
-                endPredecessorIterator.remove();
-            }
-        }
-
-        if (defaultSC != null && defaultSC.getBasicBlock() == end) {
-            Iterator<SwitchCase> iterator = basicBlock.getSwitchCases().iterator();
-            while (iterator.hasNext()) {
-                if (iterator.next().getBasicBlock() == end) {
-                    iterator.remove();
-                }
-            }
-        } else {
-            for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-                if (switchCase.getBasicBlock() == end) {
-                    switchCase.setBasicBlock(SWITCH_BREAK);
-                }
-            }
-        }
-
-        boolean reduced = true;
-
-        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-            reduced &= reduce(visited, switchCase.getBasicBlock(), jsrTargets);
-        }
-
-        Set<BasicBlock> predecessors;
-        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-            BasicBlock bb = switchCase.getBasicBlock();
-
-            if (bb == end) {
-                throw new IllegalStateException("bb == end");
-            }
-
-            predecessors = bb.getPredecessors();
-
-            if (predecessors.size() > 1) {
-                Iterator<BasicBlock> predecessorIterator = predecessors.iterator();
-
-                BasicBlock predecessor;
-                while (predecessorIterator.hasNext()) {
-                    predecessor = predecessorIterator.next();
-
-                    if (predecessor != basicBlock) {
-                        predecessor.replace(bb, END);
-                        predecessorIterator.remove();
-                    }
-                }
-            }
-        }
-
-        // Change type
         basicBlock.setType(TYPE_SWITCH);
         basicBlock.setNext(end);
         endPredecessors.add(basicBlock);
 
         reduced &= reduce(visited, basicBlock.getNext(), jsrTargets);
         return reduced;
+    }
+
+    private static int findMaxSwitchCaseOffset(BasicBlock basicBlock) {
+        int maxOffset = -1;
+
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            maxOffset = Math.max(maxOffset, switchCase.getOffset());
+        }
+
+        return maxOffset;
+    }
+
+    private static SwitchCase findDefaultSwitchCase(BasicBlock basicBlock) {
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            if (switchCase.isDefaultCase()) {
+                return switchCase;
+            }
+        }
+
+        return null;
+    }
+
+    private static BasicBlock collectSwitchCaseEnds(
+            BasicBlock basicBlock,
+            int maxOffset,
+            BitSet visited,
+            Set<BasicBlock> ends) {
+        BasicBlock lastSwitchCaseBasicBlock = null;
+
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            BasicBlock caseBasicBlock = switchCase.getBasicBlock();
+
+            if (switchCase.getOffset() == maxOffset) {
+                lastSwitchCaseBasicBlock = caseBasicBlock;
+            } else {
+                visit(visited, caseBasicBlock, maxOffset, ends);
+            }
+        }
+
+        return lastSwitchCaseBasicBlock;
+    }
+
+    private static BasicBlock resolveSwitchDeclarationEnd(
+            BasicBlock lastSwitchCaseBasicBlock,
+            BitSet visited,
+            Set<BasicBlock> ends) {
+        BasicBlock end = findLatestBasicBlock(ends);
+
+        if (end == END) {
+            return lastSwitchCaseBasicBlock;
+        }
+
+        visit(visited, lastSwitchCaseBasicBlock, end.getFromOffset(), ends);
+        return end;
+    }
+
+    private static BasicBlock findLatestBasicBlock(Set<BasicBlock> basicBlocks) {
+        BasicBlock latestBasicBlock = END;
+
+        for (BasicBlock basicBlock : basicBlocks) {
+            if (latestBasicBlock == END || latestBasicBlock.getFromOffset() < basicBlock.getFromOffset()) {
+                latestBasicBlock = basicBlock;
+            }
+        }
+
+        return latestBasicBlock;
+    }
+
+    private static BasicBlock adjustSwitchEndForDefaultReturnCase(
+            BasicBlock basicBlock,
+            SwitchCase defaultSC,
+            BasicBlock end) {
+        if (defaultSC == null || defaultSC.getBasicBlock() != end || !end.matchType(TYPE_RETURN | TYPE_RETURN_VALUE)) {
+            return end;
+        }
+
+        if (!hasNonTerminalSwitchCase(basicBlock)) {
+            return end;
+        }
+
+        return findLatestSwitchSuccessor(basicBlock, end);
+    }
+
+    private static boolean hasNonTerminalSwitchCase(BasicBlock basicBlock) {
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            if (!switchCase.isDefaultCase() && !switchCase.getBasicBlock().matchType(GROUP_END)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static BasicBlock findLatestSwitchSuccessor(BasicBlock basicBlock, BasicBlock end) {
+        BitSet seen = new BitSet();
+        ArrayDeque<BasicBlock> queue = new ArrayDeque<>(basicBlock.getPredecessors());
+
+        while (!queue.isEmpty()) {
+            BasicBlock predecessor = queue.removeFirst();
+
+            if (markSwitchPredecessorSeen(seen, predecessor)) {
+                if (isSwitchSuccessorCandidate(predecessor, basicBlock, end)) {
+                    return predecessor.getNext();
+                }
+                queue.addAll(predecessor.getPredecessors());
+            }
+        }
+
+        return end;
+    }
+
+    private static boolean markSwitchPredecessorSeen(BitSet seen, BasicBlock predecessor) {
+        int predecessorIndex = predecessor.getIndex();
+
+        if (predecessorIndex < 0) {
+            return true;
+        }
+        if (seen.get(predecessorIndex)) {
+            return false;
+        }
+
+        seen.set(predecessorIndex);
+        return true;
+    }
+
+    private static boolean isSwitchSuccessorCandidate(BasicBlock predecessor, BasicBlock basicBlock, BasicBlock end) {
+        return predecessor.getType() == TYPE_SWITCH
+                && predecessor.getNext() != basicBlock
+                && predecessor.getNext().getFromOffset() > end.getFromOffset();
+    }
+
+    private static Set<BasicBlock> rewriteSwitchEndPredecessors(BitSet visited, BasicBlock basicBlock, BasicBlock end) {
+        Set<BasicBlock> endPredecessors = end == null ? new HashSet<>() : end.getPredecessors();
+        Iterator<BasicBlock> endPredecessorIterator = endPredecessors.iterator();
+
+        while (endPredecessorIterator.hasNext()) {
+            BasicBlock endPredecessor = endPredecessorIterator.next();
+
+            if (visited.get(endPredecessor.getIndex())
+                    && !isSingleCaseBlockOfAnotherSwitch(endPredecessor, basicBlock)
+                    && !isExitingEnclosingLoop(endPredecessor, end)) {
+                endPredecessor.replace(end, SWITCH_BREAK);
+                endPredecessorIterator.remove();
+            }
+        }
+
+        return endPredecessors;
+    }
+
+    private static void retargetSwitchCases(BasicBlock basicBlock, SwitchCase defaultSC, BasicBlock end) {
+        if (defaultSC != null && defaultSC.getBasicBlock() == end) {
+            Iterator<SwitchCase> iterator = basicBlock.getSwitchCases().iterator();
+
+            while (iterator.hasNext()) {
+                if (iterator.next().getBasicBlock() == end) {
+                    iterator.remove();
+                }
+            }
+            return;
+        }
+
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            if (switchCase.getBasicBlock() == end) {
+                switchCase.setBasicBlock(SWITCH_BREAK);
+            }
+        }
+    }
+
+    private boolean reduceSwitchCaseBlocks(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
+        boolean reduced = true;
+
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            reduced &= reduce(visited, switchCase.getBasicBlock(), jsrTargets);
+        }
+
+        return reduced;
+    }
+
+    private static void detachSharedSwitchCasePredecessors(BasicBlock basicBlock, BasicBlock end) {
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            BasicBlock caseBasicBlock = switchCase.getBasicBlock();
+
+            if (caseBasicBlock == end) {
+                throw new IllegalStateException("bb == end");
+            }
+
+            Set<BasicBlock> predecessors = caseBasicBlock.getPredecessors();
+
+            if (predecessors.size() > 1) {
+                Iterator<BasicBlock> predecessorIterator = predecessors.iterator();
+
+                while (predecessorIterator.hasNext()) {
+                    BasicBlock predecessor = predecessorIterator.next();
+
+                    if (predecessor != basicBlock) {
+                        predecessor.replace(caseBasicBlock, END);
+                        predecessorIterator.remove();
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean isSingleCaseBlockOfAnotherSwitch(BasicBlock basicBlock, BasicBlock currentSwitch) {
+        if (basicBlock.getPredecessors().size() != 1) {
+            return false;
+        }
+
+        BasicBlock predecessor = basicBlock.getPredecessors().iterator().next();
+        return predecessor != currentSwitch && predecessor.matchType(TYPE_SWITCH | TYPE_SWITCH_DECLARATION);
+    }
+
+    private static boolean isExitingEnclosingLoop(BasicBlock predecessor, BasicBlock end) {
+        if (end == null || end == END || end == SWITCH_BREAK) {
+            return false;
+        }
+
+        Loop enclosingLoop = predecessor.getEnclosingLoop();
+        return enclosingLoop != null && end.isOutsideLoop(enclosingLoop);
     }
 
     protected boolean reduceTryDeclaration(BitSet visited, BasicBlock basicBlock, BitSet jsrTargets) {
@@ -1327,47 +1461,81 @@ public abstract class ControlFlowGraphReducer {
     }
 
     private static void visit(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends) {
+        visit(visited, basicBlock, maxOffset, ends, 0);
+    }
+
+    private static void visit(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends, int switchDepth) {
         if (basicBlock.getFromOffset() >= maxOffset) {
             ends.add(basicBlock);
-        } else if (basicBlock.getIndex() >= 0 && !visited.get(basicBlock.getIndex())) {
-            visited.set(basicBlock.getIndex());
+            return;
+        }
 
-            switch (basicBlock.getType()) {
-                case TYPE_CONDITIONAL_BRANCH, TYPE_JSR, TYPE_CONDITION:
-                    visit(visited, basicBlock.getBranch(), maxOffset, ends);
-                    // intended fall through
-                case TYPE_START, TYPE_STATEMENTS, TYPE_GOTO, TYPE_GOTO_IN_TERNARY_OPERATOR, TYPE_LOOP:
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
-                    break;
-                case TYPE_TRY, TYPE_TRY_JSR, TYPE_TRY_ECLIPSE:
-                    visit(visited, basicBlock.getSub1(), maxOffset, ends);
-                    // intended fall through
-                case TYPE_TRY_DECLARATION:
-                    for (ExceptionHandler exceptionHandler : basicBlock.getExceptionHandlers()) {
-                        visit(visited, exceptionHandler.getBasicBlock(), maxOffset, ends);
-                    }
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
-                    break;
-                case TYPE_IF_ELSE, TYPE_TERNARY_OPERATOR:
-                    visit(visited, basicBlock.getSub2(), maxOffset, ends);
-                    // intended fall through
-                case TYPE_IF:
-                    visit(visited, basicBlock.getSub1(), maxOffset, ends);
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
-                    break;
-                case TYPE_CONDITION_OR, TYPE_CONDITION_AND:
-                    visit(visited, basicBlock.getSub1(), maxOffset, ends);
-                    visit(visited, basicBlock.getSub2(), maxOffset, ends);
-                    break;
-                case TYPE_SWITCH:
-                    visit(visited, basicBlock.getNext(), maxOffset, ends);
-                    // intended fall through
-                case TYPE_SWITCH_DECLARATION:
-                    for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
-                        visit(visited, switchCase.getBasicBlock(), maxOffset, ends);
-                    }
-                    break;
-            }
+        if (basicBlock.getIndex() < 0 || visited.get(basicBlock.getIndex())) {
+            return;
+        }
+
+        visited.set(basicBlock.getIndex());
+        visitChildren(visited, basicBlock, maxOffset, ends, switchDepth);
+    }
+
+    private static void visitChildren(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends, int switchDepth) {
+        switch (basicBlock.getType()) {
+            case TYPE_CONDITIONAL_BRANCH, TYPE_JSR, TYPE_CONDITION:
+                visit(visited, basicBlock.getBranch(), maxOffset, ends, switchDepth);
+                visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
+                break;
+            case TYPE_START, TYPE_STATEMENTS, TYPE_GOTO, TYPE_GOTO_IN_TERNARY_OPERATOR, TYPE_LOOP:
+                visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
+                break;
+            case TYPE_TRY, TYPE_TRY_JSR, TYPE_TRY_ECLIPSE, TYPE_TRY_DECLARATION:
+                visitTryChildren(visited, basicBlock, maxOffset, ends, switchDepth);
+                break;
+            case TYPE_IF_ELSE, TYPE_TERNARY_OPERATOR, TYPE_IF:
+                visitIfChildren(visited, basicBlock, maxOffset, ends, switchDepth);
+                break;
+            case TYPE_CONDITION_OR, TYPE_CONDITION_AND:
+                visit(visited, basicBlock.getSub1(), maxOffset, ends, switchDepth);
+                visit(visited, basicBlock.getSub2(), maxOffset, ends, switchDepth);
+                break;
+            case TYPE_SWITCH, TYPE_SWITCH_DECLARATION:
+                visitSwitchChildren(visited, basicBlock, maxOffset, ends, switchDepth);
+                break;
+        }
+    }
+
+    private static void visitTryChildren(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends, int switchDepth) {
+        if (basicBlock.matchType(TYPE_TRY | TYPE_TRY_JSR | TYPE_TRY_ECLIPSE)) {
+            visit(visited, basicBlock.getSub1(), maxOffset, ends, switchDepth);
+        }
+
+        for (ExceptionHandler exceptionHandler : basicBlock.getExceptionHandlers()) {
+            visit(visited, exceptionHandler.getBasicBlock(), maxOffset, ends, switchDepth);
+        }
+
+        visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
+    }
+
+    private static void visitIfChildren(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends, int switchDepth) {
+        if (basicBlock.matchType(TYPE_IF_ELSE | TYPE_TERNARY_OPERATOR)) {
+            visit(visited, basicBlock.getSub2(), maxOffset, ends, switchDepth);
+        }
+
+        visit(visited, basicBlock.getSub1(), maxOffset, ends, switchDepth);
+        visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth);
+    }
+
+    private static void visitSwitchChildren(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends, int switchDepth) {
+        if (switchDepth > 0) {
+            ends.add(basicBlock);
+            return;
+        }
+
+        if (basicBlock.getType() == TYPE_SWITCH) {
+            visit(visited, basicBlock.getNext(), maxOffset, ends, switchDepth + 1);
+        }
+
+        for (SwitchCase switchCase : basicBlock.getSwitchCases()) {
+            visit(visited, switchCase.getBasicBlock(), maxOffset, ends, switchDepth + 1);
         }
     }
 

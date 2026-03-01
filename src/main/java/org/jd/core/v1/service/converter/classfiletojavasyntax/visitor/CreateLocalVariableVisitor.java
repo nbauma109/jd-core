@@ -66,11 +66,14 @@ public class CreateLocalVariableVisitor extends AbstractNopTypeArgumentVisitor i
     @Override
     public void visit(GenericLocalVariable lv) {
         localVariable = new GenericLocalVariable(index, offset, lv.getType());
+        localVariable.setDeclaredType(lv.getDeclaredType() != null ? lv.getDeclaredType() : lv.getType());
+        localVariable.setOriginalVariable(lv);
     }
 
     @Override
     public void visit(ObjectLocalVariable lv) {
         localVariable = new ObjectLocalVariable(typeMaker, index, offset, lv);
+        localVariable.setOriginalVariable(lv);
     }
 
     @Override
@@ -79,6 +82,7 @@ public class CreateLocalVariableVisitor extends AbstractNopTypeArgumentVisitor i
             localVariable = new PrimitiveLocalVariable(index, offset, lv);
         } else {
             localVariable = new ObjectLocalVariable(typeMaker, index, offset, lv.getType(), null);
+            localVariable.setDeclaredType(lv.getDeclaredType() != null ? lv.getDeclaredType() : lv.getType());
         }
         localVariable.setOriginalVariable(lv);
     }

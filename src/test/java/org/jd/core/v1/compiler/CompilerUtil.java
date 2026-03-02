@@ -42,16 +42,23 @@ public class CompilerUtil {
 
         DESTINATION_DIRECTORY.mkdirs();
 
-        List<String> options = Arrays.asList("-g", "-source", javaVersion, "-target", javaVersion, "-d", DESTINATION_DIRECTORY_PATH, "-cp", System.getProperty("java.class.path"));
+        List<String> javacOptions = Arrays.asList("-g", "-source", javaVersion, "-target", javaVersion, "-d", DESTINATION_DIRECTORY_PATH, "-cp", System.getProperty("java.class.path"));
+        List<String> ecjOptions = Arrays.asList(
+                "-g",
+                "-source", javaVersion,
+                "-target", javaVersion,
+                toEcjComplianceOption(javaVersion),
+                "-d", DESTINATION_DIRECTORY_PATH,
+                "-cp", System.getProperty("java.class.path"));
         List<InMemoryJavaSourceFileObject> compilationUnits = Arrays.asList(javaFileObjects);
 
-        CompilationResult result = compileWithCompiler(new EclipseCompiler(), options, compilationUnits, classLoader);
+        CompilationResult result = compileWithCompiler(new EclipseCompiler(), ecjOptions, compilationUnits, classLoader);
 
         if (!result.compilationSuccess) {
             JavaCompiler javacCompiler = ToolProvider.getSystemJavaCompiler();
             if (javacCompiler != null) {
                 classLoader.classes.clear();
-                result = compileWithCompiler(javacCompiler, options, compilationUnits, classLoader);
+                result = compileWithCompiler(javacCompiler, javacOptions, compilationUnits, classLoader);
             }
         }
 
@@ -139,5 +146,13 @@ public class CompilerUtil {
         }
 
         return Integer.parseInt(javaVersion);
+    }
+
+    private static String toEcjComplianceOption(String javaVersion) {
+        int numericJavaVersion = parseJavaVersion(javaVersion);
+        if (numericJavaVersion <= 8) {
+            return "-1." + numericJavaVersion;
+        }
+        return "-" + numericJavaVersion;
     }
 }

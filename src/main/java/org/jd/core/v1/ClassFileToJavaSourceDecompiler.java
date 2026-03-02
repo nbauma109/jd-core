@@ -27,8 +27,6 @@ import java.util.Collections;
 import java.util.Map;
 
 public class ClassFileToJavaSourceDecompiler implements Decompiler {
-    private static final String MULTI_RELEASE_PREFIX = "META-INF/versions/";
-
     private final ClassFileDeserializer deserializer = new ClassFileDeserializer();
     private final ClassFileToJavaSyntaxProcessor converter = new ClassFileToJavaSyntaxProcessor();
     private final JavaSyntaxToJavaFragmentProcessor fragmenter = new JavaSyntaxToJavaFragmentProcessor();
@@ -55,11 +53,6 @@ public class ClassFileToJavaSourceDecompiler implements Decompiler {
     }
 
     protected void decompile(DecompileContext decompileContext) throws IOException {
-        if (isMultiReleaseVersionedClass(decompileContext.getMainInternalTypeName())) {
-            // Ignore multi-release classes under META-INF/versions/*: the caller already decompiles the base classes.
-            return;
-        }
-
         ClassFile classFile = this.deserializer.loadClassFile(decompileContext.getLoader(),
                 decompileContext.getMainInternalTypeName());
         decompileContext.setClassFile(classFile);
@@ -70,15 +63,5 @@ public class ClassFileToJavaSourceDecompiler implements Decompiler {
         DefaultList<Token> tokens = tokenizer.process(decompileContext.getBody());
         decompileContext.setTokens(tokens);
         writer.process(decompileContext);
-    }
-
-    private static boolean isMultiReleaseVersionedClass(String internalTypeName) {
-        if (internalTypeName == null || !internalTypeName.startsWith(MULTI_RELEASE_PREFIX)) {
-            return false;
-        }
-
-        int versionStart = MULTI_RELEASE_PREFIX.length();
-        int slashIndex = internalTypeName.indexOf('/', versionStart);
-        return slashIndex > versionStart;
     }
 }

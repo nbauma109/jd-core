@@ -524,42 +524,48 @@ public class StatementMaker {
         if (ByteCodeUtil.isSwitchExpressionJoin(join)) {
             List<ParsedRuleGroup> parsedGroups = new ArrayList<>();
             boolean matches = true;
+            int savedJoinType = join.getType();
+            join.setType(TYPE_END);
 
-            for (int i = 0, len = switchCases.size(); i < len; i++) {
-                BasicBlock.SwitchCase first = switchCases.get(i);
-                BasicBlock target = first.getBasicBlock();
-                int j = i + 1;
+            try {
+                for (int i = 0, len = switchCases.size(); i < len; i++) {
+                    BasicBlock.SwitchCase first = switchCases.get(i);
+                    BasicBlock target = first.getBasicBlock();
+                    int j = i + 1;
 
-                while (j < len && target == switchCases.get(j).getBasicBlock()) {
-                    j++;
+                    while (j < len && target == switchCases.get(j).getBasicBlock()) {
+                        j++;
+                    }
+
+                    Statements subStatements = new Statements();
+
+                    stack.copy(entryStack);
+                    switchDepth++;
+                    try {
+                        makeStatements(watchdog, target, subStatements, jumps);
+                    } finally {
+                        switchDepth--;
+                    }
+                    replacePreOperatorWithPostOperator(subStatements);
+
+                    Expression ruleResult = null;
+
+                    if (stack.size() == 1) {
+                        ruleResult = stack.pop();
+                    } else if (stack.size() != 0) {
+                        matches = false;
+                    }
+
+                    parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
+
+                    if (!matches) {
+                        break;
+                    }
+
+                    i = j - 1;
                 }
-
-                Statements subStatements = new Statements();
-
-                stack.copy(entryStack);
-                switchDepth++;
-                try {
-                    makeStatements(watchdog, target, subStatements, jumps);
-                } finally {
-                    switchDepth--;
-                }
-                replacePreOperatorWithPostOperator(subStatements);
-
-                Expression ruleResult = null;
-
-                if (stack.size() == 1) {
-                    ruleResult = stack.pop();
-                } else if (stack.size() != 0) {
-                    matches = false;
-                }
-
-                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
-
-                if (!matches) {
-                    break;
-                }
-
-                i = j - 1;
+            } finally {
+                join.setType(savedJoinType);
             }
 
             if (matches) {
@@ -578,47 +584,61 @@ public class StatementMaker {
         }
 
         List<SwitchStatement.Block> blocks = switchStatement.getBlocks();
+        int savedJoinType = join.getType();
+        join.setType(TYPE_END);
 
-        for (int i = 0, len = switchCases.size(); i < len; i++) {
-            BasicBlock.SwitchCase sc = switchCases.get(i);
-            BasicBlock bb = sc.getBasicBlock();
-            int j = i + 1;
+        try {
+            for (int i = 0, len = switchCases.size(); i < len; i++) {
+                BasicBlock.SwitchCase sc = switchCases.get(i);
+                BasicBlock bb = sc.getBasicBlock();
+                int j = i + 1;
 
-            while (j < len && bb == switchCases.get(j).getBasicBlock()) {
-                j++;
-            }
-
-            Statements subStatements = new Statements();
-
-            stack.copy(entryStack);
-            switchDepth++;
-            try {
-                makeStatements(watchdog, bb, subStatements, jumps);
-            } finally {
-                switchDepth--;
-            }
-            replacePreOperatorWithPostOperator(subStatements);
-
-            if (sc.isDefaultCase()) {
-                blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements));
-            } else if (j == i + 1) {
-                SwitchStatement.Label label =
-                        new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
-                blocks.add(new SwitchStatement.LabelBlock(label, subStatements));
-            } else {
-                DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
-
-                for (; i < j; i++) {
-                    labels.add(new SwitchStatement.ExpressionLabel(
-                            new IntegerConstantExpression(selectorType, switchCases.get(i).getValue())
-                    ));
+                while (j < len && bb == switchCases.get(j).getBasicBlock()) {
+                    j++;
                 }
 
-                blocks.add(new SwitchStatement.MultiLabelsBlock(labels, subStatements));
-                i--;
-            }
+                Statements subStatements = new Statements();
 
-            i = j - 1;
+                stack.copy(entryStack);
+                switchDepth++;
+                try {
+                    makeStatements(watchdog, bb, subStatements, jumps);
+                } finally {
+                    switchDepth--;
+                }
+                replacePreOperatorWithPostOperator(subStatements);
+
+                boolean fallsThroughToNextCase =
+                        (j < len) && (bb.getNext() == switchCases.get(j).getBasicBlock());
+                if (!sc.isDefaultCase()
+                        && !fallsThroughToNextCase
+                        && (subStatements.isEmpty() || !isTerminalSwitchCaseStatement(subStatements.getLast()))) {
+                    subStatements.add(BreakStatement.BREAK);
+                }
+
+                if (sc.isDefaultCase()) {
+                    blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements));
+                } else if (j == i + 1) {
+                    SwitchStatement.Label label =
+                            new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
+                    blocks.add(new SwitchStatement.LabelBlock(label, subStatements));
+                } else {
+                    DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
+
+                    for (; i < j; i++) {
+                        labels.add(new SwitchStatement.ExpressionLabel(
+                                new IntegerConstantExpression(selectorType, switchCases.get(i).getValue())
+                        ));
+                    }
+
+                    blocks.add(new SwitchStatement.MultiLabelsBlock(labels, subStatements));
+                    i--;
+                }
+
+                i = j - 1;
+            }
+        } finally {
+            join.setType(savedJoinType);
         }
 
         int size = statements.size();
@@ -630,6 +650,15 @@ public class StatementMaker {
         }
 
         makeStatements(watchdog, join, statements, jumps);
+    }
+
+    private static boolean isTerminalSwitchCaseStatement(Statement statement) {
+        return statement.isBreakStatement()
+                || statement.isContinueStatement()
+                || statement.isReturnStatement()
+                || statement.isReturnExpressionStatement()
+                || statement.isThrowStatement()
+                || (statement instanceof ClassFileBreakContinueStatement);
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {
@@ -1317,25 +1346,121 @@ public class StatementMaker {
     }
 
     protected void rewriteInvalidRethrowPatterns(Statements statements) {
-        for (int i = 0; i + 1 < statements.size(); i++) {
+        for (int i = 0; i < statements.size(); i++) {
             Statement current = statements.get(i);
-            Statement next = statements.get(i + 1);
 
-            if (!(current instanceof WhileStatement whileStatement)
-                    || !next.isThrowStatement()
-                    || !(next.getExpression() instanceof ClassFileLocalVariableReferenceExpression rethrowExpression)) {
+            if (!(current instanceof WhileStatement whileStatement)) {
                 continue;
             }
 
-            if (rewriteLoopCatchBreakToThrow(whileStatement, rethrowExpression)) {
-                statements.remove(i + 1);
+            for (int j = i + 1; j < statements.size(); j++) {
+                Statement trailingStatement = statements.get(j);
+
+                if (!trailingStatement.isThrowStatement()) {
+                    continue;
+                }
+                ThrowStatement trailingThrowStatement = (ThrowStatement)trailingStatement;
+                Expression trailingThrowExpression = trailingThrowStatement.getExpression();
+                ClassFileLocalVariableReferenceExpression rethrowExpression = findRethrowLocalVariableReference(trailingThrowExpression);
+
+                if (rethrowExpression == null) {
+                    continue;
+                }
+
+                Statements statementsBetweenLoopAndThrow = new Statements();
+                for (int k = i + 1; k < j; k++) {
+                    statementsBetweenLoopAndThrow.add(statements.get(k));
+                }
+
+                if (rewriteLoopCatchBreakToThrow(
+                        whileStatement,
+                        rethrowExpression,
+                        trailingThrowStatement,
+                        statementsBetweenLoopAndThrow)) {
+                    for (int k = j; k > i; k--) {
+                        statements.remove(k);
+                    }
+                }
+                break;
             }
         }
     }
 
+    private static ClassFileLocalVariableReferenceExpression findRethrowLocalVariableReference(Expression expression) {
+        if (expression == null || expression == NO_EXPRESSION) {
+            return null;
+        }
+
+        if (expression instanceof ClassFileLocalVariableReferenceExpression classFileLocalVariableReferenceExpression) {
+            return classFileLocalVariableReferenceExpression;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromExpression =
+                findRethrowLocalVariableReference(expression.getExpression());
+        if (fromExpression != null) {
+            return fromExpression;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromLeft =
+                findRethrowLocalVariableReference(expression.getLeftExpression());
+        if (fromLeft != null) {
+            return fromLeft;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromRight =
+                findRethrowLocalVariableReference(expression.getRightExpression());
+        if (fromRight != null) {
+            return fromRight;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromCondition =
+                findRethrowLocalVariableReference(expression.getCondition());
+        if (fromCondition != null) {
+            return fromCondition;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromTrue =
+                findRethrowLocalVariableReference(expression.getTrueExpression());
+        if (fromTrue != null) {
+            return fromTrue;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromFalse =
+                findRethrowLocalVariableReference(expression.getFalseExpression());
+        if (fromFalse != null) {
+            return fromFalse;
+        }
+
+        ClassFileLocalVariableReferenceExpression fromIndex =
+                findRethrowLocalVariableReference(expression.getIndex());
+        if (fromIndex != null) {
+            return fromIndex;
+        }
+
+        BaseExpression parameters = expression.getParameters();
+        if (parameters instanceof Expression parameterExpression) {
+            return findRethrowLocalVariableReference(parameterExpression);
+        }
+        if (parameters instanceof DefaultList<?> parameterList) {
+            for (Object parameter : parameterList) {
+                if (parameter instanceof Expression parameterExpression) {
+                    ClassFileLocalVariableReferenceExpression fromParameter =
+                            findRethrowLocalVariableReference(parameterExpression);
+                    if (fromParameter != null) {
+                        return fromParameter;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     private static boolean rewriteLoopCatchBreakToThrow(
             WhileStatement whileStatement,
-            ClassFileLocalVariableReferenceExpression rethrowExpression) {
+            ClassFileLocalVariableReferenceExpression rethrowExpression,
+            ThrowStatement trailingThrowStatement,
+            Statements statementsBetweenLoopAndThrow) {
         if (!(whileStatement.getStatements() instanceof Statements loopStatements)) {
             return false;
         }
@@ -1346,7 +1471,7 @@ public class StatementMaker {
             }
 
             List<TryStatement.CatchClause> catchClauses = tryStatement.getCatchClauses();
-            if (catchClauses == null || catchClauses.isEmpty()) {
+            if (Utils.isEmptyCollection(catchClauses)) {
                 continue;
             }
 
@@ -1361,7 +1486,9 @@ public class StatementMaker {
                 Statement lastCatchStatement = catchStatements.getLast();
 
                 if (lastCatchStatement.isBreakStatement()) {
-                    catchStatements.set(catchStatements.size() - 1, new ThrowStatement(rethrowExpression.copyTo(rethrowExpression.getLineNumber())));
+                    catchStatements.remove(catchStatements.size() - 1);
+                    appendStatements(catchStatements, statementsBetweenLoopAndThrow);
+                    catchStatements.add(trailingThrowStatement);
                     return true;
                 }
 
@@ -1369,13 +1496,22 @@ public class StatementMaker {
                         && ifStatement.getStatements() instanceof Statements ifStatements
                         && ifStatements.size() == 1
                         && ifStatements.getFirst().isBreakStatement()) {
-                    ifStatements.set(0, new ThrowStatement(rethrowExpression.copyTo(rethrowExpression.getLineNumber())));
+                    ifStatements.remove(0);
+                    appendStatements(ifStatements, statementsBetweenLoopAndThrow);
+                    ifStatements.add(trailingThrowStatement);
                     return true;
                 }
             }
         }
 
         return false;
+    }
+
+    private static void appendStatements(Statements target, Statements extra) {
+        if (extra == null || extra.isEmpty()) {
+            return;
+        }
+        target.addAll(extra);
     }
 
     protected void rewriteOverflowDoWhilePattern(Statements statements) {
@@ -1414,11 +1550,9 @@ public class StatementMaker {
 
     private static boolean isOverflowUnderflowPair(Expression overflowCondition, Expression underflowCondition) {
         if (!(overflowCondition instanceof MethodInvocationExpression overflowInvocation)
-                || !"isOverflow".equals(overflowInvocation.getName())
                 || !(underflowCondition instanceof PreOperatorExpression preOperatorExpression)
                 || !"!".equals(preOperatorExpression.getOperator())
-                || !(preOperatorExpression.getExpression() instanceof MethodInvocationExpression underflowInvocation)
-                || !"isUnderflow".equals(underflowInvocation.getName())) {
+                || !(preOperatorExpression.getExpression() instanceof MethodInvocationExpression underflowInvocation)) {
             return false;
         }
 

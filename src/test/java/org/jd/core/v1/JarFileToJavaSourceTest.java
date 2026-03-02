@@ -47,6 +47,7 @@ import jd.core.ClassUtil;
 public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     private static final Pattern MODULE_INFO_CLASS = Pattern.compile("META-INF/versions/(\\d+)/module-info\\.class");
+    private static final Pattern VERSIONED_CLASS = Pattern.compile("META-INF/versions/(\\d+)/(.*)\\.class");
 
     @Test
     public void testBCEL() throws Exception {
@@ -260,28 +261,47 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     }
 
                     String source = printer.toString();
-                    StringBuilder jdkVersion = new StringBuilder();
                     Matcher m = MODULE_INFO_CLASS.matcher(path);
                     if (m.matches()) {
                         continue;
                     }
+                    Matcher versionedClassMatcher = VERSIONED_CLASS.matcher(path);
+                    int versionFromPath = -1;
+                    String compilationInternalTypeName = internalTypeName;
+                    if (versionedClassMatcher.matches()) {
+                        versionFromPath = Integer.parseInt(versionedClassMatcher.group(1));
+                        compilationInternalTypeName = versionedClassMatcher.group(2);
+                    }
+
+                    String jdkVersion;
+                    if (versionFromPath > 0) {
+                        jdkVersion = Integer.toString(versionFromPath);
+                    } else {
                     int majorVersion = ctx == null ? MAJOR_1_8 : ctx.getMajorVersion();
                     if (majorVersion >= MAJOR_1_1) {
                         if (majorVersion >= MAJOR_1_5) {
-                            jdkVersion.append(majorVersion - (MAJOR_1_5 - 5));
+                                jdkVersion = Integer.toString(majorVersion - (MAJOR_1_5 - 5));
                         } else {
-                            jdkVersion.append(majorVersion - (MAJOR_1_1 - 1));
+                                jdkVersion = Integer.toString(majorVersion - (MAJOR_1_1 - 1));
+                        }
+                    } else {
+                            jdkVersion = "1.8";
                         }
                     }
 
                     if (projectDir != null && runUnitTests) {
+                        if (versionFromPath > 0) {
+                            // Keep project-provided version-specific sources (src/main/java<N>) in repo test mode.
+                            continue;
+                        }
+                        String sourceRoot = projectDir.getPath() + "/src/main/java";
                         // Write source file to source directory src/main/java
-                        Path destinationPath = Paths.get(projectDir.getPath() + "/src/main/java/" + internalTypeName + ".java");
+                        Path destinationPath = Paths.get(sourceRoot + "/" + compilationInternalTypeName + ".java");
                         if (!Files.exists(destinationPath.getParent())) {
                         	destinationPath.getParent().toFile().mkdirs();
                         }
 						Files.writeString(destinationPath, source);
-                    } else if (!CompilerUtil.compile(jdkVersion.toString(), new InMemoryJavaSourceFileObject(internalTypeName, source))) {
+                    } else if (!CompilerUtil.compile(jdkVersion, new InMemoryJavaSourceFileObject(compilationInternalTypeName, source))) {
                         recompilationFailedCounter++;
                     }
                 }

@@ -10,6 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
@@ -156,5 +157,142 @@ public class JavaSwitchTest extends AbstractJdTest {
             // Recompile decompiled source code and check errors
             assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
         }
+    }
+
+    @Test
+    public void testClassPathSwitchTailFallthroughRegression() throws Exception {
+        String internalClassName = TailSwitchFallthrough.class.getName().replace('.', '/');
+        String source = decompileSuccess(
+                new ClassPathLoader(),
+                new PlainTextPrinter(),
+                internalClassName,
+                Collections.singletonMap("realignLineNumbers", Boolean.TRUE));
+
+        int case3 = source.indexOf("case 3:");
+        int case2 = source.indexOf("case 2:");
+        int case1 = source.indexOf("case 1:");
+        int returnStatement = source.indexOf("return h;");
+        assertTrue(case3 != -1);
+        assertTrue(case2 > case3);
+        assertTrue(case1 > case2);
+        assertTrue(returnStatement > case3);
+
+        assertEquals(-1, source.substring(case3, case2).indexOf("break;"));
+        assertEquals(-1, source.substring(case2, case1).indexOf("break;"));
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testClassPathStructuredSwitchBreakRegression() throws Exception {
+        String internalClassName = StructuredSwitchBreak.class.getName().replace('.', '/');
+        String source = decompileSuccess(
+                new ClassPathLoader(),
+                new PlainTextPrinter(),
+                internalClassName,
+                Collections.singletonMap("realignLineNumbers", Boolean.TRUE));
+
+        int case0 = source.indexOf("case 0:");
+        int case1 = source.indexOf("case 1:");
+        assertTrue(case0 != -1);
+        assertTrue(case1 > case0);
+
+        String case0Block = source.substring(case0, case1);
+        assertTrue(countOccurrences(case0Block, "break;") <= 1);
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testClassPathNestedSwitchNeedsOuterBreakRegression() throws Exception {
+        String internalClassName = NestedSwitchNeedsOuterBreak.class.getName().replace('.', '/');
+        String source = decompileSuccess(
+                new ClassPathLoader(),
+                new PlainTextPrinter(),
+                internalClassName,
+                Collections.singletonMap("realignLineNumbers", Boolean.TRUE));
+
+        int case0 = source.indexOf("case 0:");
+        int case1 = source.lastIndexOf("case 1:");
+        assertTrue(case0 != -1);
+        assertTrue(case1 > case0);
+
+        String case0Block = source.substring(case0, case1);
+        int innerSwitch = case0Block.indexOf("switch (secondary)");
+        int innerSwitchEnd = case0Block.lastIndexOf("}");
+        int outerBreak = case0Block.lastIndexOf("break;");
+        assertTrue(innerSwitch != -1);
+        assertTrue(innerSwitchEnd > innerSwitch);
+        assertTrue(outerBreak > innerSwitchEnd);
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    private static int countOccurrences(String source, String token) {
+        int count = 0;
+        int index = 0;
+
+        while ((index = source.indexOf(token, index)) != -1) {
+            count++;
+            index += token.length();
+        }
+
+        return count;
+    }
+}
+
+class TailSwitchFallthrough {
+    static int hash32Tail(byte[] data, int index, int h) {
+        switch (data.length - index) {
+            case 3:
+                h ^= (data[index + 2] & 255) << 16;
+            case 2:
+                h ^= (data[index + 1] & 255) << 8;
+            case 1:
+                h ^= data[index] & 255;
+                h *= 1540483477;
+        }
+
+        return h;
+    }
+}
+
+class StructuredSwitchBreak {
+    static void parse(int i) {
+        switch (i) {
+            case 0:
+                try {
+                    return;
+                } catch (RuntimeException e) {
+                    break;
+                }
+            case 1:
+                System.out.println("1");
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+class NestedSwitchNeedsOuterBreak {
+    static int convert(int primary, int secondary) {
+        switch (primary) {
+            case 0:
+                switch (secondary) {
+                    case 1:
+                        secondary++;
+                        break;
+                    case 2:
+                        secondary += 2;
+                        break;
+                    default:
+                        return secondary;
+                }
+                break;
+            case 1:
+                return secondary + 10;
+            default:
+                return -1;
+        }
+
+        return secondary;
     }
 }

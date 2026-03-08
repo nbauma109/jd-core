@@ -77,9 +77,11 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.apache.bcel.Const.ASTORE;
 import static org.apache.bcel.Const.MAJOR_1_7;
@@ -598,6 +600,7 @@ public class StatementMaker {
                 }
 
                 Statements subStatements = new Statements();
+                BasicBlock nextCaseBasicBlock = (j < len) ? switchCases.get(j).getBasicBlock() : null;
 
                 stack.copy(entryStack);
                 switchDepth++;
@@ -608,10 +611,7 @@ public class StatementMaker {
                 }
                 replacePreOperatorWithPostOperator(subStatements);
 
-                boolean fallsThroughToNextCase =
-                        (j < len) && (bb.getNext() == switchCases.get(j).getBasicBlock());
-                if (!sc.isDefaultCase()
-                        && !fallsThroughToNextCase
+                if (needsSyntheticSwitchBreak(bb, nextCaseBasicBlock, join)
                         && (subStatements.isEmpty() || !isTerminalSwitchCaseStatement(subStatements.getLast()))) {
                     subStatements.add(BreakStatement.BREAK);
                 }
@@ -652,13 +652,118 @@ public class StatementMaker {
         makeStatements(watchdog, join, statements, jumps);
     }
 
+    private static boolean needsSyntheticSwitchBreak(BasicBlock caseBasicBlock, BasicBlock nextCaseBasicBlock, BasicBlock join) {
+        if (caseBasicBlock == null || caseBasicBlock.matchType(GROUP_END)) {
+            return false;
+        }
+
+        if (caseBasicBlock.getNext().matchType(TYPE_SWITCH_BREAK)) {
+            return true;
+        }
+
+        return nextCaseBasicBlock != null
+                && canReachInsideSwitch(caseBasicBlock, join)
+                && !canReachInsideSwitch(caseBasicBlock, nextCaseBasicBlock, join);
+    }
+
+    private static boolean canReachInsideSwitch(BasicBlock start, BasicBlock target) {
+        return canReachInsideSwitch(start, target, null);
+    }
+
+    private static boolean canReachInsideSwitch(BasicBlock start, BasicBlock target, BasicBlock stop) {
+        if (start == null || target == null || start == END || start == stop) {
+            return false;
+        }
+
+        Deque<BasicBlock> queue = new ArrayDeque<>();
+        Set<BasicBlock> seen = new HashSet<>();
+        queue.addLast(start);
+
+        while (!queue.isEmpty()) {
+            BasicBlock current = queue.removeFirst();
+
+            if (current == target) {
+                return true;
+            }
+
+            if (current == null || current == END || current == stop || !seen.add(current)) {
+                continue;
+            }
+
+            enqueueSwitchReachabilitySuccessor(queue, current.getNext(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getBranch(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getCondition(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getSub1(), stop);
+            enqueueSwitchReachabilitySuccessor(queue, current.getSub2(), stop);
+
+            for (SwitchCase switchCase : current.getSwitchCases()) {
+                enqueueSwitchReachabilitySuccessor(queue, switchCase.getBasicBlock(), stop);
+            }
+
+            for (ExceptionHandler exceptionHandler : current.getExceptionHandlers()) {
+                enqueueSwitchReachabilitySuccessor(queue, exceptionHandler.getBasicBlock(), stop);
+            }
+        }
+
+        return false;
+    }
+
+    private static void enqueueSwitchReachabilitySuccessor(Deque<BasicBlock> queue, BasicBlock successor, BasicBlock stop) {
+        if (successor != null && successor != END && successor != stop) {
+            queue.addLast(successor);
+        }
+    }
+
     private static boolean isTerminalSwitchCaseStatement(Statement statement) {
+        if (statement == null) {
+            return false;
+        }
+
         return statement.isBreakStatement()
                 || statement.isContinueStatement()
                 || statement.isReturnStatement()
                 || statement.isReturnExpressionStatement()
                 || statement.isThrowStatement()
+                || isTerminalStructuredSwitchCaseStatement(statement)
                 || (statement instanceof ClassFileBreakContinueStatement);
+    }
+
+    private static boolean isTerminalStructuredSwitchCaseStatement(BaseStatement statement) {
+        if (statement == null) {
+            return false;
+        }
+
+        if (statement.isStatements()) {
+            Statements statements = (Statements) statement;
+            return !statements.isEmpty() && isTerminalSwitchCaseStatement(statements.getLast());
+        }
+
+        if (statement.isIfElseStatement()) {
+            return isTerminalStructuredSwitchCaseStatement(statement.getStatements())
+                    && isTerminalStructuredSwitchCaseStatement(statement.getElseStatements());
+        }
+
+        if (statement.isTryStatement()) {
+            BaseStatement finallyStatements = statement.getFinallyStatements();
+
+            if (!Utils.isEmpty(finallyStatements) && isTerminalStructuredSwitchCaseStatement(finallyStatements)) {
+                return true;
+            }
+
+            if (!isTerminalStructuredSwitchCaseStatement(statement.getTryStatements())) {
+                return false;
+            }
+
+            for (TryStatement.CatchClause catchClause : statement.getCatchClauses()) {
+                if (!isTerminalStructuredSwitchCaseStatement(catchClause.getStatements())) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {

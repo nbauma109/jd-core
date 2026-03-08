@@ -172,7 +172,7 @@ public class JavaSwitchTest extends AbstractJdTest {
         int case2 = source.indexOf("case 2:");
         int case1 = source.indexOf("case 1:");
         int returnStatement = source.indexOf("return h;");
-        assertTrue(case3 != -1);
+        assertNotEquals(-1, case3);
         assertTrue(case2 > case3);
         assertTrue(case1 > case2);
         assertTrue(returnStatement > case3);
@@ -193,7 +193,7 @@ public class JavaSwitchTest extends AbstractJdTest {
 
         int case0 = source.indexOf("case 0:");
         int case1 = source.indexOf("case 1:");
-        assertTrue(case0 != -1);
+        assertNotEquals(-1, case0);
         assertTrue(case1 > case0);
 
         String case0Block = source.substring(case0, case1);
@@ -212,14 +212,14 @@ public class JavaSwitchTest extends AbstractJdTest {
 
         int case0 = source.indexOf("case 0:");
         int case1 = source.lastIndexOf("case 1:");
-        assertTrue(case0 != -1);
+        assertNotEquals(-1, case0);
         assertTrue(case1 > case0);
 
         String case0Block = source.substring(case0, case1);
         int innerSwitch = case0Block.indexOf("switch (secondary)");
         int innerSwitchEnd = case0Block.lastIndexOf("}");
         int outerBreak = case0Block.lastIndexOf("break;");
-        assertTrue(innerSwitch != -1);
+        assertNotEquals(-1, innerSwitch);
         assertTrue(innerSwitchEnd > innerSwitch);
         assertTrue(outerBreak > innerSwitchEnd);
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
@@ -243,11 +243,16 @@ class TailSwitchFallthrough {
         switch (data.length - index) {
             case 3:
                 h ^= (data[index + 2] & 255) << 16;
+                // fall through
             case 2:
                 h ^= (data[index + 1] & 255) << 8;
+                // fall through
             case 1:
                 h ^= data[index] & 255;
                 h *= 1540483477;
+                break;
+            default:
+                break;
         }
 
         return h;

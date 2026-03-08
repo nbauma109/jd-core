@@ -734,36 +734,47 @@ public class StatementMaker {
         }
 
         if (statement.isStatements()) {
-            Statements statements = (Statements) statement;
-            return !statements.isEmpty() && isTerminalSwitchCaseStatement(statements.getLast());
+            return isTerminalStatements((Statements) statement);
         }
 
         if (statement.isIfElseStatement()) {
-            return isTerminalStructuredSwitchCaseStatement(statement.getStatements())
-                    && isTerminalStructuredSwitchCaseStatement(statement.getElseStatements());
+            return isTerminalIfElse(statement);
         }
 
         if (statement.isTryStatement()) {
-            BaseStatement finallyStatements = statement.getFinallyStatements();
-
-            if (!Utils.isEmpty(finallyStatements) && isTerminalStructuredSwitchCaseStatement(finallyStatements)) {
-                return true;
-            }
-
-            if (!isTerminalStructuredSwitchCaseStatement(statement.getTryStatements())) {
-                return false;
-            }
-
-            for (TryStatement.CatchClause catchClause : statement.getCatchClauses()) {
-                if (!isTerminalStructuredSwitchCaseStatement(catchClause.getStatements())) {
-                    return false;
-                }
-            }
-
-            return true;
+            return isTerminalTry(statement);
         }
 
         return false;
+    }
+
+    private static boolean isTerminalStatements(Statements statements) {
+        return !statements.isEmpty() && isTerminalSwitchCaseStatement(statements.getLast());
+    }
+
+    private static boolean isTerminalIfElse(BaseStatement statement) {
+        return isTerminalStructuredSwitchCaseStatement(statement.getStatements())
+                && isTerminalStructuredSwitchCaseStatement(statement.getElseStatements());
+    }
+
+    private static boolean isTerminalTry(BaseStatement statement) {
+        BaseStatement finallyStatements = statement.getFinallyStatements();
+
+        if (!Utils.isEmpty(finallyStatements) && isTerminalStructuredSwitchCaseStatement(finallyStatements)) {
+            return true;
+        }
+
+        if (!isTerminalStructuredSwitchCaseStatement(statement.getTryStatements())) {
+            return false;
+        }
+
+        for (TryStatement.CatchClause catchClause : statement.getCatchClauses()) {
+            if (!isTerminalStructuredSwitchCaseStatement(catchClause.getStatements())) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {

@@ -912,40 +912,51 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        Expression receiver = expression.getExpression();
+        if (!hasWildcardReceiver(expression.getExpression())) {
+            return false;
+        }
+
+        return hasWildcardCaptureMismatch(
+                expression.getParameters(),
+                classFileExpression.getUnboundParameterTypes());
+    }
+
+    private static boolean hasWildcardReceiver(Expression receiver) {
         if (receiver == null || receiver.isCastExpression() || !(receiver.getType() instanceof ObjectType receiverType)) {
             return false;
         }
-        if (receiverType.getTypeArguments() == null || !hasUnboundedWildcardTypeArgument(receiverType.getTypeArguments())) {
-            return false;
-        }
 
-        BaseExpression parameters = expression.getParameters();
-        BaseType unboundParameterTypes = classFileExpression.getUnboundParameterTypes();
+        return receiverType.getTypeArguments() != null
+                && hasUnboundedWildcardTypeArgument(receiverType.getTypeArguments());
+    }
+
+    private static boolean hasWildcardCaptureMismatch(BaseExpression parameters, BaseType unboundParameterTypes) {
         if (Utils.isEmpty(parameters) || Utils.isEmpty(unboundParameterTypes)) {
             return false;
         }
-
         if (parameters.isList()) {
-            if (!unboundParameterTypes.isList()) {
-                return false;
-            }
-            DefaultList<Expression> parameterList = parameters.getList();
-            DefaultList<Type> unboundTypeList = unboundParameterTypes.getList();
-            int size = Math.min(parameterList.size(), unboundTypeList.size());
+            return hasWildcardCaptureMismatchInList(parameters, unboundParameterTypes);
+        }
+        return !unboundParameterTypes.isList()
+                && isWildcardCaptureMismatch(unboundParameterTypes.getFirst(), parameters.getFirst());
+    }
 
-            for (int i = 0; i < size; i++) {
-                if (isWildcardCaptureMismatch(unboundTypeList.get(i), parameterList.get(i))) {
-                    return true;
-                }
-            }
+    private static boolean hasWildcardCaptureMismatchInList(BaseExpression parameters, BaseType unboundParameterTypes) {
+        if (!unboundParameterTypes.isList()) {
             return false;
         }
 
-        if (unboundParameterTypes.isList()) {
-            return false;
+        DefaultList<Expression> parameterList = parameters.getList();
+        DefaultList<Type> unboundTypeList = unboundParameterTypes.getList();
+        int size = Math.min(parameterList.size(), unboundTypeList.size());
+
+        for (int i = 0; i < size; i++) {
+            if (isWildcardCaptureMismatch(unboundTypeList.get(i), parameterList.get(i))) {
+                return true;
+            }
         }
-        return isWildcardCaptureMismatch(unboundParameterTypes.getFirst(), parameters.getFirst());
+
+        return false;
     }
 
     private static boolean isWildcardCaptureMismatch(Type unboundParameterType, Expression parameterExpression) {

@@ -500,6 +500,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean unique = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false) <= 1;
             int rawMatches = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false);
             int typedMatches = typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false);
+            if ("use".equals(expression.getName())) {
+                System.out.println("[DEBUG-VISIT] params=" + parameters + " parameterTypes=" + parameterTypes + " unbound=" + unboundParameterTypes + " typeBindings=" + typeBindings + " typeBounds=" + localTypeBounds + " unique=" + unique + " rawMatches=" + rawMatches + " typedMatches=" + typedMatches + " descriptor=" + expression.getDescriptor());
+            }
             boolean generalOverloadCast = shouldForceGeneralOverloadCast(
                     expression,
                     typeBindings,
@@ -513,6 +516,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && (generalOverloadCast || selfSubtypeOverloadCast);
             RawDescriptorMethodTypes descriptorMethodTypes = parseRawDescriptorMethodTypes(expression.getDescriptor());
             boolean useDescriptorBridgeParameterTypes = shouldUseDescriptorBridgeParameterTypes(unique, parameterTypes, descriptorMethodTypes);
+            if ("use".equals(expression.getName())) {
+                System.out.println("[DEBUG-VISIT] generalOverloadCast=" + generalOverloadCast + " selfSubtypeOverloadCast=" + selfSubtypeOverloadCast + " forceCast=" + forceCast + " descriptorTypes=" + (descriptorMethodTypes == null ? null : descriptorMethodTypes.parameterTypes()) + " useDescriptorBridge=" + useDescriptorBridgeParameterTypes);
+            }
             if (useDescriptorBridgeParameterTypes && descriptorMethodTypes != null) {
                 ((ClassFileMethodInvocationExpression) expression).setParameterTypes(descriptorMethodTypes.parameterTypes());
                 if (descriptorMethodTypes.returnedType() != null
@@ -2234,10 +2240,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return parameter;
         }
 
+        declaredType = resolveDescriptorSensitiveDeclaredType(invocationExpression, declaredType);
+
         Expression coreExpression = unwrapCastExpression(parameter);
         Type expressionType = coreExpression.getType();
         if (expressionType == null) {
             return parameter;
+        }
+        if (invocationExpression != null && "use".equals(invocationExpression.getName())) {
+            System.out.println("[DEBUG-ADJ] declared=" + declaredType + " descriptor=" + descriptorType + " exprType=" + expressionType + " param=" + parameter);
         }
 
         if (declaredType instanceof ObjectType declaredObjectType
@@ -2277,6 +2288,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (!descriptorObjectType.rawEquals(declaredObjectType)
                 && typeMaker.isRawTypeAssignable(descriptorObjectType, expressionObjectType)
                 && !typeMaker.isRawTypeAssignable(expressionObjectType, descriptorObjectType)) {
+            if (invocationExpression != null && "use".equals(invocationExpression.getName())) {
+                System.out.println("[DEBUG-ADJ] adding cast to " + descriptorType);
+            }
             return addExplicitCastExpression(descriptorType, coreExpression);
         }
 
@@ -2289,6 +2303,23 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return parameter;
+    }
+
+    private Type resolveDescriptorSensitiveDeclaredType(MethodInvocationExpression invocationExpression, Type declaredType) {
+        if (!(invocationExpression instanceof ClassFileMethodInvocationExpression classFileInvocationExpression)) {
+            return declaredType;
+        }
+
+        Type resolvedDeclaredType = applyDirectTypeBindings(classFileInvocationExpression.getTypeBindings(), declaredType);
+        if (resolvedDeclaredType instanceof GenericType genericType
+                && classFileInvocationExpression.getTypeBounds() != null
+                && classFileInvocationExpression.getTypeBounds().get(genericType.getName()) instanceof ObjectType boundObjectType) {
+            return genericType.getDimension() == 0
+                    ? boundObjectType
+                    : boundObjectType.createType(genericType.getDimension());
+        }
+
+        return resolvedDeclaredType;
     }
 
     private boolean shouldAddDescriptorBridgeResultCast(Type type, Expression expression) {

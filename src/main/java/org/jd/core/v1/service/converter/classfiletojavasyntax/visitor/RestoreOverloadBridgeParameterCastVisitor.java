@@ -77,9 +77,20 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
 
         // Check if adding the cast changes overload resolution.
         // Count matches with current parameters.
+        java.util.Map<String, org.jd.core.v1.model.javasyntax.type.TypeArgument> typeBindings =
+                invocation instanceof ClassFileMethodInvocationExpression classFileInvocation
+                        && classFileInvocation.getTypeBindings() != null
+                        ? classFileInvocation.getTypeBindings()
+                        : java.util.Collections.emptyMap();
+        java.util.Map<String, org.jd.core.v1.model.javasyntax.type.BaseType> typeBounds =
+                invocation instanceof ClassFileMethodInvocationExpression classFileInvocation
+                        && classFileInvocation.getTypeBounds() != null
+                        ? classFileInvocation.getTypeBounds()
+                        : java.util.Collections.emptyMap();
+
         int matchesWithout = typeMaker.matchCount(
-                java.util.Collections.emptyMap(),
-                java.util.Collections.emptyMap(),
+                typeBindings,
+                typeBounds,
                 invocation.getInternalTypeName(),
                 invocation.getName(),
                 parameters,
@@ -92,8 +103,8 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
             Expression original = parameters.getList().get(index);
             parameters.getList().set(index, castExpr);
             matchesWith = typeMaker.matchCount(
-                    java.util.Collections.emptyMap(),
-                    java.util.Collections.emptyMap(),
+                    typeBindings,
+                    typeBounds,
                     invocation.getInternalTypeName(),
                     invocation.getName(),
                     parameters,
@@ -101,12 +112,16 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
             parameters.getList().set(index, original);
         } else {
             matchesWith = typeMaker.matchCount(
-                    java.util.Collections.emptyMap(),
-                    java.util.Collections.emptyMap(),
+                    typeBindings,
+                    typeBounds,
                     invocation.getInternalTypeName(),
                     invocation.getName(),
                     castExpr,
                     false);
+        }
+
+        if ("use".equals(invocation.getName())) {
+            System.out.println("[DEBUG-RESTORE] paramType=" + parameterType + " param=" + parameter + " matchesWithout=" + matchesWithout + " matchesWith=" + matchesWith + " typeBindings=" + typeBindings + " typeBounds=" + typeBounds);
         }
 
         // If the cast doesn't change the match count, it's redundant - skip it.

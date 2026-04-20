@@ -41,6 +41,19 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
             return;
         }
 
+        // Check if parameters already uniquely select the correct overload
+        int typedMatches = typeMaker.matchCount(
+                java.util.Collections.emptyMap(),
+                java.util.Collections.emptyMap(),
+                expression.getInternalTypeName(),
+                expression.getName(),
+                expression.getParameters(),
+                false);
+        if (typedMatches <= 1) {
+            super.maybeUpdateParameters(expression);
+            return;
+        }
+
         BaseExpression parameters = expression.getParameters();
         BaseType parameterTypes = invocation.getParameterTypes();
 

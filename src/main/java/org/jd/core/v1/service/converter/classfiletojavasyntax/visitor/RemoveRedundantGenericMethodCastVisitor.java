@@ -1252,11 +1252,19 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
         }
 
         if (castType instanceof GenericType genericType
+                && !castType.equals(expressionType)
                 && !canInferGenericMethodResultFromParameters(methodInvocationExpression, genericType.getName())) {
             return false;
         }
 
         if (!castExpression.isByteCodeCheckCast() && castType.equals(expressionType)) {
+            return true;
+        }
+        // A bytecode checkcast to a GenericType that matches the expression type is redundant
+        // (e.g. return (T1)call(0) when call(int) returns T1)
+        if (castExpression.isByteCodeCheckCast()
+                && castType instanceof GenericType
+                && castType.equals(expressionType)) {
             return true;
         }
         if (!castExpression.isByteCodeCheckCast()

@@ -951,6 +951,20 @@ public class ByteCodeParser {
                                         castNeeded = false;
                                     }
                                 }
+                                // Check all type parameters (including when there are multiple)
+                                // to see if the generic type's upper bound is the cast target
+                                if (castNeeded && typeTypes != null && typeTypes.getTypeParameters() != null
+                                        && type1 instanceof ObjectType castObjectType) {
+                                    for (org.jd.core.v1.model.javasyntax.type.TypeParameter tp : typeTypes.getTypeParameters()) {
+                                        if (tp instanceof TypeParameterWithTypeBounds tpwb
+                                                && tpwb.getIdentifier().equals(expression1.getType().getName())
+                                                && tpwb.getTypeBounds() instanceof ObjectType boundOt
+                                                && typeMaker.isRawTypeAssignable(castObjectType, boundOt)) {
+                                            castNeeded = false;
+                                            break;
+                                        }
+                                    }
+                                }
                                 if (castNeeded
                                         && expression1.getType() instanceof GenericType genericType
                                         && type1 instanceof ObjectType castObjectType

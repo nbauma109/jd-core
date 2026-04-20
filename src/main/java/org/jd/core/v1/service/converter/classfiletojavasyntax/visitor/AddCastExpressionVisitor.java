@@ -3561,6 +3561,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return new CastExpression(searchFirstLineNumberVisitor.getLineNumber(), type, expression);
         }
         if (type.equals(expression.getExpression().getType())) {
+            // Don't strip bytecode checkcast on raw receiver method invocations -
+            // the erasure returns Object and the cast is needed for compilation.
+            // Keep the original raw cast type (e.g. (Class) not (Class<?>)).
+            CastExpression ce = (CastExpression) expression;
+            if (ce.isByteCodeCheckCast()
+                    && ce.getExpression() instanceof ClassFileMethodInvocationExpression mie
+                    && mie.getExpression() != null
+                    && mie.getExpression().getType() instanceof ObjectType receiverType
+                    && receiverType.getTypeArguments() == null
+                    && !ObjectType.TYPE_OBJECT.rawEquals(receiverType)) {
+                return ce;
+            }
             return expression.getExpression();
         }
         CastExpression ce = (CastExpression)expression;

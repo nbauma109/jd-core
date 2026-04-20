@@ -217,7 +217,7 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
         Type unboundParameterType = unboundParameterTypes == null ? null : unboundParameterTypes.getFirst();
         Type parameterType = resolveErasedObjectParameterType(typeBounds, parameterTypes.getFirst(), unboundParameterType);
         Expression parameter = maybeRemoveGenericMethodCast(
-                false,
+                shouldPreserveOverloadDisambiguationCast(invocationExpression, parameters, 0),
                 parameterType,
                 unboundParameterType,
                 typeBounds,
@@ -956,12 +956,16 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
             MethodInvocationExpression invocationExpression,
             BaseExpression parameters,
             int index) {
+        Expression paramAtIndex = parameters.isList()
+                ? (index < parameters.getList().size() ? parameters.getList().get(index) : null)
+                : (index == 0 ? parameters.getFirst() : null);
         if (!(invocationExpression instanceof ClassFileMethodInvocationExpression classFileInvocationExpression)
-                || !parameters.isList()
-                || !(parameters.getList().get(index) instanceof CastExpression castExpression)
+                || !(paramAtIndex instanceof CastExpression castExpression)
                 || castExpression.isByteCodeCheckCast()
                 || classFileInvocationExpression.getTypeBindings() == null
                 || classFileInvocationExpression.getTypeBounds() == null) {
+            if ("use".equals(invocationExpression.getName()))
+                System.err.println("[DEBUG-SPOD] early return: isCFMIE=" + (invocationExpression instanceof ClassFileMethodInvocationExpression) + " paramAtIndex=" + paramAtIndex + " paramAtIndexClass=" + (paramAtIndex==null?"null":paramAtIndex.getClass().getSimpleName()) + " isByteCode=" + (paramAtIndex instanceof CastExpression ce2 ? ce2.isByteCodeCheckCast() : "N/A") + " typeBindings=" + (invocationExpression instanceof ClassFileMethodInvocationExpression c ? c.getTypeBindings() : "N/A") + " typeBounds=" + (invocationExpression instanceof ClassFileMethodInvocationExpression c ? c.getTypeBounds() : "N/A"));
             return false;
         }
 
@@ -988,19 +992,33 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
                 parameters,
                 false);
 
+        if ("use".equals(invocationExpression.getName()))
+            System.err.println("[DEBUG-SPOD] currentMatches=" + currentMatches + " typeBindings=" + classFileInvocationExpression.getTypeBindings() + " typeBounds=" + classFileInvocationExpression.getTypeBounds() + " param=" + paramAtIndex);
+
         if (currentMatches != 1) {
             return false;
         }
 
-        parameters.getList().set(index, castExpression.getExpression());
-        int matchesWithoutCast = typeMaker.matchCount(
-                classFileInvocationExpression.getTypeBindings(),
-                classFileInvocationExpression.getTypeBounds(),
-                invocationExpression.getInternalTypeName(),
-                invocationExpression.getName(),
-                parameters,
-                false);
-        parameters.getList().set(index, castExpression);
+        int matchesWithoutCast;
+        if (parameters.isList()) {
+            parameters.getList().set(index, castExpression.getExpression());
+            matchesWithoutCast = typeMaker.matchCount(
+                    classFileInvocationExpression.getTypeBindings(),
+                    classFileInvocationExpression.getTypeBounds(),
+                    invocationExpression.getInternalTypeName(),
+                    invocationExpression.getName(),
+                    parameters,
+                    false);
+            parameters.getList().set(index, castExpression);
+        } else {
+            matchesWithoutCast = typeMaker.matchCount(
+                    classFileInvocationExpression.getTypeBindings(),
+                    classFileInvocationExpression.getTypeBounds(),
+                    invocationExpression.getInternalTypeName(),
+                    invocationExpression.getName(),
+                    castExpression.getExpression(),
+                    false);
+        }
 
         return matchesWithoutCast != 1;
     }

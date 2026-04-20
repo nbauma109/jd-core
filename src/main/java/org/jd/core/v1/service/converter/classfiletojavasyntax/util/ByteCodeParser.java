@@ -890,13 +890,6 @@ public class ByteCodeParser {
                         // Keep it even if generic raw-assignability heuristics claim it is assignable.
                         boolean castFromRawObjectToConcreteType = TYPE_OBJECT.rawEquals(expressionObjectType) && !TYPE_OBJECT.rawEquals(castObjectType);
                         skipCast = !castFromRawObjectToConcreteType && typeMaker.isRawTypeAssignable(castObjectType, expressionObjectType);
-                        // DEBUG
-                        if (skipCast && "java/lang/Class".equals(castObjectType.getInternalName())) {
-                            System.err.println("[DEBUG-CHECKCAST] skipCast=true castType=" + castObjectType + " exprType=" + expressionObjectType + " exprClass=" + expression1.getClass().getSimpleName() + " isMIE=" + expression1.isMethodInvocationExpression());
-                            if (expression1 instanceof ClassFileMethodInvocationExpression dbgMie) {
-                                System.err.println("[DEBUG-CHECKCAST] descriptor=" + dbgMie.getDescriptor() + " receiver=" + (dbgMie.getExpression() != null ? dbgMie.getExpression().getType() : "null"));
-                            }
-                        }
                         if (skipCast
                                 && expression1 instanceof ClassFileLocalVariableReferenceExpression localVariableReferenceExpression
                                 && resolveSourceObjectType(localVariableReferenceExpression.getLocalVariable()) instanceof ObjectType sourceObjectType

@@ -3337,8 +3337,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && typeMaker.isRawTypeAssignable(boundObjectType, ownerType);
         }
 
-        if (receiver.getType() instanceof GenericType) {
-            return !"java/lang/Object".equals(ownerType.getInternalName());
+        if (receiver.getType() instanceof GenericType receiverGenericType) {
+            if ("java/lang/Object".equals(ownerType.getInternalName())) {
+                return false;
+            }
+            // Check if the generic type's bound (from the method's typeBounds) makes the cast redundant
+            // e.g., N extends BstNode<K, N> - casting to BstNode is not needed
+            if (expression instanceof ClassFileMethodInvocationExpression cfmie
+                    && cfmie.getTypeBounds() != null
+                    && cfmie.getTypeBounds().get(receiverGenericType.getName()) instanceof ObjectType boundOt
+                    && (ownerType.rawEquals(boundOt) || typeMaker.isRawTypeAssignable(ownerType, boundOt))) {
+                return false;
+            }
+            return true;
         }
 
         return false;

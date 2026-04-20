@@ -964,8 +964,6 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
                 || castExpression.isByteCodeCheckCast()
                 || classFileInvocationExpression.getTypeBindings() == null
                 || classFileInvocationExpression.getTypeBounds() == null) {
-            if ("use".equals(invocationExpression.getName()))
-                System.err.println("[DEBUG-SPOD] early return: isCFMIE=" + (invocationExpression instanceof ClassFileMethodInvocationExpression) + " paramAtIndex=" + paramAtIndex + " paramAtIndexClass=" + (paramAtIndex==null?"null":paramAtIndex.getClass().getSimpleName()) + " isByteCode=" + (paramAtIndex instanceof CastExpression ce2 ? ce2.isByteCodeCheckCast() : "N/A") + " typeBindings=" + (invocationExpression instanceof ClassFileMethodInvocationExpression c ? c.getTypeBindings() : "N/A") + " typeBounds=" + (invocationExpression instanceof ClassFileMethodInvocationExpression c ? c.getTypeBounds() : "N/A"));
             return false;
         }
 
@@ -991,9 +989,6 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
                 invocationExpression.getName(),
                 parameters,
                 false);
-
-        if ("use".equals(invocationExpression.getName()))
-            System.err.println("[DEBUG-SPOD] currentMatches=" + currentMatches + " typeBindings=" + classFileInvocationExpression.getTypeBindings() + " typeBounds=" + classFileInvocationExpression.getTypeBounds() + " param=" + paramAtIndex);
 
         if (currentMatches != 1) {
             return false;

@@ -480,7 +480,8 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
             Type unboundParameterType) {
         if (parameterType instanceof ObjectType objectType
                 && "java/lang/Class".equals(objectType.getInternalName())
-                && (hasTypeParameters(parameterType) || hasTypeParameters(unboundParameterType))) {
+                && (hasTypeParameters(parameterType) || hasTypeParameters(unboundParameterType)
+                    || objectType.getTypeArguments() != null)) {
             return false;
         }
         return hasAmbiguousInvocationMatch(invocationExpression, parameters)

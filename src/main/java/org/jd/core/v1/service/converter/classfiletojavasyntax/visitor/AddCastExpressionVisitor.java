@@ -2858,7 +2858,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         BaseType descriptorParameterTypes = descriptorMethodTypes.parameterTypes();
-        if (descriptorParameterTypes.size() != parameters.size()) {
+        // Allow collapsed varargs: descriptor may have one more param than the call
+        if (descriptorParameterTypes.size() != parameters.size()
+                && descriptorParameterTypes.size() != parameters.size() + 1) {
             return false;
         }
 

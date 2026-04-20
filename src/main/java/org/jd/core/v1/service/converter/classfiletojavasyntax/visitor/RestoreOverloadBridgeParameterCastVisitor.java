@@ -41,19 +41,6 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
             return;
         }
 
-        // Check if parameters already uniquely select the correct overload
-        int typedMatches = typeMaker.matchCount(
-                java.util.Collections.emptyMap(),
-                java.util.Collections.emptyMap(),
-                expression.getInternalTypeName(),
-                expression.getName(),
-                expression.getParameters(),
-                false);
-        if (typedMatches <= 1) {
-            super.maybeUpdateParameters(expression);
-            return;
-        }
-
         BaseExpression parameters = expression.getParameters();
         BaseType parameterTypes = invocation.getParameterTypes();
 
@@ -64,11 +51,11 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
                 Type parameterType = parameterTypes.isList()
                         ? index < parameterTypes.size() ? parameterTypes.getList().get(index) : null
                         : index == 0 ? parameterTypes.getFirst() : null;
-                iterator.set(updateBridgeParameterCast(parameterType, iterator.next()));
+                iterator.set(updateBridgeParameterCast(expression, parameters, index, parameterType, iterator.next()));
                 index++;
             }
         } else {
-            expression.setParameters(updateBridgeParameterCast(parameterTypes.getFirst(), parameters.getFirst()));
+            expression.setParameters(updateBridgeParameterCast(expression, parameters, 0, parameterTypes.getFirst(), parameters.getFirst()));
         }
     }
 
@@ -77,7 +64,7 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
         return expression;
     }
 
-    private Expression updateBridgeParameterCast(Type parameterType, Expression parameter) {
+    private Expression updateBridgeParameterCast(MethodInvocationExpression invocation, BaseExpression parameters, int index, Type parameterType, Expression parameter) {
         if (!(parameterType instanceof ObjectType parameterObjectType)
                 || parameter instanceof CastExpression
                 || parameter instanceof LambdaIdentifiersExpression
@@ -85,6 +72,45 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
                 || !(parameter.getType() instanceof ObjectType expressionObjectType)
                 || parameterObjectType.rawEquals(expressionObjectType)
                 || !typeMaker.isRawTypeAssignable(parameterObjectType, expressionObjectType)) {
+            return parameter;
+        }
+
+        // Check if adding the cast changes overload resolution.
+        // Count matches with current parameters.
+        int matchesWithout = typeMaker.matchCount(
+                java.util.Collections.emptyMap(),
+                java.util.Collections.emptyMap(),
+                invocation.getInternalTypeName(),
+                invocation.getName(),
+                parameters,
+                false);
+
+        // Count matches with the cast applied to this parameter.
+        CastExpression castExpr = new CastExpression(parameterObjectType, parameter);
+        int matchesWith;
+        if (parameters.isList()) {
+            Expression original = parameters.getList().get(index);
+            parameters.getList().set(index, castExpr);
+            matchesWith = typeMaker.matchCount(
+                    java.util.Collections.emptyMap(),
+                    java.util.Collections.emptyMap(),
+                    invocation.getInternalTypeName(),
+                    invocation.getName(),
+                    parameters,
+                    false);
+            parameters.getList().set(index, original);
+        } else {
+            matchesWith = typeMaker.matchCount(
+                    java.util.Collections.emptyMap(),
+                    java.util.Collections.emptyMap(),
+                    invocation.getInternalTypeName(),
+                    invocation.getName(),
+                    castExpr,
+                    false);
+        }
+
+        // If the cast doesn't change the match count, it's redundant - skip it.
+        if (matchesWithout == matchesWith) {
             return parameter;
         }
 

@@ -2022,6 +2022,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || !expression.getType().isObjectType()) {
             return false;
         }
+        if (expression.isNullExpression()) {
+            return false;
+        }
         if (expression instanceof LambdaIdentifiersExpression || expression instanceof MethodReferenceExpression) {
             return false;
         }

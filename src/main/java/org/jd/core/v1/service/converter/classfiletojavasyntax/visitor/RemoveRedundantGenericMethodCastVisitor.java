@@ -1287,6 +1287,20 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
                 && boundObjectType.rawEquals((ObjectType) castExpression.getType())) {
             return true;
         }
+        // Non-bytecode-checkcast on a generic method result where the cast type rawEquals
+        // the resolved expression type. The cast is redundant since the type was already
+        // correctly resolved from the receiver's type arguments.
+        // Example: ((Map)map.get(key)).put(...) where map is Map<String, Map<String, String>>
+        if (!castExpression.isByteCodeCheckCast()
+                && castExpression.getType().isObjectType()
+                && expressionType.isObjectType()
+                && ((ObjectType) castExpression.getType()).rawEquals((ObjectType) expressionType)
+                && ((ObjectType) castExpression.getType()).getTypeArguments() == null
+                && methodInvocationExpression.getExpression() != null
+                && methodInvocationExpression.getExpression().getType() instanceof ObjectType receiverType
+                && receiverType.getTypeArguments() != null) {
+            return true;
+        }
         if (isJavaLangObjectArray(castExpression.getType())
                 && methodInvocationExpression.getType().getDimension() == castExpression.getType().getDimension()
                 && hasGenericArrayInvocationShape(methodInvocationExpression)) {

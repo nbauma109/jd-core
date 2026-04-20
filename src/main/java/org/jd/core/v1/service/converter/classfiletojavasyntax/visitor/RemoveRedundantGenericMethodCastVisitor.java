@@ -1246,6 +1246,8 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
         if ((isArrayConstructorToArrayCast(castExpression.getType(), methodInvocationExpression)
                 || isTypedArrayToArrayCast(castExpression.getType(), methodInvocationExpression))
                 && !shouldPreserveTypedArrayToArrayCast(castExpression.getType(), methodInvocationExpression)) {
+            // Also strip the redundant cast on the array constructor method reference parameter
+            stripArrayConstructorParameterCast(methodInvocationExpression);
             return true;
         }
 
@@ -1285,6 +1287,14 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
                 && genericBound instanceof ObjectType boundObjectType
                 && castExpression.getType().isObjectType()
                 && boundObjectType.rawEquals((ObjectType) castExpression.getType())) {
+            // Don't remove the checkcast if the receiver is a raw type - the erasure returns Object
+            // and the cast is needed for compilation (e.g. (Class)rawIterator.next())
+            if (methodInvocationExpression.getExpression() != null
+                    && methodInvocationExpression.getExpression().getType() instanceof ObjectType receiverType
+                    && receiverType.getTypeArguments() == null
+                    && !ObjectType.TYPE_OBJECT.rawEquals(receiverType)) {
+                return false;
+            }
             return true;
         }
         // Non-bytecode-checkcast on a generic method result where the cast type rawEquals
@@ -1317,6 +1327,28 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
 
         if (!genericMethodResult) {
             return false;
+        }
+
+        // Preserve bytecode checkcast when the method descriptor returns java/lang/Object
+        // but the resolved expression type is more specific (e.g. raw Iterator.next() returns Object
+        // but is resolved to Class<?> via context). The cast is needed for compilation.
+        if (castExpression.isByteCodeCheckCast()
+                && castType.isObjectType()
+                && expressionType.isObjectType()
+                && ((ObjectType) castType).rawEquals((ObjectType) expressionType)) {
+            RawDescriptorType descriptorReturnType = parseRawDescriptorReturnType(methodInvocationExpression.getDescriptor());
+            if (descriptorReturnType != null
+                    && "java/lang/Object".equals(descriptorReturnType.internalName())
+                    && descriptorReturnType.dimension() == 0
+                    && !ObjectType.TYPE_OBJECT.rawEquals((ObjectType) castType)) {
+                // The descriptor returns Object but cast is to a specific type - keep the cast
+                // unless the receiver has type arguments that would resolve the generic
+                if (methodInvocationExpression.getExpression() != null
+                        && methodInvocationExpression.getExpression().getType() instanceof ObjectType receiverType
+                        && receiverType.getTypeArguments() == null) {
+                    return false;
+                }
+            }
         }
 
         if (castType.isObjectType() && expressionType.isObjectType()) {
@@ -1484,6 +1516,21 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
     private record RawDescriptorType(String internalName, int dimension) {
     }
 
+    private static void stripArrayConstructorParameterCast(ClassFileMethodInvocationExpression methodInvocationExpression) {
+        BaseExpression parameters = methodInvocationExpression.getParameters();
+        if (parameters == null || parameters.size() != 1) {
+            return;
+        }
+        Expression parameter = parameters.isList() ? parameters.getFirst() : parameters.getFirst();
+        if (parameter instanceof CastExpression castParam && castParam.getExpression() instanceof MethodReferenceExpression) {
+            if (parameters.isList()) {
+                parameters.getList().set(0, castParam.getExpression());
+            } else {
+                methodInvocationExpression.setParameters(castParam.getExpression());
+            }
+        }
+    }
+
     private static boolean isArrayConstructorToArrayCast(Type castType, Expression nestedExpression) {
         if (castType == null || nestedExpression == null || !nestedExpression.isMethodInvocationExpression() || !"toArray".equals(nestedExpression.getName())) {
             return false;
@@ -1493,6 +1540,10 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
             return false;
         }
         Expression parameter = parameters.isList() ? parameters.getFirst() : parameters.getFirst();
+        // Unwrap CastExpression wrapping the method reference (e.g. (IntFunction<String[]>)String[]::new)
+        if (parameter instanceof CastExpression castParam) {
+            parameter = castParam.getExpression();
+        }
         if (!(parameter instanceof MethodReferenceExpression methodReference) || !"new".equals(methodReference.getName())) {
             return false;
         }

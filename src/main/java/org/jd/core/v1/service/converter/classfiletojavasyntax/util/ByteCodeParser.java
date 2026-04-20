@@ -85,6 +85,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileCmpExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileMonitorEnterStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileMonitorExitStatement;
@@ -897,6 +898,29 @@ public class ByteCodeParser {
                                 castObjectType,
                                 sourceObjectType)) {
                             skipCast = false;
+                        }
+                        // Keep the cast when the expression is a method invocation on a raw type receiver
+                        // (e.g. rawIterator.next() where iterator has no type arguments).
+                        // The erasure returns Object and the checkcast is needed for compilation.
+                        if (skipCast
+                                && expression1.isMethodInvocationExpression()
+                                && expression1 instanceof ClassFileMethodInvocationExpression rawMethodInvocation
+                                && !TYPE_OBJECT.rawEquals(castObjectType)) {
+                            // Check 1: raw receiver (no type arguments)
+                            if (rawMethodInvocation.getExpression() != null
+                                    && rawMethodInvocation.getExpression().getType() instanceof ObjectType receiverType
+                                    && receiverType.getTypeArguments() == null
+                                    && !TYPE_OBJECT.rawEquals(receiverType)) {
+                                skipCast = false;
+                            }
+                            // Check 2: method descriptor returns Object but cast is to specific type
+                            if (skipCast && rawMethodInvocation.getDescriptor() != null) {
+                                String desc = rawMethodInvocation.getDescriptor();
+                                int rparen = desc.indexOf(')');
+                                if (rparen >= 0 && desc.substring(rparen + 1).equals("Ljava/lang/Object;")) {
+                                    skipCast = false;
+                                }
+                            }
                         }
                     }
                     if (!type1.isObjectType() || !expression1.getType().isObjectType() || !skipCast) {

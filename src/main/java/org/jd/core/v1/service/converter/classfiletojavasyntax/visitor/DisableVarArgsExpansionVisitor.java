@@ -123,6 +123,12 @@ public class DisableVarArgsExpansionVisitor extends AbstractUpdateExpressionVisi
             return false;
         }
 
+        // A NewInitializedArray literal (e.g. new Class<?>[] { ... }) should always be expanded
+        // into individual varargs elements, not treated as a pre-built array argument.
+        if (parameter instanceof NewInitializedArray) {
+            return false;
+        }
+
         BaseType parameterTypes = invocation.getParameterTypes();
         if (parameterTypes == null) {
             return false;

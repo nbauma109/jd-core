@@ -795,7 +795,11 @@ public class RemoveRedundantGenericMethodCastVisitor extends AbstractUpdateExpre
             if (castExpression.getExpression() instanceof LocalVariableReferenceExpression
                     && (!(parameterType instanceof ObjectType parameterObjectType)
                     || !(expressionType instanceof ObjectType expressionObjectType)
-                    || !parameterObjectType.rawEquals(expressionObjectType))) {
+                    || !parameterObjectType.rawEquals(expressionObjectType))
+                    && !(parameterType instanceof ObjectType po
+                    && castObjectType.rawEquals(po)
+                    && expressionType instanceof ObjectType eo
+                    && typeMaker.isRawTypeAssignable(castObjectType, eo))) {
                 return false;
             }
         }

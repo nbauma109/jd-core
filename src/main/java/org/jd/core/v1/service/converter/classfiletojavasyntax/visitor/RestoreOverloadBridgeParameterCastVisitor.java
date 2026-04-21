@@ -120,10 +120,6 @@ public class RestoreOverloadBridgeParameterCastVisitor extends AbstractUpdateExp
                     false);
         }
 
-        if ("use".equals(invocation.getName())) {
-            System.out.println("[DEBUG-RESTORE] paramType=" + parameterType + " param=" + parameter + " matchesWithout=" + matchesWithout + " matchesWith=" + matchesWith + " typeBindings=" + typeBindings + " typeBounds=" + typeBounds);
-        }
-
         // If the cast doesn't change the match count, it's redundant - skip it.
         if (matchesWithout == matchesWith) {
             return parameter;

@@ -829,6 +829,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && unboundType.equals(expression.getType())) {
             type = unboundType;
         }
+        if ((expression instanceof LambdaIdentifiersExpression || expression instanceof MethodReferenceExpression)
+                && type instanceof ObjectType parameterObjectType
+                && unboundType instanceof ObjectType unboundObjectType
+                && parameterObjectType.getTypeArguments() == null
+                && unboundObjectType.getTypeArguments() != null
+                && parameterObjectType.rawEquals(unboundObjectType)) {
+            type = unboundType;
+        }
         if (!(expression instanceof CastExpression)
                 && forceCast
                 && shouldForceAlternativeObjectOverloadCast(expression)
@@ -1800,9 +1808,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (!(parameterType instanceof ObjectType objectType) || objectType.getTypeArguments() == null) {
             return false;
         }
-        if ("java/lang/Class".equals(objectType.getInternalName())) {
-            return false;
-        }
         return objectType.findTypeParametersInType().contains(genericName);
     }
 
@@ -2365,21 +2370,46 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
+        if (hasKnownTypeParameters(parameterTypes)) {
+            return false;
+        }
+
         BaseType descriptorParameterTypes = descriptorMethodTypes.parameterTypes();
-        if (parameterTypes.isList() != descriptorParameterTypes.isList() || parameterTypes.size() != descriptorParameterTypes.size()) {
+        int parameterCount = getParameterTypeCount(parameterTypes);
+        int descriptorParameterCount = getParameterTypeCount(descriptorParameterTypes);
+        if (parameterCount != descriptorParameterCount) {
             return false;
         }
 
-        if (parameterTypes.isList()) {
-            for (int i = 0; i < parameterTypes.size(); i++) {
-                if (hasDifferentErasedSignature(parameterTypes.getList().get(i), descriptorParameterTypes.getList().get(i))) {
-                    return true;
-                }
+        for (int i = 0; i < parameterCount; i++) {
+            Type parameterType = getParameterTypeAt(parameterTypes, i);
+            Type descriptorParameterType = getParameterTypeAt(descriptorParameterTypes, i);
+            if (parameterType == null || descriptorParameterType == null) {
+                return false;
             }
-            return false;
+            if (hasDifferentErasedSignature(parameterType, descriptorParameterType)) {
+                return true;
+            }
         }
 
-        return hasDifferentErasedSignature(parameterTypes.getFirst(), descriptorParameterTypes.getFirst());
+        return false;
+    }
+
+    private static Type getParameterTypeAt(BaseType parameterTypes, int index) {
+        if (parameterTypes == null) {
+            return null;
+        }
+        if (parameterTypes.isList()) {
+            return index < parameterTypes.size() ? parameterTypes.getList().get(index) : null;
+        }
+        return index == 0 ? parameterTypes.getFirst() : null;
+    }
+
+    private static int getParameterTypeCount(BaseType parameterTypes) {
+        if (parameterTypes == null) {
+            return 0;
+        }
+        return parameterTypes.isList() ? parameterTypes.size() : 1;
     }
 
     private static boolean hasDifferentErasedSignature(Type left, Type right) {

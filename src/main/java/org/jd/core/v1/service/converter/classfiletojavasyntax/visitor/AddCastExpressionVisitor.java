@@ -500,9 +500,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean unique = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false) <= 1;
             int rawMatches = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false);
             int typedMatches = typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false);
-            if ("use".equals(expression.getName())) {
-                System.out.println("[DEBUG-VISIT] params=" + parameters + " parameterTypes=" + parameterTypes + " unbound=" + unboundParameterTypes + " typeBindings=" + typeBindings + " typeBounds=" + localTypeBounds + " unique=" + unique + " rawMatches=" + rawMatches + " typedMatches=" + typedMatches + " descriptor=" + expression.getDescriptor());
-            }
             boolean generalOverloadCast = shouldForceGeneralOverloadCast(
                     expression,
                     typeBindings,
@@ -516,9 +513,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && (generalOverloadCast || selfSubtypeOverloadCast);
             RawDescriptorMethodTypes descriptorMethodTypes = parseRawDescriptorMethodTypes(expression.getDescriptor());
             boolean useDescriptorBridgeParameterTypes = shouldUseDescriptorBridgeParameterTypes(unique, parameterTypes, descriptorMethodTypes);
-            if ("use".equals(expression.getName())) {
-                System.out.println("[DEBUG-VISIT] generalOverloadCast=" + generalOverloadCast + " selfSubtypeOverloadCast=" + selfSubtypeOverloadCast + " forceCast=" + forceCast + " descriptorTypes=" + (descriptorMethodTypes == null ? null : descriptorMethodTypes.parameterTypes()) + " useDescriptorBridge=" + useDescriptorBridgeParameterTypes);
-            }
             if (useDescriptorBridgeParameterTypes && descriptorMethodTypes != null) {
                 ((ClassFileMethodInvocationExpression) expression).setParameterTypes(descriptorMethodTypes.parameterTypes());
                 if (descriptorMethodTypes.returnedType() != null
@@ -2252,10 +2246,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (expressionType == null) {
             return parameter;
         }
-        if (invocationExpression != null && "use".equals(invocationExpression.getName())) {
-            System.out.println("[DEBUG-ADJ] declared=" + declaredType + " descriptor=" + descriptorType + " exprType=" + expressionType + " param=" + parameter);
-        }
-
         if (declaredType instanceof ObjectType declaredObjectType
                 && "java/lang/Class".equals(declaredObjectType.getInternalName())
                 && descriptorType instanceof ObjectType descriptorObjectType
@@ -2293,9 +2283,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (!descriptorObjectType.rawEquals(declaredObjectType)
                 && typeMaker.isRawTypeAssignable(descriptorObjectType, expressionObjectType)
                 && !typeMaker.isRawTypeAssignable(expressionObjectType, descriptorObjectType)) {
-            if (invocationExpression != null && "use".equals(invocationExpression.getName())) {
-                System.out.println("[DEBUG-ADJ] adding cast to " + descriptorType);
-            }
             return addExplicitCastExpression(descriptorType, coreExpression);
         }
 

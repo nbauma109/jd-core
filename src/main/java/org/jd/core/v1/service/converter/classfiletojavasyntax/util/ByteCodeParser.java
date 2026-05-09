@@ -1165,11 +1165,9 @@ public class ByteCodeParser {
                 } else if (Double.compare(d, Math.PI) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_MATH), StringConstants.JAVA_LANG_MATH, "PI", "D"));
                 } else {
-                    // Check if this double constant could be represented as a float literal
                     float floatValue = (float)d;
-                    if (Double.compare(d, (double)floatValue) == 0) {
-                        // The double constant can be exactly represented as a float
-                        // Create a cast expression to preserve the float notation
+                    if (Double.compare(d, (double)floatValue) == 0
+                            && !Double.toString(d).equals(Float.toString(floatValue))) {
                         stack.push(new CastExpression(lineNumber, TYPE_DOUBLE, new FloatConstantExpression(lineNumber, floatValue)));
                     } else {
                         stack.push(new DoubleConstantExpression(lineNumber, d));

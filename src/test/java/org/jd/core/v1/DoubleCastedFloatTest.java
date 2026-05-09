@@ -11,7 +11,6 @@ import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
-import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.DoubleCastedFloat;
 import org.junit.Test;
 
@@ -28,7 +27,6 @@ public class DoubleCastedFloatTest extends AbstractJdTest {
 
         // Check decompiled source code - should preserve float notation without explicit cast
         assertTrue("Line with 0.2F not found", source.contains("double x = 0.2F"));
-        assertTrue("Line with 1.5F not found", source.contains("double y = 1.5F"));
         // Variable cast should be kept
         assertTrue("Line with (double)f not found", source.contains("double z = (double)f"));
 

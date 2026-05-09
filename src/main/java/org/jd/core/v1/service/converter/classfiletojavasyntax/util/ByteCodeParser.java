@@ -1165,7 +1165,13 @@ public class ByteCodeParser {
                 } else if (Double.compare(d, Math.PI) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_MATH), StringConstants.JAVA_LANG_MATH, "PI", "D"));
                 } else {
-                    stack.push(new DoubleConstantExpression(lineNumber, d));
+                    float floatValue = (float)d;
+                    if (Double.compare(d, (double)floatValue) == 0
+                            && !Double.toString(d).equals(Float.toString(floatValue))) {
+                        stack.push(new CastExpression(lineNumber, TYPE_DOUBLE, new FloatConstantExpression(lineNumber, floatValue)));
+                    } else {
+                        stack.push(new DoubleConstantExpression(lineNumber, d));
+                    }
                 }
                 break;
             case CONSTANT_String:

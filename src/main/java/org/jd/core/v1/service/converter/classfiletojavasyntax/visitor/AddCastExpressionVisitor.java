@@ -96,6 +96,7 @@ import java.util.Set;
 import static org.apache.bcel.Const.ACC_BRIDGE;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BYTE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_DOUBLE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_SHORT;
 
 public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
@@ -763,6 +764,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
         if (isParameterizedJavaLangObject(expression.getType())) {
+            return true;
+        }
+        // For float-to-double casts where the cast target type matches the expected type,
+        // remove the cast to allow implicit widening (e.g., double x = 0.2F instead of double x = (double)0.2F)
+        if (expression.getExpression() instanceof FloatConstantExpression
+                && TYPE_DOUBLE.equals(expression.getType())
+                && TYPE_DOUBLE.equals(type)) {
             return true;
         }
         if (!hasKnownTypeParameters(expression.getType())) {

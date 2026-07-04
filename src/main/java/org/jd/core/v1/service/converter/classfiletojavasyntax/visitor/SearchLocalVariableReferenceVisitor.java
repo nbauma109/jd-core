@@ -15,6 +15,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariabl
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 
 public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisitor {
     private int index;
@@ -59,7 +60,8 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
 
     private boolean isLambdaParameter(String name) {
         for (LambdaIdentifiersExpression lambda : lambdas) {
-            if (lambda.getParameterNames().contains(name)) {
+            List<String> parameterNames = lambda.getParameterNames();
+            if (parameterNames != null && parameterNames.contains(name)) {
                 return true;
             }
         }

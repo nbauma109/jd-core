@@ -2418,6 +2418,16 @@ public class ByteCodeParser {
                         return new SuperExpression(expression.getLineNumber(), expression.getType());
                     }
                 }
+
+                // An overload with the same name in this class would capture the call: keep 'super.'
+                memberVisitor.init(name, null);
+
+                for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {
+                    member.accept(memberVisitor);
+                    if (memberVisitor.found()) {
+                        return new SuperExpression(expression.getLineNumber(), expression.getType());
+                    }
+                }
             }
         }
 
@@ -2517,7 +2527,7 @@ public class ByteCodeParser {
 
         @Override
         public void visit(MethodDeclaration declaration) {
-            found |= declaration.getName().equals(name) && declaration.getDescriptor().equals(descriptor);
+            found |= declaration.getName().equals(name) && (descriptor == null || declaration.getDescriptor().equals(descriptor));
         }
     }
 

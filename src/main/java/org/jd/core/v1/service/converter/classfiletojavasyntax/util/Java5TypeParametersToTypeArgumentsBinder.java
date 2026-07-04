@@ -669,9 +669,13 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
-    private static boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {
+    private boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {
         if (nonWildcardTypeArgument instanceof ObjectType ot && StringConstants.JAVA_LANG_OBJECT.equals(ot.getInternalName())) {
             // Do not use Object or Object array as explicit type parameter
+            return false;
+        }
+        if (containsRawGenericType(nonWildcardTypeArgument)) {
+            // Raw usages of generic classes come from type erasure and cannot be used as explicit type arguments
             return false;
         }
         if (parameters instanceof LambdaIdentifiersExpression) {
@@ -685,6 +689,26 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             }
         }
         return true;
+    }
+
+    private boolean containsRawGenericType(BaseTypeArgument nonWildcardTypeArgument) {
+        if (nonWildcardTypeArgument instanceof TypeArguments typeArguments) {
+            for (TypeArgument typeArgument : typeArguments) {
+                if (isRawGenericType(typeArgument)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return isRawGenericType(nonWildcardTypeArgument);
+    }
+
+    private boolean isRawGenericType(BaseTypeArgument typeArgument) {
+        if (typeArgument instanceof ObjectType ot && ot.getTypeArguments() == null && ot.getDimension() == 0) {
+            TypeTypes typeTypes = typeMaker.makeTypeTypes(ot.getInternalName());
+            return typeTypes != null && typeTypes.getTypeParameters() != null;
+        }
+        return false;
     }
 
     private static boolean isNonWildCardableExpression(Expression parameter, BaseTypeArgument nonWildcardTypeArgument) {

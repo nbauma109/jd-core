@@ -10,6 +10,10 @@ package org.jd.core.test;
 import java.util.HashMap;
 import java.util.Map;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
+@SuppressFBWarnings
+@SuppressWarnings("all")
 public class SwitchEnumBig {
 
     enum Role {

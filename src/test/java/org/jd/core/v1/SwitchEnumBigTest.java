@@ -6,6 +6,9 @@ import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.junit.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
 /**
  * Reproduces a bug where the decompiler emits an invalid {@code case null:} label
  * instead of the enum constant name for a switch-on-enum statement.
@@ -14,17 +17,17 @@ import org.junit.Test;
  * lookup table with its {@code try}/{@code catch(NoSuchFieldError)} blocks sorted
  * alphabetically by enum constant name, not in declaration order. {@link
  * org.jd.core.v1.service.converter.classfiletojavasyntax.util.SwitchStatementMaker}
- * assumes the first 3 statements of that synthetic method are unrelated setup code
- * and skips them via {@code statements.listIterator(3)}, which drops the mapping for
- * whichever constant happens to be alphabetically first among those referenced by any
- * switch in the class (here, {@code ALARM_CONFIG}). That constant's case label then
- * prints as {@code case null:}, which does not recompile.
+ * assumed the first 3 statements of that synthetic method were unrelated setup code
+ * and skipped them via {@code statements.listIterator(3)}, which dropped the mapping
+ * for whichever constant happens to be alphabetically first among those referenced by
+ * any switch in the class (here, {@code ALARM_CONFIG}). That constant's case label
+ * then printed as {@code case null:}, which does not recompile.
  */
 public class SwitchEnumBigTest extends AbstractJdTest {
     @Test
     public void test() throws Exception {
         String internalClassName = "org/jd/core/test/SwitchEnumBig";
-        String src = getResourceAsString("/java/org/jd/core/test/SwitchEnumBig.java");
+        String src = new String(Files.readAllBytes(Paths.get("src/test/resources/java/org/jd/core/test/SwitchEnumBig.java")));
 
         InMemoryClassLoader classLoader = new InMemoryClassLoader();
         InMemoryJavaSourceFileObject sourceFileObject = new InMemoryJavaSourceFileObject(internalClassName.replace('/', '.'), src);

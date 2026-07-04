@@ -75,7 +75,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.12.0");
+        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.20.0");
     }
 
 //    @Test

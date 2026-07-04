@@ -55,7 +55,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsIO() throws Exception {
-        test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", "2.21.0");
+        test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", "2.22.0");
     }
 
     @Test

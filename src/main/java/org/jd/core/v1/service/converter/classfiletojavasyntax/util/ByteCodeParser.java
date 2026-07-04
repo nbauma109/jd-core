@@ -891,7 +891,11 @@ public class ByteCodeParser {
                     }
                     if (!type1.isObjectType() || !expression1.getType().isObjectType() || !skipCast) {
                         if (expression1.isCastExpression()) {
-                            if (expression1.getExpression() instanceof LambdaIdentifiersExpression && "java/io/Serializable".equals(expression1.getType().getInternalName())) {
+                            Expression castOperand = expression1.getExpression();
+                            boolean functionalExpression = castOperand instanceof LambdaIdentifiersExpression
+                                    || castOperand instanceof MethodReferenceExpression
+                                    || castOperand instanceof ConstructorReferenceExpression;
+                            if (functionalExpression && "java/io/Serializable".equals(expression1.getType().getInternalName())) {
                                 ((CastExpression) expression1).setIntersectType(type1);
                             } else {
                                 // Skip double cast

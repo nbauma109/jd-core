@@ -478,7 +478,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1;
             boolean rawCast = false;
             boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
-            visitingWitnessedInvocation = expression.getNonWildcardTypeArguments() != null;
+            // The printer only renders <TypeArgs> when a receiver qualifier is also printed: an implicit
+            // 'this' call never shows the witness, so it does not actually disambiguate anything there.
+            visitingWitnessedInvocation = expression.getNonWildcardTypeArguments() != null
+                && hasKnownTypeParameters(expression.getNonWildcardTypeArguments())
+                && !expression.getExpression().isThisExpression();
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, forceCast, unique, rawCast));
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
         }

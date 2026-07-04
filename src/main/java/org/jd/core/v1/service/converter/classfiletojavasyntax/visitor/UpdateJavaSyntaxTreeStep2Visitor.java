@@ -25,7 +25,6 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor {
     protected static final AggregateFieldsVisitor AGGREGATE_FIELDS_VISITOR = new AggregateFieldsVisitor();
     protected static final SortMembersVisitor SORT_MEMBERS_VISITOR = new SortMembersVisitor();
-    protected static final AutoboxingVisitor AUTOBOXING_VISITOR = new AutoboxingVisitor();
 
     private final InitStaticFieldVisitor initStaticFieldVisitor = new InitStaticFieldVisitor();
     private final InitInstanceFieldVisitor initInstanceFieldVisitor = new InitInstanceFieldVisitor();
@@ -35,6 +34,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final UpdateBridgeMethodVisitor replaceBridgeMethodVisitor;
     private final InitInnerClassVisitor.UpdateNewExpressionVisitor initInnerClassStep2Visitor;
     private final AddCastExpressionVisitor addCastExpressionVisitor;
+    private final AutoboxingVisitor autoboxingVisitor;
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
 
     private TypeDeclaration typeDeclaration;
@@ -43,6 +43,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         this.replaceBridgeMethodVisitor = new UpdateBridgeMethodVisitor(typeMaker);
         this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker);
         this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker);
+        this.autoboxingVisitor = new AutoboxingVisitor(typeMaker);
     }
 
     @Override
@@ -75,7 +76,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             // Add cast expressions
             addCastExpressionVisitor.visit(declaration);
             // Autoboxing
-            AUTOBOXING_VISITOR.visit(declaration);
+            autoboxingVisitor.visit(declaration);
             // Disable varargs expansion for array literals
             disableVarArgsExpansionVisitor.visit(declaration);
         }

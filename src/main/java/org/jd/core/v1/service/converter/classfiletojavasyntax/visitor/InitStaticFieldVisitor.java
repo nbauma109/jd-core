@@ -22,6 +22,7 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -40,8 +41,11 @@ import java.util.Map;
 public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final SearchLocalVariableReferenceVisitor searchLocalVariableReferenceVisitor = new SearchLocalVariableReferenceVisitor();
+    private final ForwardFieldReferenceVisitor forwardFieldReferenceVisitor = new ForwardFieldReferenceVisitor();
     private String internalTypeName;
     private final Map<String, FieldDeclarator> fields = new HashMap<>();
+    private final Map<String, Integer> fieldPositions = new HashMap<>();
+    private int fieldPositionCounter;
     private List<ClassFileConstructorOrMethodDeclaration> methods;
     private Boolean deleteStaticDeclaration;
 
@@ -79,6 +83,8 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
 
         // Store field declarations
         fields.clear();
+        fieldPositions.clear();
+        fieldPositionCounter = 0;
         safeAcceptListDeclaration(bodyDeclaration.getFieldDeclarations());
 
         if (!fields.isEmpty()) {
@@ -106,6 +112,7 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
     @Override
     public void visit(FieldDeclarator declaration) {
         fields.put(declaration.getName(), declaration);
+        fieldPositions.put(declaration.getName(), fieldPositionCounter++);
     }
 
     @Override
@@ -217,6 +224,13 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                         expression.accept(searchLocalVariableReferenceVisitor);
 
                         if (!searchLocalVariableReferenceVisitor.containsReference()) {
+                            // JLS 8.3.3: a simple-name reference to a field declared later in the same
+                            // class is illegal even from within a lambda; qualify it with the class name.
+                            Integer currentPosition = fieldPositions.get(fre.getName());
+                            if (currentPosition != null) {
+                                forwardFieldReferenceVisitor.init(internalTypeName, fieldPositions, currentPosition);
+                                expression.accept(forwardFieldReferenceVisitor);
+                            }
                             fdr.setVariableInitializer(new ExpressionVariableInitializer(expression));
                             ((ClassFileFieldDeclaration)fdr.getFieldDeclaration()).setFirstLineNumber(expression.getLineNumber());
                             return true;
@@ -240,6 +254,32 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
 	        methods.add(new ClassFileStaticInitializerDeclaration(
 	            sid.getBodyDeclaration(), sid.getClassFile(), sid.getMethod(), sid.getBindings(),
 	            sid.getTypeBounds(), lineNumber, statements));
+        }
+    }
+
+    private static class ForwardFieldReferenceVisitor extends AbstractJavaSyntaxVisitor {
+        private String internalTypeName;
+        private Map<String, Integer> fieldPositions;
+        private int currentPosition;
+
+        void init(String internalTypeName, Map<String, Integer> fieldPositions, int currentPosition) {
+            this.internalTypeName = internalTypeName;
+            this.fieldPositions = fieldPositions;
+            this.currentPosition = currentPosition;
+        }
+
+        @Override
+        public void visit(FieldReferenceExpression expression) {
+            if (internalTypeName.equals(expression.getInternalTypeName())
+                    && expression.getExpression() instanceof ObjectTypeReferenceExpression otr
+                    && !otr.isExplicit()) {
+                Integer targetPosition = fieldPositions.get(expression.getName());
+                if (targetPosition != null && targetPosition >= currentPosition) {
+                    // Field declared at or after the current position: a simple name would be an illegal forward reference
+                    otr.setExplicit(true);
+                }
+            }
+            super.visit(expression);
         }
     }
 }

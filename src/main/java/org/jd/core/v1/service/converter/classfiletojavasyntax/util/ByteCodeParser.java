@@ -170,6 +170,11 @@ public class ByteCodeParser {
         } else {
             this.typeParametersToTypeArgumentsBinder = new JavaTypeParametersToTypeArgumentsBinder();
         }
+
+        // Needed to bind a callee's checked-exception type variable to this method's own (e.g. a method
+        // declaring '<E extends Throwable> ... throws E' delegating to a sibling overload also declaring E),
+        // not just for void-returning static calls used as statements.
+        this.typeParametersToTypeArgumentsBinder.setExceptionTypes(this.exceptionTypes);
     }
 
     public void parse(BasicBlock basicBlock, Statements statements, DefaultStack<Expression> stack, Deque<Expression> enclosingInstances) {

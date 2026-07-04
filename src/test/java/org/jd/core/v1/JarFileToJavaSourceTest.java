@@ -299,7 +299,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         "--batch-mode",
                         "test",
                         "--no-transfer-progress",
-                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED",
+                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
+                                + " --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.time.chrono=ALL-UNNAMED"
+                                + " --add-opens java.base/java.time.format=ALL-UNNAMED --add-opens java.base/java.time.temporal=ALL-UNNAMED"
+                                + " --add-opens java.base/java.time.zone=ALL-UNNAMED",
                         "-Danimal.sniffer.skip=true",
                         "-Dmaven.repo.local=" + mavenRepoLocal
                 );

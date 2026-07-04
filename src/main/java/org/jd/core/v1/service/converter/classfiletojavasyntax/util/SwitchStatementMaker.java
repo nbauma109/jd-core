@@ -28,6 +28,7 @@ import org.jd.core.v1.util.DefaultList;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.ListIterator;
 import java.util.Map;
 
 public final class SwitchStatementMaker {
@@ -189,12 +190,27 @@ public final class SwitchStatementMaker {
                 for (ClassFileConstructorOrMethodDeclaration declaration : bodyDeclaration.getMethodDeclarations()) {
                      if (declaration.getMethod().getName().equals(methodName)) {
                          DefaultList<Statement> statements = declaration.getStatements().getList();
-                         updateSwitchStatement(switchStatement, statements.listIterator(3));
+                         updateSwitchStatement(switchStatement, skipLeadingNonTryStatements(statements));
                          break;
                      }
                 }
             }
         }
+    }
+
+    private static Iterator<Statement> skipLeadingNonTryStatements(DefaultList<Statement> statements) {
+        ListIterator<Statement> iterator = statements.listIterator();
+
+        while (iterator.hasNext()) {
+            Statement statement = iterator.next();
+
+            if (statement.isTryStatement()) {
+                iterator.previous();
+                break;
+            }
+        }
+
+        return iterator;
     }
 
     private static Iterator<Statement> searchSwitchMap(FieldReferenceExpression fre, Iterator<Statement> iterator) {

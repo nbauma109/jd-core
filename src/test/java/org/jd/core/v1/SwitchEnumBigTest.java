@@ -6,9 +6,6 @@ import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.junit.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
-
 /**
  * Reproduces a bug where the decompiler emits an invalid {@code case null:} label
  * instead of the enum constant name for a switch-on-enum statement.
@@ -27,7 +24,7 @@ public class SwitchEnumBigTest extends AbstractJdTest {
     @Test
     public void test() throws Exception {
         String internalClassName = "org/jd/core/test/SwitchEnumBig";
-        String src = new String(Files.readAllBytes(Paths.get("src/test/resources/java/org/jd/core/test/SwitchEnumBig.java")));
+        String src = getResourceAsString("/java/org/jd/core/test/SwitchEnumBig.java");
 
         InMemoryClassLoader classLoader = new InMemoryClassLoader();
         InMemoryJavaSourceFileObject sourceFileObject = new InMemoryJavaSourceFileObject(internalClassName.replace('/', '.'), src);

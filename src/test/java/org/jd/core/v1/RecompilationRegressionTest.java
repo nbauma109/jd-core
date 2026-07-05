@@ -13,6 +13,7 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.AmbiguousMethodReference;
+import org.jd.core.v1.stub.ConflictingWildcardCapture;
 import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
@@ -63,6 +64,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(ErasedMethodReference.class);
         assertTrue(source.matches(PatternMaker.make("Uncheck.accept(this.delegate::forEachRemaining, action::accept);")));
         assertRecompiles(ErasedMethodReference.class, source);
+    }
+
+    @Test
+    public void testConflictingWildcardCaptureKeepsCast() throws Exception {
+        String source = decompile(ConflictingWildcardCapture.class);
+        assertTrue(source.matches(PatternMaker.make("m((Holder)x, y);")));
+        assertRecompiles(ConflictingWildcardCapture.class, source);
     }
 
     @Test

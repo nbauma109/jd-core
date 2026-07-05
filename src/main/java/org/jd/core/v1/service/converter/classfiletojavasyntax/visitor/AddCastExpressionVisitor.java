@@ -113,6 +113,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean visitingAnonymousClass;
     private boolean visitingLambda;
     private boolean visitingWitnessedInvocation;
+    private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
     private Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
 
@@ -492,8 +493,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             visitingWitnessedInvocation = expression.getNonWildcardTypeArguments() != null
                 && hasKnownTypeParameters(expression.getNonWildcardTypeArguments())
                 && !expression.getExpression().isThisExpression();
+            Set<String> oldTypeVariablesSharedAcrossParameters = typeVariablesSharedAcrossParameters;
+            typeVariablesSharedAcrossParameters = findTypeVariablesSharedAcrossParameters(unboundParameterTypes);
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, forceCast, unique, rawCast));
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
+            typeVariablesSharedAcrossParameters = oldTypeVariablesSharedAcrossParameters;
         }
 
         if (expression.getNonWildcardTypeArguments() != null) {
@@ -854,16 +858,40 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (int i = 0; i < boundArgs.size(); i++) {
             if (!boundArgs.get(i).equals(expressionArgs.get(i))) {
                 // A wildcard binds freely to the method's type variable only when the binder fell back to the
-                // variable's erasure bound; a type variable still in scope requires an explicit cast
-                if (!isWildcard(expressionArgs.get(i)) || !(unboundArgs.get(i) instanceof GenericType)
+                // variable's erasure bound; a type variable still in scope requires an explicit cast.
+                // If another parameter of the same call also constrains this type variable, the wildcard
+                // capture here isn't the sole constraint and the mismatch must not be waived.
+                if (!isWildcard(expressionArgs.get(i)) || !(unboundArgs.get(i) instanceof GenericType unboundTypeVariable)
                         || boundArgs.get(i) instanceof GenericType
-                        || !captureSatisfiesBound(expressionArgs.get(i), expressionObjectType, i, boundArgs.get(i))) {
+                        || !captureSatisfiesBound(expressionArgs.get(i), expressionObjectType, i, boundArgs.get(i))
+                        || typeVariablesSharedAcrossParameters.contains(unboundTypeVariable.getName())) {
                     return false;
                 }
                 wildcardOnTypeVariable = true;
             }
         }
         return wildcardOnTypeVariable;
+    }
+
+    /**
+     * Type variable names that appear in more than one of the method's declared (unbound) parameter types:
+     * a wildcard-capture argument at one of those positions cannot be assumed to be the type variable's
+     * only constraint, since another argument may bind it to an incompatible concrete type.
+     */
+    private static Set<String> findTypeVariablesSharedAcrossParameters(BaseType unboundParameterTypes) {
+        if (unboundParameterTypes == null) {
+            return Collections.emptySet();
+        }
+        Set<String> seen = new HashSet<>();
+        Set<String> shared = new HashSet<>();
+        for (Type type : unboundParameterTypes) {
+            for (String identifier : type.findTypeParametersInType()) {
+                if (!seen.add(identifier)) {
+                    shared.add(identifier);
+                }
+            }
+        }
+        return shared;
     }
 
     private boolean captureSatisfiesBound(TypeArgument wildcard, ObjectType expressionObjectType, int typeParameterIndex, TypeArgument requiredBound) {

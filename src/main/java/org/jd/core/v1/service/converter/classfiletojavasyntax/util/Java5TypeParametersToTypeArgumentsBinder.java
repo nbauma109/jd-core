@@ -80,6 +80,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.TypeArgume
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -622,7 +623,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     if (methodTypeParameters != null && !partialBinding && !wildcardSuperOrExtends) {
                         bindTypeParametersToNonWildcardTypeArgumentsVisitor.init(bindings);
                         methodTypeParameters.accept(bindTypeParametersToNonWildcardTypeArgumentsVisitor);
-                        if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())) {
+                        if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
+                                || !hasInferableParameter(mie.getUnboundParameterTypes(), methodTypeParameters)) {
                             mie.setNonWildcardTypeArguments(bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument());
                         }
                     }
@@ -667,6 +669,30 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
             mie.setBound(true);
         }
+    }
+
+    private static boolean hasInferableParameter(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters) {
+        if (unboundParameterTypes == null) {
+            return false;
+        }
+        Set<String> methodTypeParameterNames = new HashSet<>();
+        methodTypeParameters.forEach(typeParameter -> methodTypeParameterNames.add(typeParameter.getIdentifier()));
+
+        for (Type type : unboundParameterTypes) {
+            if (containsTypeParameter(type, methodTypeParameterNames)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsTypeParameter(Type type, Set<String> methodTypeParameterNames) {
+        for (String identifier : type.findTypeParametersInType()) {
+            if (methodTypeParameterNames.contains(identifier)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {

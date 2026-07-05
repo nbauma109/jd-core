@@ -825,18 +825,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         boolean wildcardOnTypeVariable = false;
         for (int i = 0; i < boundArgs.size(); i++) {
-            if (boundArgs.get(i).equals(expressionArgs.get(i))) {
-                continue;
-            }
-            // A wildcard binds freely to the method's type variable only when the binder fell back to the
-            // variable's erasure bound; a type variable still in scope requires an explicit cast
-            if (isWildcard(expressionArgs.get(i)) && unboundArgs.get(i) instanceof GenericType
-                    && !(boundArgs.get(i) instanceof GenericType)
-                    && captureSatisfiesBound(expressionArgs.get(i), expressionObjectType, i, boundArgs.get(i))) {
+            if (!boundArgs.get(i).equals(expressionArgs.get(i))) {
+                // A wildcard binds freely to the method's type variable only when the binder fell back to the
+                // variable's erasure bound; a type variable still in scope requires an explicit cast
+                if (!isWildcard(expressionArgs.get(i)) || !(unboundArgs.get(i) instanceof GenericType)
+                        || boundArgs.get(i) instanceof GenericType
+                        || !captureSatisfiesBound(expressionArgs.get(i), expressionObjectType, i, boundArgs.get(i))) {
+                    return false;
+                }
                 wildcardOnTypeVariable = true;
-                continue;
             }
-            return false;
         }
         return wildcardOnTypeVariable;
     }

@@ -2430,6 +2430,10 @@ public class ByteCodeParser {
                 for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {
                     member.accept(memberVisitor);
                     if (memberVisitor.found()) {
+                        String[] interfaceTypeNames = member.getClassFile().getInterfaceTypeNames();
+                        if (Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
+                            return new QualifiedSuperExpression(expression.getLineNumber(), ot);
+                        }
                         return new SuperExpression(expression.getLineNumber(), expression.getType());
                     }
                 }

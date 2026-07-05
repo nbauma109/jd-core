@@ -316,8 +316,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         if (Utils.isSingleton(exceptionTypes) && Utils.isSingleton(mieExceptionTypes)) {
             Type exceptionType = exceptionTypes.getFirst();
             Type mieExceptionType = mieExceptionTypes.getFirst();
-            populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, exceptionType);
-            mieExceptionType.accept(populateBindingsWithTypeArgumentVisitor);
+            if (satisfiesExceptionBound(mieExceptionType, exceptionType, typeBounds)) {
+                populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, exceptionType);
+                mieExceptionType.accept(populateBindingsWithTypeArgumentVisitor);
+            }
         }
 
         boolean bindingsContainsNull = bindings.containsValue(null);
@@ -669,6 +671,31 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
             mie.setBound(true);
         }
+    }
+
+    /**
+     * Binding the callee's checked-exception type variable to the enclosing method's 'throws' type is only
+     * valid when that type satisfies the callee variable's declared bound; otherwise the callee's exception
+     * is handled locally and must be inferred independently.
+     */
+    private boolean satisfiesExceptionBound(Type mieExceptionType, Type exceptionType, Map<String, BaseType> typeBounds) {
+        if (!(mieExceptionType instanceof GenericType calleeExceptionVariable)) {
+            return true;
+        }
+        BaseType calleeBounds = typeBounds.get(calleeExceptionVariable.getName());
+        if (calleeBounds == null || !(calleeBounds.getFirst() instanceof ObjectType calleeBound)) {
+            return true;
+        }
+        Type effectiveType = exceptionType;
+        if (effectiveType instanceof GenericType gt) {
+            BaseType contextualBound = contextualTypeBounds.get(gt.getName());
+            if (contextualBound == null) {
+                return false;
+            }
+            effectiveType = contextualBound.getFirst();
+        }
+        return effectiveType instanceof ObjectType effectiveBound
+                && (calleeBound.rawEquals(effectiveBound) || typeMaker.isRawTypeAssignable(calleeBound, effectiveBound));
     }
 
     private static boolean hasInferableParameter(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters) {

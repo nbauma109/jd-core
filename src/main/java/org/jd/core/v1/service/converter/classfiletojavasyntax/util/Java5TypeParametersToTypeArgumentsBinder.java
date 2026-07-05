@@ -683,19 +683,35 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             return true;
         }
         BaseType calleeBounds = typeBounds.get(calleeExceptionVariable.getName());
-        if (calleeBounds == null || !(calleeBounds.getFirst() instanceof ObjectType calleeBound)) {
+        if (calleeBounds == null) {
             return true;
         }
-        Type effectiveType = exceptionType;
-        if (effectiveType instanceof GenericType gt) {
-            BaseType contextualBound = contextualTypeBounds.get(gt.getName());
-            if (contextualBound == null) {
+        BaseType effectiveTypes;
+        if (exceptionType instanceof GenericType gt) {
+            effectiveTypes = contextualTypeBounds.get(gt.getName());
+            if (effectiveTypes == null) {
                 return false;
             }
-            effectiveType = contextualBound.getFirst();
+        } else {
+            effectiveTypes = exceptionType;
         }
-        return effectiveType instanceof ObjectType effectiveBound
-                && (calleeBound.rawEquals(effectiveBound) || typeMaker.isRawTypeAssignable(calleeBound, effectiveBound));
+        // Every declared bound of the callee's type variable must be satisfied
+        for (Type calleeBoundType : calleeBounds) {
+            if (!(calleeBoundType instanceof ObjectType calleeBound) || !isSatisfiedByAny(calleeBound, effectiveTypes)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isSatisfiedByAny(ObjectType calleeBound, BaseType effectiveTypes) {
+        for (Type effectiveType : effectiveTypes) {
+            if (effectiveType instanceof ObjectType effectiveBound
+                    && (calleeBound.rawEquals(effectiveBound) || typeMaker.isRawTypeAssignable(calleeBound, effectiveBound))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasInferableParameter(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters) {

@@ -768,7 +768,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (!unique && isProperMethodReference(expression) && type instanceof ObjectType targetType
                     && expression.getType() instanceof ObjectType expressionObjectType
                     && targetType.rawEquals(expressionObjectType) && hasKnownTypeParameters(type)
-                    && !containsRawGenericType(targetType)) {
+                    && !containsErasedRawGenericType(targetType, unboundType)) {
                 // A method reference may be compatible with several overloads: cast to the target functional interface type
                 expression = addCastExpression(type, expression);
             }
@@ -784,19 +784,30 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             && !"new".equals(expression.getName());
     }
 
-    private boolean containsRawGenericType(ObjectType objectType) {
-        if (isRawGenericType(objectType)) {
-            return true;
+    /**
+     * A raw generic type in the cast target only blocks the cast when it replaced a type variable of the
+     * declared parameter type (erasure fallback); a raw type written in the method's declaration is legal
+     * in a disambiguating cast.
+     */
+    private boolean containsErasedRawGenericType(ObjectType targetType, Type unboundType) {
+        if (isRawGenericType(targetType)) {
+            // A raw target type is an erasure artifact unless the parameter was declared raw
+            return !(unboundType instanceof ObjectType unboundObjectType) || !targetType.rawEquals(unboundObjectType)
+                    || unboundObjectType.getTypeArguments() != null;
         }
-        BaseTypeArgument typeArguments = objectType.getTypeArguments();
-        if (typeArguments instanceof TypeArguments typeArgumentList) {
-            for (TypeArgument typeArgument : typeArgumentList) {
-                if (typeArgument instanceof ObjectType ot && isRawGenericType(ot)) {
-                    return true;
-                }
+        if (!(unboundType instanceof ObjectType unboundObjectType)) {
+            return false;
+        }
+        List<TypeArgument> targetArgs = toTypeArgumentList(targetType.getTypeArguments());
+        List<TypeArgument> unboundArgs = toTypeArgumentList(unboundObjectType.getTypeArguments());
+        if (targetArgs.size() != unboundArgs.size()) {
+            return false;
+        }
+        for (int i = 0; i < targetArgs.size(); i++) {
+            if (targetArgs.get(i) instanceof ObjectType ot && isRawGenericType(ot)
+                    && unboundArgs.get(i) instanceof GenericType) {
+                return true;
             }
-        } else if (typeArguments instanceof ObjectType ot && isRawGenericType(ot)) {
-            return true;
         }
         return false;
     }

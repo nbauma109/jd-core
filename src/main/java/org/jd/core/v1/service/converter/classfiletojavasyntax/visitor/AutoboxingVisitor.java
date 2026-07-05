@@ -176,9 +176,6 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
     }
 
     private boolean isOverloaded(MethodInvocationExpression expression) {
-        if (typeMaker == null || expression.getParameters() == null) {
-            return false;
-        }
         return typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), expression.getParameters().size(), false) > 1;
     }
 
@@ -190,12 +187,8 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
     }
 
     private static boolean isObjectErasureParameter(String descriptor, int parameterIndex) {
-        int i = descriptor.indexOf('(');
+        int i = descriptor.indexOf('(') + 1;
         int end = descriptor.indexOf(')');
-        if (i < 0 || end < 0) {
-            return false;
-        }
-        i++;
         int index = 0;
         while (i < end) {
             int start = i;

@@ -626,7 +626,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                         bindTypeParametersToNonWildcardTypeArgumentsVisitor.init(bindings);
                         methodTypeParameters.accept(bindTypeParametersToNonWildcardTypeArgumentsVisitor);
                         if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
-                                || !hasInferableParameter(mie.getUnboundParameterTypes(), methodTypeParameters, parameters)) {
+                                || !allTypeParametersInferable(mie.getUnboundParameterTypes(), methodTypeParameters, parameters)) {
                             mie.setNonWildcardTypeArguments(bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument());
                         }
                     }
@@ -716,23 +716,24 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
     /**
      * A method type variable can be inferred by the compiler when it appears in a parameter type whose
-     * actual argument carries type information; a null literal infers nothing, so a witness stays required.
+     * actual argument carries type information; a null literal infers nothing. The witness may only be
+     * omitted when every type variable of the method is inferable this way.
      */
-    private static boolean hasInferableParameter(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters, BaseExpression parameters) {
+    private static boolean allTypeParametersInferable(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters, BaseExpression parameters) {
         if (unboundParameterTypes == null) {
             return false;
         }
-        Set<String> methodTypeParameterNames = new HashSet<>();
-        methodTypeParameters.forEach(typeParameter -> methodTypeParameterNames.add(typeParameter.getIdentifier()));
+        Set<String> uninferable = new HashSet<>();
+        methodTypeParameters.forEach(typeParameter -> uninferable.add(typeParameter.getIdentifier()));
 
         int index = 0;
         for (Type type : unboundParameterTypes) {
-            if (containsTypeParameter(type, methodTypeParameterNames) && !isNullArgument(parameters, index)) {
-                return true;
+            if (!isNullArgument(parameters, index)) {
+                uninferable.removeAll(type.findTypeParametersInType());
             }
             index++;
         }
-        return false;
+        return uninferable.isEmpty();
     }
 
     private static boolean isNullArgument(BaseExpression parameters, int index) {
@@ -741,15 +742,6 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
         Expression parameter = parameters.isList() ? parameters.getList().get(index) : parameters.getFirst();
         return parameter.isNullExpression();
-    }
-
-    private static boolean containsTypeParameter(Type type, Set<String> methodTypeParameterNames) {
-        for (String identifier : type.findTypeParametersInType()) {
-            if (methodTypeParameterNames.contains(identifier)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {

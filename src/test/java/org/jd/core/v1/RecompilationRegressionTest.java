@@ -23,6 +23,8 @@ import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.RawDeclaredOverloads;
 import org.jd.core.v1.stub.SneakyThrow;
 import org.jd.core.v1.stub.WildcardExtendsBound;
+import org.jd.core.v1.stub.WildcardExtendsThrows;
+import org.jd.core.v1.stub.WildcardUnboundedVariable;
 import org.jd.core.v1.stub.WildcardObjectBound;
 import org.jd.core.v1.stub.RawDeclaredMethodReference;
 import org.jd.core.v1.stub.ReturnOnlyTypeVariable;
@@ -153,6 +155,20 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(WildcardExtendsBound.class);
         assertTrue(source.matches(PatternMaker.make("return pick(holder);")));
         assertRecompiles(WildcardExtendsBound.class, source);
+    }
+
+    @Test
+    public void testWildcardExtendsThrows() throws Exception {
+        String source = decompile(WildcardExtendsThrows.class);
+        assertTrue(source.matches(PatternMaker.make("return app(f, \"x\");")));
+        assertRecompiles(WildcardExtendsThrows.class, source);
+    }
+
+    @Test
+    public void testWildcardUnboundedVariable() throws Exception {
+        String source = decompile(WildcardUnboundedVariable.class);
+        assertTrue(source.matches(PatternMaker.make("return app(f, \"x\");")));
+        assertRecompiles(WildcardUnboundedVariable.class, source);
     }
 
     @Test

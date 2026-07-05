@@ -22,4 +22,8 @@ public class MultiWitness {
     public static int rawQualifier() {
         return MultiWitness.<List, Integer>pair(null, null).getKey().size();
     }
+
+    public static int mixedInference() {
+        return MultiWitness.<List, Integer>pair(null, 1).getKey().size();
+    }
 }

@@ -16,6 +16,7 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.HashMap;
@@ -59,8 +60,13 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         VALUE_METHODNAME_MAP.put(StringConstants.JAVA_LANG_BOOLEAN, "booleanValue");
     }
 
+    private final TypeMaker typeMaker;
     private String currentInternalTypeName;
     private String currentMethodName;
+
+    public AutoboxingVisitor(TypeMaker typeMaker) {
+        this.typeMaker = typeMaker;
+    }
 
     @Override
     public void visit(BodyDeclaration declaration) {
@@ -148,20 +154,63 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         }
 
         boolean isSelfOverload = isSelfOverload(expression);
+        boolean crossOverloadRisk = isOverloaded(expression);
 
         if (parameterTypes.isList() && expression.getParameters().isList()) {
             for (int i = 0; i < expression.getParameters().getList().size() && i < parameterTypes.getList().size(); i++) {
                 Type parameterType = parameterTypes.getList().get(i);
-                if (isSelfOverload && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
+                boolean skip = isSelfOverload || (crossOverloadRisk && isRiskyToUnbox(expression, i));
+                if (skip && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
                     continue;
                 }
                 if (shouldUpdateParameter(parameterType)) {
                     expression.getParameters().getList().set(i, updateExpression(expression.getParameters().getList().get(i)));
                 }
             }
-        } else if ((!isSelfOverload || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
-            expression.setParameters(updateExpression(expression.getParameters().getFirst()));
+        } else {
+            boolean skip = isSelfOverload || (crossOverloadRisk && isRiskyToUnbox(expression, 0));
+            if ((!skip || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
+                expression.setParameters(updateExpression(expression.getParameters().getFirst()));
+            }
         }
+    }
+
+    private boolean isOverloaded(MethodInvocationExpression expression) {
+        return typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), expression.getParameters().size(), false) > 1;
+    }
+
+    private static boolean isRiskyToUnbox(MethodInvocationExpression expression, int parameterIndex) {
+        // Only the fully erased java.lang.Object signature (e.g. a generic method like Range<T>.fit(T))
+        // is at risk: a sibling overload with a matching primitive parameter would then beat it in
+        // overload resolution once the explicit box/unbox call is removed.
+        return isObjectErasureParameter(expression.getDescriptor(), parameterIndex);
+    }
+
+    private static boolean isObjectErasureParameter(String descriptor, int parameterIndex) {
+        int i = descriptor.indexOf('(') + 1;
+        int end = descriptor.indexOf(')');
+        int index = 0;
+        while (i < end) {
+            int start = i;
+            while (descriptor.charAt(i) == '[') {
+                i++;
+            }
+            char c = descriptor.charAt(i);
+            String parameterDescriptor;
+            if (c == 'L') {
+                int semi = descriptor.indexOf(';', i);
+                parameterDescriptor = descriptor.substring(start, semi + 1);
+                i = semi + 1;
+            } else {
+                parameterDescriptor = descriptor.substring(start, i + 1);
+                i++;
+            }
+            if (index == parameterIndex) {
+                return "Ljava/lang/Object;".equals(parameterDescriptor);
+            }
+            index++;
+        }
+        return false;
     }
 
     private static boolean shouldUpdateParameter(Type parameterType) {

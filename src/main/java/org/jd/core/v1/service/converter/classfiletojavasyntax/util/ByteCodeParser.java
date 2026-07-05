@@ -170,6 +170,11 @@ public class ByteCodeParser {
         } else {
             this.typeParametersToTypeArgumentsBinder = new JavaTypeParametersToTypeArgumentsBinder();
         }
+
+        // Needed to bind a callee's checked-exception type variable to this method's own (e.g. a method
+        // declaring '<E extends Throwable> ... throws E' delegating to a sibling overload also declaring E),
+        // not just for void-returning static calls used as statements.
+        this.typeParametersToTypeArgumentsBinder.setExceptionTypes(this.exceptionTypes);
     }
 
     public void parse(BasicBlock basicBlock, Statements statements, DefaultStack<Expression> stack, Deque<Expression> enclosingInstances) {
@@ -2418,6 +2423,20 @@ public class ByteCodeParser {
                         return new SuperExpression(expression.getLineNumber(), expression.getType());
                     }
                 }
+
+                // An overload with the same name in this class would capture the call: keep 'super.'
+                memberVisitor.init(name, null);
+
+                for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {
+                    member.accept(memberVisitor);
+                    if (memberVisitor.found()) {
+                        String[] interfaceTypeNames = member.getClassFile().getInterfaceTypeNames();
+                        if (Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
+                            return new QualifiedSuperExpression(expression.getLineNumber(), ot);
+                        }
+                        return new SuperExpression(expression.getLineNumber(), expression.getType());
+                    }
+                }
             }
         }
 
@@ -2517,7 +2536,7 @@ public class ByteCodeParser {
 
         @Override
         public void visit(MethodDeclaration declaration) {
-            found |= declaration.getName().equals(name) && declaration.getDescriptor().equals(descriptor);
+            found |= declaration.getName().equals(name) && (descriptor == null || declaration.getDescriptor().equals(descriptor));
         }
     }
 

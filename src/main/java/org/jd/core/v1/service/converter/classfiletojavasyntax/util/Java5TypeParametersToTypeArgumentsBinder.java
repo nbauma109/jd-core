@@ -80,6 +80,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.TypeArgume
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -315,8 +316,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         if (Utils.isSingleton(exceptionTypes) && Utils.isSingleton(mieExceptionTypes)) {
             Type exceptionType = exceptionTypes.getFirst();
             Type mieExceptionType = mieExceptionTypes.getFirst();
-            populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, exceptionType);
-            mieExceptionType.accept(populateBindingsWithTypeArgumentVisitor);
+            if (satisfiesExceptionBound(mieExceptionType, exceptionType, typeBounds)) {
+                populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, exceptionType);
+                mieExceptionType.accept(populateBindingsWithTypeArgumentVisitor);
+            }
         }
 
         boolean bindingsContainsNull = bindings.containsValue(null);
@@ -622,7 +625,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     if (methodTypeParameters != null && !partialBinding && !wildcardSuperOrExtends) {
                         bindTypeParametersToNonWildcardTypeArgumentsVisitor.init(bindings);
                         methodTypeParameters.accept(bindTypeParametersToNonWildcardTypeArgumentsVisitor);
-                        if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())) {
+                        if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
+                                || !allTypeParametersInferable(mie.getUnboundParameterTypes(), methodTypeParameters, parameters)) {
                             mie.setNonWildcardTypeArguments(bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument());
                         }
                     }
@@ -669,9 +673,84 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
-    private static boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {
+    /**
+     * Binding the callee's checked-exception type variable to the enclosing method's 'throws' type is only
+     * valid when that type satisfies the callee variable's declared bound; otherwise the callee's exception
+     * is handled locally and must be inferred independently.
+     */
+    private boolean satisfiesExceptionBound(Type mieExceptionType, Type exceptionType, Map<String, BaseType> typeBounds) {
+        if (!(mieExceptionType instanceof GenericType calleeExceptionVariable)) {
+            return true;
+        }
+        BaseType calleeBounds = typeBounds.get(calleeExceptionVariable.getName());
+        if (calleeBounds == null) {
+            return true;
+        }
+        BaseType effectiveTypes;
+        if (exceptionType instanceof GenericType gt) {
+            effectiveTypes = contextualTypeBounds.get(gt.getName());
+            if (effectiveTypes == null) {
+                return false;
+            }
+        } else {
+            effectiveTypes = exceptionType;
+        }
+        // Every declared bound of the callee's type variable must be satisfied
+        for (Type calleeBoundType : calleeBounds) {
+            if (!(calleeBoundType instanceof ObjectType calleeBound) || !isSatisfiedByAny(calleeBound, effectiveTypes)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isSatisfiedByAny(ObjectType calleeBound, BaseType effectiveTypes) {
+        for (Type effectiveType : effectiveTypes) {
+            if (effectiveType instanceof ObjectType effectiveBound
+                    && (calleeBound.rawEquals(effectiveBound) || typeMaker.isRawTypeAssignable(calleeBound, effectiveBound))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * A method type variable can be inferred by the compiler when it appears in a parameter type whose
+     * actual argument carries type information; a null literal infers nothing. The witness may only be
+     * omitted when every type variable of the method is inferable this way.
+     */
+    private static boolean allTypeParametersInferable(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters, BaseExpression parameters) {
+        if (unboundParameterTypes == null) {
+            return false;
+        }
+        Set<String> uninferable = new HashSet<>();
+        methodTypeParameters.forEach(typeParameter -> uninferable.add(typeParameter.getIdentifier()));
+
+        int index = 0;
+        for (Type type : unboundParameterTypes) {
+            if (!isNullArgument(parameters, index)) {
+                uninferable.removeAll(type.findTypeParametersInType());
+            }
+            index++;
+        }
+        return uninferable.isEmpty();
+    }
+
+    private static boolean isNullArgument(BaseExpression parameters, int index) {
+        if (parameters == null || index >= parameters.size()) {
+            return false;
+        }
+        Expression parameter = parameters.isList() ? parameters.getList().get(index) : parameters.getFirst();
+        return parameter.isNullExpression();
+    }
+
+    private boolean isNonWildcardableBaseExpression(BaseExpression parameters, BaseTypeArgument nonWildcardTypeArgument) {
         if (nonWildcardTypeArgument instanceof ObjectType ot && StringConstants.JAVA_LANG_OBJECT.equals(ot.getInternalName())) {
             // Do not use Object or Object array as explicit type parameter
+            return false;
+        }
+        if (containsRawGenericType(nonWildcardTypeArgument)) {
+            // Raw usages of generic classes come from type erasure and cannot be used as explicit type arguments
             return false;
         }
         if (parameters instanceof LambdaIdentifiersExpression) {
@@ -685,6 +764,26 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             }
         }
         return true;
+    }
+
+    private boolean containsRawGenericType(BaseTypeArgument nonWildcardTypeArgument) {
+        if (nonWildcardTypeArgument instanceof TypeArguments typeArguments) {
+            for (TypeArgument typeArgument : typeArguments) {
+                if (isRawGenericType(typeArgument)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return isRawGenericType(nonWildcardTypeArgument);
+    }
+
+    private boolean isRawGenericType(BaseTypeArgument typeArgument) {
+        if (typeArgument instanceof ObjectType ot && ot.getTypeArguments() == null && ot.getDimension() == 0) {
+            TypeTypes typeTypes = typeMaker.makeTypeTypes(ot.getInternalName());
+            return typeTypes != null && typeTypes.getTypeParameters() != null;
+        }
+        return false;
     }
 
     private static boolean isNonWildCardableExpression(Expression parameter, BaseTypeArgument nonWildcardTypeArgument) {

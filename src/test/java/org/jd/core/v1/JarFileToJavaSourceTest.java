@@ -75,7 +75,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.12.0");
+        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.20.0");
     }
 
 //    @Test
@@ -299,7 +299,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         "--batch-mode",
                         "test",
                         "--no-transfer-progress",
-                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED",
+                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
+                                + " --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.time.chrono=ALL-UNNAMED"
+                                + " --add-opens java.base/java.time.format=ALL-UNNAMED --add-opens java.base/java.time.temporal=ALL-UNNAMED"
+                                + " --add-opens java.base/java.time.zone=ALL-UNNAMED",
                         "-Danimal.sniffer.skip=true",
                         "-Dmaven.repo.local=" + mavenRepoLocal
                 );

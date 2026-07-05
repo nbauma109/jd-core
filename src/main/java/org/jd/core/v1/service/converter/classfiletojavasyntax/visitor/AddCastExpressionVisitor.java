@@ -313,10 +313,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (exceptionTypes != null && exceptionTypes.size() == 1) {
             Type exceptionType = exceptionTypes.getFirst();
 
-            if (exceptionType.isGenericType() && !statement.getExpression().getType().equals(exceptionType)) {
+            if (exceptionType.isGenericType() && !statement.getExpression().getType().equals(exceptionType)
+                    && !isUncheckedException(statement.getExpression().getType())) {
                 statement.setExpression(addCastExpression(exceptionType, statement.getExpression()));
             }
         }
+    }
+
+    private boolean isUncheckedException(Type type) {
+        // Unchecked exceptions never need a cast to the method's generic 'throws' type
+        return type instanceof ObjectType ot
+                && (typeMaker.isRawTypeAssignable(ObjectType.TYPE_RUNTIME_EXCEPTION, ot)
+                 || typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName("java/lang/Error"), ot));
     }
 
     @Override

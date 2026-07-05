@@ -626,7 +626,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                         bindTypeParametersToNonWildcardTypeArgumentsVisitor.init(bindings);
                         methodTypeParameters.accept(bindTypeParametersToNonWildcardTypeArgumentsVisitor);
                         if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
-                                || !hasInferableParameter(mie.getUnboundParameterTypes(), methodTypeParameters)) {
+                                || !hasInferableParameter(mie.getUnboundParameterTypes(), methodTypeParameters, parameters)) {
                             mie.setNonWildcardTypeArguments(bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument());
                         }
                     }
@@ -714,19 +714,33 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         return false;
     }
 
-    private static boolean hasInferableParameter(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters) {
+    /**
+     * A method type variable can be inferred by the compiler when it appears in a parameter type whose
+     * actual argument carries type information; a null literal infers nothing, so a witness stays required.
+     */
+    private static boolean hasInferableParameter(BaseType unboundParameterTypes, BaseTypeParameter methodTypeParameters, BaseExpression parameters) {
         if (unboundParameterTypes == null) {
             return false;
         }
         Set<String> methodTypeParameterNames = new HashSet<>();
         methodTypeParameters.forEach(typeParameter -> methodTypeParameterNames.add(typeParameter.getIdentifier()));
 
+        int index = 0;
         for (Type type : unboundParameterTypes) {
-            if (containsTypeParameter(type, methodTypeParameterNames)) {
+            if (containsTypeParameter(type, methodTypeParameterNames) && !isNullArgument(parameters, index)) {
                 return true;
             }
+            index++;
         }
         return false;
+    }
+
+    private static boolean isNullArgument(BaseExpression parameters, int index) {
+        if (parameters == null || index >= parameters.size()) {
+            return false;
+        }
+        Expression parameter = parameters.isList() ? parameters.getList().get(index) : parameters.getFirst();
+        return parameter.isNullExpression();
     }
 
     private static boolean containsTypeParameter(Type type, Set<String> methodTypeParameterNames) {

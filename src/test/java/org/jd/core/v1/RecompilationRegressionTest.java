@@ -18,6 +18,7 @@ import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
 import org.jd.core.v1.stub.ExceptionWitness;
 import org.jd.core.v1.stub.ForwardStaticReference;
+import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.RawDeclaredMethodReference;
 import org.jd.core.v1.stub.ReturnOnlyTypeVariable;
 import org.jd.core.v1.stub.SelfOverloadBoxing;
@@ -112,6 +113,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
     public void testForwardStaticReference() throws Exception {
         String source = decompile(ForwardStaticReference.class);
         assertRecompiles(ForwardStaticReference.class, source);
+    }
+
+    @Test
+    public void testNullArgumentKeepsWitness() throws Exception {
+        String source = decompile(NullArgumentWitness.class);
+        assertTrue(source.matches(PatternMaker.make("<List>id(null)")));
+        assertRecompiles(NullArgumentWitness.class, source);
     }
 
     @Test

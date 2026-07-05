@@ -18,4 +18,8 @@ public class MultiWitness {
     public static Entry<List, Integer> raw() {
         return MultiWitness.<List, Integer>pair(null, null);
     }
+
+    public static int rawQualifier() {
+        return MultiWitness.<List, Integer>pair(null, null).getKey().size();
+    }
 }

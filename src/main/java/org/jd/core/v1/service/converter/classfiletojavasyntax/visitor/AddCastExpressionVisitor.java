@@ -543,7 +543,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 expression.setObjectType(expression.getObjectType().createType(((ObjectType) currentType).getTypeArguments()));
             }
             BaseType parameterTypes = ((ClassFileNewExpression)expression).getParameterTypes();
+            // The enclosing call's witness cannot disambiguate this constructor's own overload
+            boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
+            visitingWitnessedInvocation = false;
             expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, forceCast, unique, rawCast));
+            visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
         }
 
         if (expression.getBodyDeclaration() != null && expression.getBodyDeclaration().isAnonymous()) {

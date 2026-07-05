@@ -799,6 +799,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      */
     private boolean containsErasedRawGenericType(ObjectType targetType, Type unboundType) {
         if (isRawGenericType(targetType)) {
+            if (unboundType == null) {
+                // No binding occurred: the declared parameter type itself is raw
+                return false;
+            }
             // A raw target type is an erasure artifact unless the parameter was declared raw
             return !(unboundType instanceof ObjectType unboundObjectType) || !targetType.rawEquals(unboundObjectType)
                     || unboundObjectType.getTypeArguments() != null;

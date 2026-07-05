@@ -18,7 +18,12 @@ import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
 import org.jd.core.v1.stub.ExceptionWitness;
 import org.jd.core.v1.stub.ForwardStaticReference;
+import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
+import org.jd.core.v1.stub.RawDeclaredOverloads;
+import org.jd.core.v1.stub.SneakyThrow;
+import org.jd.core.v1.stub.WildcardExtendsBound;
+import org.jd.core.v1.stub.WildcardObjectBound;
 import org.jd.core.v1.stub.RawDeclaredMethodReference;
 import org.jd.core.v1.stub.ReturnOnlyTypeVariable;
 import org.jd.core.v1.stub.SelfOverloadBoxing;
@@ -120,6 +125,42 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(NullArgumentWitness.class);
         assertTrue(source.matches(PatternMaker.make("<List>id(null)")));
         assertRecompiles(NullArgumentWitness.class, source);
+    }
+
+    @Test
+    public void testSneakyThrow() throws Exception {
+        String source = decompile(SneakyThrow.class);
+        assertTrue(source.matches(PatternMaker.make("throw (E)t;")));
+        assertRecompiles(SneakyThrow.class, source);
+    }
+
+    @Test
+    public void testRawDeclaredOverloads() throws Exception {
+        String source = decompile(RawDeclaredOverloads.class);
+        assertTrue(source.matches(PatternMaker.make("use((F1)this::foo);")));
+        assertRecompiles(RawDeclaredOverloads.class, source);
+    }
+
+    @Test
+    public void testWildcardObjectBound() throws Exception {
+        String source = decompile(WildcardObjectBound.class);
+        assertTrue(source.matches(PatternMaker.make("return first(holder);")));
+        assertRecompiles(WildcardObjectBound.class, source);
+    }
+
+    @Test
+    public void testWildcardExtendsBound() throws Exception {
+        String source = decompile(WildcardExtendsBound.class);
+        assertTrue(source.matches(PatternMaker.make("return pick(holder);")));
+        assertRecompiles(WildcardExtendsBound.class, source);
+    }
+
+    @Test
+    public void testMultiWitness() throws Exception {
+        String source = decompile(MultiWitness.class);
+        // The witness is inferable from the return target type, so it may be omitted
+        assertTrue(source.matches(PatternMaker.make("pair(null, null)")));
+        assertRecompiles(MultiWitness.class, source);
     }
 
     @Test

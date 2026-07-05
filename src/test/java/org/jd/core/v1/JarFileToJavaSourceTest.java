@@ -131,12 +131,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testLog4jApi() throws Exception {
-        test("org.apache.logging.log4j", "log4j-api", "2.20.0");
+        test("org.apache.logging.log4j", "log4j-api", "2.26.1");
     }
 
     @Test
     public void testLog4jCore() throws Exception {
-        test("org.apache.logging.log4j", "log4j-core", "2.20.0");
+        test("org.apache.logging.log4j", "log4j-core", "2.26.1");
     }
 
 //    @Test

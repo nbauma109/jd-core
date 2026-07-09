@@ -525,7 +525,59 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
+        Expression receiver = expression.getExpression();
+
+        if (receiver != null && !receiver.isNullExpression()
+                && receiver.getType() instanceof ObjectType receiverType
+                && receiverType.getTypeArguments() instanceof WildcardTypeArgument
+                && requiresWildcardCaptureCast((ClassFileMethodInvocationExpression)expression)) {
+            // The receiver's unbounded wildcard is capture-converted independently at every use, so passing an
+            // argument typed for the class's own type variable (e.g. Progress<ProgressContext>.onProgress(...,
+            // ProgressContext)) does not type-check without an explicit unchecked cast to an Object-parameterized type.
+            expression.setExpression(addCastExpression(receiverType.createType(ObjectType.TYPE_OBJECT), receiver));
+        }
+
         expression.getExpression().accept(this);
+    }
+
+    private boolean requiresWildcardCaptureCast(ClassFileMethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (Utils.isEmpty(parameters)) {
+            return false;
+        }
+
+        BaseType unboundParameterTypes = expression.getUnboundParameterTypes();
+
+        if (unboundParameterTypes == null) {
+            return false;
+        }
+
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(expression.getInternalTypeName());
+
+        if (typeTypes == null || typeTypes.getTypeParameters() == null) {
+            return false;
+        }
+
+        Set<String> classTypeParameterNames = new HashSet<>();
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
+            classTypeParameterNames.add(typeParameter.getIdentifier());
+        }
+
+        var unboundTypeIterator = unboundParameterTypes.iterator();
+        var parameterIterator = parameters.iterator();
+
+        while (unboundTypeIterator.hasNext() && parameterIterator.hasNext()) {
+            Type unboundType = unboundTypeIterator.next();
+            Expression argument = parameterIterator.next();
+
+            if (unboundType instanceof GenericType gt && classTypeParameterNames.contains(gt.getName()) && !argument.isNullExpression()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override

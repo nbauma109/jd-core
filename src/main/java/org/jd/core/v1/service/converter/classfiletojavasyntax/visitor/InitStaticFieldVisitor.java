@@ -18,11 +18,14 @@ import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -31,17 +34,21 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.LocalVariableReference;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
     private final SearchLocalVariableReferenceVisitor searchLocalVariableReferenceVisitor = new SearchLocalVariableReferenceVisitor();
     private final ForwardFieldReferenceVisitor forwardFieldReferenceVisitor = new ForwardFieldReferenceVisitor();
+    private final CollectLocalVariableIndicesVisitor collectLocalVariableIndicesVisitor = new CollectLocalVariableIndicesVisitor();
     private String internalTypeName;
     private final Map<String, FieldDeclarator> fields = new HashMap<>();
     private final Map<String, Integer> fieldPositions = new HashMap<>();
@@ -138,6 +145,11 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                 }
 
                 for (int i=0, len=list.size(); i<len; i++) {
+                    if (i > 0 && wouldBreakLocalVariableScope(list, i)) {
+                        // Splitting here would separate a local variable declaration
+                        // from a later use of that variable in another 'static' block.
+                        continue;
+                    }
                     if (setStaticFieldInitializer(list.get(i))) {
                         if (i > 0) {
                             // Split 'static' block
@@ -220,10 +232,7 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                     if ((fdn.getFlags() & Const.ACC_STATIC) != 0 && fdn.getType().getDescriptor().equals(fre.getDescriptor())) {
                         expression = expression.getRightExpression();
 
-                        searchLocalVariableReferenceVisitor.init(-1, null);
-                        expression.accept(searchLocalVariableReferenceVisitor);
-
-                        if (!searchLocalVariableReferenceVisitor.containsReference()) {
+                        if (!searchLocalVariableReferenceVisitor.containsExternalReference(expression)) {
                             // JLS 8.3.3: a simple-name reference to a field declared later in the same
                             // class is illegal even from within a lambda; qualify it with the class name.
                             Integer currentPosition = fieldPositions.get(fre.getName());
@@ -241,6 +250,39 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return false;
+    }
+
+    protected boolean wouldBreakLocalVariableScope(DefaultList<Statement> list, int splitIndex) {
+        Set<Integer> before = collectLocalVariableIndices(list.subList(0, splitIndex));
+
+        if (before.isEmpty()) {
+            return false;
+        }
+
+        for (int i = splitIndex + 1, len = list.size(); i < len; i++) {
+            collectLocalVariableIndicesVisitor.init();
+            list.get(i).accept(collectLocalVariableIndicesVisitor);
+
+            for (Integer index : collectLocalVariableIndicesVisitor.getIndices()) {
+                if (before.contains(index)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private Set<Integer> collectLocalVariableIndices(List<Statement> statements) {
+        Set<Integer> indices = new HashSet<>();
+
+        for (Statement statement : statements) {
+            collectLocalVariableIndicesVisitor.init();
+            statement.accept(collectLocalVariableIndicesVisitor);
+            indices.addAll(collectLocalVariableIndicesVisitor.getIndices());
+        }
+
+        return indices;
     }
 
     protected int getFirstLineNumber(BaseStatement baseStatement) {
@@ -280,6 +322,31 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
             super.visit(expression);
+        }
+    }
+
+    private static class CollectLocalVariableIndicesVisitor extends AbstractJavaSyntaxVisitor {
+        private final Set<Integer> indices = new HashSet<>();
+
+        void init() {
+            indices.clear();
+        }
+
+        Set<Integer> getIndices() {
+            return indices;
+        }
+
+        @Override
+        public void visit(LocalVariableReferenceExpression expression) {
+            indices.add(((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable().getIndex());
+        }
+
+        @Override
+        public void visit(LocalVariableDeclarator declarator) {
+            if (declarator instanceof LocalVariableReference reference) {
+                indices.add(reference.getLocalVariable().getIndex());
+            }
+            super.visit(declarator);
         }
     }
 }

@@ -17,6 +17,7 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.Expressions;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
@@ -97,6 +98,12 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
             return expression;
         }
         exp = statement.getExpression();
+
+        if (exp instanceof CastExpression ce && !ce.isExplicit()) {
+            // A non-explicit cast (e.g. a boolean compound-assignment's non-printable i2b artifact)
+            // has no bearing on the shape of the underlying expression.
+            exp = ce.getExpression();
+        }
 
         BaseType parameterTypes = bridgeMethodDeclaration.getParameterTypes();
         int parameterTypesCount = parameterTypes == null ? 0 : parameterTypes.size();
@@ -263,6 +270,10 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
                 return false;
             }
             exp = statement.getExpression();
+
+            if (exp instanceof CastExpression ce && !ce.isExplicit()) {
+                exp = ce.getExpression();
+            }
 
             BaseType parameterTypes = bridgeMethodDeclaration.getParameterTypes();
             int parameterTypesCount = parameterTypes == null ? 0 : parameterTypes.size();

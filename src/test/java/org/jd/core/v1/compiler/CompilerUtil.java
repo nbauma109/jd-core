@@ -42,7 +42,7 @@ public class CompilerUtil {
 
         DESTINATION_DIRECTORY.mkdirs();
 
-        List<String> options = Arrays.asList("-g", "-source", javaVersion, "-target", javaVersion, "-d", DESTINATION_DIRECTORY_PATH, "-cp", System.getProperty("java.class.path"));
+        List<String> options = Arrays.asList("-g", "-proc:none", "-source", javaVersion, "-target", javaVersion, "-d", DESTINATION_DIRECTORY_PATH, "-cp", System.getProperty("java.class.path"));
         List<InMemoryJavaSourceFileObject> compilationUnits = Arrays.asList(javaFileObjects);
 
         CompilationResult result = compileWithCompiler(new EclipseCompiler(), options, compilationUnits, classLoader);

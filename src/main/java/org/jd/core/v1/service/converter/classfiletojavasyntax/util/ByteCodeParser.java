@@ -357,7 +357,19 @@ public class ByteCodeParser {
                         enclosingInstances.push(expression1.getExpression());
                     } else if (isSyntheticMethodReferenceNullCheck(expression1, stack)) {
                         // javac emits 'dup + Objects.requireNonNull + pop' before bound method references
+                        // and before qualified inner-class instantiations ('outer.new Inner(...)').
                         // Keep it on bytecode stack for invokedynamic capture, but don't print as a source statement.
+                        MethodInvocationExpression nullCheck = (MethodInvocationExpression) expression1;
+                        Expression outerCandidate = nullCheck.getParameters().getFirst();
+                        if (isPendingInnerClassConstruction(stack)) {
+                            // Only a 'NEW innerType' still awaiting its INVOKESPECIAL <init> can be
+                            // qualified by this outer instance; otherwise this is the receiver of a
+                            // bound method reference, consumed by the following INVOKEDYNAMIC, and must
+                            // not be kept as a stale qualifier for some later, unrelated NEW. The outer
+                            // instance's own type is not necessarily an inner type (e.g. 'outer.new
+                            // Inner()' where 'Outer' is top-level), so it cannot gate this decision.
+                            enclosingInstances.push(outerCandidate);
+                        }
                     } else if (!expression1.isLocalVariableReferenceExpression() && !expression1.isFieldReferenceExpression() && !expression1.isThisExpression()) {
                         typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                         statements.add(new ExpressionStatement(expression1.isCastExpression()? expression1.getExpression() : expression1));
@@ -1181,6 +1193,8 @@ public class ByteCodeParser {
                 int stringIndex = ((ConstantString)constant).getStringIndex();
                 stack.push(new StringConstantExpression(lineNumber, constants.getConstantString(stringIndex, CONSTANT_Utf8)));
                 break;
+            default:
+                break;
         }
     }
 
@@ -1325,6 +1339,17 @@ public class ByteCodeParser {
             valueRef = NewArrayMaker.make(statements, valueRef);
         }
 
+        // javac narrows a boolean compound-assignment's int result with i2b (there is no dedicated
+        // boolean narrowing instruction); a (byte) cast has no equivalent in Java source for a boolean.
+        // Keep the original (possibly shared, e.g. duplicated on the stack by DUP_X1) cast expression
+        // for identity purposes, but suppress printing the illegal cast and look through it below.
+        Expression original = valueRef;
+        boolean unwrapBooleanCast = TYPE_BOOLEAN.equals(fr.getType()) && valueRef.isCastExpression() && TYPE_BYTE.equals(valueRef.getType());
+        if (unwrapBooleanCast) {
+            ((CastExpression) valueRef).setExplicit(false);
+            valueRef = valueRef.getExpression();
+        }
+
         typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(fr.getType(), valueRef);
 
         if (valueRef.getLineNumber() == lineNumber
@@ -1415,10 +1440,14 @@ public class ByteCodeParser {
                         throw new IllegalStateException("Unexpected value expression");
                 }
 
-                if (!stack.isEmpty() && stack.peek() == valueRef) {
-                    stack.replace(valueRef, expression);
+                // 'expression' (the mutated 'boe') is visible through 'original' too, since the cast we
+                // suppressed above still wraps the very same 'boe' instance shared with the bytecode stack.
+                Expression replacement = unwrapBooleanCast ? original : expression;
+
+                if (!stack.isEmpty() && stack.peek() == original) {
+                    stack.replace(original, replacement);
                 } else {
-                    statements.add(new ExpressionStatement(expression));
+                    statements.add(new ExpressionStatement(replacement));
                 }
                 return;
             }
@@ -1499,8 +1528,18 @@ public class ByteCodeParser {
                         renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
                         lambdaStatements.accept(renameLocalVariablesVisitor);
                     }
+                    // The invokedynamic call site's own "returned type" is the functional interface itself
+                    // (e.g. Supplier), not the SAM method's return type, so it is never a usable stand-in for
+                    // the lambda body's return type. The synthetic method's own declared return type is
+                    // sometimes narrower than Object (e.g. a stream .map(...) lambda whose synthetic method
+                    // javac compiled with the stream's actual inferred element type) and, when it is, is a
+                    // more precise cast-insertion target for the lambda body's return statements; otherwise
+                    // fall back to plain Object, matching this expression's pre-existing behavior.
+                    Type cfmdReturnedType = cfmd.getReturnedType();
+                    Type lambdaReturnedType = cfmdReturnedType != null && !ObjectType.TYPE_OBJECT.equals(cfmdReturnedType)
+                            ? cfmdReturnedType : ObjectType.TYPE_OBJECT;
                     stack.push(new LambdaIdentifiersExpression(
-                            lineNumber, indyMethodTypes.getReturnedType(), indyMethodTypes.getReturnedType(),
+                            lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType,
                             lambdaParameterNames,
                             lambdaStatements));
                     return;
@@ -1543,6 +1582,20 @@ public class ByteCodeParser {
             return false;
         }
         return parameters.getFirst() == stack.peek();
+    }
+
+    /**
+     * For 'outer.new Inner(...)', javac emits 'NEW Inner; DUP; ...; ALOAD outer; DUP;
+     * INVOKESTATIC Objects.requireNonNull; POP; ...; INVOKESPECIAL Inner.&lt;init&gt;', so a pending,
+     * not-yet-initialized inner-class NewExpression sits immediately below the outer-instance
+     * candidate on the stack. A bound method reference receiver ('outer::method') uses the same
+     * null-check idiom but has no such pending construction beneath it.
+     */
+    private static boolean isPendingInnerClassConstruction(DefaultStack<Expression> stack) {
+        Expression outerCandidate = stack.pop();
+        boolean pending = !stack.isEmpty() && stack.peek().isNewExpression() && stack.peek().getType().isInnerObjectType();
+        stack.push(outerCandidate);
+        return pending;
     }
 
     private List<String> prepareLambdaParameterNames(BaseFormalParameter formalParameters, int parameterCount) {

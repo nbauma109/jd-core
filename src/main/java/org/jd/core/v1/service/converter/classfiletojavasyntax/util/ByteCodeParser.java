@@ -1191,6 +1191,8 @@ public class ByteCodeParser {
                 int stringIndex = ((ConstantString)constant).getStringIndex();
                 stack.push(new StringConstantExpression(lineNumber, constants.getConstantString(stringIndex, CONSTANT_Utf8)));
                 break;
+            default:
+                break;
         }
     }
 

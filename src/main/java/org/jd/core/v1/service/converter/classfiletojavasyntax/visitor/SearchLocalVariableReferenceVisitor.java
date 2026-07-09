@@ -58,12 +58,10 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
     @Override
     public void visit(LocalVariableReferenceExpression expression) {
         if (index < 0) {
-            if (lambdas.isEmpty()) {
-                found = true;
-            } else if (!isLambdaParameter(expression.getName()) && !namesBoundInLambdas.contains(expression.getName())) {
-                // Only a genuine capture of a variable declared outside every enclosing lambda blocks
-                // extraction; lambda parameters and locals declared within the lambda body itself are
-                // self-contained.
+            // Only a genuine capture of a variable declared outside every enclosing lambda blocks
+            // extraction; lambda parameters and locals declared within the lambda body itself are
+            // self-contained.
+            if (lambdas.isEmpty() || (!isLambdaParameter(expression.getName()) && !namesBoundInLambdas.contains(expression.getName()))) {
                 found = true;
             }
         } else {

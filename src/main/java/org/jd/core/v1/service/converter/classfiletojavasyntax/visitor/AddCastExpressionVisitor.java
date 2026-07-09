@@ -642,20 +642,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     protected BaseExpression updateParameters(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
-        if (expressions != null) {
-            if (expressions.isList()) {
-                DefaultList<Type> typeList = types.getList();
-                DefaultList<Type> unboundTypeList = unboundTypes == null ? null : unboundTypes.getList();
-                DefaultList<Expression> expressionList = expressions.getList();
+        if (expressions == null) {
+            return null;
+        }
+        if (!expressions.isList()) {
+            Type unboundType = unboundTypes == null ? null : unboundTypes.getFirst();
+            return updateParameter(typeBindings, localTypeBounds, types.getFirst(), unboundType, expressions.getFirst(), flags.forceCast(), flags.unique(), flags.rawCast());
+        }
 
-                for (int i = expressionList.size() - 1; i >= 0; i--) {
-                    Type unboundType = unboundTypes == null ?  null : unboundTypeList.get(i);
-                    expressionList.set(i, updateParameter(typeBindings, localTypeBounds, typeList.get(i), unboundType, expressionList.get(i), flags.forceCast(), flags.unique(), flags.rawCast()));
-                }
-            } else {
-                Type unboundType = unboundTypes == null ?  null : unboundTypes.getFirst();
-                expressions = updateParameter(typeBindings, localTypeBounds, types.getFirst(), unboundType, expressions.getFirst(), flags.forceCast(), flags.unique(), flags.rawCast());
-            }
+        DefaultList<Type> typeList = types.getList();
+        DefaultList<Type> unboundTypeList = unboundTypes == null ? null : unboundTypes.getList();
+        DefaultList<Expression> expressionList = expressions.getList();
+
+        for (int i = expressionList.size() - 1; i >= 0; i--) {
+            Type unboundType = unboundTypeList == null ? null : unboundTypeList.get(i);
+            expressionList.set(i, updateParameter(typeBindings, localTypeBounds, typeList.get(i), unboundType, expressionList.get(i), flags.forceCast(), flags.unique(), flags.rawCast()));
         }
 
         return expressions;
@@ -663,12 +664,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private Expression updateParameter(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {
 
-        if (visitingAnonymousClass && expression instanceof FieldReferenceExpression fieldRef && expression.getType() instanceof ObjectType ot) {
-            if (ot.getTypeArguments() == null) {
-                BaseTypeArgument parameterTypeArgument = parameterTypeArguments.get(expression.getName());
-                if (parameterTypeArgument != null) {
-                    fieldRef.setType(ot.createType(parameterTypeArgument));
-                }
+        if (visitingAnonymousClass && expression instanceof FieldReferenceExpression fieldRef
+                && expression.getType() instanceof ObjectType ot && ot.getTypeArguments() == null) {
+            BaseTypeArgument parameterTypeArgument = parameterTypeArguments.get(expression.getName());
+            if (parameterTypeArgument != null) {
+                fieldRef.setType(ot.createType(parameterTypeArgument));
             }
         }
 

@@ -361,7 +361,11 @@ public class ByteCodeParser {
                         // Keep it on bytecode stack for invokedynamic capture, but don't print as a source statement.
                         MethodInvocationExpression nullCheck = (MethodInvocationExpression) expression1;
                         Expression outerCandidate = nullCheck.getParameters().getFirst();
-                        if (outerCandidate.getType().isInnerObjectType()) {
+                        if (outerCandidate.getType().isInnerObjectType() && isPendingInnerClassConstruction(stack)) {
+                            // Only a 'NEW innerType' still awaiting its INVOKESPECIAL <init> can be
+                            // qualified by this outer instance; otherwise this is the receiver of a
+                            // bound method reference, consumed by the following INVOKEDYNAMIC, and must
+                            // not be kept as a stale qualifier for some later, unrelated NEW.
                             enclosingInstances.push(outerCandidate);
                         }
                     } else if (!expression1.isLocalVariableReferenceExpression() && !expression1.isFieldReferenceExpression() && !expression1.isThisExpression()) {
@@ -1574,6 +1578,20 @@ public class ByteCodeParser {
             return false;
         }
         return parameters.getFirst() == stack.peek();
+    }
+
+    /**
+     * For 'outer.new Inner(...)', javac emits 'NEW Inner; DUP; ...; ALOAD outer; DUP;
+     * INVOKESTATIC Objects.requireNonNull; POP; ...; INVOKESPECIAL Inner.&lt;init&gt;', so a pending,
+     * not-yet-initialized inner-class NewExpression sits immediately below the outer-instance
+     * candidate on the stack. A bound method reference receiver ('outer::method') uses the same
+     * null-check idiom but has no such pending construction beneath it.
+     */
+    private static boolean isPendingInnerClassConstruction(DefaultStack<Expression> stack) {
+        Expression outerCandidate = stack.pop();
+        boolean pending = !stack.isEmpty() && stack.peek().isNewExpression() && stack.peek().getType().isInnerObjectType();
+        stack.push(outerCandidate);
+        return pending;
     }
 
     private List<String> prepareLambdaParameterNames(BaseFormalParameter formalParameters, int parameterCount) {

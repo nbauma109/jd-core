@@ -8,6 +8,7 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -25,8 +26,7 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
     private boolean found;
     private String name;
     private Deque<LambdaIdentifiersExpression> lambdas = new ArrayDeque<>();
-    private Set<String> namesOutsideLambda;
-    private boolean collectingOutsideNames;
+    private Set<String> namesBoundInLambdas = new HashSet<>();
 
     public void init(int index, String name) {
         this.index = index;
@@ -48,34 +48,22 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
      * a lambda body nested inside {@code expression} (lambda parameters or lambda-body locals).
      */
     public boolean containsExternalReference(Expression expression) {
-        namesOutsideLambda = new HashSet<>();
-        collectingOutsideNames = true;
         lambdas.clear();
+        namesBoundInLambdas.clear();
         init(-1, null);
         expression.accept(this);
-
-        collectingOutsideNames = false;
-        lambdas.clear();
-        init(-1, null);
-        expression.accept(this);
-
-        namesOutsideLambda = null;
         return found;
     }
 
     @Override
     public void visit(LocalVariableReferenceExpression expression) {
         if (index < 0) {
-            if (collectingOutsideNames) {
-                if (lambdas.isEmpty()) {
-                    namesOutsideLambda.add(expression.getName());
-                }
-            } else if (lambdas.isEmpty()) {
+            if (lambdas.isEmpty()) {
                 found = true;
-            } else if (!isLambdaParameter(expression.getName()) && namesOutsideLambda != null
-                    && namesOutsideLambda.contains(expression.getName())) {
-                // Only a genuine capture of a variable visible outside the lambda blocks extraction;
-                // variables declared within the lambda body itself are self-contained.
+            } else if (!isLambdaParameter(expression.getName()) && !namesBoundInLambdas.contains(expression.getName())) {
+                // Only a genuine capture of a variable declared outside every enclosing lambda blocks
+                // extraction; lambda parameters and locals declared within the lambda body itself are
+                // self-contained.
                 found = true;
             }
         } else {
@@ -93,6 +81,14 @@ public class SearchLocalVariableReferenceVisitor extends AbstractJavaSyntaxVisit
         lambdas.push(expression);
         super.visit(expression);
         lambdas.pop();
+    }
+
+    @Override
+    public void visit(LocalVariableDeclarator declarator) {
+        if (!lambdas.isEmpty()) {
+            namesBoundInLambdas.add(declarator.getName());
+        }
+        super.visit(declarator);
     }
 
     private boolean isLambdaParameter(String name) {

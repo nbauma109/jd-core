@@ -46,7 +46,7 @@ import jd.core.ClassUtil;
 
 public class JarFileToJavaSourceTest extends AbstractJdTest {
 
-    private static final Pattern MODULE_INFO_CLASS = Pattern.compile("META-INF/versions/(\\d+)/module-info\\.class");
+    private static final Pattern MODULE_INFO_CLASS = Pattern.compile("(?:META-INF/versions/(\\d+)/)?module-info\\.class");
 
     @Test
     public void testBCEL() throws Exception {

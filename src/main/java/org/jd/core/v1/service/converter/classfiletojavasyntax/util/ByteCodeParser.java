@@ -357,7 +357,13 @@ public class ByteCodeParser {
                         enclosingInstances.push(expression1.getExpression());
                     } else if (isSyntheticMethodReferenceNullCheck(expression1, stack)) {
                         // javac emits 'dup + Objects.requireNonNull + pop' before bound method references
+                        // and before qualified inner-class instantiations ('outer.new Inner(...)').
                         // Keep it on bytecode stack for invokedynamic capture, but don't print as a source statement.
+                        MethodInvocationExpression nullCheck = (MethodInvocationExpression) expression1;
+                        Expression outerCandidate = nullCheck.getParameters().getFirst();
+                        if (outerCandidate.getType().isInnerObjectType()) {
+                            enclosingInstances.push(outerCandidate);
+                        }
                     } else if (!expression1.isLocalVariableReferenceExpression() && !expression1.isFieldReferenceExpression() && !expression1.isThisExpression()) {
                         typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                         statements.add(new ExpressionStatement(expression1.isCastExpression()? expression1.getExpression() : expression1));
@@ -1325,6 +1331,17 @@ public class ByteCodeParser {
             valueRef = NewArrayMaker.make(statements, valueRef);
         }
 
+        // javac narrows a boolean compound-assignment's int result with i2b (there is no dedicated
+        // boolean narrowing instruction); a (byte) cast has no equivalent in Java source for a boolean.
+        // Keep the original (possibly shared, e.g. duplicated on the stack by DUP_X1) cast expression
+        // for identity purposes, but suppress printing the illegal cast and look through it below.
+        Expression original = valueRef;
+        boolean unwrapBooleanCast = TYPE_BOOLEAN.equals(fr.getType()) && valueRef.isCastExpression() && TYPE_BYTE.equals(valueRef.getType());
+        if (unwrapBooleanCast) {
+            ((CastExpression) valueRef).setExplicit(false);
+            valueRef = valueRef.getExpression();
+        }
+
         typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(fr.getType(), valueRef);
 
         if (valueRef.getLineNumber() == lineNumber
@@ -1415,10 +1432,14 @@ public class ByteCodeParser {
                         throw new IllegalStateException("Unexpected value expression");
                 }
 
-                if (!stack.isEmpty() && stack.peek() == valueRef) {
-                    stack.replace(valueRef, expression);
+                // 'expression' (the mutated 'boe') is visible through 'original' too, since the cast we
+                // suppressed above still wraps the very same 'boe' instance shared with the bytecode stack.
+                Expression replacement = unwrapBooleanCast ? original : expression;
+
+                if (!stack.isEmpty() && stack.peek() == original) {
+                    stack.replace(original, replacement);
                 } else {
-                    statements.add(new ExpressionStatement(expression));
+                    statements.add(new ExpressionStatement(replacement));
                 }
                 return;
             }
@@ -1499,8 +1520,18 @@ public class ByteCodeParser {
                         renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
                         lambdaStatements.accept(renameLocalVariablesVisitor);
                     }
+                    // The invokedynamic call site's own "returned type" is the functional interface itself
+                    // (e.g. Supplier), not the SAM method's return type, so it is never a usable stand-in for
+                    // the lambda body's return type. The synthetic method's own declared return type is
+                    // sometimes narrower than Object (e.g. a stream .map(...) lambda whose synthetic method
+                    // javac compiled with the stream's actual inferred element type) and, when it is, is a
+                    // more precise cast-insertion target for the lambda body's return statements; otherwise
+                    // fall back to plain Object, matching this expression's pre-existing behavior.
+                    Type cfmdReturnedType = cfmd.getReturnedType();
+                    Type lambdaReturnedType = cfmdReturnedType != null && !ObjectType.TYPE_OBJECT.equals(cfmdReturnedType)
+                            ? cfmdReturnedType : ObjectType.TYPE_OBJECT;
                     stack.push(new LambdaIdentifiersExpression(
-                            lineNumber, indyMethodTypes.getReturnedType(), indyMethodTypes.getReturnedType(),
+                            lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType,
                             lambdaParameterNames,
                             lambdaStatements));
                     return;

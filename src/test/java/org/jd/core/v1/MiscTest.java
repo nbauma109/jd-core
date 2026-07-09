@@ -22,6 +22,7 @@ import org.jd.core.v1.printer.ClassFilePrinter;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.NumericConstants;
+import org.jd.core.v1.stub.OverloadLogger;
 import org.jd.core.v1.stub.TernaryOpDiamond;
 import org.junit.Test;
 
@@ -372,8 +373,8 @@ public class MiscTest extends AbstractJdTest {
     public void testPrivilegedAction() throws Exception {
         class PrivilegedActionClass {
             @SuppressWarnings("all")
-            <T> void doPrivileged() throws PrivilegedActionException {
-                AccessController.doPrivileged((PrivilegedAction<T>) () -> null);
+            void doPrivileged() throws PrivilegedActionException {
+                AccessController.doPrivileged((PrivilegedAction<Object>) () -> null);
             }
         }
         String internalClassName = PrivilegedActionClass.class.getName().replace('.', '/');
@@ -678,19 +679,7 @@ public class MiscTest extends AbstractJdTest {
 
     @Test
     public void testOverload1() throws Exception {
-        interface ILogger {
-            boolean isEnabled(CharSequence message, Throwable t);
-
-            boolean isEnabled(Object message, Throwable t);
-
-            @SuppressWarnings("unused")
-            abstract class TestOverload implements ILogger {
-                public boolean isEnabled() {
-                    return isEnabled((Object) null, null);
-                }
-            }
-        }
-        String internalClassName = ILogger.class.getName().replace('.', '/');
+        String internalClassName = OverloadLogger.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Check decompiled source code

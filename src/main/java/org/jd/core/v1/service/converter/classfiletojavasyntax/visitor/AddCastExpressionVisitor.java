@@ -286,7 +286,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (statements != null) {
             Type rt = returnedType;
-            returnedType = ObjectType.TYPE_OBJECT;
+            Type lambdaReturnedType = expression.getReturnedType();
+            returnedType = lambdaReturnedType != null ? lambdaReturnedType : ObjectType.TYPE_OBJECT;
             statements.accept(this);
             returnedType = rt;
         }
@@ -747,6 +748,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             if (ta1 != null && ta2 != null && !ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2)) {
                                 if (objectType.rawEquals(expressionObjectType) && isWildcardOnTypeVariableMismatch(ta1, ta2, unboundType, expressionObjectType)) {
                                     // Wildcard type arguments bind to the method's type variables through capture conversion: no cast needed
+                                    expression.accept(this);
+                                    return expression;
+                                }
+                                if (unboundType == null && ta2.isGenericTypeArgument()
+                                        && (ta1 instanceof WildcardExtendsTypeArgument || ta1 instanceof WildcardSuperTypeArgument)) {
+                                    // No binding was tracked for this call (e.g. an unwitnessed generic method invocation), and
+                                    // the target's wildcard bounds an unrelated type variable of the invoked method itself
+                                    // (e.g. <S> Foo<S> m(Bar<? extends S>) called with Bar<V>): we cannot determine whether S
+                                    // and V unify without real type inference, and stripping to a raw type is always wrong here.
                                     expression.accept(this);
                                     return expression;
                                 }

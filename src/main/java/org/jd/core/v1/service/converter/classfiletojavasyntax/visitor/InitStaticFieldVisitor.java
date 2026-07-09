@@ -18,6 +18,7 @@ import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
@@ -33,6 +34,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.LocalVariableReference;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
@@ -337,6 +339,14 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
         @Override
         public void visit(LocalVariableReferenceExpression expression) {
             indices.add(((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable().getIndex());
+        }
+
+        @Override
+        public void visit(LocalVariableDeclarator declarator) {
+            if (declarator instanceof LocalVariableReference reference) {
+                indices.add(reference.getLocalVariable().getIndex());
+            }
+            super.visit(declarator);
         }
     }
 }

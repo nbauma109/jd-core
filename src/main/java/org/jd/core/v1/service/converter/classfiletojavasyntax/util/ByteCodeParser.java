@@ -361,11 +361,13 @@ public class ByteCodeParser {
                         // Keep it on bytecode stack for invokedynamic capture, but don't print as a source statement.
                         MethodInvocationExpression nullCheck = (MethodInvocationExpression) expression1;
                         Expression outerCandidate = nullCheck.getParameters().getFirst();
-                        if (outerCandidate.getType().isInnerObjectType() && isPendingInnerClassConstruction(stack)) {
+                        if (isPendingInnerClassConstruction(stack)) {
                             // Only a 'NEW innerType' still awaiting its INVOKESPECIAL <init> can be
                             // qualified by this outer instance; otherwise this is the receiver of a
                             // bound method reference, consumed by the following INVOKEDYNAMIC, and must
-                            // not be kept as a stale qualifier for some later, unrelated NEW.
+                            // not be kept as a stale qualifier for some later, unrelated NEW. The outer
+                            // instance's own type is not necessarily an inner type (e.g. 'outer.new
+                            // Inner()' where 'Outer' is top-level), so it cannot gate this decision.
                             enclosingInstances.push(outerCandidate);
                         }
                     } else if (!expression1.isLocalVariableReferenceExpression() && !expression1.isFieldReferenceExpression() && !expression1.isThisExpression()) {

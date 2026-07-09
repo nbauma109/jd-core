@@ -27,7 +27,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
-    <jackson.data.version>2.15.3</jackson.data.version>
+    <jackson.data.version>2.22.1</jackson.data.version>
     <org.eclipse.jdt.version>3.44.0</org.eclipse.jdt.version>
     <project.scm.id>github.com</project.scm.id>
   </properties>

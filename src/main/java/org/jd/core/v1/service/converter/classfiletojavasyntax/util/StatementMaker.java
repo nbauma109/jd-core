@@ -531,57 +531,69 @@ public class StatementMaker {
 
         switchCases.sort(SWITCH_CASE_COMPARATOR);
 
-        if (ByteCodeUtil.isSwitchExpressionJoin(join)) {
-            List<ParsedRuleGroup> parsedGroups = new ArrayList<>();
-            boolean matches = true;
-
-            for (int i = 0, len = switchCases.size(); i < len; i++) {
-                BasicBlock.SwitchCase first = switchCases.get(i);
-                BasicBlock target = first.getBasicBlock();
-                int j = i + 1;
-
-                while (j < len && target == switchCases.get(j).getBasicBlock()) {
-                    j++;
-                }
-
-                Statements subStatements = new Statements();
-
-                stack.copy(entryStack);
-                makeStatements(watchdog, target, subStatements, jumps);
-                replacePreOperatorWithPostOperator(subStatements);
-
-                Expression ruleResult = null;
-
-                if (stack.size() == 1) {
-                    ruleResult = stack.pop();
-                } else if (stack.size() != 0) {
-                    matches = false;
-                }
-
-                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
-
-                if (!matches) {
-                    break;
-                }
-
-                i = j - 1;
-            }
-
-            if (matches) {
-
-                SwitchExpression switchExpression =
-                        buildSwitchExpression(selector.getLineNumber(), selector, selectorType, switchCases, parsedGroups);
-
-                statements.remove(statements.size() - 1);
-
-                stack.copy(entryStack);
-                stack.push(switchExpression);
-
-                // The join block is processed by parseSwitch, outside the switch-depth scope
-                return;
-            }
+        if (ByteCodeUtil.isSwitchExpressionJoin(join)
+                && tryMakeSwitchExpression(watchdog, switchCases, selector, selectorType, entryStack, statements, jumps)) {
+            // The join block is processed by parseSwitch, outside the switch-depth scope
+            return;
         }
 
+        makeSwitchBlocks(watchdog, switchCases, switchStatement, selectorType, entryStack, jumps);
+
+        int size = statements.size();
+
+        if (size > 3 && selector.isLocalVariableReferenceExpression() && statements.get(size - 2).isSwitchStatement()) {
+            SwitchStatementMaker.makeSwitchString(localVariableMaker, statements, switchStatement);
+        } else if (selector.isArrayExpression()) {
+            SwitchStatementMaker.makeSwitchEnum(bodyDeclaration, switchStatement, typeMaker);
+        }
+        // The join block is processed by parseSwitch, outside the switch-depth scope
+    }
+
+    private boolean tryMakeSwitchExpression(WatchDog watchdog, List<BasicBlock.SwitchCase> switchCases, Expression selector,
+            Type selectorType, DefaultStack<Expression> entryStack, Statements statements, Statements jumps) {
+        List<ParsedRuleGroup> parsedGroups = new ArrayList<>();
+
+        for (int i = 0, len = switchCases.size(); i < len; i++) {
+            BasicBlock.SwitchCase first = switchCases.get(i);
+            BasicBlock target = first.getBasicBlock();
+            int j = i + 1;
+
+            while (j < len && target == switchCases.get(j).getBasicBlock()) {
+                j++;
+            }
+
+            Statements subStatements = new Statements();
+
+            stack.copy(entryStack);
+            makeStatements(watchdog, target, subStatements, jumps);
+            replacePreOperatorWithPostOperator(subStatements);
+
+            Expression ruleResult = null;
+
+            if (stack.size() == 1) {
+                ruleResult = stack.pop();
+            } else if (stack.size() != 0) {
+                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, null));
+                return false;
+            }
+
+            parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
+
+            i = j - 1;
+        }
+
+        SwitchExpression switchExpression =
+                buildSwitchExpression(selector.getLineNumber(), selector, selectorType, switchCases, parsedGroups);
+
+        statements.remove(statements.size() - 1);
+
+        stack.copy(entryStack);
+        stack.push(switchExpression);
+        return true;
+    }
+
+    private void makeSwitchBlocks(WatchDog watchdog, List<BasicBlock.SwitchCase> switchCases, SwitchStatement switchStatement,
+            Type selectorType, DefaultStack<Expression> entryStack, Statements jumps) {
         List<SwitchStatement.Block> blocks = switchStatement.getBlocks();
 
         for (int i = 0, len = switchCases.size(); i < len; i++) {
@@ -599,36 +611,32 @@ public class StatementMaker {
             makeStatements(watchdog, bb, subStatements, jumps);
             replacePreOperatorWithPostOperator(subStatements);
 
-            if (sc.isDefaultCase()) {
-                blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements));
-            } else if (j == i + 1) {
-                SwitchStatement.Label label =
-                        new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
-                blocks.add(new SwitchStatement.LabelBlock(label, subStatements));
-            } else {
-                DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
-
-                for (; i < j; i++) {
-                    labels.add(new SwitchStatement.ExpressionLabel(
-                            new IntegerConstantExpression(selectorType, switchCases.get(i).getValue())
-                    ));
-                }
-
-                blocks.add(new SwitchStatement.MultiLabelsBlock(labels, subStatements));
-                i--;
-            }
+            blocks.add(makeSwitchBlock(sc, subStatements, switchCases, selectorType, i, j));
 
             i = j - 1;
         }
+    }
 
-        int size = statements.size();
-
-        if (size > 3 && selector.isLocalVariableReferenceExpression() && statements.get(size - 2).isSwitchStatement()) {
-            SwitchStatementMaker.makeSwitchString(localVariableMaker, statements, switchStatement);
-        } else if (selector.isArrayExpression()) {
-            SwitchStatementMaker.makeSwitchEnum(bodyDeclaration, switchStatement, typeMaker);
+    private static SwitchStatement.Block makeSwitchBlock(BasicBlock.SwitchCase sc, Statements subStatements,
+            List<BasicBlock.SwitchCase> switchCases, Type selectorType, int i, int j) {
+        if (sc.isDefaultCase()) {
+            return new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements);
         }
-        // The join block is processed by parseSwitch, outside the switch-depth scope
+        if (j == i + 1) {
+            SwitchStatement.Label label =
+                    new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
+            return new SwitchStatement.LabelBlock(label, subStatements);
+        }
+
+        DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
+
+        for (int k = i; k < j; k++) {
+            labels.add(new SwitchStatement.ExpressionLabel(
+                    new IntegerConstantExpression(selectorType, switchCases.get(k).getValue())
+            ));
+        }
+
+        return new SwitchStatement.MultiLabelsBlock(labels, subStatements);
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {
@@ -944,39 +952,9 @@ public class StatementMaker {
             sub1 = sub1.getSub1();
         }
 
-        if (sub1.getType() == TYPE_IF || (sub1.getType() == TYPE_IF_ELSE && sub1.getSub2() == LOOP_END)) {
-            BasicBlock ifBB = sub1;
-
-            if (ifBB.getNext() == LOOP_END || ifBB.getSub2() == LOOP_END) {
-                // 'while' or 'for' loop
-                makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
-                statements.add(LoopStatementMaker.makeLoop(
-                    majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
-                    makeSubStatements(watchdog, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
-                return;
-            }
-
-            if (ifBB.getSub1() == LOOP_END) {
-                if (ifBB.getNext() == LOOP_START) {
-                    // 'do-while' pattern
-                    ifBB.getCondition().inverseCondition();
-
-                    Statements subStatements = new Statements();
-
-                    makeStatements(watchdog, ifBB.getCondition(), subStatements, jumps);
-                    replacePreOperatorWithPostOperator(subStatements);
-                    statements.add(LoopStatementMaker.makeDoWhileLoop(basicBlock, stack.pop(), subStatements, jumps));
-                } else {
-                    // 'while' or 'for' loop
-                    ifBB.getCondition().inverseCondition();
-                    makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
-                    statements.add(LoopStatementMaker.makeLoop(
-                        majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
-                        makeSubStatements(watchdog, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
-                }
-
-                return;
-            }
+        if ((sub1.getType() == TYPE_IF || (sub1.getType() == TYPE_IF_ELSE && sub1.getSub2() == LOOP_END))
+                && parseConditionalLoop(watchdog, basicBlock, sub1, updateBasicBlock, statements, jumps)) {
+            return;
         }
 
         BasicBlock next = sub1.getNext();
@@ -988,33 +966,74 @@ public class StatementMaker {
         }
 
         if (next == LOOP_START && last.getType() == TYPE_IF && last.getSub1() == LOOP_END && countStartLoop(sub1) == 1) {
-            // 'do-while'
-            Statements subStatements;
-
-            last.getCondition().inverseCondition();
-            last.setType(TYPE_END);
-
-            if (sub1.getType() == TYPE_LOOP && sub1.getNext() == last && countStartLoop(sub1.getSub1()) == 0) {
-                changeEndLoopToStartLoop(new BitSet(), sub1.getSub1());
-                subStatements = makeSubStatements(watchdog, sub1.getSub1(), statements, jumps, updateBasicBlock);
-
-                if (subStatements.getLast() != ContinueStatement.CONTINUE) {
-                    throw new IllegalStateException("StatementMaker.parseLoop(...) : unexpected basic block for create a do-while loop");
-                }
-
-                subStatements.removeLast();
-            } else {
-                createDoWhileContinue(last);
-                subStatements = makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock);
-            }
-
-            makeStatements(watchdog, last.getCondition(), subStatements, jumps);
-            statements.add(LoopStatementMaker.makeDoWhileLoop(basicBlock, stack.pop(), subStatements, jumps));
+            parseDoWhileLoop(watchdog, basicBlock, sub1, last, updateBasicBlock, statements, jumps);
         } else {
             // Infinite loop
             statements.add(LoopStatementMaker.makeLoop(
                 localVariableMaker, basicBlock, statements, makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock), jumps));
         }
+    }
+
+    /** Handles loops whose body starts with the loop condition; returns false when the shape doesn't match. */
+    private boolean parseConditionalLoop(WatchDog watchdog, BasicBlock basicBlock, BasicBlock ifBB, BasicBlock updateBasicBlock,
+            Statements statements, Statements jumps) {
+        if (ifBB.getNext() == LOOP_END || ifBB.getSub2() == LOOP_END) {
+            // 'while' or 'for' loop
+            makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
+            statements.add(LoopStatementMaker.makeLoop(
+                majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
+                makeSubStatements(watchdog, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
+            return true;
+        }
+
+        if (ifBB.getSub1() != LOOP_END) {
+            return false;
+        }
+
+        if (ifBB.getNext() == LOOP_START) {
+            // 'do-while' pattern
+            ifBB.getCondition().inverseCondition();
+
+            Statements subStatements = new Statements();
+
+            makeStatements(watchdog, ifBB.getCondition(), subStatements, jumps);
+            replacePreOperatorWithPostOperator(subStatements);
+            statements.add(LoopStatementMaker.makeDoWhileLoop(basicBlock, stack.pop(), subStatements, jumps));
+        } else {
+            // 'while' or 'for' loop
+            ifBB.getCondition().inverseCondition();
+            makeStatements(watchdog, ifBB.getCondition(), statements, jumps);
+            statements.add(LoopStatementMaker.makeLoop(
+                majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
+                makeSubStatements(watchdog, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
+        }
+
+        return true;
+    }
+
+    private void parseDoWhileLoop(WatchDog watchdog, BasicBlock basicBlock, BasicBlock sub1, BasicBlock last,
+            BasicBlock updateBasicBlock, Statements statements, Statements jumps) {
+        Statements subStatements;
+
+        last.getCondition().inverseCondition();
+        last.setType(TYPE_END);
+
+        if (sub1.getType() == TYPE_LOOP && sub1.getNext() == last && countStartLoop(sub1.getSub1()) == 0) {
+            changeEndLoopToStartLoop(new BitSet(), sub1.getSub1());
+            subStatements = makeSubStatements(watchdog, sub1.getSub1(), statements, jumps, updateBasicBlock);
+
+            if (subStatements.getLast() != ContinueStatement.CONTINUE) {
+                throw new IllegalStateException("StatementMaker.parseLoop(...) : unexpected basic block for create a do-while loop");
+            }
+
+            subStatements.removeLast();
+        } else {
+            createDoWhileContinue(last);
+            subStatements = makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock);
+        }
+
+        makeStatements(watchdog, last.getCondition(), subStatements, jumps);
+        statements.add(LoopStatementMaker.makeDoWhileLoop(basicBlock, stack.pop(), subStatements, jumps));
     }
 
     protected int countStartLoop(BasicBlock bb) {

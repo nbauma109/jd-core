@@ -7,8 +7,10 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.Expressions;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
@@ -29,6 +31,8 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 
+import static org.jd.core.v1.model.javasyntax.expression.NoExpression.NO_EXPRESSION;
+
 /**
  * The control flow reducer can lose a shared "if (var == null) return ...;" guard for a loop branch that
  * reassigns 'var' to null and then falls straight into a bare 'continue;': the bytecode's merge block for that
@@ -38,8 +42,22 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariabl
  * that reduction (which risks the CFG engine broadly), this looks for the exact same guard already present
  * elsewhere in the loop for the same variable and duplicates it in front of the 'continue;', matching what the
  * source must have looked like.
+ *
+ * <p>Legitimate source can also contain "var = null; continue;", so the guard is only inserted when the loop's
+ * continuation path provably dereferences 'var' before any null check or reassignment — i.e. when the decompiled
+ * loop is already guaranteed to throw a NullPointerException that the original bytecode could not.</p>
  */
 public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
+
+    /** Classification of the first decisive use of the target variable along the loop's continue path. */
+    private enum Use {
+        /** No decisive use found yet; keep scanning. */
+        NONE,
+        /** Null-checked, reassigned, or flow becomes untrackable: do not touch the loop. */
+        SAFE,
+        /** Dereferenced while provably null: the guard was lost by the reducer. */
+        DEREF
+    }
 
     @Override
     public void visit(Statements list) {
@@ -65,12 +83,12 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
             return;
         }
 
-        for (int i = 0; i < body.size(); i++) {
-            tryFixBranch(body, i, body.get(i));
+        for (Statement statement : body) {
+            tryFixBranch(loop, body, statement);
         }
     }
 
-    private void tryFixBranch(Statements body, int index, Statement statement) {
+    private void tryFixBranch(Statement loop, Statements body, Statement statement) {
         if (!(statement instanceof IfStatement ifStatement) || !(ifStatement.getStatements() instanceof Statements ifBody) || ifBody.size() < 2) {
             return;
         }
@@ -86,7 +104,7 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
 
         IfStatement guard = findNullGuard(body, target);
 
-        if (guard != null) {
+        if (guard != null && classifyContinuePath(loop, target) == Use.DEREF) {
             ifBody.add(ifBody.size() - 1, cloneNullGuard(guard, target));
         }
     }
@@ -110,6 +128,112 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return expression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression varRef ? varRef.getLocalVariable() : null;
+    }
+
+    /**
+     * Follows the loop's continue path (for-update, then condition, then the body statements in order) and
+     * classifies the first decisive use of 'target' encountered.
+     */
+    private static Use classifyContinuePath(Statement loop, AbstractLocalVariable target) {
+        Use use = Use.NONE;
+
+        if (loop.isForStatement()) {
+            use = classifyUse(loop.getUpdate(), target);
+        }
+        if (use == Use.NONE && (loop.isForStatement() || loop.isWhileStatement() || loop.isDoWhileStatement())) {
+            use = classifyUse(loop.getCondition(), target);
+        }
+        if (use == Use.NONE && loop.getStatements() instanceof Statements body) {
+            for (Statement s : body) {
+                use = classifyStatement(s, target);
+                if (use != Use.NONE) {
+                    break;
+                }
+            }
+        }
+
+        return use;
+    }
+
+    private static Use classifyStatement(Statement s, AbstractLocalVariable target) {
+        if (s.isExpressionStatement()) {
+            return classifyUse(s.getExpression(), target);
+        }
+        if (s.isIfStatement() || s.isIfElseStatement() || s.isSwitchStatement() || s.isWhileStatement()) {
+            Use use = classifyUse(s.getCondition(), target);
+            // Once control forks, the linear scan cannot follow: stop without inserting.
+            return use == Use.NONE ? Use.SAFE : use;
+        }
+        // Return, throw, break, declarations, try blocks, ...: the linear fallthrough ends here.
+        return Use.SAFE;
+    }
+
+    private static Use classifyUse(BaseExpression base, AbstractLocalVariable target) {
+        if (base == null || base == NO_EXPRESSION) {
+            return Use.NONE;
+        }
+        if (base instanceof Expressions list) {
+            for (Expression e : list) {
+                Use use = classifyUse(e, target);
+                if (use != Use.NONE) {
+                    return use;
+                }
+            }
+            return Use.NONE;
+        }
+        if (!(base instanceof Expression expression)) {
+            return Use.NONE;
+        }
+        if (expression.isBinaryOperatorExpression()) {
+            return classifyBinaryUse(expression, target);
+        }
+        if (expression.isMethodInvocationExpression()) {
+            if (referencesTarget(expression.getExpression(), target)) {
+                return Use.DEREF;
+            }
+            Use use = classifyUse(expression.getExpression(), target);
+            return use == Use.NONE ? classifyUse(expression.getParameters(), target) : use;
+        }
+        if (expression.isFieldReferenceExpression() || expression.isArrayExpression() || expression.isLengthExpression()) {
+            if (referencesTarget(expression.getExpression(), target)) {
+                return Use.DEREF;
+            }
+            Use use = classifyUse(expression.getExpression(), target);
+            return use == Use.NONE ? classifyUse(expression.getIndex(), target) : use;
+        }
+        if (expression.isTernaryOperatorExpression()) {
+            Use use = classifyUse(expression.getCondition(), target);
+            if (use == Use.NONE) {
+                use = classifyUse(expression.getTrueExpression(), target);
+            }
+            if (use == Use.NONE) {
+                use = classifyUse(expression.getFalseExpression(), target);
+            }
+            return use;
+        }
+
+        Expression inner = expression.getExpression();
+        return inner == expression ? Use.NONE : classifyUse(inner, target);
+    }
+
+    private static Use classifyBinaryUse(Expression expression, AbstractLocalVariable target) {
+        String operator = expression.getOperator();
+        Expression left = expression.getLeftExpression();
+        Expression right = expression.getRightExpression();
+
+        if ("=".equals(operator) && referencesTarget(left, target)) {
+            // The right-hand side is evaluated before the variable is overwritten
+            Use use = classifyUse(right, target);
+            return use == Use.NONE ? Use.SAFE : use;
+        }
+        if (("==".equals(operator) || "!=".equals(operator))
+                && (referencesTarget(left, target) && right.isNullExpression()
+                 || referencesTarget(right, target) && left.isNullExpression())) {
+            return Use.SAFE;
+        }
+
+        Use use = classifyUse(left, target);
+        return use == Use.NONE ? classifyUse(right, target) : use;
     }
 
     private static IfStatement findNullGuard(BaseStatement statement, AbstractLocalVariable target) {
@@ -137,20 +261,7 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
             return found != null ? found : findNullGuard(ifElseStatement.getElseStatements(), target);
         }
         if (s instanceof TryStatement tryStatement) {
-            IfStatement found = findNullGuard(tryStatement.getTryStatements(), target);
-
-            if (found != null) {
-                return found;
-            }
-            if (tryStatement.getCatchClauses() != null) {
-                for (TryStatement.CatchClause catchClause : tryStatement.getCatchClauses()) {
-                    found = findNullGuard(catchClause.getStatements(), target);
-                    if (found != null) {
-                        return found;
-                    }
-                }
-            }
-            return findNullGuard(tryStatement.getFinallyStatements(), target);
+            return findNullGuardInTry(tryStatement, target);
         }
         if (s instanceof SynchronizedStatement synchronizedStatement) {
             return findNullGuard(synchronizedStatement.getStatements(), target);
@@ -162,6 +273,23 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
             return findNullGuardInStatement(inner, target);
         }
         return null;
+    }
+
+    private static IfStatement findNullGuardInTry(TryStatement tryStatement, AbstractLocalVariable target) {
+        IfStatement found = findNullGuard(tryStatement.getTryStatements(), target);
+
+        if (found != null) {
+            return found;
+        }
+        if (tryStatement.getCatchClauses() != null) {
+            for (TryStatement.CatchClause catchClause : tryStatement.getCatchClauses()) {
+                found = findNullGuard(catchClause.getStatements(), target);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return findNullGuard(tryStatement.getFinallyStatements(), target);
     }
 
     private static boolean isNullGuard(IfStatement ifStatement, AbstractLocalVariable target) {

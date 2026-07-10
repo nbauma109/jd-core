@@ -44,40 +44,43 @@ public class FixHoistedCatchThrowVisitor extends AbstractJavaSyntaxVisitor {
     @Override
     public void visit(Statements list) {
         for (int i = 0; i < list.size() - 1; i++) {
-            Statement current = list.get(i);
-            Statement loop = current instanceof LabelStatement labelStatement && labelStatement.statement() instanceof Statement inner ? inner : current;
-
-            if (!isLoop(loop)) {
-                continue;
-            }
-
-            if (!(list.get(i + 1) instanceof ThrowStatement throwStatement)) {
-                continue;
-            }
-            if (!(throwStatement.getExpression() instanceof ClassFileLocalVariableReferenceExpression varRef)) {
-                continue;
-            }
-
-            BaseStatement loopBody = getLoopBody(loop);
-
-            if (!(loopBody instanceof Statements)) {
-                continue;
-            }
-
-            target = varRef.getLocalVariable();
-            lineNumber = throwStatement.getExpression().getLineNumber();
-            offset = varRef.getOffset();
-            safe = true;
-            matchCount = 0;
-            scanStatements(loopBody, false, true);
-
-            if (safe && matchCount > 0) {
-                scanStatements(loopBody, false, false);
-                list.remove(i + 1);
-            }
+            tryFixHoistedThrow(list, i);
         }
 
         acceptListStatement(list);
+    }
+
+    private void tryFixHoistedThrow(Statements list, int i) {
+        Statement current = list.get(i);
+        Statement loop = current instanceof LabelStatement labelStatement && labelStatement.statement() instanceof Statement inner ? inner : current;
+
+        if (!isLoop(loop)) {
+            return;
+        }
+        if (!(list.get(i + 1) instanceof ThrowStatement throwStatement)) {
+            return;
+        }
+        if (!(throwStatement.getExpression() instanceof ClassFileLocalVariableReferenceExpression varRef)) {
+            return;
+        }
+
+        BaseStatement loopBody = getLoopBody(loop);
+
+        if (!(loopBody instanceof Statements)) {
+            return;
+        }
+
+        target = varRef.getLocalVariable();
+        lineNumber = throwStatement.getExpression().getLineNumber();
+        offset = varRef.getOffset();
+        safe = true;
+        matchCount = 0;
+        scanStatements(loopBody, false, true);
+
+        if (safe && matchCount > 0) {
+            scanStatements(loopBody, false, false);
+            list.remove(i + 1);
+        }
     }
 
     private static boolean isLoop(Statement statement) {
@@ -98,20 +101,26 @@ public class FixHoistedCatchThrowVisitor extends AbstractJavaSyntaxVisitor {
             Statement s = list.get(i);
 
             if (s instanceof BreakStatement breakStatement) {
-                if (breakStatement.getLabel() != null) {
-                    continue;
-                }
-                if (insideMatchingCatch) {
-                    matchCount++;
-                    if (!dryRun) {
-                        list.set(i, new ThrowStatement(new ClassFileLocalVariableReferenceExpression(lineNumber, offset, target)));
-                    }
-                } else {
-                    safe = false;
-                }
+                handleBreak(list, i, breakStatement, insideMatchingCatch, dryRun);
             } else {
                 scanStatement(s, insideMatchingCatch, dryRun);
             }
+        }
+    }
+
+    private void handleBreak(Statements list, int i, BreakStatement breakStatement, boolean insideMatchingCatch, boolean dryRun) {
+        if (breakStatement.getLabel() != null) {
+            return;
+        }
+        if (!insideMatchingCatch) {
+            safe = false;
+            return;
+        }
+
+        matchCount++;
+
+        if (!dryRun) {
+            list.set(i, new ThrowStatement(new ClassFileLocalVariableReferenceExpression(lineNumber, offset, target)));
         }
     }
 
@@ -138,10 +147,8 @@ public class FixHoistedCatchThrowVisitor extends AbstractJavaSyntaxVisitor {
             }
         } else if (s instanceof SynchronizedStatement synchronizedStatement) {
             scanStatements(synchronizedStatement.getStatements(), insideMatchingCatch, dryRun);
-        } else if (s instanceof LabelStatement labelStatement) {
-            if (labelStatement.statement() instanceof Statement inner) {
-                scanStatement(inner, insideMatchingCatch, dryRun);
-            }
+        } else if (s instanceof LabelStatement labelStatement && labelStatement.statement() instanceof Statement inner) {
+            scanStatement(inner, insideMatchingCatch, dryRun);
         }
         // Nested loops and switches are opaque: their unlabeled 'break's target the nested
         // construct, not the loop being fixed here, so they are intentionally not visited.

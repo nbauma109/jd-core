@@ -156,6 +156,8 @@ public class StatementMaker {
     private final MemberVisitor memberVisitor = new MemberVisitor();
     private boolean removeFinallyStatementsFlag;
     private boolean mergeTryWithResourcesStatementFlag;
+    /** Number of 'switch' statements between the innermost loop being built and the current basic block. */
+    private int switchDepthInLoop;
 
     public StatementMaker(TypeMaker typeMaker, LocalVariableMaker localVariableMaker, ClassFileConstructorOrMethodDeclaration comd) {
         ClassFile classFile = comd.getClassFile();
@@ -219,7 +221,7 @@ public class StatementMaker {
 
     protected boolean breakToReturn(ControlFlowGraph cfg, Statements statements, Statements jumps) {
         boolean breakToReturn = false;
-        if (jumps.size() == 1) {
+        if (jumps.size() == 1 && !((ClassFileBreakContinueStatement)jumps.get(0)).isLoopExitFromSwitch()) {
             ClassFileBreakContinueStatement jumpStatement = (ClassFileBreakContinueStatement)jumps.get(0);
             for (Statement stmt : statements) {
                 if (stmt.isReturnExpressionStatement() && stmt.getLineNumber() == cfg.getLineNumber(jumpStatement.getTargetOffset())) {
@@ -276,8 +278,21 @@ public class StatementMaker {
             case TYPE_SWITCH:
                 parseSwitch(watchdog, basicBlock, statements, jumps);
                 break;
-            case TYPE_SWITCH_BREAK, TYPE_LOOP_END:
+            case TYPE_SWITCH_BREAK:
                 statements.add(BreakStatement.BREAK);
+                break;
+            case TYPE_LOOP_END:
+                if (switchDepthInLoop > 0) {
+                    // Inside a 'switch', a bare 'break' would exit the switch, not the loop this block
+                    // terminates: emit a jump that the enclosing loop resolves into a labeled break.
+                    ClassFileBreakContinueStatement loopExit = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), basicBlock.getToOffset());
+                    loopExit.setLoopExitFromSwitch(true);
+                    loopExit.setStatement(BreakStatement.BREAK);
+                    statements.add(loopExit);
+                    jumps.add(loopExit);
+                } else {
+                    statements.add(BreakStatement.BREAK);
+                }
                 break;
             case TYPE_TRY:
                 parseTry(watchdog, basicBlock, statements, jumps, false, false);
@@ -491,6 +506,19 @@ public class StatementMaker {
 
 
     protected void parseSwitch(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
+        BasicBlock join = basicBlock.getNext();
+
+        switchDepthInLoop++;
+        try {
+            parseSwitchBody(watchdog, basicBlock, statements, jumps);
+        } finally {
+            switchDepthInLoop--;
+        }
+
+        makeStatements(watchdog, join, statements, jumps);
+    }
+
+    private void parseSwitchBody(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
         parseByteCode(basicBlock, statements);
 
         List<BasicBlock.SwitchCase> switchCases = basicBlock.getSwitchCases();
@@ -549,7 +577,7 @@ public class StatementMaker {
                 stack.copy(entryStack);
                 stack.push(switchExpression);
 
-                makeStatements(watchdog, join, statements, jumps);
+                // The join block is processed by parseSwitch, outside the switch-depth scope
                 return;
             }
         }
@@ -600,8 +628,7 @@ public class StatementMaker {
         } else if (selector.isArrayExpression()) {
             SwitchStatementMaker.makeSwitchEnum(bodyDeclaration, switchStatement, typeMaker);
         }
-
-        makeStatements(watchdog, join, statements, jumps);
+        // The join block is processed by parseSwitch, outside the switch-depth scope
     }
 
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {
@@ -895,6 +922,20 @@ public class StatementMaker {
     }
 
     protected void parseLoop(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
+        // Loop-exit tracking is relative to the innermost loop: a 'switch' enclosing this loop must not
+        // make this loop's own exits look like they need labeled breaks.
+        int enclosingSwitchDepth = switchDepthInLoop;
+        switchDepthInLoop = 0;
+        try {
+            parseLoopBody(watchdog, basicBlock, statements, jumps);
+        } finally {
+            switchDepthInLoop = enclosingSwitchDepth;
+        }
+
+        makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
+    }
+
+    private void parseLoopBody(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
         BasicBlock sub1 = basicBlock.getSub1();
         BasicBlock updateBasicBlock = null;
 
@@ -912,7 +953,6 @@ public class StatementMaker {
                 statements.add(LoopStatementMaker.makeLoop(
                     majorVersion, typeBounds, localVariableMaker, basicBlock, statements, stack.pop(),
                     makeSubStatements(watchdog, ifBB.getSub1(), statements, jumps, updateBasicBlock), jumps));
-                makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
                 return;
             }
 
@@ -935,7 +975,6 @@ public class StatementMaker {
                         makeSubStatements(watchdog, ifBB.getNext(), statements, jumps, updateBasicBlock), jumps));
                 }
 
-                makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
                 return;
             }
         }
@@ -976,8 +1015,6 @@ public class StatementMaker {
             statements.add(LoopStatementMaker.makeLoop(
                 localVariableMaker, basicBlock, statements, makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock), jumps));
         }
-
-        makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
     }
 
     protected int countStartLoop(BasicBlock bb) {
@@ -1273,6 +1310,12 @@ public class StatementMaker {
 
         while (iterator.hasNext()) {
             ClassFileBreakContinueStatement statement = (ClassFileBreakContinueStatement)iterator.next();
+
+            if (statement.isLoopExitFromSwitch()) {
+                // Already carries a bare 'break' fallback; normally claimed by the enclosing loop's makeLabels
+                continue;
+            }
+
             CommentStatement commentStatement = new CommentStatement();
             commentStatement.setText("// goto line number " + cfg.getLineNumber(statement.getTargetOffset()));
             statement.setStatement(commentStatement);

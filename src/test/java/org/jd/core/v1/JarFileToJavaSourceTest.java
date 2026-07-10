@@ -265,6 +265,14 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     if (m.matches()) {
                         continue;
                     }
+                    if (projectDir != null && runUnitTests && path.startsWith("META-INF/versions/")) {
+                        // Multi-release JAR overrides can't be recompiled correctly once flattened into a
+                        // single src/main/java tree: the rebuilt project's own base-release compiler
+                        // execution would choke on APIs (e.g. java.net.http) that only exist in the JDK
+                        // version the override targets. Skip them; the base classes still get rebuilt and
+                        // exercised, same as running on a JDK/consumer unaware of multi-release JARs.
+                        continue;
+                    }
                     int majorVersion = ctx == null ? MAJOR_1_8 : ctx.getMajorVersion();
                     if (majorVersion >= MAJOR_1_1) {
                         if (majorVersion >= MAJOR_1_5) {

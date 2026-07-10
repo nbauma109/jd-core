@@ -529,40 +529,43 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (receiver != null && !receiver.isNullExpression()
                 && receiver.getType() instanceof ObjectType receiverType
-                && receiverType.getTypeArguments() instanceof WildcardTypeArgument
-                && requiresWildcardCaptureCast((ClassFileMethodInvocationExpression)expression)) {
+                && receiverType.getTypeArguments() instanceof WildcardTypeArgument) {
             // The receiver's unbounded wildcard is capture-converted independently at every use, so passing an
             // argument typed for the class's own type variable (e.g. Progress<ProgressContext>.onProgress(...,
-            // ProgressContext)) does not type-check without an explicit unchecked cast to an Object-parameterized type.
-            expression.setExpression(addCastExpression(receiverType.createType(ObjectType.TYPE_OBJECT), receiver));
+            // ProgressContext)) does not type-check without an explicit unchecked cast to a raw-parameterized type.
+            Type wildcardCaptureCastBound = resolveWildcardCaptureCastBound((ClassFileMethodInvocationExpression)expression);
+
+            if (wildcardCaptureCastBound != null) {
+                expression.setExpression(addCastExpression(receiverType.createType(wildcardCaptureCastBound), receiver));
+            }
         }
 
         expression.getExpression().accept(this);
     }
 
-    private boolean requiresWildcardCaptureCast(ClassFileMethodInvocationExpression expression) {
+    private Type resolveWildcardCaptureCastBound(ClassFileMethodInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
 
         if (Utils.isEmpty(parameters)) {
-            return false;
+            return null;
         }
 
         BaseType unboundParameterTypes = expression.getUnboundParameterTypes();
 
         if (unboundParameterTypes == null) {
-            return false;
+            return null;
         }
 
         TypeTypes typeTypes = typeMaker.makeTypeTypes(expression.getInternalTypeName());
 
         if (typeTypes == null || typeTypes.getTypeParameters() == null) {
-            return false;
+            return null;
         }
 
-        Set<String> classTypeParameterNames = new HashSet<>();
+        Map<String, Type> classTypeParameterBounds = new HashMap<>();
 
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
-            classTypeParameterNames.add(typeParameter.getIdentifier());
+            classTypeParameterBounds.put(typeParameter.getIdentifier(), boundOf(typeParameter));
         }
 
         var unboundTypeIterator = unboundParameterTypes.iterator();
@@ -572,12 +575,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Type unboundType = unboundTypeIterator.next();
             Expression argument = parameterIterator.next();
 
-            if (unboundType instanceof GenericType gt && classTypeParameterNames.contains(gt.getName()) && !argument.isNullExpression()) {
-                return true;
+            if (unboundType instanceof GenericType gt && !argument.isNullExpression()) {
+                Type bound = classTypeParameterBounds.get(gt.getName());
+
+                if (bound != null) {
+                    return bound;
+                }
             }
         }
 
-        return false;
+        return null;
+    }
+
+    /** The type variable's erased upper bound, stripped to raw form so self-referential bounds (e.g. {@code T extends Comparable<T>}) stay valid. */
+    private static Type boundOf(org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        if (typeParameter instanceof TypeParameterWithTypeBounds typeParameterWithTypeBounds
+                && typeParameterWithTypeBounds.getTypeBounds().getFirst() instanceof ObjectType objectType) {
+            return objectType.getTypeArguments() == null ? objectType : objectType.createType((BaseTypeArgument)null);
+        }
+        return ObjectType.TYPE_OBJECT;
     }
 
     @Override

@@ -1358,8 +1358,7 @@ public class ByteCodeParser {
             FieldReferenceExpression boefr = (FieldReferenceExpression)valueRef.getLeftExpression();
 
             if (boefr.getName().equals(fr.getName())
-             && boefr.getExpression().getType().equals(fr.getExpression().getType())
-             && boefr.getExpression().getIndex().getIntegerValue() == fr.getExpression().getIndex().getIntegerValue()) {
+             && isSameFieldReceiver(boefr.getExpression(), fr.getExpression())) {
                 BinaryOperatorExpression boe = (BinaryOperatorExpression)valueRef;
                 Expression expression;
 
@@ -1803,10 +1802,42 @@ public class ByteCodeParser {
             Expression expression = stack.peek();
 
             if (expression.isFieldReferenceExpression()) {
-                return expression.getName().equals(fr.getName()) && expression.getExpression().getType().equals(fr.getExpression().getType());
+                return expression.getName().equals(fr.getName()) && isSameFieldReceiver(expression.getExpression(), fr.getExpression());
             }
         }
 
+        return false;
+    }
+
+    /**
+     * Whether two field-access receivers are provably the same reference, so that a load/store pair on the
+     * same field name really targets one location and may be folded into '++', '--' or a compound assignment.
+     * Comparing receiver types is not enough: 'this.count = other.count + 1' has equal receiver types but
+     * must not become 'other.count++', which increments the wrong object (and e.g. turns a redirect counter
+     * into an infinite loop).
+     */
+    private static boolean isSameFieldReceiver(Expression e1, Expression e2) {
+        if (e1 == null || e2 == null) {
+            return e1 == e2;
+        }
+        if (e1.isThisExpression() && e2.isThisExpression()) {
+            return true;
+        }
+        if (e1 instanceof ClassFileLocalVariableReferenceExpression lv1 && e2 instanceof ClassFileLocalVariableReferenceExpression lv2) {
+            return lv1.getLocalVariable() == lv2.getLocalVariable();
+        }
+        if (e1.isObjectTypeReferenceExpression() && e2.isObjectTypeReferenceExpression()) {
+            // Static field access: the receiver is the class itself
+            return e1.getType().equals(e2.getType());
+        }
+        if (e1.isArrayExpression() && e2.isArrayExpression()) {
+            return isSameFieldReceiver(e1.getExpression(), e2.getExpression())
+                && e1.getIndex().isIntegerConstantExpression() && e2.getIndex().isIntegerConstantExpression()
+                && e1.getIndex().getIntegerValue() == e2.getIndex().getIntegerValue();
+        }
+        if (e1.isFieldReferenceExpression() && e2.isFieldReferenceExpression()) {
+            return e1.getName().equals(e2.getName()) && isSameFieldReceiver(e1.getExpression(), e2.getExpression());
+        }
         return false;
     }
 

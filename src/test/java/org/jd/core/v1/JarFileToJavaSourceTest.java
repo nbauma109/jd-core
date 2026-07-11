@@ -106,7 +106,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJSoup() throws Exception {
-        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.16.2", false);
+        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.22.2");
     }
 
     @Test
@@ -234,6 +234,16 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
                     // TODO DEBUG if (!internalTypeName.endsWith("/Debug")) continue;
                     //if (!internalTypeName.endsWith("/MapUtils")) continue;
+
+                    if (projectDir != null && runUnitTests && path.startsWith("META-INF/versions/")) {
+                        // Multi-release JAR overrides can't be recompiled correctly once flattened into a
+                        // single src/main/java tree: the rebuilt project's own base-release compiler
+                        // execution would choke on APIs (e.g. java.net.http) that only exist in the JDK
+                        // version the override targets. Skip them before decompiling so an overlay entry
+                        // can't skew the exception counters either; the base classes still get rebuilt and
+                        // exercised, same as running on a JDK/consumer unaware of multi-release JARs.
+                        continue;
+                    }
 
                     printer.init();
                     if (!license.isEmpty()) {

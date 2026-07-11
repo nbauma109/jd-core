@@ -41,6 +41,8 @@ import static org.apache.bcel.Const.ACC_SYNTHETIC;
 
 public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
+    private final FixHoistedCatchThrowVisitor fixHoistedCatchThrowVisitor = new FixHoistedCatchThrowVisitor();
+    private final FixMissingNullGuardVisitor fixMissingNullGuardVisitor = new FixMissingNullGuardVisitor();
 
     public CreateInstructionsVisitor(TypeMaker typeMaker) {
         this.typeMaker = typeMaker;
@@ -130,6 +132,11 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             localVariableMaker.make(containsLineNumber, typeMaker);
+
+            if (comd.getStatements() instanceof Statements methodStatements) {
+                methodStatements.accept(fixHoistedCatchThrowVisitor);
+                methodStatements.accept(fixMissingNullGuardVisitor);
+            }
         }
 
         comd.setFormalParameters(localVariableMaker.getFormalParameters());

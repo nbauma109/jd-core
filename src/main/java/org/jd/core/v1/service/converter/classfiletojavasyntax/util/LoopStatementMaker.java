@@ -676,12 +676,15 @@ public final class LoopStatementMaker {
                 int offset = statement.getOffset();
                 int targetOffset = statement.getTargetOffset();
 
-                if (targetOffset == continueOffset) {
-                    statement.setStatement(new ContinueStatement(label));
+                if (statement.isLoopExitFromSwitch() || targetOffset == breakOffset && targetOffset != continueOffset) {
+                    // Either a loop exit generated inside one of this loop's 'switch' statements (where a bare
+                    // 'break' would only exit the switch) or a jump to this loop's break target: name this loop
+                    // and break out of it explicitly.
+                    statement.setStatement(new BreakStatement(label));
                     createLabel = true;
                     iterator.remove();
-                } else if (targetOffset == breakOffset) {
-                    statement.setStatement(new BreakStatement(label));
+                } else if (targetOffset == continueOffset) {
+                    statement.setStatement(new ContinueStatement(label));
                     createLabel = true;
                     iterator.remove();
                 } else if (continueOffset <= offset && offset < breakOffset) {

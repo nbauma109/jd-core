@@ -525,7 +525,225 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
+        Expression receiver = expression.getExpression();
+
+        // Only receivers with a DECLARED type (fields, locals) qualify: on an inferred receiver such as
+        // 'stream.map(...)' a modeled wildcard is usually an inference artifact, not a source-level wildcard,
+        // and casting it would contradict the type javac infers.
+        if (receiver != null && !receiver.isNullExpression()
+                && (receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression())
+                && receiver.getType() instanceof ObjectType receiverType
+                && hasWildcardTypeArgument(receiverType)) {
+            // The receiver's unbounded wildcard is capture-converted independently at every use, so passing an
+            // argument typed for the class's own type variable (e.g. Progress<ProgressContext>.onProgress(...,
+            // ProgressContext)) does not type-check without an explicit unchecked cast to a raw-parameterized type.
+            ObjectType wildcardCaptureCastType = resolveWildcardCaptureCastType((ClassFileMethodInvocationExpression)expression, receiverType);
+
+            if (wildcardCaptureCastType != null) {
+                expression.setExpression(addCastExpression(wildcardCaptureCastType, receiver));
+            }
+        }
+
         expression.getExpression().accept(this);
+    }
+
+    private static boolean hasWildcardTypeArgument(ObjectType receiverType) {
+        BaseTypeArgument typeArguments = receiverType.getTypeArguments();
+
+        if (isCaptureWildcard(typeArguments)) {
+            return true;
+        }
+        if (typeArguments instanceof TypeArguments list) {
+            for (TypeArgument typeArgument : list) {
+                if (isCaptureWildcard(typeArgument)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Wildcards whose capture blocks passing type-variable-typed arguments: unbounded and extends-bounded.
+     * A super-bounded wildcard deliberately accepts such arguments (PECS), so it never needs the cast.
+     */
+    private static boolean isCaptureWildcard(BaseTypeArgument typeArgument) {
+        return typeArgument instanceof WildcardTypeArgument
+            || typeArgument instanceof WildcardExtendsTypeArgument;
+    }
+
+    private ObjectType resolveWildcardCaptureCastType(ClassFileMethodInvocationExpression expression, ObjectType receiverType) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (Utils.isEmpty(parameters)) {
+            return null;
+        }
+
+        BaseType unboundParameterTypes = expression.getUnboundParameterTypes();
+
+        if (unboundParameterTypes == null) {
+            return null;
+        }
+
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(expression.getInternalTypeName());
+
+        if (typeTypes == null || typeTypes.getTypeParameters() == null) {
+            return null;
+        }
+
+        // A null value means the type variable has no single denotable upper bound (e.g. multiple bounds):
+        // no valid type argument exists for it, so the cast must fall back to the raw receiver type.
+        Map<String, Type> classTypeParameterBounds = new HashMap<>();
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
+            classTypeParameterBounds.put(typeParameter.getIdentifier(), boundOf(typeParameter));
+        }
+
+        // Only type variables whose OWN receiver argument is a capture wildcard block argument-passing:
+        // in Erase.apply(IOFunction<? super T, ? extends R> mapper, T t) the call mapper.apply(t) is legal
+        // as-is, because 't' lands in the '? super T' position; '? extends R' only captures the return side.
+        Set<String> capturedTypeParameterNames = capturedTypeParameterNames(receiverType, typeTypes);
+
+        if (capturedTypeParameterNames.isEmpty()) {
+            return null;
+        }
+
+        var unboundTypeIterator = unboundParameterTypes.iterator();
+        var parameterIterator = parameters.iterator();
+
+        while (unboundTypeIterator.hasNext() && parameterIterator.hasNext()) {
+            Type unboundType = unboundTypeIterator.next();
+            Expression argument = parameterIterator.next();
+
+            if (!argument.isNullExpression() && referencesClassTypeParameter(unboundType, capturedTypeParameterNames)) {
+                return buildCaptureCastType(receiverType, typeTypes, classTypeParameterBounds);
+            }
+        }
+
+        return null;
+    }
+
+    /** The type variables whose receiver type argument is an unbounded or extends wildcard, matched by position. */
+    private static Set<String> capturedTypeParameterNames(ObjectType receiverType, TypeTypes typeTypes) {
+        BaseTypeArgument receiverArguments = receiverType.getTypeArguments();
+        Set<String> names = new HashSet<>();
+
+        if (isCaptureWildcard(receiverArguments) && typeTypes.getTypeParameters().size() == 1) {
+            names.add(typeTypes.getTypeParameters().getFirst().getIdentifier());
+        } else if (receiverArguments instanceof TypeArguments receiverArgumentList
+                && typeTypes.getTypeParameters().size() == receiverArgumentList.size()) {
+            var typeParameterIterator = typeTypes.getTypeParameters().iterator();
+
+            for (TypeArgument receiverArgument : receiverArgumentList) {
+                org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameterIterator.next();
+
+                if (isCaptureWildcard(receiverArgument)) {
+                    names.add(typeParameter.getIdentifier());
+                }
+            }
+        }
+
+        return names;
+    }
+
+    /**
+     * Whether the formal parameter's unbound type uses one of the class's type variables, directly
+     * ({@code T}) or nested ({@code List<T>}, {@code List<? extends T>}): every such use fails to
+     * type-check against a capture-converted receiver.
+     */
+    private static boolean referencesClassTypeParameter(BaseTypeArgument typeArgument, Set<String> classTypeParameterNames) {
+        if (typeArgument instanceof GenericType gt) {
+            return classTypeParameterNames.contains(gt.getName());
+        }
+        if (typeArgument instanceof WildcardExtendsTypeArgument wildcard) {
+            return referencesClassTypeParameter(wildcard.type(), classTypeParameterNames);
+        }
+        // '? super T' positions are contravariant: 'forEach(Consumer<? super T>)' accepts a Consumer of any
+        // supertype of the capture, so such a use never needs the receiver cast — do not descend into it.
+        if (typeArgument instanceof TypeArguments list) {
+            for (TypeArgument nested : list) {
+                if (referencesClassTypeParameter(nested, classTypeParameterNames)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (typeArgument instanceof ObjectType objectType && objectType.getTypeArguments() != null) {
+            return referencesClassTypeParameter(objectType.getTypeArguments(), classTypeParameterNames);
+        }
+        return false;
+    }
+
+    /**
+     * The parameterization to cast the wildcard receiver to: every wildcard argument is replaced with its type
+     * variable's upper bound, non-wildcard arguments are kept. Falls back to the raw type as soon as one
+     * replacement has no denotable bound.
+     */
+    private static ObjectType buildCaptureCastType(ObjectType receiverType, TypeTypes typeTypes, Map<String, Type> classTypeParameterBounds) {
+        BaseTypeArgument receiverArguments = receiverType.getTypeArguments();
+
+        if (isCaptureWildcard(receiverArguments)) {
+            Type bound = classTypeParameterBounds.values().size() == 1 ? classTypeParameterBounds.values().iterator().next() : null;
+            Type replacement = wildcardReplacement((TypeArgument)receiverArguments, bound);
+            return replacement == null ? receiverType.createType((BaseTypeArgument)null) : receiverType.createType(replacement);
+        }
+
+        if (receiverArguments instanceof TypeArguments receiverArgumentList
+                && typeTypes.getTypeParameters().size() == receiverArgumentList.size()) {
+            TypeArguments newArguments = new TypeArguments(receiverArgumentList.size());
+            var typeParameterIterator = typeTypes.getTypeParameters().iterator();
+
+            for (TypeArgument receiverArgument : receiverArgumentList) {
+                org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameterIterator.next();
+
+                if (isCaptureWildcard(receiverArgument)) {
+                    Type replacement = wildcardReplacement(receiverArgument, classTypeParameterBounds.get(typeParameter.getIdentifier()));
+                    if (replacement == null) {
+                        return receiverType.createType((BaseTypeArgument)null);
+                    }
+                    newArguments.add(replacement);
+                } else {
+                    // Non-wildcard and super-wildcard arguments stay as declared: both remain valid
+                    // in a cast target and keep their positions type-checking as before
+                    newArguments.add(receiverArgument);
+                }
+            }
+            return receiverType.createType(newArguments);
+        }
+
+        return receiverType.createType((BaseTypeArgument)null);
+    }
+
+    /**
+     * The type argument standing in for a wildcard in the capture cast: an extends-wildcard keeps its own
+     * bound ({@code Box<? extends Number>} casts to {@code Box<Number>}, an unchecked but legal narrowing),
+     * the other kinds use the type variable's upper bound. {@code null} means nothing denotable: go raw.
+     * A parameterized bound is not denotable either: stripping it raw does not survive the bounds check
+     * (a raw type argument never satisfies an F-bound such as {@code T extends FrameworkMember<T>}).
+     */
+    private static Type wildcardReplacement(TypeArgument wildcard, Type typeParameterBound) {
+        if (wildcard instanceof WildcardExtendsTypeArgument extendsWildcard) {
+            return extendsWildcard.type() instanceof ObjectType objectType && objectType.getTypeArguments() == null ? objectType : null;
+        }
+        return typeParameterBound;
+    }
+
+    /**
+     * The type variable's upper bound when it is denotable as a type argument, or {@code null} otherwise:
+     * multiple bounds ({@code T extends Number & Comparable<T>}), type-variable bounds ({@code T extends U})
+     * and parameterized bounds ({@code T extends FrameworkMember<T>}) all have no valid parameterization —
+     * a raw type argument never satisfies an F-bound, so those cases must cast the receiver to the raw type.
+     */
+    private static Type boundOf(org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        if (!(typeParameter instanceof TypeParameterWithTypeBounds typeParameterWithTypeBounds)) {
+            return ObjectType.TYPE_OBJECT;
+        }
+        if (typeParameterWithTypeBounds.getTypeBounds().size() > 1
+                || !(typeParameterWithTypeBounds.getTypeBounds().getFirst() instanceof ObjectType objectType)
+                || objectType.getTypeArguments() != null) {
+            return null;
+        }
+        return objectType;
     }
 
     @Override

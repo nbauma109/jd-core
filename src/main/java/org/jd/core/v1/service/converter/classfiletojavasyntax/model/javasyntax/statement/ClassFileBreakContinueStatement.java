@@ -14,6 +14,8 @@ public class ClassFileBreakContinueStatement implements Statement {
     private final int offset;
     private final int targetOffset;
     private boolean continueLabel;
+    /** Exits the innermost enclosing loop from inside a 'switch': must render as a labeled break, since a bare 'break' would only exit the switch. */
+    private boolean loopExitFromSwitch;
     private Statement statement;
 
     public ClassFileBreakContinueStatement(int offset, int targetOffset) {
@@ -41,6 +43,14 @@ public class ClassFileBreakContinueStatement implements Statement {
 
     public void setContinueLabel(boolean continueLabel) {
         this.continueLabel = continueLabel;
+    }
+
+    public boolean isLoopExitFromSwitch() {
+        return loopExitFromSwitch;
+    }
+
+    public void setLoopExitFromSwitch(boolean loopExitFromSwitch) {
+        this.loopExitFromSwitch = loopExitFromSwitch;
     }
 
     public void setStatement(Statement statement) {

@@ -658,9 +658,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (typeArgument instanceof WildcardExtendsTypeArgument wildcard) {
             return referencesClassTypeParameter(wildcard.type(), classTypeParameterNames);
         }
-        if (typeArgument instanceof WildcardSuperTypeArgument wildcard) {
-            return referencesClassTypeParameter(wildcard.type(), classTypeParameterNames);
-        }
+        // '? super T' positions are contravariant: 'forEach(Consumer<? super T>)' accepts a Consumer of any
+        // supertype of the capture, so such a use never needs the receiver cast — do not descend into it.
         if (typeArgument instanceof TypeArguments list) {
             for (TypeArgument nested : list) {
                 if (referencesClassTypeParameter(nested, classTypeParameterNames)) {

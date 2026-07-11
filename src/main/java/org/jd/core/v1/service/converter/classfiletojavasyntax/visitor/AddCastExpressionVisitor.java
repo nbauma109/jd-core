@@ -527,7 +527,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         Expression receiver = expression.getExpression();
 
+        // Only receivers with a DECLARED type (fields, locals) qualify: on an inferred receiver such as
+        // 'stream.map(...)' a modeled wildcard is usually an inference artifact, not a source-level wildcard,
+        // and casting it would contradict the type javac infers.
         if (receiver != null && !receiver.isNullExpression()
+                && (receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression())
                 && receiver.getType() instanceof ObjectType receiverType
                 && hasWildcardTypeArgument(receiverType)) {
             // The receiver's unbounded wildcard is capture-converted independently at every use, so passing an
@@ -546,17 +550,26 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean hasWildcardTypeArgument(ObjectType receiverType) {
         BaseTypeArgument typeArguments = receiverType.getTypeArguments();
 
-        if (typeArguments instanceof WildcardTypeArgument) {
+        if (isCaptureWildcard(typeArguments)) {
             return true;
         }
         if (typeArguments instanceof TypeArguments list) {
             for (TypeArgument typeArgument : list) {
-                if (typeArgument instanceof WildcardTypeArgument) {
+                if (isCaptureWildcard(typeArgument)) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    /**
+     * Wildcards whose capture blocks passing type-variable-typed arguments: unbounded and extends-bounded.
+     * A super-bounded wildcard deliberately accepts such arguments (PECS), so it never needs the cast.
+     */
+    private static boolean isCaptureWildcard(BaseTypeArgument typeArgument) {
+        return typeArgument instanceof WildcardTypeArgument
+            || typeArgument instanceof WildcardExtendsTypeArgument;
     }
 
     private ObjectType resolveWildcardCaptureCastType(ClassFileMethodInvocationExpression expression, ObjectType receiverType) {
@@ -593,12 +606,41 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Type unboundType = unboundTypeIterator.next();
             Expression argument = parameterIterator.next();
 
-            if (unboundType instanceof GenericType gt && !argument.isNullExpression() && classTypeParameterBounds.containsKey(gt.getName())) {
+            if (!argument.isNullExpression() && referencesClassTypeParameter(unboundType, classTypeParameterBounds.keySet())) {
                 return buildCaptureCastType(receiverType, typeTypes, classTypeParameterBounds);
             }
         }
 
         return null;
+    }
+
+    /**
+     * Whether the formal parameter's unbound type uses one of the class's type variables, directly
+     * ({@code T}) or nested ({@code List<T>}, {@code List<? extends T>}): every such use fails to
+     * type-check against a capture-converted receiver.
+     */
+    private static boolean referencesClassTypeParameter(BaseTypeArgument typeArgument, Set<String> classTypeParameterNames) {
+        if (typeArgument instanceof GenericType gt) {
+            return classTypeParameterNames.contains(gt.getName());
+        }
+        if (typeArgument instanceof WildcardExtendsTypeArgument wildcard) {
+            return referencesClassTypeParameter(wildcard.type(), classTypeParameterNames);
+        }
+        if (typeArgument instanceof WildcardSuperTypeArgument wildcard) {
+            return referencesClassTypeParameter(wildcard.type(), classTypeParameterNames);
+        }
+        if (typeArgument instanceof TypeArguments list) {
+            for (TypeArgument nested : list) {
+                if (referencesClassTypeParameter(nested, classTypeParameterNames)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (typeArgument instanceof ObjectType objectType && objectType.getTypeArguments() != null) {
+            return referencesClassTypeParameter(objectType.getTypeArguments(), classTypeParameterNames);
+        }
+        return false;
     }
 
     /**
@@ -609,9 +651,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private static ObjectType buildCaptureCastType(ObjectType receiverType, TypeTypes typeTypes, Map<String, Type> classTypeParameterBounds) {
         BaseTypeArgument receiverArguments = receiverType.getTypeArguments();
 
-        if (receiverArguments instanceof WildcardTypeArgument) {
+        if (isCaptureWildcard(receiverArguments)) {
             Type bound = classTypeParameterBounds.values().size() == 1 ? classTypeParameterBounds.values().iterator().next() : null;
-            return bound == null ? receiverType.createType((BaseTypeArgument)null) : receiverType.createType(bound);
+            Type replacement = wildcardReplacement((TypeArgument)receiverArguments, bound);
+            return replacement == null ? receiverType.createType((BaseTypeArgument)null) : receiverType.createType(replacement);
         }
 
         if (receiverArguments instanceof TypeArguments receiverArgumentList
@@ -622,13 +665,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             for (TypeArgument receiverArgument : receiverArgumentList) {
                 org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameterIterator.next();
 
-                if (receiverArgument instanceof WildcardTypeArgument) {
-                    Type bound = classTypeParameterBounds.get(typeParameter.getIdentifier());
-                    if (bound == null) {
+                if (isCaptureWildcard(receiverArgument)) {
+                    Type replacement = wildcardReplacement(receiverArgument, classTypeParameterBounds.get(typeParameter.getIdentifier()));
+                    if (replacement == null) {
                         return receiverType.createType((BaseTypeArgument)null);
                     }
-                    newArguments.add(bound);
+                    newArguments.add(replacement);
                 } else {
+                    // Non-wildcard and super-wildcard arguments stay as declared: both remain valid
+                    // in a cast target and keep their positions type-checking as before
                     newArguments.add(receiverArgument);
                 }
             }
@@ -636,6 +681,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return receiverType.createType((BaseTypeArgument)null);
+    }
+
+    /**
+     * The type argument standing in for a wildcard in the capture cast: an extends-wildcard keeps its own
+     * bound ({@code Box<? extends Number>} casts to {@code Box<Number>}, an unchecked but legal narrowing),
+     * the other kinds use the type variable's upper bound. {@code null} means nothing denotable: go raw.
+     */
+    private static Type wildcardReplacement(TypeArgument wildcard, Type typeParameterBound) {
+        if (wildcard instanceof WildcardExtendsTypeArgument extendsWildcard && extendsWildcard.type() instanceof ObjectType objectType) {
+            return objectType.getTypeArguments() == null ? objectType : objectType.createType((BaseTypeArgument)null);
+        }
+        if (wildcard instanceof WildcardExtendsTypeArgument) {
+            return null; // e.g. '? extends T': no denotable argument
+        }
+        return typeParameterBound;
     }
 
     /**

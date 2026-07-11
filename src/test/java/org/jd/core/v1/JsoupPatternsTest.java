@@ -459,6 +459,54 @@ public class JsoupPatternsTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    // --- Receiver declared with a bounded wildcard: '? extends Number' capture-converts on use too ---
+
+    static class BoundedBox2<T extends Number> {
+        void set(T value) { /* no-op */ }
+    }
+
+    static class ExtendsWildcardReceiver {
+        BoundedBox2<? extends Number> box;
+        Integer number;
+
+        @SuppressWarnings("unchecked")
+        void store() {
+            ((BoundedBox2<Number>) box).set(number);
+        }
+    }
+
+    @Test
+    public void testExtendsWildcardReceiverCaptureCast() throws Exception {
+        String internalClassName = ExtendsWildcardReceiver.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    // --- Type variable nested in the parameter type: List<T> fails against a capture just like T ---
+
+    static class ListBox<T> {
+        void addAll(java.util.List<T> values) { /* no-op */ }
+    }
+
+    static class NestedTypeVariableReceiver {
+        ListBox<?> box;
+        java.util.List<Object> values;
+
+        @SuppressWarnings("unchecked")
+        void store() {
+            ((ListBox<Object>) box).addAll(values);
+        }
+    }
+
+    @Test
+    public void testNestedTypeVariableReceiverCaptureCast() throws Exception {
+        String internalClassName = NestedTypeVariableReceiver.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
     // --- 'break outer;' from a switch nested in an inner loop must reach the outer loop's label ---
 
     static class LabeledBreakThroughNestedLoops {

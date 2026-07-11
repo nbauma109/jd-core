@@ -12,6 +12,8 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.junit.Test;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.io.IOException;
 import java.net.SocketTimeoutException;
 
@@ -19,6 +21,8 @@ import java.net.SocketTimeoutException;
  * Decompilation patterns distilled from the jsoup 1.22.2 upgrade: each fixture reproduces, from plain source,
  * a bytecode shape that used to decompile to broken Java (see the jsoup classes referenced on each test).
  */
+@SuppressWarnings("all")
+@SuppressFBWarnings
 public class JsoupPatternsTest extends AbstractJdTest {
 
     // --- org.jsoup.nodes.NodeIterator#findNextNode: shared null guard lost on the 'node = null' branch ---
@@ -107,6 +111,133 @@ public class JsoupPatternsTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         assertEquals(1, countOccurrences(source, "(node == null)"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    // --- Legitimate restart patterns that must stay untouched: each first decisive use is safe ---
+
+    static class GenuineRestartNullCheckFirst {
+        Object step() { return null; }
+
+        Object find(Object cur, boolean restart) {
+            Object node = cur;
+            while (step() != null) {
+                if (restart) {
+                    node = step();
+                    node = null;
+                    continue;
+                }
+                if (node == null) {
+                    return null;
+                }
+                step();
+            }
+            return node;
+        }
+    }
+
+    static class GenuineRestartReassignedFirst {
+        Object step() { return null; }
+
+        Object find(Object cur, boolean restart) {
+            Object node = cur;
+            while (step() != null) {
+                if (restart) {
+                    node = step();
+                    node = null;
+                    continue;
+                }
+                node = step();
+                if (node == null) {
+                    return null;
+                }
+            }
+            return node;
+        }
+    }
+
+    static class GenuineRestartTernaryNullCheck {
+        Object step() { return null; }
+
+        int find(Object cur, boolean restart, int[] counts) {
+            Object node = cur;
+            int total = 0;
+            while (step() != null) {
+                total += node == null ? counts[0] : counts[1];
+                if (restart) {
+                    node = step();
+                    node = null;
+                    continue;
+                }
+                if (node == null) {
+                    return total;
+                }
+            }
+            return total;
+        }
+    }
+
+    @Test
+    public void testGenuineRestartPatternsKeepSingleGuard() throws Exception {
+        Object[][] fixtures = {
+            { GenuineRestartNullCheckFirst.class, 1 },
+            { GenuineRestartReassignedFirst.class, 1 },
+            { GenuineRestartTernaryNullCheck.class, 2 }, // its ternary condition is a second, legitimate occurrence
+        };
+        for (Object[] fixture : fixtures) {
+            String internalClassName = ((Class<?>) fixture[0]).getName().replace('.', '/');
+            String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+            // The loop already handles null on its continuation path: no guard may be added
+            assertEquals(internalClassName, ((Integer) fixture[1]).intValue(), countOccurrences(source, "(node == null)"));
+            assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    // --- Same guard loss as NodeIterator, but the dereference is a field access and the guard sits in a try ---
+
+    static class Chain {
+        Chain next;
+        int value;
+    }
+
+    static class FieldDerefAfterLostGuard {
+        Chain root;
+
+        int sum(Chain start, boolean skip) {
+            Chain node = start;
+            int total = 0;
+            while (true) {
+                if (node.value > 0) {
+                    node = node.next;
+                } else if (root.equals(node)) {
+                    node = null;
+                } else {
+                    while (true) {
+                        node = node.next;
+                        if (node == null || root.equals(node)) {
+                            return total;
+                        }
+                        if (node.value > 0) {
+                            node = node.next;
+                            break;
+                        }
+                    }
+                }
+                if (node == null) {
+                    return total;
+                }
+                total += node.value;
+            }
+        }
+    }
+
+    @Test
+    public void testFieldDereferenceGetsRestoredGuard() throws Exception {
+        String internalClassName = FieldDerefAfterLostGuard.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertEquals(2, countOccurrences(source, "(node == null)"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
@@ -277,6 +408,32 @@ public class JsoupPatternsTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    // --- Wildcard receiver whose type variable has multiple bounds: no denotable argument, cast must go raw ---
+
+    static class MultiBoundBox<T extends Number & Comparable<T>> {
+        void set(T value) { /* no-op */ }
+    }
+
+    static class MultiBoundWildcardReceiver {
+        MultiBoundBox<?> box;
+        Integer number;
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        void store() {
+            ((MultiBoundBox) box).set(number);
+        }
+    }
+
+    @Test
+    public void testMultiBoundWildcardReceiverCaptureCast() throws Exception {
+        String internalClassName = MultiBoundWildcardReceiver.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // No parameterization satisfies 'T extends Number & Comparable<T>': a cast to MultiBoundBox<Number>
+        // would not compile, only the raw type works
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
     // --- org.jsoup.helper.HttpConnection: 'a.count = b.count + 1' across receivers must not fold to '++' ---
 
     static class Counted {
@@ -296,6 +453,187 @@ public class JsoupPatternsTest extends AbstractJdTest {
 
         assertTrue(source.contains("origin.redirectCount + 1"));
         assertFalse(source.contains("++"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    // --- Genuine restart in a for loop: update and condition are scanned before the body ---
+
+    static class GenuineRestartInForLoop {
+        Object step() { return null; }
+        int advance(int i) { return i + 1; }
+
+        Object find(Object cur, boolean restart) {
+            Object node = cur;
+            for (int i = 0; i < 100; i = advance(i)) {
+                if (restart) {
+                    node = step();
+                    node = null;
+                    continue;
+                }
+                node = step();
+                if (node == null) {
+                    return null;
+                }
+            }
+            return node;
+        }
+    }
+
+    // --- Genuine restart where the next use of the variable is a null-safe multi-argument call ---
+
+    static class GenuineRestartMultiArgUse {
+        Object step() { return null; }
+        void use(int a, int b) { /* no-op */ }
+
+        Object find(Object cur, boolean restart) {
+            Object node = cur;
+            while (step() != null) {
+                use(1, node == null ? 0 : 1);
+                if (restart) {
+                    node = step();
+                    node = null;
+                    continue;
+                }
+                if (node == null) {
+                    return null;
+                }
+            }
+            return node;
+        }
+    }
+
+    // --- Genuine restart where the loop continues into a try block: the scan must stop safely ---
+
+    static class GenuineRestartIntoTry {
+        Object step() { return null; }
+
+        Object find(Object cur, boolean restart) {
+            Object node = cur;
+            while (step() != null) {
+                try {
+                    if (node == null) {
+                        return null;
+                    }
+                    step();
+                } catch (RuntimeException e) {
+                    step();
+                }
+                if (restart) {
+                    node = step();
+                    node = null;
+                    continue;
+                }
+            }
+            return node;
+        }
+    }
+
+    @Test
+    public void testGenuineRestartVariantsKeepSingleGuard() throws Exception {
+        Object[][] fixtures = {
+            { GenuineRestartInForLoop.class, 1 },
+            { GenuineRestartMultiArgUse.class, 2 }, // its ternary condition is a second, legitimate occurrence
+            { GenuineRestartIntoTry.class, 1 },
+        };
+        for (Object[] fixture : fixtures) {
+            String internalClassName = ((Class<?>) fixture[0]).getName().replace('.', '/');
+            String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+            assertEquals(internalClassName, ((Integer) fixture[1]).intValue(), countOccurrences(source, "(node == null)"));
+            assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    // --- Hoisted catch-throw variants: labeled breaks, if/else and finally inside the loop ---
+
+    static class HoistedCatchThrowWithFinally {
+        long timeout;
+
+        int read() throws IOException {
+            while (true) {
+                if (expired()) {
+                    throw new SocketTimeoutException("Read timeout");
+                }
+                try {
+                    return compute();
+                } catch (SocketTimeoutException e) {
+                    if (expired() || timeout == 0) {
+                        throw e;
+                    }
+                } finally {
+                    cleanup();
+                }
+            }
+        }
+
+        boolean expired() { return false; }
+        int compute() throws IOException { return 0; }
+        void cleanup() { /* no-op */ }
+    }
+
+    static class HoistedCatchThrowWithLabeledBreak {
+        long timeout;
+
+        int read(int[] values, boolean running) throws IOException {
+            int total = 0;
+            outer:
+            while (running) {
+                if (expired()) {
+                    throw new SocketTimeoutException("Read timeout");
+                }
+                for (int value : values) {
+                    if (value < 0) {
+                        break outer;
+                    }
+                    total += value;
+                }
+                try {
+                    return compute() + total;
+                } catch (SocketTimeoutException e) {
+                    if (expired() || timeout == 0) {
+                        throw e;
+                    }
+                }
+            }
+            return total;
+        }
+
+        boolean expired() { return false; }
+        int compute() throws IOException { return 0; }
+    }
+
+    @Test
+    public void testHoistedCatchThrowVariantsCompile() throws Exception {
+        for (Class<?> clazz : new Class<?>[] { HoistedCatchThrowWithFinally.class, HoistedCatchThrowWithLabeledBreak.class }) {
+            String internalClassName = clazz.getName().replace('.', '/');
+            String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+            assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+        }
+    }
+
+    // --- Same-receiver folding must still work: 'this.count = this.count + 1' is really '++' ---
+
+    static class SameReceiverIncrements {
+        int count;
+        static int total;
+        Counted[] cells = { new Counted(), new Counted() };
+        Counted inner = new Counted();
+
+        void bump() {
+            count = count + 1;
+            total = total + 1;
+            cells[1].redirectCount = cells[1].redirectCount + 1;
+            inner.redirectCount = inner.redirectCount + 1;
+        }
+    }
+
+    @Test
+    public void testSameReceiverIncrementsStayFolded() throws Exception {
+        String internalClassName = SameReceiverIncrements.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertEquals(4, countOccurrences(source, "++"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 

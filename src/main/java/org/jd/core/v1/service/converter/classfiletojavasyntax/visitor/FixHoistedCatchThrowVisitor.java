@@ -125,11 +125,13 @@ public class FixHoistedCatchThrowVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private void scanStatement(Statement s, boolean insideMatchingCatch, boolean dryRun) {
-        if (s instanceof IfStatement ifStatement) {
-            scanStatements(ifStatement.getStatements(), insideMatchingCatch, dryRun);
-        } else if (s instanceof IfElseStatement ifElseStatement) {
+        // IfElseStatement extends IfStatement: match the subtype first or the else branch is never scanned,
+        // and an unlabeled loop-exit break hiding there would go unnoticed, allowing an unsafe rewrite
+        if (s instanceof IfElseStatement ifElseStatement) {
             scanStatements(ifElseStatement.getStatements(), insideMatchingCatch, dryRun);
             scanStatements(ifElseStatement.getElseStatements(), insideMatchingCatch, dryRun);
+        } else if (s instanceof IfStatement ifStatement) {
+            scanStatements(ifStatement.getStatements(), insideMatchingCatch, dryRun);
         } else if (s instanceof TryStatement tryStatement) {
             scanStatements(tryStatement.getTryStatements(), insideMatchingCatch, dryRun);
 

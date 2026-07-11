@@ -137,10 +137,11 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
     private static Use classifyContinuePath(Statement loop, AbstractLocalVariable target) {
         Use use = Use.NONE;
 
-        if (loop.isForStatement()) {
+        // instanceof, not isForStatement(): the base ForStatement does not override that predicate
+        if (loop instanceof ForStatement) {
             use = classifyUse(loop.getUpdate(), target);
         }
-        if (use == Use.NONE && (loop.isForStatement() || loop.isWhileStatement() || loop.isDoWhileStatement())) {
+        if (use == Use.NONE && (loop instanceof ForStatement || loop instanceof WhileStatement || loop instanceof DoWhileStatement)) {
             use = classifyUse(loop.getCondition(), target);
         }
         if (use == Use.NONE && loop.getStatements() instanceof Statements body) {
@@ -173,13 +174,7 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
             return Use.NONE;
         }
         if (base instanceof Expressions list) {
-            for (Expression e : list) {
-                Use use = classifyUse(e, target);
-                if (use != Use.NONE) {
-                    return use;
-                }
-            }
-            return Use.NONE;
+            return classifyListUse(list, target);
         }
         if (!(base instanceof Expression expression)) {
             return Use.NONE;
@@ -188,32 +183,47 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
             return classifyBinaryUse(expression, target);
         }
         if (expression.isMethodInvocationExpression()) {
-            if (referencesTarget(expression.getExpression(), target)) {
-                return Use.DEREF;
-            }
-            Use use = classifyUse(expression.getExpression(), target);
-            return use == Use.NONE ? classifyUse(expression.getParameters(), target) : use;
+            return classifyDereferencingUse(expression, expression.getParameters(), target);
         }
         if (expression.isFieldReferenceExpression() || expression.isArrayExpression() || expression.isLengthExpression()) {
-            if (referencesTarget(expression.getExpression(), target)) {
-                return Use.DEREF;
-            }
-            Use use = classifyUse(expression.getExpression(), target);
-            return use == Use.NONE ? classifyUse(expression.getIndex(), target) : use;
+            return classifyDereferencingUse(expression, expression.getIndex(), target);
         }
         if (expression.isTernaryOperatorExpression()) {
-            Use use = classifyUse(expression.getCondition(), target);
-            if (use == Use.NONE) {
-                use = classifyUse(expression.getTrueExpression(), target);
-            }
-            if (use == Use.NONE) {
-                use = classifyUse(expression.getFalseExpression(), target);
-            }
-            return use;
+            return classifyTernaryUse(expression, target);
         }
 
         Expression inner = expression.getExpression();
         return inner == expression ? Use.NONE : classifyUse(inner, target);
+    }
+
+    private static Use classifyListUse(Expressions list, AbstractLocalVariable target) {
+        for (Expression e : list) {
+            Use use = classifyUse(e, target);
+            if (use != Use.NONE) {
+                return use;
+            }
+        }
+        return Use.NONE;
+    }
+
+    /** An invocation or member access dereferences its receiver; 'rest' is the remaining sub-expression to scan. */
+    private static Use classifyDereferencingUse(Expression expression, BaseExpression rest, AbstractLocalVariable target) {
+        if (referencesTarget(expression.getExpression(), target)) {
+            return Use.DEREF;
+        }
+        Use use = classifyUse(expression.getExpression(), target);
+        return use == Use.NONE ? classifyUse(rest, target) : use;
+    }
+
+    private static Use classifyTernaryUse(Expression expression, AbstractLocalVariable target) {
+        Use use = classifyUse(expression.getCondition(), target);
+        if (use == Use.NONE) {
+            use = classifyUse(expression.getTrueExpression(), target);
+        }
+        if (use == Use.NONE) {
+            use = classifyUse(expression.getFalseExpression(), target);
+        }
+        return use;
     }
 
     private static Use classifyBinaryUse(Expression expression, AbstractLocalVariable target) {
@@ -253,12 +263,13 @@ public class FixMissingNullGuardVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private static IfStatement findNullGuardInStatement(Statement s, AbstractLocalVariable target) {
-        if (s instanceof IfStatement ifStatement) {
-            return isNullGuard(ifStatement, target) ? ifStatement : findNullGuard(ifStatement.getStatements(), target);
-        }
+        // IfElseStatement extends IfStatement: match the subtype first or the else branch is never searched
         if (s instanceof IfElseStatement ifElseStatement) {
             IfStatement found = findNullGuard(ifElseStatement.getStatements(), target);
             return found != null ? found : findNullGuard(ifElseStatement.getElseStatements(), target);
+        }
+        if (s instanceof IfStatement ifStatement) {
+            return isNullGuard(ifStatement, target) ? ifStatement : findNullGuard(ifStatement.getStatements(), target);
         }
         if (s instanceof TryStatement tryStatement) {
             return findNullGuardInTry(tryStatement, target);

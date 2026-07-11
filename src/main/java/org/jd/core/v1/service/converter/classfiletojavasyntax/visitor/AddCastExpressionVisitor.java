@@ -599,6 +599,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             classTypeParameterBounds.put(typeParameter.getIdentifier(), boundOf(typeParameter));
         }
 
+        // Only type variables whose OWN receiver argument is a capture wildcard block argument-passing:
+        // in Erase.apply(IOFunction<? super T, ? extends R> mapper, T t) the call mapper.apply(t) is legal
+        // as-is, because 't' lands in the '? super T' position; '? extends R' only captures the return side.
+        Set<String> capturedTypeParameterNames = capturedTypeParameterNames(receiverType, typeTypes);
+
+        if (capturedTypeParameterNames.isEmpty()) {
+            return null;
+        }
+
         var unboundTypeIterator = unboundParameterTypes.iterator();
         var parameterIterator = parameters.iterator();
 
@@ -606,12 +615,35 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Type unboundType = unboundTypeIterator.next();
             Expression argument = parameterIterator.next();
 
-            if (!argument.isNullExpression() && referencesClassTypeParameter(unboundType, classTypeParameterBounds.keySet())) {
+            if (!argument.isNullExpression() && referencesClassTypeParameter(unboundType, capturedTypeParameterNames)) {
                 return buildCaptureCastType(receiverType, typeTypes, classTypeParameterBounds);
             }
         }
 
         return null;
+    }
+
+    /** The type variables whose receiver type argument is an unbounded or extends wildcard, matched by position. */
+    private static Set<String> capturedTypeParameterNames(ObjectType receiverType, TypeTypes typeTypes) {
+        BaseTypeArgument receiverArguments = receiverType.getTypeArguments();
+        Set<String> names = new HashSet<>();
+
+        if (isCaptureWildcard(receiverArguments) && typeTypes.getTypeParameters().size() == 1) {
+            names.add(typeTypes.getTypeParameters().getFirst().getIdentifier());
+        } else if (receiverArguments instanceof TypeArguments receiverArgumentList
+                && typeTypes.getTypeParameters().size() == receiverArgumentList.size()) {
+            var typeParameterIterator = typeTypes.getTypeParameters().iterator();
+
+            for (TypeArgument receiverArgument : receiverArgumentList) {
+                org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameterIterator.next();
+
+                if (isCaptureWildcard(receiverArgument)) {
+                    names.add(typeParameter.getIdentifier());
+                }
+            }
+        }
+
+        return names;
     }
 
     /**

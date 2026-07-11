@@ -434,6 +434,32 @@ public class JsoupPatternsTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    // --- F-bounded type variable (org.junit.runners.model.FrameworkMember pattern): raw cast only ---
+
+    static class FBoundedMember<T extends FBoundedMember<T>> {
+        void copyFrom(T source) { /* no-op */ }
+    }
+
+    static class FBoundedWildcardReceiver {
+        FBoundedMember<?> member;
+        FBoundedMember<?> otherMember;
+
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        void copy() {
+            ((FBoundedMember) member).copyFrom(otherMember);
+        }
+    }
+
+    @Test
+    public void testFBoundedWildcardReceiverCaptureCast() throws Exception {
+        String internalClassName = FBoundedWildcardReceiver.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // A raw type argument never satisfies 'T extends FBoundedMember<T>': FBoundedMember<FBoundedMember>
+        // is rejected by javac, so the cast must go to the raw receiver type
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
     // --- Receiver with several wildcard type arguments: the capture cast must cover each parameter ---
 
     static class BiConsumerLike<K, V extends Number> {

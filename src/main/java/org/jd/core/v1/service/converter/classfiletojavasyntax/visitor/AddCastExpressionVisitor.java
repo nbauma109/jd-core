@@ -718,31 +718,32 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * The type argument standing in for a wildcard in the capture cast: an extends-wildcard keeps its own
      * bound ({@code Box<? extends Number>} casts to {@code Box<Number>}, an unchecked but legal narrowing),
      * the other kinds use the type variable's upper bound. {@code null} means nothing denotable: go raw.
+     * A parameterized bound is not denotable either: stripping it raw does not survive the bounds check
+     * (a raw type argument never satisfies an F-bound such as {@code T extends FrameworkMember<T>}).
      */
     private static Type wildcardReplacement(TypeArgument wildcard, Type typeParameterBound) {
-        if (wildcard instanceof WildcardExtendsTypeArgument extendsWildcard && extendsWildcard.type() instanceof ObjectType objectType) {
-            return objectType.getTypeArguments() == null ? objectType : objectType.createType((BaseTypeArgument)null);
-        }
-        if (wildcard instanceof WildcardExtendsTypeArgument) {
-            return null; // e.g. '? extends T': no denotable argument
+        if (wildcard instanceof WildcardExtendsTypeArgument extendsWildcard) {
+            return extendsWildcard.type() instanceof ObjectType objectType && objectType.getTypeArguments() == null ? objectType : null;
         }
         return typeParameterBound;
     }
 
     /**
-     * The type variable's erased upper bound, stripped to raw form so self-referential bounds (e.g.
-     * {@code T extends Comparable<T>}) stay valid, or {@code null} when no single denotable bound exists
-     * (multiple bounds such as {@code T extends Number & Comparable<T>}, or a type-variable bound).
+     * The type variable's upper bound when it is denotable as a type argument, or {@code null} otherwise:
+     * multiple bounds ({@code T extends Number & Comparable<T>}), type-variable bounds ({@code T extends U})
+     * and parameterized bounds ({@code T extends FrameworkMember<T>}) all have no valid parameterization —
+     * a raw type argument never satisfies an F-bound, so those cases must cast the receiver to the raw type.
      */
     private static Type boundOf(org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
         if (!(typeParameter instanceof TypeParameterWithTypeBounds typeParameterWithTypeBounds)) {
             return ObjectType.TYPE_OBJECT;
         }
         if (typeParameterWithTypeBounds.getTypeBounds().size() > 1
-                || !(typeParameterWithTypeBounds.getTypeBounds().getFirst() instanceof ObjectType objectType)) {
+                || !(typeParameterWithTypeBounds.getTypeBounds().getFirst() instanceof ObjectType objectType)
+                || objectType.getTypeArguments() != null) {
             return null;
         }
-        return objectType.getTypeArguments() == null ? objectType : objectType.createType((BaseTypeArgument)null);
+        return objectType;
     }
 
     @Override

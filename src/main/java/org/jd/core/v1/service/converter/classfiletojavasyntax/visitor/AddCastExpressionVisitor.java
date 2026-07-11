@@ -529,7 +529,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (receiver != null && !receiver.isNullExpression()
                 && receiver.getType() instanceof ObjectType receiverType
-                && receiverType.getTypeArguments() instanceof WildcardTypeArgument) {
+                && hasWildcardTypeArgument(receiverType)) {
             // The receiver's unbounded wildcard is capture-converted independently at every use, so passing an
             // argument typed for the class's own type variable (e.g. Progress<ProgressContext>.onProgress(...,
             // ProgressContext)) does not type-check without an explicit unchecked cast to a raw-parameterized type.
@@ -541,6 +541,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         expression.getExpression().accept(this);
+    }
+
+    private static boolean hasWildcardTypeArgument(ObjectType receiverType) {
+        BaseTypeArgument typeArguments = receiverType.getTypeArguments();
+
+        if (typeArguments instanceof WildcardTypeArgument) {
+            return true;
+        }
+        if (typeArguments instanceof TypeArguments list) {
+            for (TypeArgument typeArgument : list) {
+                if (typeArgument instanceof WildcardTypeArgument) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private ObjectType resolveWildcardCaptureCastType(ClassFileMethodInvocationExpression expression, ObjectType receiverType) {
@@ -578,12 +594,48 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Expression argument = parameterIterator.next();
 
             if (unboundType instanceof GenericType gt && !argument.isNullExpression() && classTypeParameterBounds.containsKey(gt.getName())) {
-                Type bound = classTypeParameterBounds.get(gt.getName());
-                return bound == null ? receiverType.createType((BaseTypeArgument)null) : receiverType.createType(bound);
+                return buildCaptureCastType(receiverType, typeTypes, classTypeParameterBounds);
             }
         }
 
         return null;
+    }
+
+    /**
+     * The parameterization to cast the wildcard receiver to: every wildcard argument is replaced with its type
+     * variable's upper bound, non-wildcard arguments are kept. Falls back to the raw type as soon as one
+     * replacement has no denotable bound.
+     */
+    private static ObjectType buildCaptureCastType(ObjectType receiverType, TypeTypes typeTypes, Map<String, Type> classTypeParameterBounds) {
+        BaseTypeArgument receiverArguments = receiverType.getTypeArguments();
+
+        if (receiverArguments instanceof WildcardTypeArgument) {
+            Type bound = classTypeParameterBounds.values().size() == 1 ? classTypeParameterBounds.values().iterator().next() : null;
+            return bound == null ? receiverType.createType((BaseTypeArgument)null) : receiverType.createType(bound);
+        }
+
+        if (receiverArguments instanceof TypeArguments receiverArgumentList
+                && typeTypes.getTypeParameters().size() == receiverArgumentList.size()) {
+            TypeArguments newArguments = new TypeArguments(receiverArgumentList.size());
+            var typeParameterIterator = typeTypes.getTypeParameters().iterator();
+
+            for (TypeArgument receiverArgument : receiverArgumentList) {
+                org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameterIterator.next();
+
+                if (receiverArgument instanceof WildcardTypeArgument) {
+                    Type bound = classTypeParameterBounds.get(typeParameter.getIdentifier());
+                    if (bound == null) {
+                        return receiverType.createType((BaseTypeArgument)null);
+                    }
+                    newArguments.add(bound);
+                } else {
+                    newArguments.add(receiverArgument);
+                }
+            }
+            return receiverType.createType(newArguments);
+        }
+
+        return receiverType.createType((BaseTypeArgument)null);
     }
 
     /**

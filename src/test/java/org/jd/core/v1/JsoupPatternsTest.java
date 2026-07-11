@@ -434,6 +434,88 @@ public class JsoupPatternsTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
+    // --- Receiver with several wildcard type arguments: the capture cast must cover each parameter ---
+
+    static class BiConsumerLike<K, V extends Number> {
+        void put(K key, V value) { /* no-op */ }
+    }
+
+    static class MultiWildcardReceiver {
+        BiConsumerLike<?, ?> sink;
+        String key;
+        Integer number;
+
+        @SuppressWarnings("unchecked")
+        void store() {
+            ((BiConsumerLike<Object, Number>) sink).put(key, number);
+        }
+    }
+
+    @Test
+    public void testMultiWildcardReceiverCaptureCast() throws Exception {
+        String internalClassName = MultiWildcardReceiver.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    // --- 'break outer;' from a switch nested in an inner loop must reach the outer loop's label ---
+
+    static class LabeledBreakThroughNestedLoops {
+        int scan(int[][] m) {
+            int total = 0;
+            outer:
+            for (int i = 0; i < m.length; i++) {
+                for (int j = 0; j < m[i].length; j++) {
+                    switch (m[i][j] % 3) {
+                        case 0:
+                            total++;
+                            break;
+                        case 1:
+                            break outer;
+                        default:
+                            total--;
+                    }
+                }
+                total += 10;
+            }
+            return total;
+        }
+
+        int scanDeep(int[] v, boolean flag) {
+            int total = 0;
+            outer:
+            while (flag) {
+                switch (v[total % v.length]) {
+                    case 0:
+                        for (int j = 0; j < v.length; j++) {
+                            switch (v[j]) {
+                                case 7: break outer;
+                                case 8: total += 2; break;
+                                default: total++;
+                            }
+                        }
+                        break;
+                    default:
+                        total--;
+                }
+                total += 100;
+            }
+            return total;
+        }
+    }
+
+    @Test
+    public void testLabeledBreakThroughNestedLoops() throws Exception {
+        String internalClassName = LabeledBreakThroughNestedLoops.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // Both outer loops must be labeled and both 'break outer' must use those labels: a bare break
+        // (or a break to the inner loop's label) would keep running the outer loop
+        assertEquals(2, countOccurrences(source, "break label"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
     // --- org.jsoup.helper.HttpConnection: 'a.count = b.count + 1' across receivers must not fold to '++' ---
 
     static class Counted {

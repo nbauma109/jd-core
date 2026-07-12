@@ -66,6 +66,28 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     // which would reject them outright as "duplicates") cannot be used here: identity is what matters.
     private static final BasicBlock[] IMMUTABLE_SENTINELS = {END, LOOP_END, LOOP_START, LOOP_CONTINUE, SWITCH_BREAK, RETURN};
 
+    // Offsets StatementMaker reports it could not place a label for even after hoisting (see
+    // StatementMaker#getUnresolvedLabelTargets): the caller (CreateInstructionsVisitor) adds to this and
+    // retries construction from scratch when that happens, so these targets get duplicated per predecessor
+    // - like TYPE_TERNARY_OPERATOR/TYPE_RETURN/TYPE_RETURN_VALUE already are - instead of being left as one
+    // shared instance no single label position can be found for.
+    private final Set<Integer> forcedDuplicateOffsets = new HashSet<>();
+
+    /**
+     * Called by {@code CreateInstructionsVisitor} after a full reduce-and-render pass leaves some jumps
+     * unresolved because no label placement was lexically valid for their target (see
+     * {@code StatementMaker#getUnresolvedLabelTargets}): from the next {@link #reduce(Method)} call onward,
+     * every one of these offsets is duplicated per predecessor rather than routed through a shared,
+     * jump-stubbed instance - sidestepping the ordering problem entirely, since each duplicate then renders
+     * independently, right where its own predecessor naturally leads.
+     *
+     * @return {@code true} if this added at least one offset not already forced, i.e. retrying has a chance
+     * of making progress; {@code false} if every offset was already forced (nothing left to try differently).
+     */
+    public boolean addForcedDuplicateOffsets(Set<Integer> offsets) {
+        return forcedDuplicateOffsets.addAll(offsets);
+    }
+
     @Override
     public boolean reduce(Method method) {
         Set<Integer> forcedOffsets = new HashSet<>();
@@ -124,12 +146,17 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
                     continue;
                 }
 
+                boolean forceDuplicate = forcedDuplicateOffsets.contains(target.getFromOffset());
                 List<BasicBlock> predecessors = new ArrayList<>(target.getPredecessors());
 
-                // Leave the first predecessor pointing at the original; every other predecessor is detached.
-                for (int i = 1; i < predecessors.size(); i++) {
+                // Normally, the first predecessor keeps pointing at the original and every other predecessor
+                // is detached. A forced-duplicate offset instead detaches every predecessor, including what
+                // would have been the "first" - there is no shared instance left at all, only private copies.
+                int startIndex = forceDuplicate ? 0 : 1;
+
+                for (int i = startIndex; i < predecessors.size(); i++) {
                     BasicBlock predecessor = predecessors.get(i);
-                    predecessor.replace(target, detachOneEdge(predecessor, target));
+                    predecessor.replace(target, detachOneEdge(predecessor, target, forceDuplicate));
                 }
 
                 changed = true;
@@ -172,19 +199,19 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
         boolean duplicated = false;
 
         if (next.matchType(DUPLICABLE_TYPES) && next.getPredecessors().size() > 1) {
-            basicBlock.setNext(detachOneEdge(basicBlock, next));
+            basicBlock.setNext(detachOneEdge(basicBlock, next, forcedDuplicateOffsets.contains(next.getFromOffset())));
             duplicated = true;
         }
         if (branch.matchType(DUPLICABLE_TYPES) && branch.getPredecessors().size() > 1) {
-            basicBlock.setBranch(detachOneEdge(basicBlock, branch));
+            basicBlock.setBranch(detachOneEdge(basicBlock, branch, forcedDuplicateOffsets.contains(branch.getFromOffset())));
             duplicated = true;
         }
 
         return duplicated && reduceConditionalBranch(basicBlock);
     }
 
-    private static BasicBlock detachOneEdge(BasicBlock predecessor, BasicBlock target) {
-        if (target.matchType(TYPE_STATEMENTS)) {
+    private BasicBlock detachOneEdge(BasicBlock predecessor, BasicBlock target, boolean forceDuplicate) {
+        if (!forceDuplicate && target.matchType(TYPE_STATEMENTS)) {
             return predecessor.getControlFlowGraph().newJumpBasicBlock(predecessor, target);
         }
         return duplicateForSinglePredecessor(predecessor, target);

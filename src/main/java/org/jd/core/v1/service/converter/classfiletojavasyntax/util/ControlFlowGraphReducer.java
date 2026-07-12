@@ -376,7 +376,7 @@ public abstract class ControlFlowGraphReducer {
      * {@code StatementMaker}'s handling of it), so the jump stub is aimed past any number of those, at the
      * first node downstream that actually renders as a statement.</p>
      */
-    protected static BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
+    protected BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
         BasicBlock clone = target.getControlFlowGraph().newBasicBlock(target);
 
         target.getPredecessors().remove(predecessor);
@@ -392,7 +392,7 @@ public abstract class ControlFlowGraphReducer {
         return clone;
     }
 
-    private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
+    private BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
         if (continuation == null || continuation == END) {
             return continuation;
         }

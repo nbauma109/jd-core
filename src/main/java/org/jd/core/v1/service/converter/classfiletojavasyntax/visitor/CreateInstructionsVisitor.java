@@ -30,8 +30,10 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.StatementMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.DuplicateMergeCFGReducer;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.apache.bcel.Const.ACC_ABSTRACT;
 import static org.apache.bcel.Const.ACC_BRIDGE;
@@ -40,6 +42,9 @@ import static org.apache.bcel.Const.ACC_STATIC;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 
 public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
+    /** Bounds retries that force one more unresolved merge target to duplicate per predecessor at a time. */
+    private static final int MAX_LABEL_RESOLUTION_RETRIES = 8;
+
     private final TypeMaker typeMaker;
     private final FixHoistedCatchThrowVisitor fixHoistedCatchThrowVisitor = new FixHoistedCatchThrowVisitor();
     private final FixMissingNullGuardVisitor fixMissingNullGuardVisitor = new FixMissingNullGuardVisitor();
@@ -112,13 +117,46 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
             for (ControlFlowGraphReducer controlFlowGraphReducer : preferredReducers) {
                 try {
                     if (controlFlowGraphReducer.reduce(method)) {
+                        boolean madeStatements = false;
+
                         if (comd.getStatements() instanceof Statements stmts) {
                             if (stmts.isEmpty()) {
                                 comd.setStatements(statementMaker.make(controlFlowGraphReducer.getControlFlowGraph(), stmts));
+                                madeStatements = true;
                             }
                         } else {
                             comd.setStatements(statementMaker.make(controlFlowGraphReducer.getControlFlowGraph(), new Statements()));
+                            madeStatements = true;
                         }
+
+                        if (madeStatements && controlFlowGraphReducer instanceof DuplicateMergeCFGReducer duplicateMergeCFGReducer) {
+                            Set<Integer> unresolved = statementMaker.getUnresolvedLabelTargets();
+                            int retries = 0;
+
+                            while (!unresolved.isEmpty() && retries++ < MAX_LABEL_RESOLUTION_RETRIES
+                                    && duplicateMergeCFGReducer.addForcedDuplicateOffsets(unresolved)) {
+                                try {
+                                    if (!duplicateMergeCFGReducer.reduce(method)) {
+                                        break;
+                                    }
+
+                                    LocalVariableMaker retryLocalVariableMaker = new LocalVariableMaker(typeMaker, comd, constructor);
+                                    StatementMaker retryStatementMaker = new StatementMaker(typeMaker, retryLocalVariableMaker, comd);
+                                    Statements retryStatements = retryStatementMaker.make(duplicateMergeCFGReducer.getControlFlowGraph(), new Statements());
+
+                                    comd.setStatements(retryStatements);
+                                    localVariableMaker = retryLocalVariableMaker;
+                                    statementMaker = retryStatementMaker;
+                                    unresolved = retryStatementMaker.getUnresolvedLabelTargets();
+                                } catch (Exception | StackOverflowError e) {
+                                    // Keep whatever the last successful attempt produced (still fully valid,
+                                    // just with an unresolved jump or two left as a 'goto' comment) rather than
+                                    // letting a failed retry take down a method that already reduced fine.
+                                    break;
+                                }
+                            }
+                        }
+
                         reduced = true;
                         break;
                     }

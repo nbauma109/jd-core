@@ -58,6 +58,11 @@ public class ClassFileBreakContinueStatement implements Statement {
     }
 
     @Override
+    public boolean isCommentStatement() {
+        return statement != null && statement.isCommentStatement();
+    }
+
+    @Override
     public void accept(StatementVisitor visitor) {
         if (statement != null) {
             statement.accept(visitor);

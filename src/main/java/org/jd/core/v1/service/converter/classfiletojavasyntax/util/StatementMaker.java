@@ -33,6 +33,8 @@ import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
+import org.jd.core.v1.model.javasyntax.statement.LabelStatement;
+import org.jd.core.v1.model.javasyntax.statement.NoStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -71,9 +73,13 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.function.Predicate;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.apache.bcel.Const.ASTORE;
 import static org.apache.bcel.Const.MAJOR_1_7;
@@ -158,6 +164,12 @@ public class StatementMaker {
     private boolean mergeTryWithResourcesStatementFlag;
     /** Number of 'switch' statements between the innermost loop being built and the current basic block. */
     private int switchDepthInLoop;
+    /**
+     * The first statement rendered for each basic block offset, captured as it is produced (see
+     * {@code makeStatements}) - used by {@link #resolveRemainingJumpsWithLabels} to find the label target for
+     * a jump by its target offset, rather than by a line number several statements could share.
+     */
+    private final Map<Integer, Statement> labeledMergeTargets = new HashMap<>();
 
     public StatementMaker(TypeMaker typeMaker, LocalVariableMaker localVariableMaker, ClassFileConstructorOrMethodDeclaration comd) {
         ClassFile classFile = comd.getClassFile();
@@ -213,6 +225,10 @@ public class StatementMaker {
         boolean breakToReturn = breakToReturn(cfg, statements, jumps);
 
         if (!breakToReturn && !jumps.isEmpty()) {
+            resolveRemainingJumpsWithLabels(statements, jumps);
+        }
+
+        if (!breakToReturn && !jumps.isEmpty()) {
             updateJumpStatements(jumps, cfg);
         }
 
@@ -246,6 +262,10 @@ public class StatementMaker {
         Expression condition;
         Expression exp1;
         Expression exp2;
+
+        int mergeOffset = basicBlock.getFromOffset();
+        boolean captureMergeTarget = !labeledMergeTargets.containsKey(mergeOffset);
+        int sizeBeforeMergeTarget = captureMergeTarget ? statements.size() : -1;
 
         switch (basicBlock.getType()) {
             case TYPE_START:
@@ -395,6 +415,14 @@ public class StatementMaker {
                 break;
             default:
                 throw new IllegalStateException("Unexpected basic block: " + basicBlock.getTypeName() + ':' + basicBlock.getIndex());
+        }
+
+        if (captureMergeTarget && statements.size() > sizeBeforeMergeTarget) {
+            // Record the first statement this specific basic block rendered (not any of its 'next' chain,
+            // recursed into above) as the label target for this offset - identified by object identity, not
+            // by line number, since several statements can share a line and a search "by line" could latch
+            // onto the wrong one. See resolveRemainingJumpsWithLabels.
+            labeledMergeTargets.put(mergeOffset, statements.get(sizeBeforeMergeTarget));
         }
     }
 
@@ -1322,6 +1350,162 @@ public class StatementMaker {
                 }
             }
         }
+    }
+
+    /**
+     * Resolves jumps left by {@code DuplicateMergeCFGReducer}'s statement-level merge splitting (a labeled
+     * block whose several 'break label;' sites converge on the same tail, none of which is a loop): unlike a
+     * loop exit, there is no enclosing construct whose {@code makeLabels}-style logic already claims these, so
+     * this does the equivalent for a plain merge point - group the still-unresolved jumps by target offset
+     * (not line: several statements can share a line, so matching by line risks latching onto the wrong one -
+     * the offset identifies the exact basic block, and {@link #labeledMergeTargets} was captured against that
+     * same offset while rendering, see {@code makeStatements}) and wrap the smallest enclosing scope that
+     * contains every one of them (see {@link #wrapCommonScopeWithLabel}) in a synthetic {@link LabelStatement},
+     * then turn each jump into a {@code break} to that label. Anything left unclaimed falls through to
+     * {@link #updateJumpStatements}'s "goto" comment, same as before this method existed.
+     */
+    protected void resolveRemainingJumpsWithLabels(Statements statements, Statements jumps) {
+        Map<Integer, List<ClassFileBreakContinueStatement>> jumpsByTargetOffset = new LinkedHashMap<>();
+
+        for (Statement jump : jumps) {
+            ClassFileBreakContinueStatement statement = (ClassFileBreakContinueStatement) jump;
+
+            if (statement.isLoopExitFromSwitch()) {
+                continue;
+            }
+
+            jumpsByTargetOffset.computeIfAbsent(statement.getTargetOffset(), k -> new ArrayList<>()).add(statement);
+        }
+
+        for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : jumpsByTargetOffset.entrySet()) {
+            Statement target = labeledMergeTargets.get(entry.getKey());
+
+            if (target == null) {
+                continue;
+            }
+
+            String label = "labelMerge" + entry.getKey();
+
+            if (wrapCommonScopeWithLabel(statements, entry.getValue(), target, label)) {
+                for (ClassFileBreakContinueStatement statement : entry.getValue()) {
+                    statement.setStatement(new BreakStatement(label));
+                }
+                jumps.removeAll(entry.getValue());
+            }
+        }
+    }
+
+    /** One step of a path from the statement tree's root down to a specific element: which list it lives in, and at which index. */
+    private record PathStep(Statements list, int index) {}
+
+    /**
+     * A break site nested three levels deep inside one branch and another nested inside a completely
+     * different, sibling branch can both target the same merge point: 'break label;' can only transfer
+     * control to just past a statement the break is lexically nested inside, so the label has to wrap
+     * whatever the *smallest* scope is that encloses every break site heading to this target - not just
+     * "whatever precedes the target in its own immediate list", which only happens to work when every break
+     * site is nested inside that same list.
+     *
+     * <p>Finds that scope by walking from the root down to the target statement (matched by object identity -
+     * it is exactly the statement captured in {@link #labeledMergeTargets} while rendering) and to each break
+     * site (also matched by object identity - the jump statements already sit exactly where they were
+     * rendered), recording the full path (container list + index) to each. The deepest list that lies on all
+     * of those paths is the scope to wrap: replace its first {@code targetIndex} elements (where
+     * {@code targetIndex} is where the branch toward the target sits in that list) with a single
+     * {@link LabelStatement} wrapping them, leaving the target and anything after it unwrapped, continuing
+     * immediately after the label's closing brace exactly as forward control flow requires.</p>
+     */
+    private boolean wrapCommonScopeWithLabel(Statements root, List<ClassFileBreakContinueStatement> breakSites, Statement target, String label) {
+        List<PathStep> targetPath = findPath(root, s -> s == target, new ArrayList<>());
+
+        if (targetPath == null || targetPath.isEmpty()) {
+            return false;
+        }
+
+        List<List<PathStep>> breakPaths = new ArrayList<>();
+
+        for (ClassFileBreakContinueStatement breakSite : breakSites) {
+            List<PathStep> breakPath = findPath(root, s -> s == breakSite, new ArrayList<>());
+
+            if (breakPath == null) {
+                return false;
+            }
+            breakPaths.add(breakPath);
+        }
+
+        // Try the tightest possible scope first (deepest shared list), and only widen (walk up toward root)
+        // if some break site does not actually precede the target there: a break site nested inside a branch
+        // that construction ended up placing textually *after* the target's own branch, at this same
+        // shared-list level, cannot be satisfied by any label at this level - break/continue can only jump
+        // forward to just past an enclosing statement, never sideways-then-backward - so a shallower
+        // (larger) scope must be tried, exactly as if this depth simply weren't a valid common ancestor.
+        for (int depth = targetPath.size() - 1; depth >= 0; depth--) {
+            Statements candidateList = targetPath.get(depth).list();
+            int targetIndex = targetPath.get(depth).index();
+
+            if (targetIndex == 0) {
+                continue;
+            }
+
+            boolean allPrecedeTarget = true;
+
+            for (List<PathStep> breakPath : breakPaths) {
+                if (depth >= breakPath.size() || breakPath.get(depth).list() != candidateList || breakPath.get(depth).index() >= targetIndex) {
+                    allPrecedeTarget = false;
+                    break;
+                }
+            }
+
+            if (allPrecedeTarget) {
+                List<Statement> prefix = new ArrayList<>(candidateList.subList(0, targetIndex));
+                candidateList.subList(0, targetIndex).clear();
+                BaseStatement labelBody = prefix.size() == 1 ? prefix.get(0) : new Statements(prefix);
+                candidateList.add(0, new LabelStatement(label, labelBody));
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private List<PathStep> findPath(BaseStatement container, Predicate<Statement> matcher, List<PathStep> pathSoFar) {
+        if (container instanceof Statements list) {
+            for (int i = 0; i < list.size(); i++) {
+                Statement element = list.get(i);
+                List<PathStep> path = new ArrayList<>(pathSoFar);
+                path.add(new PathStep(list, i));
+
+                if (matcher.test(element)) {
+                    return path;
+                }
+
+                List<PathStep> deeper = findPathInChildren(element, matcher, path);
+
+                if (deeper != null) {
+                    return deeper;
+                }
+            }
+        } else if (container instanceof Statement single && single != NoStatement.NO_STATEMENT) {
+            return findPathInChildren(single, matcher, pathSoFar);
+        }
+        return null;
+    }
+
+    private List<PathStep> findPathInChildren(Statement statement, Predicate<Statement> matcher, List<PathStep> path) {
+        List<PathStep> found = findPath(statement.getStatements(), matcher, path);
+
+        if (found != null) {
+            return found;
+        }
+        found = findPath(statement.getElseStatements(), matcher, path);
+        if (found != null) {
+            return found;
+        }
+        found = findPath(statement.getTryStatements(), matcher, path);
+        if (found != null) {
+            return found;
+        }
+        return findPath(statement.getFinallyStatements(), matcher, path);
     }
 
     protected void updateJumpStatements(Statements jumps, ControlFlowGraph cfg) {

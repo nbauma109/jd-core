@@ -15,6 +15,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlo
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.ControlFlowGraph;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.Loop;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.CmpDepthCFGReducer;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.DuplicateMergeCFGReducer;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.MinDepthCFGReducer;
 
 import java.util.ArrayList;
@@ -74,6 +75,22 @@ public abstract class ControlFlowGraphReducer {
     private ControlFlowGraph controlFlowGraph;
 
     public boolean reduce(Method method) {
+        rebuildControlFlowGraph(method);
+        afterPreReduce();
+        BasicBlock start = controlFlowGraph.getStart();
+        BitSet jsrTargets = new BitSet();
+        BitSet visited = new BitSet(controlFlowGraph.getBasicBlocks().size());
+        return reduce(visited, start, jsrTargets);
+    }
+
+    /**
+     * Builds a brand-new {@link ControlFlowGraph} for this method from scratch, discarding any previous one.
+     * Exposed (not just called from {@link #reduce(Method)}) so {@code DuplicateMergeCFGReducer} can rebuild
+     * from a clean slate and retry when it finds, only after a full construction attempt, that some node is
+     * still reachable from more than one place - which a single upfront pass cannot always predict, since
+     * construction can itself create a new shared reference to code that had exactly one predecessor going in.
+     */
+    protected void rebuildControlFlowGraph(Method method) {
         reduceGotoLoop(method, false);
         if (controlFlowGraph.contains(BasicBlock.TYPE_JUMP)) {
             reduceGotoLoop(method, true);
@@ -81,10 +98,11 @@ public abstract class ControlFlowGraphReducer {
         if (doPreReduce()) {
             ControlFlowGraphPreReducer.reduce(controlFlowGraph);
         }
-        BasicBlock start = controlFlowGraph.getStart();
-        BitSet jsrTargets = new BitSet();
-        BitSet visited = new BitSet(controlFlowGraph.getBasicBlocks().size());
-        return reduce(visited, start, jsrTargets);
+    }
+
+    protected void afterPreReduce() {
+        // No-op by default. Overridden by DuplicateMergeCFGReducer to pre-split merge points
+        // shared by more than one predecessor, before any construction heuristic runs.
     }
 
 
@@ -168,7 +186,7 @@ public abstract class ControlFlowGraphReducer {
         mergeTernaryOperators(linkedBlock, BasicBlock::getSub2, BasicBlock::setSub2);
     }
 
-    private boolean reduceConditionalBranch(BasicBlock basicBlock) {
+    protected boolean reduceConditionalBranch(BasicBlock basicBlock) {
         BasicBlock next = basicBlock.getNext();
         BasicBlock branch = basicBlock.getBranch();
         WatchDog watchdog = new WatchDog();
@@ -316,7 +334,88 @@ public abstract class ControlFlowGraphReducer {
             }
         }
 
+        return reduceUnreducibleMerge(basicBlock, next, branch);
+    }
+
+    /**
+     * Last-resort hook: called only once every heuristic above has failed to construct an if/if-else for
+     * this basicBlock. The default implementation preserves the exact prior behavior (report unreducible);
+     * a dedicated reducer subclass, tried only after every other reducer has already failed the whole
+     * method, overrides this to attempt a repair here without risking any method that already reduces fine.
+     */
+    protected boolean reduceUnreducibleMerge(BasicBlock basicBlock, BasicBlock next, BasicBlock branch) {
         return false;
+    }
+
+    /**
+     * Gives 'predecessor' its own copy of 'target' instead of sharing it, detaching only that one edge.
+     * 'target' keeps its remaining predecessors unchanged, so this never affects any other path through it.
+     * Any condition/sub1/sub2 children the clone has are also given fresh copies (recursively: a ternary can
+     * nest another ternary in sub1/sub2, and a merged conditional branch - {@code aggregateConditionalBranches}
+     * - can nest further conditions in its own 'condition'), matching the existing 'newBasicBlock(original)'
+     * pattern already used for condition nodes elsewhere in this file (e.g. {@code createIf}). This is
+     * required, not optional, for any node with such children, not just {@code TYPE_TERNARY_OPERATOR}: they
+     * compute their value through a one-shot bytecode parse gated by {@code BasicBlock#isByteCodeParsed()}, so
+     * two independent renderings sharing the same child would starve whichever one runs second (verified
+     * empirically, initially for ternaries: it renders as jd-core's generic "empty stack" placeholder instead
+     * of the real value; for a shared condition on a plain conditional branch it instead corrupts the shared
+     * expression-evaluation stack, since the condition's own comparison operands never get pushed a second
+     * time). Gating this on the node's type was never actually safe: {@code reduce(Method)}'s retry loop can
+     * hand this method a node of *any* type discovered to be a residual merge point, not only the types this
+     * reducer originally targets.
+     *
+     * <p>'next' and 'branch' (the two possible continuations after this node) are never shared either: adding
+     * the clone as one more predecessor of either would just push today's multi-predecessor problem one hop
+     * further down the method instead of solving it (verified empirically: it resurfaces as a bigger merge a
+     * level further down, cascading). Instead each non-terminal continuation is routed through a one-off jump
+     * stub (see {@link ControlFlowGraph#newJumpBasicBlock}, the same mechanism already used for loop-exit
+     * gotos), which {@code StatementMaker} turns into a break statement resolved against a label wrapping the
+     * real, once-only rendering of that continuation - see {@code resolveRemainingJumpsWithLabels}. A
+     * continuation is never a valid label target if it is a {@code TYPE_GOTO_IN_TERNARY_OPERATOR}: that type
+     * is a pure expression-context pass-through (parsed without ever adding a visible statement - see
+     * {@code StatementMaker}'s handling of it), so the jump stub is aimed past any number of those, at the
+     * first node downstream that actually renders as a statement.</p>
+     */
+    protected static BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
+        BasicBlock clone = target.getControlFlowGraph().newBasicBlock(target);
+
+        target.getPredecessors().remove(predecessor);
+        clone.getPredecessors().add(predecessor);
+
+        clone.setNext(duplicateContinuation(clone, clone.getNext()));
+        clone.setBranch(duplicateContinuation(clone, clone.getBranch()));
+
+        clone.setCondition(duplicateExpressionNode(clone.getCondition()));
+        clone.setSub1(duplicateExpressionNode(clone.getSub1()));
+        clone.setSub2(duplicateExpressionNode(clone.getSub2()));
+
+        return clone;
+    }
+
+    private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
+        if (continuation == null || continuation == END) {
+            return continuation;
+        }
+
+        while (continuation != END && continuation.matchType(TYPE_GOTO_IN_TERNARY_OPERATOR)) {
+            continuation = continuation.getNext();
+        }
+
+        return clone.getControlFlowGraph().newJumpBasicBlock(clone, continuation);
+    }
+
+    private static BasicBlock duplicateExpressionNode(BasicBlock node) {
+        if (node == null || node == END) {
+            return node;
+        }
+
+        BasicBlock clone = node.getControlFlowGraph().newBasicBlock(node);
+
+        clone.setCondition(duplicateExpressionNode(clone.getCondition()));
+        clone.setSub1(duplicateExpressionNode(clone.getSub1()));
+        clone.setSub2(duplicateExpressionNode(clone.getSub2()));
+
+        return clone;
     }
 
     private static void createIf(BasicBlock basicBlock, BasicBlock sub, BasicBlock last, BasicBlock next) {
@@ -1589,6 +1688,7 @@ public abstract class ControlFlowGraphReducer {
         preferredReducers.add(new MinDepthCFGReducer(false));
         preferredReducers.add(new MinDepthCFGReducer(true));
         preferredReducers.add(new CmpDepthCFGReducer());
+        preferredReducers.add(new DuplicateMergeCFGReducer());
         return preferredReducers;
     }
 }

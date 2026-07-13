@@ -1170,6 +1170,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && "orElseThrow".equals(methodInvocationExpression.getName())) {
             return false;
         }
+        if (expression.isByteCodeCheckCast()
+                && expression.getExpression().isLocalVariableReferenceExpression()
+                && (isJavaLangObject(expression.getExpression().getType())
+                        || ObjectType.TYPE_UNDEFINED_OBJECT.equals(expression.getExpression().getType()))) {
+            // The cast is what makes an Object local valid for the surrounding constructor/method parameter.
+            // Removing it does not merely simplify source: it either stops compilation or tempts local-type
+            // inference to move the cast before an earlier instanceof guard.
+            return false;
+        }
         if (isParameterizedJavaLangObject(expression.getType())) {
             return true;
         }

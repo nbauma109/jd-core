@@ -39,6 +39,7 @@ import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
@@ -1384,18 +1385,145 @@ public class StatementMaker {
         // placement - resolving those first, while nothing has been relocated yet, avoids that disruption.
         // Only offsets hoisting alone cannot place are deferred to the second pass, once the tree has settled.
         List<Entry<Integer, List<ClassFileBreakContinueStatement>>> deferred = new ArrayList<>();
+        List<Entry<Integer, List<ClassFileBreakContinueStatement>>> targets = new ArrayList<>(jumpsByTargetOffset.entrySet());
 
-        for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : jumpsByTargetOffset.entrySet()) {
+        // Establish inner merge points before their enclosing, later continuation. Rendering order can put
+        // the outer jump in the map first, but wrapping it first buries the inner targets inside a synthetic
+        // label and prevents their own minimal scopes from being found.
+        targets.sort(Entry.comparingByKey());
+
+        for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : targets) {
             if (!resolveOneOffset(statements, jumps, entry, false)) {
                 deferred.add(entry);
             }
         }
 
+        List<Entry<Integer, List<ClassFileBreakContinueStatement>>> stillUnresolved = new ArrayList<>();
+
         for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : deferred) {
             if (!resolveOneOffset(statements, jumps, entry, true)) {
+                stillUnresolved.add(entry);
+            }
+        }
+
+        // Last resort, verified against how a real decompiler (Vineflower) handles this exact shape: rather
+        // than insist on one shared position every break site can reach with a label - which requires target
+        // and every break site to agree on a lexical order that does not always exist (e.g. a shared "parse
+        // failed here, give up" tail reached from many unrelated validation checks scattered through the
+        // method) - give each break site its own independent copy of target's tail. No label, no shared
+        // position needed at all: this is exactly {@code duplicateForSinglePredecessor}'s own strategy,
+        // applied to the already-built statement tree instead of the basic-block graph, for the cases that
+        // strategy's CFG-level jump-stub duplication cannot reach a captured rendering for (see
+        // DuplicateMergeCFGReducer's forced-duplicate retry).
+        for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : stillUnresolved) {
+            Statement target = labeledMergeTargets.get(entry.getKey());
+
+            if (target != null && inlineTargetIntoBreakSites(statements, target, entry.getValue())) {
+                jumps.removeAll(entry.getValue());
+            } else {
                 unresolvedLabelTargets.add(entry.getKey());
             }
         }
+    }
+
+    /**
+     * Finds target's own tail - target itself plus every statement immediately following it in the same list,
+     * up to and including the first terminal one (nothing legitimately follows a return/throw/break/continue
+     * on the same execution path, so anything past that boundary is unrelated, separate code, not part of
+     * this merge's shared content) - and gives each break site a fresh, independent copy of it, replacing the
+     * break entirely. Declines (returns false, leaving the caller to fall back to a comment) if target cannot
+     * be located, or its tail contains any statement type not known to be safely copyable this way.
+     */
+    private boolean inlineTargetIntoBreakSites(Statements root, Statement target, List<ClassFileBreakContinueStatement> breakSites) {
+        List<PathStep> targetPath = findPath(root, s -> s == target, new ArrayList<>());
+
+        if (targetPath == null || targetPath.isEmpty()) {
+            return false;
+        }
+
+        PathStep deepest = targetPath.get(targetPath.size() - 1);
+        Statements containingList = deepest.list();
+        int targetIndex = deepest.index();
+        int tailEnd = targetIndex + 1;
+
+        while (tailEnd < containingList.size()) {
+            if (isTerminalStatement(containingList.get(tailEnd - 1))) {
+                break;
+            }
+            tailEnd++;
+        }
+
+        // Copied into a plain list (not a live subList view): a break site can share the same containing list
+        // as target, and mutating that list while a view into it is still being read elsewhere would corrupt
+        // the view (or throw) once any of the break-site insertions below land inside this same list.
+        List<Statement> tailTemplate = new ArrayList<>(containingList.subList(targetIndex, tailEnd));
+
+        for (Statement templateStatement : tailTemplate) {
+            if (!isSafelyCopyableStatement(templateStatement)) {
+                return false;
+            }
+        }
+
+        List<List<PathStep>> breakPaths = new ArrayList<>();
+
+        for (ClassFileBreakContinueStatement breakSite : breakSites) {
+            List<PathStep> breakPath = findPath(root, s -> s == breakSite, new ArrayList<>());
+
+            if (breakPath == null || breakPath.isEmpty()) {
+                return false;
+            }
+            breakPaths.add(breakPath);
+        }
+
+        // Two break sites can share the same containing list (e.g. two conditions in the same 'if' body each
+        // jumping here); inserting at the higher index first keeps the lower one's own index valid for when
+        // its turn comes, since an insertion never shifts what comes before it in the same list.
+        breakPaths.sort((a, b) -> {
+            PathStep stepA = a.get(a.size() - 1);
+            PathStep stepB = b.get(b.size() - 1);
+            return stepA.list() == stepB.list() ? Integer.compare(stepB.index(), stepA.index()) : 0;
+        });
+
+        for (List<PathStep> breakPath : breakPaths) {
+            PathStep breakStep = breakPath.get(breakPath.size() - 1);
+            List<Statement> copy = new ArrayList<>(tailTemplate.size());
+
+            for (Statement templateStatement : tailTemplate) {
+                copy.add(copyStatement(templateStatement));
+            }
+
+            breakStep.list().set(breakStep.index(), copy.get(0));
+            breakStep.list().addAll(breakStep.index() + 1, copy.subList(1, copy.size()));
+        }
+
+        return true;
+    }
+
+    private static boolean isTerminalStatement(Statement statement) {
+        return statement.isReturnStatement() || statement.isReturnExpressionStatement() || statement.isThrowStatement()
+            || statement.isBreakStatement() || statement.isContinueStatement();
+    }
+
+    private static boolean isSafelyCopyableStatement(Statement statement) {
+        return statement.isExpressionStatement() || statement.isReturnStatement()
+            || statement.isReturnExpressionStatement() || statement.isThrowStatement();
+    }
+
+    private static Statement copyStatement(Statement statement) {
+        if (statement.isExpressionStatement()) {
+            Expression expression = statement.getExpression();
+            return new ExpressionStatement(expression.copyTo(expression.getLineNumber()));
+        }
+        if (statement.isReturnExpressionStatement()) {
+            Expression expression = statement.getExpression();
+            return new ReturnExpressionStatement(statement.getLineNumber(), expression.copyTo(expression.getLineNumber()));
+        }
+        if (statement.isThrowStatement()) {
+            Expression expression = statement.getExpression();
+            return new ThrowStatement(expression.copyTo(expression.getLineNumber()));
+        }
+        // ReturnStatement.RETURN is a stateless singleton - safe to reuse directly, no copy needed.
+        return statement;
     }
 
     private boolean resolveOneOffset(Statements statements, Statements jumps, Entry<Integer, List<ClassFileBreakContinueStatement>> entry, boolean allowPush) {

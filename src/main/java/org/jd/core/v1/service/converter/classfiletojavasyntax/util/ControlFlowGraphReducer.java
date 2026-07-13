@@ -21,8 +21,10 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.MinDepthC
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
@@ -364,19 +366,23 @@ public abstract class ControlFlowGraphReducer {
      * hand this method a node of *any* type discovered to be a residual merge point, not only the types this
      * reducer originally targets.
      *
-     * <p>'next' and 'branch' (the two possible continuations after this node) are never shared either: adding
-     * the clone as one more predecessor of either would just push today's multi-predecessor problem one hop
-     * further down the method instead of solving it (verified empirically: it resurfaces as a bigger merge a
-     * level further down, cascading). Instead each non-terminal continuation is routed through a one-off jump
-     * stub (see {@link ControlFlowGraph#newJumpBasicBlock}, the same mechanism already used for loop-exit
-     * gotos), which {@code StatementMaker} turns into a break statement resolved against a label wrapping the
-     * real, once-only rendering of that continuation - see {@code resolveRemainingJumpsWithLabels}. A
-     * continuation is never a valid label target if it is a {@code TYPE_GOTO_IN_TERNARY_OPERATOR}: that type
-     * is a pure expression-context pass-through (parsed without ever adding a visible statement - see
-     * {@code StatementMaker}'s handling of it), so the jump stub is aimed past any number of those, at the
-     * first node downstream that actually renders as a statement.</p>
+     * <p>Statement and value-producing nodes need a private copy of their complete tail because their edges
+     * may carry operand-stack values. Other node shapes route each non-terminal continuation through a
+     * one-off jump stub (see {@link ControlFlowGraph#newJumpBasicBlock}, the same mechanism already used for
+     * loop-exit gotos), which {@code StatementMaker} resolves against a label around the real, once-only
+     * rendering of that continuation. A continuation is never a valid label target if it is a
+     * {@code TYPE_GOTO_IN_TERNARY_OPERATOR}: that type is a pure expression-context pass-through, so the jump
+     * stub is aimed past any number of those, at the first node downstream that renders as a statement.</p>
      */
-    protected BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
+    protected static BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
+        if (target.matchType(TYPE_STATEMENTS | TYPE_CONDITIONAL_BRANCH | TYPE_TERNARY_OPERATOR)) {
+            BasicBlock clone = duplicateValueFlow(target, new IdentityHashMap<>());
+
+            target.getPredecessors().remove(predecessor);
+            clone.getPredecessors().add(predecessor);
+            return clone;
+        }
+
         BasicBlock clone = target.getControlFlowGraph().newBasicBlock(target);
 
         target.getPredecessors().remove(predecessor);
@@ -392,7 +398,44 @@ public abstract class ControlFlowGraphReducer {
         return clone;
     }
 
-    private BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
+    /**
+     * Clones a statement/value-producing node and its complete tail as one unit. In particular, conditional
+     * next/branch edges can carry operand-stack values (the two arms of a ternary), so replacing those edges
+     * with statement jumps would discard the value before its consumer executes. The identity map retains
+     * merges inside the private copy while ensuring no tail node remains shared with another copy.
+     */
+    private static BasicBlock duplicateValueFlow(BasicBlock original, Map<BasicBlock, BasicBlock> copies) {
+        if (original == null || original.getIndex() < 0) {
+            return original;
+        }
+
+        BasicBlock existing = copies.get(original);
+
+        if (existing != null) {
+            return existing;
+        }
+
+        BasicBlock clone = original.getControlFlowGraph().newBasicBlock(original);
+        copies.put(original, clone);
+
+        clone.setNext(duplicateValueFlow(original.getNext(), copies));
+        clone.setBranch(duplicateValueFlow(original.getBranch(), copies));
+        clone.setCondition(duplicateExpressionNode(original.getCondition()));
+        clone.setSub1(duplicateExpressionNode(original.getSub1()));
+        clone.setSub2(duplicateExpressionNode(original.getSub2()));
+
+        addClonedPredecessor(clone, clone.getNext());
+        addClonedPredecessor(clone, clone.getBranch());
+        return clone;
+    }
+
+    private static void addClonedPredecessor(BasicBlock predecessor, BasicBlock successor) {
+        if (successor != null && successor.getIndex() >= 0) {
+            successor.getPredecessors().add(predecessor);
+        }
+    }
+
+    private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
         if (continuation == null || continuation == END) {
             return continuation;
         }
@@ -495,7 +538,7 @@ public abstract class ControlFlowGraphReducer {
     protected abstract boolean needToCreateIf(BasicBlock branch, BasicBlock nextNext, int maxOffset);
     protected abstract boolean needToCreateIfElse(BasicBlock branch, BasicBlock nextNext, BasicBlock branchNext);
 
-    private boolean aggregateConditionalBranches(BasicBlock basicBlock) {
+    protected boolean aggregateConditionalBranches(BasicBlock basicBlock) {
         boolean change = false;
 
         BasicBlock next = basicBlock.getNext();

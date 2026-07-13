@@ -16,6 +16,7 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_START;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SWITCH_BREAK;
+import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITIONAL_BRANCH;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_RETURN_VALUE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_STATEMENTS;
@@ -32,14 +33,14 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  * <p>Before construction is attempted at all, a pre-pass walks the whole graph and gives every merge point
  * with more than one predecessor a single real predecessor, exactly mirroring what the original source did:
  * a labeled block whose content is rendered once, with every other 'break label;' site jumping to it.
- * Statement-shaped merges ({@code TYPE_STATEMENTS}) are not duplicated at all - every extra predecessor is
- * simply routed through a one-off jump stub (the same mechanism jd-core already uses for loop-exit gotos, see
+ * Statement-shaped merges ({@code TYPE_STATEMENTS}) normally route every extra predecessor through a one-off
+ * jump stub (the same mechanism jd-core already uses for loop-exit gotos, see
  * {@code ControlFlowGraphReducer#changeEndLoopToJump}), and {@code StatementMaker} later wraps the merge
  * content in a synthetic label and turns those stubs into {@code break label;} (see
- * {@code StatementMaker#resolveRemainingJumpsWithLabels}). Value-computing merges ({@code TYPE_TERNARY_OPERATOR})
- * cannot be handled this way - a {@code break} is a statement, it cannot stand in for the value a ternary
- * computes - so those are still duplicated per extra predecessor (see
- * {@code ControlFlowGraphReducer#duplicateForSinglePredecessor}); terminal shapes ({@code TYPE_RETURN},
+ * {@code StatementMaker#resolveRemainingJumpsWithLabels}). If no valid lexical label placement exists, a
+ * retry instead gives each predecessor a private copy of the complete statement/value tail. Value-computing
+ * merges ({@code TYPE_TERNARY_OPERATOR}) need that complete private copy immediately - a {@code break} is a
+ * statement and cannot stand in for the value a ternary computes. Terminal shapes ({@code TYPE_RETURN},
  * {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are duplicated too, same as before, since they have no
  * meaningful continuation to route through a label in the first place.</p>
  *
@@ -147,6 +148,21 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
                 }
 
                 boolean forceDuplicate = forcedDuplicateOffsets.contains(target.getFromOffset());
+
+                // Residual value merges are discovered only after an earlier reduction pass has already
+                // recognized their ternary shape. Rebuilds start from the raw conditional again; reduce that
+                // one node before cloning it so each copy carries a complete expression plus its consumer,
+                // rather than cloning two low-level branches whose operand stacks are meaningful only as a
+                // single ternary construct.
+                if (forced && target.matchType(TYPE_CONDITIONAL_BRANCH)) {
+                    while (aggregateConditionalBranches(target)) {
+                        // Normalize the raw branch into the same condition tree used by the regular reducer.
+                    }
+                    if (!reduceConditionalBranch(target)) {
+                        continue;
+                    }
+                }
+
                 List<BasicBlock> predecessors = new ArrayList<>(target.getPredecessors());
 
                 // Normally, the first predecessor keeps pointing at the original and every other predecessor
@@ -211,7 +227,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     }
 
     private BasicBlock detachOneEdge(BasicBlock predecessor, BasicBlock target, boolean forceDuplicate) {
-        if (!forceDuplicate && target.matchType(TYPE_STATEMENTS)) {
+        if (!forceDuplicate && target.matchType(TYPE_STATEMENTS | TYPE_TERNARY_OPERATOR)) {
             return predecessor.getControlFlowGraph().newJumpBasicBlock(predecessor, target);
         }
         return duplicateForSinglePredecessor(predecessor, target);

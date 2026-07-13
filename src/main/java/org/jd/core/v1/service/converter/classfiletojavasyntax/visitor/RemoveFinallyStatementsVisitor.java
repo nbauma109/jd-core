@@ -200,13 +200,13 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             if (ts.isEclipse()) {
                 List<TryStatement.CatchClause> catchClauses = statement.getCatchClauses();
                 int oldStatementCountInFinally = statementCountInFinally;
+                int oldStatementCountToRemove = statementCountToRemove;
                 int finallyStatementsSize = finallyStatements.size();
 
                 statementCountInFinally += finallyStatementsSize;
+                statementCountToRemove += finallyStatementsSize;
 
                 tryStatements.accept(this);
-
-                statementCountToRemove = finallyStatementsSize;
 
                 if (catchClauses != null) {
                     for (TryStatement.CatchClause cc : catchClauses) {
@@ -215,6 +215,7 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
                 }
 
                 statementCountInFinally = oldStatementCountInFinally;
+                statementCountToRemove = oldStatementCountToRemove;
             } else {
                 List<TryStatement.CatchClause> catchClauses = statement.getCatchClauses();
                 int oldStatementCountInFinally = statementCountInFinally;

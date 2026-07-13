@@ -32,6 +32,7 @@ import java.util.List;
 
 public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
     private int constructorCounter;
+    private int classAccessFlags;
     private ClassFileMemberDeclaration constructor;
 
     @Override
@@ -46,6 +47,7 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
 
         constructor = null;
         constructorCounter = 0;
+        classAccessFlags = bodyDeclaration.getClassFile().getAccessFlags() & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE);
         safeAcceptListDeclaration(methods);
 
         if (constructorCounter == 1 && constructor != null) {
@@ -88,7 +90,9 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
                 }
 
                 // Store empty default constructor
-                if (statements.isEmpty() && Utils.isEmpty(cfcd.getFormalParameters())) {
+                int constructorAccessFlags = declaration.getFlags() & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE);
+                if (statements.isEmpty() && Utils.isEmpty(cfcd.getFormalParameters())
+                        && (constructorAccessFlags != Const.ACC_PROTECTED || constructorAccessFlags == classAccessFlags)) {
                     constructor = cfcd;
                 }
             }

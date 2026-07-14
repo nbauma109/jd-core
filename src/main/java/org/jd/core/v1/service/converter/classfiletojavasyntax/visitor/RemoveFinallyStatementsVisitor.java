@@ -36,7 +36,6 @@ import org.jd.core.v1.model.javasyntax.statement.TypeDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.List;
@@ -193,49 +192,29 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             }
         }
 
-        if (ts.isJsr() || Utils.isEmpty(finallyStatements)) {
+        if (ts.isJsr() || finallyStatements == null || finallyStatements.isEmpty()) {
             tryStatements.accept(this);
             safeAcceptListStatement(statement.getCatchClauses());
         } else {
-            if (ts.isEclipse()) {
-                List<TryStatement.CatchClause> catchClauses = statement.getCatchClauses();
-                int oldStatementCountInFinally = statementCountInFinally;
-                int oldStatementCountToRemove = statementCountToRemove;
-                int finallyStatementsSize = finallyStatements.size();
+            List<TryStatement.CatchClause> catchClauses = statement.getCatchClauses();
+            int oldStatementCountInFinally = statementCountInFinally;
+            int oldStatementCountToRemove = statementCountToRemove;
+            int finallyStatementsSize = finallyStatements.size();
 
-                statementCountInFinally += finallyStatementsSize;
-                statementCountToRemove += finallyStatementsSize;
+            statementCountInFinally += finallyStatementsSize;
+            statementCountToRemove += finallyStatementsSize;
 
-                tryStatements.accept(this);
+            tryStatements.accept(this);
 
-                if (catchClauses != null) {
-                    for (TryStatement.CatchClause cc : catchClauses) {
-                        cc.getStatements().accept(this);
-                    }
+            if (catchClauses != null) {
+                for (TryStatement.CatchClause cc : catchClauses) {
+                    cc.getStatements().accept(this);
                 }
-
-                statementCountInFinally = oldStatementCountInFinally;
-                statementCountToRemove = oldStatementCountToRemove;
-            } else {
-                List<TryStatement.CatchClause> catchClauses = statement.getCatchClauses();
-                int oldStatementCountInFinally = statementCountInFinally;
-                int oldStatementCountToRemove = statementCountToRemove;
-                int finallyStatementsSize = finallyStatements.size();
-
-                statementCountInFinally += finallyStatementsSize;
-                statementCountToRemove += finallyStatementsSize;
-
-                tryStatements.accept(this);
-
-                if (catchClauses != null) {
-                    for (TryStatement.CatchClause cc : catchClauses) {
-                        cc.getStatements().accept(this);
-                    }
-                }
-
-                statementCountInFinally = oldStatementCountInFinally;
-                statementCountToRemove = oldStatementCountToRemove;
             }
+
+            statementCountInFinally = oldStatementCountInFinally;
+            statementCountToRemove = oldStatementCountToRemove;
+
             if (statement.getResources() != null) {
                 ts.setFinallyStatements(null);
             }

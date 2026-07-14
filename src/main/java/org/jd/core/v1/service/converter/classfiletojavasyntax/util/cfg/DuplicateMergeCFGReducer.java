@@ -156,27 +156,6 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
                 || basicBlock == LOOP_CONTINUE || basicBlock == SWITCH_BREAK || basicBlock == RETURN;
     }
 
-    /**
-     * Defense in depth: the pre-pass above should leave no duplicable node with more than one predecessor,
-     * but if reduction itself creates a new shared reference partway through, fall back to detaching just
-     * the one failing edge and retrying, same as the very first version of this reducer did.
-     */
-    @Override
-    protected boolean reduceUnreducibleMerge(BasicBlock basicBlock, BasicBlock next, BasicBlock branch) {
-        boolean duplicated = false;
-
-        if (next.matchType(DUPLICABLE_TYPES) && next.getPredecessors().size() > 1) {
-            basicBlock.setNext(detachOneEdge(basicBlock, next, forcedDuplicateOffsets.contains(next.getFromOffset())));
-            duplicated = true;
-        }
-        if (branch.matchType(DUPLICABLE_TYPES) && branch.getPredecessors().size() > 1) {
-            basicBlock.setBranch(detachOneEdge(basicBlock, branch, forcedDuplicateOffsets.contains(branch.getFromOffset())));
-            duplicated = true;
-        }
-
-        return duplicated && reduceConditionalBranch(basicBlock);
-    }
-
     private BasicBlock detachOneEdge(BasicBlock predecessor, BasicBlock target, boolean forceDuplicate) {
         if (!forceDuplicate && target.matchType(TYPE_STATEMENTS | TYPE_TERNARY_OPERATOR)) {
             return predecessor.getControlFlowGraph().newJumpBasicBlock(predecessor, target);

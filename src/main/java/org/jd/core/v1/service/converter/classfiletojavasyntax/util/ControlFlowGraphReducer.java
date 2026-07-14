@@ -42,7 +42,6 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_CONTINUE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_START;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SWITCH_BREAK;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITION;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITIONAL_BRANCH;
@@ -417,8 +416,7 @@ public abstract class ControlFlowGraphReducer {
     }
 
     private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
-        if (continuation == null || continuation == END || continuation == LOOP_END || continuation == LOOP_START
-                || continuation == LOOP_CONTINUE || continuation == SWITCH_BREAK || continuation == RETURN) {
+        if (continuation == null || continuation == END) {
             return continuation;
         }
 

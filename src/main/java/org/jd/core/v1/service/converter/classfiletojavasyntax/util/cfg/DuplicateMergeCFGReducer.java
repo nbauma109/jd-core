@@ -17,7 +17,6 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SWITCH_BREAK;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITIONAL_BRANCH;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_DELETED;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_RETURN_VALUE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_STATEMENTS;
@@ -39,7 +38,7 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  * {@code ControlFlowGraphReducer#changeEndLoopToJump}), and {@code StatementMaker} later wraps the merge
  * content in a synthetic label and turns those stubs into {@code break label;} (see
  * {@code StatementMaker#resolveRemainingJumpsWithLabels}). Value-computing merges
- * ({@code TYPE_TERNARY_OPERATOR}) receive a private copy immediately. Terminal shapes ({@code TYPE_RETURN},
+ * ({@code TYPE_TERNARY_OPERATOR}) use the same mechanism. Terminal shapes ({@code TYPE_RETURN},
  * {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are duplicated too, same as before, since they have no
  * meaningful continuation to route through a label in the first place.</p>
  *
@@ -145,8 +144,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
      */
     private static BasicBlock findResidualSharedNode(ControlFlowGraph cfg) {
         for (BasicBlock basicBlock : cfg.getBasicBlocks()) {
-            if (basicBlock.getType() != TYPE_DELETED && basicBlock.getPredecessors().size() > 1
-                    && !isImmutableSentinel(basicBlock)) {
+            if (basicBlock.getPredecessors().size() > 1 && !isImmutableSentinel(basicBlock)) {
                 return basicBlock;
             }
         }
@@ -159,7 +157,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     }
 
     private BasicBlock detachOneEdge(BasicBlock predecessor, BasicBlock target, boolean forceDuplicate) {
-        if (!forceDuplicate && target.matchType(TYPE_STATEMENTS)) {
+        if (!forceDuplicate && target.matchType(TYPE_STATEMENTS | TYPE_TERNARY_OPERATOR)) {
             return predecessor.getControlFlowGraph().newJumpBasicBlock(predecessor, target);
         }
         return duplicateForSinglePredecessor(predecessor, target);

@@ -2126,9 +2126,9 @@ public class ByteCodeParser {
                 case FLAG_BOOLEAN:
                     if (expression instanceof ClassFileLocalVariableReferenceExpression reference) {
                         // A value emitted directly as an if-condition is definitively boolean. Constants 0/1
-                        // initially create a MAYBE_BOOLEAN local; without this constraint it can survive as
-                        // int (or be merged with an earlier char occupying the same JVM slot), yielding Java
-                        // such as "int flag; if (flag)".
+                        // initially create a MAYBE_BOOLEAN local; without this constraint it can remain an
+                        // integer (or merge with an earlier char occupying the same JVM slot) while being
+                        // emitted directly as a Java condition.
                         reference.getLocalVariable().typeOnRight(typeBounds, TYPE_BOOLEAN);
                     }
                     if (basicBlock.mustInverseCondition() ^ "==".equals(operator1)) {

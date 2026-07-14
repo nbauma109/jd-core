@@ -42,6 +42,7 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_CONTINUE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_START;
+import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SWITCH_BREAK;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITION;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITIONAL_BRANCH;
@@ -336,16 +337,6 @@ public abstract class ControlFlowGraphReducer {
             }
         }
 
-        return reduceUnreducibleMerge(basicBlock, next, branch);
-    }
-
-    /**
-     * Last-resort hook: called only once every heuristic above has failed to construct an if/if-else for
-     * this basicBlock. The default implementation preserves the exact prior behavior (report unreducible);
-     * a dedicated reducer subclass, tried only after every other reducer has already failed the whole
-     * method, overrides this to attempt a repair here without risking any method that already reduces fine.
-     */
-    protected boolean reduceUnreducibleMerge(BasicBlock basicBlock, BasicBlock next, BasicBlock branch) {
         return false;
     }
 
@@ -426,7 +417,8 @@ public abstract class ControlFlowGraphReducer {
     }
 
     private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
-        if (continuation == null || continuation == END) {
+        if (continuation == null || continuation == END || continuation == LOOP_END || continuation == LOOP_START
+                || continuation == LOOP_CONTINUE || continuation == SWITCH_BREAK || continuation == RETURN) {
             return continuation;
         }
 

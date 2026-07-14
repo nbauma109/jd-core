@@ -114,19 +114,15 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
             for (ControlFlowGraphReducer controlFlowGraphReducer : preferredReducers) {
                 try {
                     if (controlFlowGraphReducer.reduce(method)) {
-                        boolean madeStatements = false;
-
                         if (comd.getStatements() instanceof Statements stmts) {
                             if (stmts.isEmpty()) {
                                 comd.setStatements(statementMaker.make(controlFlowGraphReducer.getControlFlowGraph(), stmts));
-                                madeStatements = true;
                             }
                         } else {
                             comd.setStatements(statementMaker.make(controlFlowGraphReducer.getControlFlowGraph(), new Statements()));
-                            madeStatements = true;
                         }
 
-                        if (madeStatements && controlFlowGraphReducer instanceof DuplicateMergeCFGReducer duplicateMergeCFGReducer) {
+                        if (controlFlowGraphReducer instanceof DuplicateMergeCFGReducer duplicateMergeCFGReducer) {
                             Set<Integer> unresolved = statementMaker.getUnresolvedLabelTargets();
 
                             if (!unresolved.isEmpty() && duplicateMergeCFGReducer.addForcedDuplicateOffsets(unresolved)

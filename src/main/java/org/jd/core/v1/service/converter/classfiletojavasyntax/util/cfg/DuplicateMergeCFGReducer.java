@@ -58,13 +58,6 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
     private static final int DUPLICABLE_TYPES = TYPE_STATEMENTS | TYPE_RETURN | TYPE_RETURN_VALUE | TYPE_THROW | TYPE_TERNARY_OPERATOR;
 
-    private static final int MAX_SPLIT_ITERATIONS = 1000;
-    private static final int MAX_REBUILD_ATTEMPTS = 50;
-
-    // BasicBlock#equals is index-based and every immutable sentinel shares index -1, so a Set (or Set.of,
-    // which would reject them outright as "duplicates") cannot be used here: identity is what matters.
-    private static final BasicBlock[] IMMUTABLE_SENTINELS = {END, LOOP_END, LOOP_START, LOOP_CONTINUE, SWITCH_BREAK, RETURN};
-
     private final Set<Integer> forcedDuplicateOffsets = new HashSet<>();
 
     public boolean addForcedDuplicateOffsets(Set<Integer> offsets) {
@@ -75,7 +68,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     public boolean reduce(Method method) {
         Set<Integer> forcedOffsets = new HashSet<>();
 
-        for (int attempt = 0; attempt < MAX_REBUILD_ATTEMPTS; attempt++) {
+        while (true) {
             rebuildControlFlowGraph(method);
 
             ControlFlowGraph cfg = getControlFlowGraph();
@@ -103,53 +96,41 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             }
         }
 
-        return false;
     }
 
     /**
      * Repeatedly scans the graph for merge points with more than one predecessor - either a duplicable-type
      * node found that way naturally, or any node at an offset a previous rebuild attempt found still shared
      * after construction - and gives every predecessor but the first its own private edge, until none remain.
-     * A fixed point (not a single pass) is kept as a safety margin: {@code TYPE_TERNARY_OPERATOR} still
-     * duplicates its own value-computing node per extra predecessor, and if that ever leaves a fresh clone
-     * sharing a further node, this catches it too.
+     * The original block list is sufficient because detached value flows are cloned as a unit and statement
+     * continuations are represented by private jump blocks.
      */
     private void splitMultiPredecessorMerges(ControlFlowGraph cfg, Set<Integer> forcedOffsets) {
-        boolean changed = true;
-        int iterations = 0;
+        for (BasicBlock target : new ArrayList<>(cfg.getBasicBlocks())) {
+            boolean matchesNaturally = target.matchType(DUPLICABLE_TYPES);
+            boolean forced = forcedOffsets.contains(target.getFromOffset());
 
-        while (changed && iterations++ < MAX_SPLIT_ITERATIONS) {
-            changed = false;
+            if ((!matchesNaturally && !forced) || target.getPredecessors().size() <= 1) {
+                continue;
+            }
 
-            for (BasicBlock target : new ArrayList<>(cfg.getBasicBlocks())) {
-                boolean matchesNaturally = target.matchType(DUPLICABLE_TYPES);
-                boolean forced = forcedOffsets.contains(target.getFromOffset());
+            boolean forceDuplicate = forcedDuplicateOffsets.contains(target.getFromOffset());
 
-                if ((!matchesNaturally && !forced) || target.getPredecessors().size() <= 1) {
+            if (forced && target.matchType(TYPE_CONDITIONAL_BRANCH)) {
+                while (aggregateConditionalBranches(target)) {
+                    // Normalize the branch before cloning its value flow.
+                }
+                if (!reduceConditionalBranch(target)) {
                     continue;
                 }
+            }
 
-                boolean forceDuplicate = forcedDuplicateOffsets.contains(target.getFromOffset());
+            List<BasicBlock> predecessors = new ArrayList<>(target.getPredecessors());
+            int startIndex = forceDuplicate ? 0 : 1;
 
-                if (forced && target.matchType(TYPE_CONDITIONAL_BRANCH)) {
-                    while (aggregateConditionalBranches(target)) {
-                        // Normalize the branch before cloning its value flow.
-                    }
-                    if (!reduceConditionalBranch(target)) {
-                        continue;
-                    }
-                }
-
-                List<BasicBlock> predecessors = new ArrayList<>(target.getPredecessors());
-
-                int startIndex = forceDuplicate ? 0 : 1;
-
-                for (int i = startIndex; i < predecessors.size(); i++) {
-                    BasicBlock predecessor = predecessors.get(i);
-                    predecessor.replace(target, detachOneEdge(predecessor, target, forceDuplicate));
-                }
-
-                changed = true;
+            for (int i = startIndex; i < predecessors.size(); i++) {
+                BasicBlock predecessor = predecessors.get(i);
+                predecessor.replace(target, detachOneEdge(predecessor, target, forceDuplicate));
             }
         }
     }
@@ -171,12 +152,8 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     }
 
     private static boolean isImmutableSentinel(BasicBlock basicBlock) {
-        for (BasicBlock sentinel : IMMUTABLE_SENTINELS) {
-            if (basicBlock == sentinel) {
-                return true;
-            }
-        }
-        return false;
+        return basicBlock == END || basicBlock == LOOP_END || basicBlock == LOOP_START
+                || basicBlock == LOOP_CONTINUE || basicBlock == SWITCH_BREAK || basicBlock == RETURN;
     }
 
     /**

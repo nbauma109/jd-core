@@ -33,14 +33,12 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  * <p>Before construction is attempted at all, a pre-pass walks the whole graph and gives every merge point
  * with more than one predecessor a single real predecessor, exactly mirroring what the original source did:
  * a labeled block whose content is rendered once, with every other 'break label;' site jumping to it.
- * Statement-shaped merges ({@code TYPE_STATEMENTS}) normally route every extra predecessor through a one-off
+ * Statement-shaped merges ({@code TYPE_STATEMENTS}) route every extra predecessor through a one-off
  * jump stub (the same mechanism jd-core already uses for loop-exit gotos, see
  * {@code ControlFlowGraphReducer#changeEndLoopToJump}), and {@code StatementMaker} later wraps the merge
  * content in a synthetic label and turns those stubs into {@code break label;} (see
- * {@code StatementMaker#resolveRemainingJumpsWithLabels}). If no valid lexical label placement exists, a
- * retry instead gives each predecessor a private copy of the complete statement/value tail. Value-computing
- * merges ({@code TYPE_TERNARY_OPERATOR}) need that complete private copy immediately - a {@code break} is a
- * statement and cannot stand in for the value a ternary computes. Terminal shapes ({@code TYPE_RETURN},
+ * {@code StatementMaker#resolveRemainingJumpsWithLabels}). Value-computing merges
+ * ({@code TYPE_TERNARY_OPERATOR}) use the same mechanism. Terminal shapes ({@code TYPE_RETURN},
  * {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are duplicated too, same as before, since they have no
  * meaningful continuation to route through a label in the first place.</p>
  *
@@ -67,24 +65,8 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     // which would reject them outright as "duplicates") cannot be used here: identity is what matters.
     private static final BasicBlock[] IMMUTABLE_SENTINELS = {END, LOOP_END, LOOP_START, LOOP_CONTINUE, SWITCH_BREAK, RETURN};
 
-    // Offsets StatementMaker reports it could not place a label for even after hoisting (see
-    // StatementMaker#getUnresolvedLabelTargets): the caller (CreateInstructionsVisitor) adds to this and
-    // retries construction from scratch when that happens, so these targets get duplicated per predecessor
-    // - like TYPE_TERNARY_OPERATOR/TYPE_RETURN/TYPE_RETURN_VALUE already are - instead of being left as one
-    // shared instance no single label position can be found for.
     private final Set<Integer> forcedDuplicateOffsets = new HashSet<>();
 
-    /**
-     * Called by {@code CreateInstructionsVisitor} after a full reduce-and-render pass leaves some jumps
-     * unresolved because no label placement was lexically valid for their target (see
-     * {@code StatementMaker#getUnresolvedLabelTargets}): from the next {@link #reduce(Method)} call onward,
-     * every one of these offsets is duplicated per predecessor rather than routed through a shared,
-     * jump-stubbed instance - sidestepping the ordering problem entirely, since each duplicate then renders
-     * independently, right where its own predecessor naturally leads.
-     *
-     * @return {@code true} if this added at least one offset not already forced, i.e. retrying has a chance
-     * of making progress; {@code false} if every offset was already forced (nothing left to try differently).
-     */
     public boolean addForcedDuplicateOffsets(Set<Integer> offsets) {
         return forcedDuplicateOffsets.addAll(offsets);
     }
@@ -149,14 +131,9 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
                 boolean forceDuplicate = forcedDuplicateOffsets.contains(target.getFromOffset());
 
-                // Residual value merges are discovered only after an earlier reduction pass has already
-                // recognized their ternary shape. Rebuilds start from the raw conditional again; reduce that
-                // one node before cloning it so each copy carries a complete expression plus its consumer,
-                // rather than cloning two low-level branches whose operand stacks are meaningful only as a
-                // single ternary construct.
                 if (forced && target.matchType(TYPE_CONDITIONAL_BRANCH)) {
                     while (aggregateConditionalBranches(target)) {
-                        // Normalize the raw branch into the same condition tree used by the regular reducer.
+                        // Normalize the branch before cloning its value flow.
                     }
                     if (!reduceConditionalBranch(target)) {
                         continue;
@@ -165,9 +142,6 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
                 List<BasicBlock> predecessors = new ArrayList<>(target.getPredecessors());
 
-                // Normally, the first predecessor keeps pointing at the original and every other predecessor
-                // is detached. A forced-duplicate offset instead detaches every predecessor, including what
-                // would have been the "first" - there is no shared instance left at all, only private copies.
                 int startIndex = forceDuplicate ? 0 : 1;
 
                 for (int i = startIndex; i < predecessors.size(); i++) {

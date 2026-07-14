@@ -366,13 +366,9 @@ public abstract class ControlFlowGraphReducer {
      * hand this method a node of *any* type discovered to be a residual merge point, not only the types this
      * reducer originally targets.
      *
-     * <p>Statement and value-producing nodes need a private copy of their complete tail because their edges
-     * may carry operand-stack values. Other node shapes route each non-terminal continuation through a
-     * one-off jump stub (see {@link ControlFlowGraph#newJumpBasicBlock}, the same mechanism already used for
-     * loop-exit gotos), which {@code StatementMaker} resolves against a label around the real, once-only
-     * rendering of that continuation. A continuation is never a valid label target if it is a
-     * {@code TYPE_GOTO_IN_TERNARY_OPERATOR}: that type is a pure expression-context pass-through, so the jump
-     * stub is aimed past any number of those, at the first node downstream that renders as a statement.</p>
+     * <p>'next' and 'branch' are never shared either: each non-terminal continuation is routed through a
+     * one-off jump stub, which {@code StatementMaker} resolves against a label around the real, once-only
+     * rendering of that continuation.</p>
      */
     protected static BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
         if (target.matchType(TYPE_STATEMENTS | TYPE_CONDITIONAL_BRANCH | TYPE_TERNARY_OPERATOR)) {
@@ -398,12 +394,6 @@ public abstract class ControlFlowGraphReducer {
         return clone;
     }
 
-    /**
-     * Clones a statement/value-producing node and its complete tail as one unit. In particular, conditional
-     * next/branch edges can carry operand-stack values (the two arms of a ternary), so replacing those edges
-     * with statement jumps would discard the value before its consumer executes. The identity map retains
-     * merges inside the private copy while ensuring no tail node remains shared with another copy.
-     */
     private static BasicBlock duplicateValueFlow(BasicBlock original, Map<BasicBlock, BasicBlock> copies) {
         if (original == null || original.getIndex() < 0) {
             return original;

@@ -42,9 +42,6 @@ import static org.apache.bcel.Const.ACC_STATIC;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 
 public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
-    /** Bounds retries that force one more unresolved merge target to duplicate per predecessor at a time. */
-    private static final int MAX_LABEL_RESOLUTION_RETRIES = 8;
-
     private final TypeMaker typeMaker;
     private final FixHoistedCatchThrowVisitor fixHoistedCatchThrowVisitor = new FixHoistedCatchThrowVisitor();
     private final FixMissingNullGuardVisitor fixMissingNullGuardVisitor = new FixMissingNullGuardVisitor();
@@ -131,32 +128,14 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
 
                         if (madeStatements && controlFlowGraphReducer instanceof DuplicateMergeCFGReducer duplicateMergeCFGReducer) {
                             Set<Integer> unresolved = statementMaker.getUnresolvedLabelTargets();
-                            int retries = 0;
 
-                            while (!unresolved.isEmpty() && retries++ < MAX_LABEL_RESOLUTION_RETRIES
-                                    && duplicateMergeCFGReducer.addForcedDuplicateOffsets(unresolved)) {
-                                try {
-                                    if (!duplicateMergeCFGReducer.reduce(method)) {
-                                        break;
-                                    }
-
-                                    LocalVariableMaker retryLocalVariableMaker = new LocalVariableMaker(typeMaker, comd, constructor);
-                                    StatementMaker retryStatementMaker = new StatementMaker(typeMaker, retryLocalVariableMaker, comd);
-                                    Statements retryStatements = retryStatementMaker.make(duplicateMergeCFGReducer.getControlFlowGraph(), new Statements());
-
-                                    comd.setStatements(retryStatements);
-                                    localVariableMaker = retryLocalVariableMaker;
-                                    statementMaker = retryStatementMaker;
-                                    unresolved = retryStatementMaker.getUnresolvedLabelTargets();
-                                } catch (Exception | StackOverflowError e) {
-                                    // Keep whatever the last successful attempt produced (still fully valid,
-                                    // just with an unresolved jump or two left as a 'goto' comment) rather than
-                                    // letting a failed retry take down a method that already reduced fine.
-                                    break;
-                                }
+                            if (!unresolved.isEmpty() && duplicateMergeCFGReducer.addForcedDuplicateOffsets(unresolved)
+                                    && duplicateMergeCFGReducer.reduce(method)) {
+                                localVariableMaker = new LocalVariableMaker(typeMaker, comd, constructor);
+                                statementMaker = new StatementMaker(typeMaker, localVariableMaker, comd);
+                                comd.setStatements(statementMaker.make(duplicateMergeCFGReducer.getControlFlowGraph(), new Statements()));
                             }
                         }
-
                         reduced = true;
                         break;
                     }

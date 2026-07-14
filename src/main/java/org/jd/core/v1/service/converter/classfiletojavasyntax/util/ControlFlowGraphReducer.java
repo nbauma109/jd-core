@@ -336,6 +336,16 @@ public abstract class ControlFlowGraphReducer {
             }
         }
 
+        return reduceUnreducibleMerge(basicBlock, next, branch);
+    }
+
+    /**
+     * Last-resort hook: called only once every heuristic above has failed to construct an if/if-else for
+     * this basicBlock. The default implementation preserves the exact prior behavior (report unreducible);
+     * a dedicated reducer subclass, tried only after every other reducer has already failed the whole
+     * method, overrides this to attempt a repair here without risking any method that already reduces fine.
+     */
+    protected boolean reduceUnreducibleMerge(BasicBlock basicBlock, BasicBlock next, BasicBlock branch) {
         return false;
     }
 

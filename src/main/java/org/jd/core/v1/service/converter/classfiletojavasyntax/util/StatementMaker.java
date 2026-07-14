@@ -1508,7 +1508,7 @@ public class StatementMaker {
                 return true;
             }
 
-            if (!hoistTargetOutOfBranch(targetPath) && !(allowPush && pushTargetPastConflicts(targetPath, breakPaths))) {
+            if (!hoistTargetOutOfBranch(targetPath, target) && !(allowPush && pushTargetPastConflicts(targetPath, breakPaths))) {
                 return false;
             }
         }
@@ -1586,7 +1586,7 @@ public class StatementMaker {
      * <p>Restricted to an enclosing 'if'/'if-else': hoisting out of a 'try' or 'finally' body would remove the
      * hoisted code from that block's exception handling, which is not behavior-preserving.</p>
      */
-    private boolean hoistTargetOutOfBranch(List<PathStep> targetPath) {
+    private boolean hoistTargetOutOfBranch(List<PathStep> targetPath, Statement target) {
         if (targetPath.size() < 2) {
             return false;
         }

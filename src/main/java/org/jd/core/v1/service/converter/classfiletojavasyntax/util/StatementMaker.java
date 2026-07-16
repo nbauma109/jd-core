@@ -33,7 +33,6 @@ import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LabelStatement;
-import org.jd.core.v1.model.javasyntax.statement.NoStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -1434,7 +1433,7 @@ public class StatementMaker {
     private boolean wrapCommonScopeWithLabel(Statements root, List<ClassFileBreakContinueStatement> breakSites, Statement target, String label) {
         List<PathStep> targetPath = findPath(root, s -> s == target, new ArrayList<>());
 
-        if (targetPath == null || targetPath.isEmpty()) {
+        if (Utils.isEmptyCollection(targetPath)) {
             return false;
         }
 
@@ -1495,8 +1494,6 @@ public class StatementMaker {
                     return deeper;
                 }
             }
-        } else if (container instanceof Statement single && single != NoStatement.NO_STATEMENT) {
-            return findPathInChildren(single, matcher, pathSoFar);
         }
         return null;
     }

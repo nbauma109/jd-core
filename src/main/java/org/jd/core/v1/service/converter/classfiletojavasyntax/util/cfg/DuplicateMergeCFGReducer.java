@@ -10,12 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.END;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_CONTINUE;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_END;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_START;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.RETURN;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SWITCH_BREAK;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITIONAL_BRANCH;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_RETURN;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_RETURN_VALUE;
@@ -57,10 +51,6 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     private final Set<Integer> forcedDuplicateOffsets = new HashSet<>();
     private final Set<Integer> unreducibleOffsets = new HashSet<>();
 
-    public boolean addForcedDuplicateOffsets(Set<Integer> offsets) {
-        return forcedDuplicateOffsets.addAll(offsets);
-    }
-
     @Override
     public boolean reduce(Method method) {
         Set<Integer> forcedOffsets = new HashSet<>();
@@ -88,12 +78,6 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
             if (shared == null) {
                 return true;
-            }
-            if (!forcedOffsets.add(shared.getFromOffset())) {
-                // Already forced this exact offset on a previous attempt and it is still shared: no further
-                // progress is possible (the node has only one real predecessor, so there is nothing left to
-                // detach), so give up exactly as this reducer would have before it existed.
-                return false;
             }
         }
 
@@ -151,16 +135,11 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
      */
     private static BasicBlock findResidualSharedNode(ControlFlowGraph cfg) {
         for (BasicBlock basicBlock : cfg.getBasicBlocks()) {
-            if (basicBlock.getPredecessors().size() > 1 && !isImmutableSentinel(basicBlock)) {
+            if (basicBlock.getPredecessors().size() > 1) {
                 return basicBlock;
             }
         }
         return null;
-    }
-
-    private static boolean isImmutableSentinel(BasicBlock basicBlock) {
-        return basicBlock == END || basicBlock == LOOP_END || basicBlock == LOOP_START
-                || basicBlock == LOOP_CONTINUE || basicBlock == SWITCH_BREAK || basicBlock == RETURN;
     }
 
     private BasicBlock detachOneEdge(BasicBlock predecessor, BasicBlock target, boolean forceDuplicate) {

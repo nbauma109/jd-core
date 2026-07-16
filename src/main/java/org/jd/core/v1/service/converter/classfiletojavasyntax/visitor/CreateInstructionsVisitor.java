@@ -30,11 +30,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.StatementMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.DuplicateMergeCFGReducer;
-
 import java.util.List;
-import java.util.Set;
-
 import static org.apache.bcel.Const.ACC_ABSTRACT;
 import static org.apache.bcel.Const.ACC_BRIDGE;
 import static org.apache.bcel.Const.ACC_PUBLIC;
@@ -122,16 +118,6 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                             comd.setStatements(statementMaker.make(controlFlowGraphReducer.getControlFlowGraph(), new Statements()));
                         }
 
-                        if (controlFlowGraphReducer instanceof DuplicateMergeCFGReducer duplicateMergeCFGReducer) {
-                            Set<Integer> unresolved = statementMaker.getUnresolvedLabelTargets();
-
-                            if (!unresolved.isEmpty() && duplicateMergeCFGReducer.addForcedDuplicateOffsets(unresolved)
-                                    && duplicateMergeCFGReducer.reduce(method)) {
-                                localVariableMaker = new LocalVariableMaker(typeMaker, comd, constructor);
-                                statementMaker = new StatementMaker(typeMaker, localVariableMaker, comd);
-                                comd.setStatements(statementMaker.make(duplicateMergeCFGReducer.getControlFlowGraph(), new Statements()));
-                            }
-                        }
                         reduced = true;
                         break;
                     }

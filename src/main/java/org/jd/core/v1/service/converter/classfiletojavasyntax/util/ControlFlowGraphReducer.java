@@ -363,39 +363,6 @@ public abstract class ControlFlowGraphReducer {
         target.getPredecessors().remove(predecessor);
         clone.getPredecessors().add(predecessor);
 
-        clone.setNext(duplicateContinuation(clone, clone.getNext()));
-        clone.setBranch(duplicateContinuation(clone, clone.getBranch()));
-
-        clone.setCondition(duplicateExpressionNode(clone.getCondition()));
-        clone.setSub1(duplicateExpressionNode(clone.getSub1()));
-        clone.setSub2(duplicateExpressionNode(clone.getSub2()));
-
-        return clone;
-    }
-
-    private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {
-        if (continuation == null || continuation == END) {
-            return continuation;
-        }
-
-        while (continuation != END && continuation.matchType(TYPE_GOTO_IN_TERNARY_OPERATOR)) {
-            continuation = continuation.getNext();
-        }
-
-        return clone.getControlFlowGraph().newJumpBasicBlock(clone, continuation);
-    }
-
-    private static BasicBlock duplicateExpressionNode(BasicBlock node) {
-        if (node == null || node == END) {
-            return node;
-        }
-
-        BasicBlock clone = node.getControlFlowGraph().newBasicBlock(node);
-
-        clone.setCondition(duplicateExpressionNode(clone.getCondition()));
-        clone.setSub1(duplicateExpressionNode(clone.getSub1()));
-        clone.setSub2(duplicateExpressionNode(clone.getSub2()));
-
         return clone;
     }
 

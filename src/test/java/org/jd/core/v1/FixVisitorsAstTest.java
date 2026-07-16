@@ -226,7 +226,7 @@ public class FixVisitorsAstTest extends TestCase {
         catchClauses.add(new ClassFileTryStatement.CatchClause(1, ObjectType.TYPE_EXCEPTION, other, catchBody));
         Statements tryBody = new Statements();
         tryBody.add(new ExpressionStatement(invocation(otherRef(), null)));
-        Statement tryStatement = new ClassFileTryStatement(tryBody, catchClauses, null, false, false);
+        Statement tryStatement = new ClassFileTryStatement(tryBody, catchClauses, null, false);
         Statements elseBody = new Statements();
         elseBody.add(tryStatement);
         Statement ifElse = new IfElseStatement(otherRef(), new Statements(), elseBody);
@@ -360,7 +360,7 @@ public class FixVisitorsAstTest extends TestCase {
         catchClauses.add(new ClassFileTryStatement.CatchClause(1, ObjectType.TYPE_EXCEPTION, other, catchBody));
         Statements tryBody = new Statements();
         tryBody.add(new ExpressionStatement(invocation(nodeRef(), null)));
-        return new ClassFileTryStatement(tryBody, catchClauses, null, false, false);
+        return new ClassFileTryStatement(tryBody, catchClauses, null, false);
     }
 
     private static Statements listOf(Statement... statements) {
@@ -414,7 +414,7 @@ public class FixVisitorsAstTest extends TestCase {
         Statements finallyBody = listOf(new ExpressionStatement(invocation(otherRef(), null)));
         DefaultList<TryStatement.CatchClause> catchClauses = new DefaultList<>();
         catchClauses.add(new ClassFileTryStatement.CatchClause(1, ObjectType.TYPE_EXCEPTION, other, listOf(deep)));
-        Statement tryStatement = new ClassFileTryStatement(listOf(nodeDeref()), catchClauses, finallyBody, false, false);
+        Statement tryStatement = new ClassFileTryStatement(listOf(nodeDeref()), catchClauses, finallyBody, false);
         Statements list = listOf(new WhileStatement(BooleanExpression.TRUE, listOf(tryStatement)), new ThrowStatement(caughtRef()));
 
         list.accept(new FixHoistedCatchThrowVisitor());

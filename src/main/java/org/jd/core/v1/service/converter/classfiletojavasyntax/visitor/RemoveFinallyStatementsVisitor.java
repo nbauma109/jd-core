@@ -124,11 +124,6 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             // Recursive visit
             while (i-- > 0) {
                 stmts.get(i).accept(this);
-
-                if (statementCountToRemove > 0 && i + statementCountToRemove < statements.size()) {
-                    statements.subList(i + 1, i + 1 + statementCountToRemove).clear();
-                    statementCountToRemove = 0;
-                }
             }
 
             statementCountToRemove = oldStatementCountToRemove;

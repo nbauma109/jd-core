@@ -810,7 +810,7 @@ public class StatementMaker {
                 }
             }
             if (statement == null) {
-                statement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr, eclipse);
+                statement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr);
             } else {
                 mergeTryWithResourcesStatementFlag = true;
             }

@@ -79,8 +79,9 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             if (shared == null) {
                 return true;
             }
-            // Rebuilding without changing forcedOffsets would reproduce the same residual merge forever.
-            return false;
+            if (!forcedOffsets.add(shared.getFromOffset())) {
+                return false;
+            }
         }
 
     }

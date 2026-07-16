@@ -39,7 +39,6 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariabl
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.FixHoistedCatchThrowVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.FixMissingNullGuardVisitor;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RemoveFinallyStatementsVisitor;
 import org.jd.core.v1.util.DefaultList;
 import org.junit.Test;
 
@@ -227,7 +226,7 @@ public class FixVisitorsAstTest extends TestCase {
         catchClauses.add(new ClassFileTryStatement.CatchClause(1, ObjectType.TYPE_EXCEPTION, other, catchBody));
         Statements tryBody = new Statements();
         tryBody.add(new ExpressionStatement(invocation(otherRef(), null)));
-        Statement tryStatement = new ClassFileTryStatement(tryBody, catchClauses, null, false, false);
+        Statement tryStatement = new ClassFileTryStatement(tryBody, catchClauses, null, false);
         Statements elseBody = new Statements();
         elseBody.add(tryStatement);
         Statement ifElse = new IfElseStatement(otherRef(), new Statements(), elseBody);
@@ -346,39 +345,6 @@ public class FixVisitorsAstTest extends TestCase {
         assertEquals(2, size(branch3.getStatements()));
     }
 
-    // --- RemoveFinallyStatementsVisitor ---
-
-    private Statements tryFinallyWithFollowingCopy(boolean eclipse) {
-        Statements tryBody = listOf(nodeDeref(), new ExpressionStatement(invocation(otherRef(), null)));
-        Statements finallyBody = listOf(new ExpressionStatement(invocation(otherRef(), null)));
-        Statement tryStatement = new ClassFileTryStatement(tryBody, null, finallyBody, false, eclipse);
-        return listOf(tryStatement, new ExpressionStatement(invocation(otherRef(), null)));
-    }
-
-    @Test
-    public void testEcjFinallyRemovesFollowingNormalPathCopy() {
-        Statements statements = tryFinallyWithFollowingCopy(true);
-        RemoveFinallyStatementsVisitor visitor = new RemoveFinallyStatementsVisitor();
-
-        visitor.init();
-        statements.accept(visitor);
-
-        assertEquals(1, statements.size());
-        assertEquals(1, size(statements.getFirst().getTryStatements()));
-    }
-
-    @Test
-    public void testNonEcjFinallyKeepsFollowingStatement() {
-        Statements statements = tryFinallyWithFollowingCopy(false);
-        RemoveFinallyStatementsVisitor visitor = new RemoveFinallyStatementsVisitor();
-
-        visitor.init();
-        statements.accept(visitor);
-
-        assertEquals(2, statements.size());
-        assertEquals(1, size(statements.getFirst().getTryStatements()));
-    }
-
     // --- FixHoistedCatchThrowVisitor ---
 
     private Expression caughtRef() {
@@ -394,7 +360,7 @@ public class FixVisitorsAstTest extends TestCase {
         catchClauses.add(new ClassFileTryStatement.CatchClause(1, ObjectType.TYPE_EXCEPTION, other, catchBody));
         Statements tryBody = new Statements();
         tryBody.add(new ExpressionStatement(invocation(nodeRef(), null)));
-        return new ClassFileTryStatement(tryBody, catchClauses, null, false, false);
+        return new ClassFileTryStatement(tryBody, catchClauses, null, false);
     }
 
     private static Statements listOf(Statement... statements) {
@@ -448,7 +414,7 @@ public class FixVisitorsAstTest extends TestCase {
         Statements finallyBody = listOf(new ExpressionStatement(invocation(otherRef(), null)));
         DefaultList<TryStatement.CatchClause> catchClauses = new DefaultList<>();
         catchClauses.add(new ClassFileTryStatement.CatchClause(1, ObjectType.TYPE_EXCEPTION, other, listOf(deep)));
-        Statement tryStatement = new ClassFileTryStatement(listOf(nodeDeref()), catchClauses, finallyBody, false, false);
+        Statement tryStatement = new ClassFileTryStatement(listOf(nodeDeref()), catchClauses, finallyBody, false);
         Statements list = listOf(new WhileStatement(BooleanExpression.TRUE, listOf(tryStatement)), new ThrowStatement(caughtRef()));
 
         list.accept(new FixHoistedCatchThrowVisitor());

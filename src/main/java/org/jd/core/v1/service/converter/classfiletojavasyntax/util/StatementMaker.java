@@ -73,12 +73,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.function.Predicate;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.apache.bcel.Const.ASTORE;
@@ -170,7 +168,6 @@ public class StatementMaker {
      * a jump by its target offset, rather than by a line number several statements could share.
      */
     private final Map<Integer, Statement> labeledMergeTargets = new HashMap<>();
-    private final Set<Integer> unresolvedLabelTargets = new HashSet<>();
 
     public StatementMaker(TypeMaker typeMaker, LocalVariableMaker localVariableMaker, ClassFileConstructorOrMethodDeclaration comd) {
         ClassFile classFile = comd.getClassFile();
@@ -189,7 +186,6 @@ public class StatementMaker {
 
     public Statements make(ControlFlowGraph cfg, Statements statements) {
         labeledMergeTargets.clear();
-        unresolvedLabelTargets.clear();
 
         Statements jumps = new Statements();
         WatchDog watchdog = new WatchDog();
@@ -1385,7 +1381,6 @@ public class StatementMaker {
 
         for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : targets) {
             if (!resolveOneOffset(statements, jumps, entry)) {
-                unresolvedLabelTargets.add(entry.getKey());
                 useThrowFallback(entry.getValue());
             }
         }
@@ -1395,10 +1390,6 @@ public class StatementMaker {
         for (ClassFileBreakContinueStatement jump : jumps) {
             jump.setStatement(new ThrowStatement(new NullExpression(ObjectType.TYPE_THROWABLE)));
         }
-    }
-
-    public Set<Integer> getUnresolvedLabelTargets() {
-        return unresolvedLabelTargets;
     }
 
     private boolean resolveOneOffset(Statements statements, Statements jumps, Entry<Integer, List<ClassFileBreakContinueStatement>> entry) {
@@ -1441,7 +1432,7 @@ public class StatementMaker {
      * {@link LabelStatement} wrapping them, leaving the target and anything after it unwrapped, continuing
      * immediately after the label's closing brace exactly as forward control flow requires.</p>
      */
-    private boolean wrapCommonScopeWithLabel(Statements root, List<ClassFileBreakContinueStatement> breakSites, Statement target, String label) {
+    private static boolean wrapCommonScopeWithLabel(Statements root, List<ClassFileBreakContinueStatement> breakSites, Statement target, String label) {
         List<PathStep> targetPath = findPath(root, s -> s == target, new ArrayList<>());
 
         if (Utils.isEmptyCollection(targetPath)) {

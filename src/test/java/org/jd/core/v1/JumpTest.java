@@ -68,7 +68,7 @@ public class JumpTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(":  0 */   ")));
             assertTrue(source.matches(PatternMaker.make(":  0 */   public static boolean computeFlag3(String paramObj1, Object paramObj2) {")));
             assertTrue(source.matches(PatternMaker.make(":  0 */     boolean flag;")));
-            assertTrue(source.matches(PatternMaker.make(": 64 */     if (paramObj1 == null || Objects.isNull(paramObj2)) {")));
+            assertTrue(source.matches(PatternMaker.make(": 64 */     labelMerge140: if (paramObj1 == null || Objects.isNull(paramObj2)) {")));
             assertTrue(source.matches(PatternMaker.make(": 65 */       flag = false;")));
             assertTrue(source.matches(PatternMaker.make(": 66 */     } else if (paramObj2.equals(paramObj1.toString())) {")));
             assertTrue(source.matches(PatternMaker.make(": 67 */       flag = true;")));
@@ -80,7 +80,7 @@ public class JumpTest extends AbstractJdTest {
             assertTrue(source.matches(PatternMaker.make(": 74 */           for (String string : elem.toString().split(\"\")) {")));
             assertTrue(source.matches(PatternMaker.make(": 75 */             if (computeFlag(String.valueOf(string), paramObj2)) {")));
             assertTrue(source.matches(PatternMaker.make(": 76 */               flag = true;")));
-            assertTrue(source.matches(PatternMaker.make(":  0 */               // goto line number 84")));
+            assertTrue(source.matches(PatternMaker.make(":  0 */               break labelMerge140;")));
             assertTrue(source.matches(PatternMaker.make(":  0 */             } ")));
             assertTrue(source.matches(PatternMaker.make(":  0 */           }  ")));
             assertTrue(source.matches(PatternMaker.make(":  0 */       } ")));

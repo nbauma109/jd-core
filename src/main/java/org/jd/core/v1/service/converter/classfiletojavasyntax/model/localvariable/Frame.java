@@ -67,6 +67,9 @@ import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_FLOAT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_INT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_LONG;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_SHORT;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_BOOLEAN_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_CHAR;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_INT;
 
 public class Frame {
@@ -138,6 +141,15 @@ public class Frame {
             alvToMerge = null;
         }
 
+        if (alvToMerge != null && isDisjointCharBooleanReuse(lv, alvToMerge)) {
+            // char and boolean share the JVM's integer local-slot category, but they can never denote one
+            // Java source variable. Keep disjoint live ranges separate when a compiler reuses the same slot
+            // (Joda-Time's TimeZoneOffset#parseInto uses slot 5 first for a look-ahead char, then for the
+            // negative flag). MAYBE_BOOLEAN_TYPE is included because constants 0/1 have not yet been narrowed
+            // when frames are merged.
+            alvToMerge = null;
+        }
+
         if (alvToMerge != null
                 && (!lv.isAssignableFrom(typeBounds, alvToMerge) && !alvToMerge.isAssignableFrom(typeBounds, lv)
                         || lv.getName() != null && alvToMerge.getName() != null
@@ -201,6 +213,16 @@ public class Frame {
 
             localVariableArray[index] = alvToMerge.getNext();
         }
+    }
+
+    private static boolean isDisjointCharBooleanReuse(AbstractLocalVariable first, AbstractLocalVariable second) {
+        Type firstType = first.getType();
+        Type secondType = second.getType();
+        boolean incompatibleKinds = firstType == TYPE_CHAR && (secondType == TYPE_BOOLEAN || secondType == MAYBE_BOOLEAN_TYPE)
+                || secondType == TYPE_CHAR && (firstType == TYPE_BOOLEAN || firstType == MAYBE_BOOLEAN_TYPE);
+        boolean disjointRanges = first.getToOffset() + 1 < second.getFromOffset()
+                || second.getToOffset() + 1 < first.getFromOffset();
+        return incompatibleKinds && disjointRanges;
     }
 
     public void removeLocalVariable(AbstractLocalVariable lv) {

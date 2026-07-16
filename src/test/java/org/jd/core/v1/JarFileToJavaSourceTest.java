@@ -98,11 +98,24 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", "2.5.1", false);
     }
 
-//    TODO: in progress
-//    @Test
-//    public void testJodaTime() throws Exception {
-//        test(org.joda.time.DateTime.class);
-//    }
+    @Test
+    public void testJodaTime() throws Exception {
+        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.2");
+
+        String source = Files.readString(Paths.get(
+                "target/joda-time/joda-time-2.14.2/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
+        int classStart = source.indexOf("static class TimeZoneOffset");
+        int methodStart = source.indexOf("public int parseInto(", classStart);
+        int methodEnd = source.indexOf("private int digitCount(", methodStart);
+        Matcher labels = Pattern.compile("\\blabelMerge\\d+\\s*:").matcher(source.substring(methodStart, methodEnd));
+        int labelCount = 0;
+
+        while (labels.find()) {
+            labelCount++;
+        }
+
+        assertEquals(1, labelCount);
+    }
 
     @Test
     public void testJSoup() throws Exception {
@@ -176,16 +189,19 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             // Prepare URL of the .zip file for the tag
             String repoZipURL = repo + "/archive/refs/tags/" + tag + ".zip";
 
-            // Directory where the project files are extracted
-            projectDir = new File(repoDir, repoName + "-" + tag.replace("/", "-"));
-
-            // Download and extract .zip file for the tag
+            // Download and extract .zip file for the tag. The root folder name inside the archive is derived
+            // from the first entry rather than guessed as "repoName-tag": GitHub strips a leading 'v' from
+            // the tag for the folder name when the tag looks like a bare version (e.g. joda-time's "v2.14.2"
+            // tag extracts to "joda-time-2.14.2", not "joda-time-v2.14.2").
             try (InputStream in = new URL(repoZipURL).openStream();
                  ZipInputStream zin = new ZipInputStream(in)) {
 
                 ZipEntry entry;
                 while ((entry = zin.getNextEntry()) != null) {
                     File file = new File(repoDir, entry.getName());
+                    if (projectDir == null) {
+                        projectDir = new File(repoDir, entry.getName().split("/")[0]);
+                    }
                     if (entry.isDirectory()) {
                         file.mkdirs();
                     } else {
@@ -300,6 +316,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             if (projectDir != null && runUnitTests) {
                 // Disable OSGi bundle manifest generation to avoid build failures in some parent POMs.
                 disableBundlePlugin(Paths.get(projectDir.getPath(), "pom.xml"));
+                // Some older POMs (e.g. joda-time) still target a pre-8 source/target release that modern
+                // javac refuses outright ("Source option 5 is no longer supported"); bump those up to 8,
+                // which every such library's own pre-8 syntax already compiles under unchanged.
+                raiseObsoleteCompilerLevel(Paths.get(projectDir.getPath(), "pom.xml"));
 
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
@@ -382,6 +402,22 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             }
         } catch (IOException e) {
             outputForwardError.compareAndSet(null, e);
+        }
+    }
+
+    private static final Pattern OBSOLETE_COMPILER_LEVEL =
+            Pattern.compile("(?<open><maven\\.compiler\\.(?:source|target|compilerVersion|release)>)\\s*(?:1\\.[0-7]|[0-7])\\s*(?<close></maven\\.compiler\\.(?:source|target|compilerVersion|release)>)");
+
+    private static void raiseObsoleteCompilerLevel(Path pomPath) throws IOException {
+        if (!Files.exists(pomPath)) {
+            return;
+        }
+
+        String pom = Files.readString(pomPath);
+        String patched = OBSOLETE_COMPILER_LEVEL.matcher(pom).replaceAll("${open}8${close}");
+
+        if (!patched.equals(pom)) {
+            Files.writeString(pomPath, patched);
         }
     }
 

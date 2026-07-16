@@ -1097,7 +1097,7 @@ public final class TryWithResourcesStatementMaker {
             resources.add(new TryStatement.Resource(resourceLocalVariable.getType(), resourceLocalVariable.getName(), resourceExpression));
         }
 
-        return new ClassFileTryStatement(resources, tryStatements, null, finallyStatements, false, false);
+        return new ClassFileTryStatement(resources, tryStatements, null, finallyStatements, false);
     }
 
     private static Expression alignResourceExpressionLineNumber(
@@ -1406,7 +1406,7 @@ public final class TryWithResourcesStatementMaker {
         removeLeadingNullAssignmentsForUnreferencedLocals(
                 localVariableMaker, statements, bodyStatements, finallyStatements);
 
-        return new ClassFileTryStatement(resources, bodyStatements, null, finallyStatements, false, false);
+        return new ClassFileTryStatement(resources, bodyStatements, null, finallyStatements, false);
     }
 
     private static void removeCatchClauseLocalVariables(

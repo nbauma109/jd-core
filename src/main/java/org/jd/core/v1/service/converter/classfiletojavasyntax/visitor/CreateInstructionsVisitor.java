@@ -30,9 +30,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.StatementMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
-
 import java.util.List;
-
 import static org.apache.bcel.Const.ACC_ABSTRACT;
 import static org.apache.bcel.Const.ACC_BRIDGE;
 import static org.apache.bcel.Const.ACC_PUBLIC;
@@ -119,6 +117,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                         } else {
                             comd.setStatements(statementMaker.make(controlFlowGraphReducer.getControlFlowGraph(), new Statements()));
                         }
+
                         reduced = true;
                         break;
                     }

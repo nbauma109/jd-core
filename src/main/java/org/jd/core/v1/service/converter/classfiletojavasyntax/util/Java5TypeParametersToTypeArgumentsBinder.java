@@ -925,7 +925,12 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         if (!type.isGenericType()) {
             type = expression.getType();
         }
-        expression.getExpression().accept(this);
+        // The cast target, not its operand, satisfies the surrounding contextual type. Propagating that
+        // type through an explicit cast can incorrectly narrow an Object local before an instanceof guard,
+        // moving a later bytecode CHECKCAST earlier and changing runtime behavior.
+        if (!expression.isExplicit() || !expression.getExpression().isLocalVariableReferenceExpression()) {
+            expression.getExpression().accept(this);
+        }
     }
 
     @Override

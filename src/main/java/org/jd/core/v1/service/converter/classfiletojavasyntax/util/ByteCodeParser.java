@@ -842,7 +842,7 @@ public class ByteCodeParser {
                                 }
                             } else {
                                 expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                    lineNumber, getMethodInstanceReference(expression1, ot,  name, descriptor), ot,  name, descriptor, methodTypes, parameters);
+                                    lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters);
                                 typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                                 statements.add(new ExpressionStatement(expression1));
                             }
@@ -855,7 +855,7 @@ public class ByteCodeParser {
                                 }
                             }
                             stack.push(typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                lineNumber, getMethodInstanceReference(expression1, ot,  name, descriptor), ot, name, descriptor, methodTypes, parameters));
+                                lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters));
                         }
                     }
                     break;
@@ -2124,6 +2124,13 @@ public class ByteCodeParser {
 
             switch (pt.getJavaPrimitiveFlags()) {
                 case FLAG_BOOLEAN:
+                    if (expression instanceof ClassFileLocalVariableReferenceExpression reference) {
+                        // A value emitted directly as an if-condition is definitively boolean. Constants 0/1
+                        // initially create a MAYBE_BOOLEAN local; without this constraint it can survive as
+                        // int (or be merged with an earlier char occupying the same JVM slot), yielding Java
+                        // such as "int flag; if (flag)".
+                        reference.getLocalVariable().typeOnRight(typeBounds, TYPE_BOOLEAN);
+                    }
                     if (basicBlock.mustInverseCondition() ^ "==".equals(operator1)) {
                         stack.push(expression);
                     } else {
@@ -2490,7 +2497,7 @@ public class ByteCodeParser {
     /**
      * @return expression, 'this' or 'super'
      */
-    private Expression getMethodInstanceReference(Expression expression, ObjectType ot, String name, String descriptor) {
+    private Expression getMethodInstanceReference(Expression expression, ObjectType ot, String name, String descriptor, boolean specialInvocation) {
         if (bodyDeclaration.getMethodDeclarations() != null && expression.isThisExpression()) {
             String internalName = expression.getType().getInternalName();
 
@@ -2508,19 +2515,24 @@ public class ByteCodeParser {
                     }
                 }
 
-                // An overload with the same name in this class would capture the call: keep 'super.'
-                memberVisitor.init(name, null);
+                // An overload with the same name in this class can obscure the intended inherited call.
+                // Object.toString() is the exception: it is virtual and frequently used deliberately so an
+                // overriding implementation on the runtime type is dispatched (e.g. AbstractPartial).
+                if (specialInvocation || !(TYPE_OBJECT.rawEquals(ot) && "toString".equals(name) && "()Ljava/lang/String;".equals(descriptor))) {
+                    memberVisitor.init(name, null);
 
-                for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {
-                    member.accept(memberVisitor);
-                    if (memberVisitor.found()) {
-                        String[] interfaceTypeNames = member.getClassFile().getInterfaceTypeNames();
-                        if (Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
-                            return new QualifiedSuperExpression(expression.getLineNumber(), ot);
+                    for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {
+                        member.accept(memberVisitor);
+                        if (memberVisitor.found()) {
+                            String[] interfaceTypeNames = member.getClassFile().getInterfaceTypeNames();
+                            if (Arrays.asList(interfaceTypeNames).contains(ot.getInternalName())) {
+                                return new QualifiedSuperExpression(expression.getLineNumber(), ot);
+                            }
+                            return new SuperExpression(expression.getLineNumber(), expression.getType());
                         }
-                        return new SuperExpression(expression.getLineNumber(), expression.getType());
                     }
                 }
+
             }
         }
 

@@ -101,6 +101,20 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     @Test
     public void testJodaTime() throws Exception {
         test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.2");
+
+        String source = Files.readString(Paths.get(
+                "target/joda-time/joda-time-2.14.2/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
+        int classStart = source.indexOf("static class TimeZoneOffset");
+        int methodStart = source.indexOf("public int parseInto(", classStart);
+        int methodEnd = source.indexOf("private int digitCount(", methodStart);
+        Matcher labels = Pattern.compile("\\blabelMerge\\d+\\s*:").matcher(source.substring(methodStart, methodEnd));
+        int labelCount = 0;
+
+        while (labels.find()) {
+            labelCount++;
+        }
+
+        assertEquals(1, labelCount);
     }
 
     @Test

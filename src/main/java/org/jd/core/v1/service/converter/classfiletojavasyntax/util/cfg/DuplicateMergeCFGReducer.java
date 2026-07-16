@@ -30,17 +30,15 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  * tail with more than one predecessor, which every construction heuristic in the base class requires
  * exactly one of, so those reducers report the method unreducible rather than risk a wrong guess.
  *
- * <p>Before construction is attempted at all, a pre-pass walks the whole graph and gives every merge point
- * with more than one predecessor a single real predecessor, exactly mirroring what the original source did:
- * a labeled block whose content is rendered once, with every other 'break label;' site jumping to it.
- * Statement-shaped merges ({@code TYPE_STATEMENTS}) route every extra predecessor through a one-off
- * jump stub (the same mechanism jd-core already uses for loop-exit gotos, see
- * {@code ControlFlowGraphReducer#changeEndLoopToJump}), and {@code StatementMaker} later wraps the merge
- * content in a synthetic label and turns those stubs into {@code break label;} (see
- * {@code StatementMaker#resolveRemainingJumpsWithLabels}). Value-computing merges
- * ({@code TYPE_TERNARY_OPERATOR}) use the same mechanism. Terminal shapes ({@code TYPE_RETURN},
- * {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are duplicated too, same as before, since they have no
- * meaningful continuation to route through a label in the first place.</p>
+ * <p>When the raw graph contains a conditional merge with more than two incoming edges, ordinary statement
+ * merges are left alone on the first construction attempt: they are usually intermediate joins on the way to
+ * that one high-fan-in tail, and splitting all of them creates redundant nested labels. If construction then
+ * reaches a genuinely unreducible shared successor, the reducer records that exact offset, rebuilds the graph,
+ * and detaches only that merge on the next attempt. Methods without this shape retain the established broad
+ * pre-split behavior. Statement/value continuations use a one-off jump stub (the same mechanism jd-core already
+ * uses for loop-exit gotos), and {@code StatementMaker} later renders the once-only continuation inside one
+ * synthetic label. Terminal shapes ({@code TYPE_RETURN}, {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are
+ * duplicated because they have no continuation to label.</p>
  *
  * <p>A single upfront pass cannot always predict every merge, though: construction can itself aggregate
  * several predecessors' worth of code into a single bigger construct, which can leave some other node
@@ -56,9 +54,10 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  */
 public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
-    private static final int DUPLICABLE_TYPES = TYPE_STATEMENTS | TYPE_RETURN | TYPE_RETURN_VALUE | TYPE_THROW | TYPE_TERNARY_OPERATOR;
+    private static final int AUTOMATIC_SPLIT_TYPES = TYPE_RETURN | TYPE_RETURN_VALUE | TYPE_THROW | TYPE_TERNARY_OPERATOR;
 
     private final Set<Integer> forcedDuplicateOffsets = new HashSet<>();
+    private final Set<Integer> unreducibleOffsets = new HashSet<>();
 
     public boolean addForcedDuplicateOffsets(Set<Integer> offsets) {
         return forcedDuplicateOffsets.addAll(offsets);
@@ -72,14 +71,18 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             rebuildControlFlowGraph(method);
 
             ControlFlowGraph cfg = getControlFlowGraph();
-
-            splitMultiPredecessorMerges(cfg, forcedOffsets);
+            boolean deferStatementMerges = hasHighFanInConditionalMerge(cfg);
+            splitMultiPredecessorMerges(cfg, forcedOffsets, deferStatementMerges);
 
             BasicBlock start = cfg.getStart();
             BitSet jsrTargets = new BitSet();
             BitSet visited = new BitSet(cfg.getBasicBlocks().size());
 
+            unreducibleOffsets.clear();
             if (!reduce(visited, start, jsrTargets)) {
+                if (deferStatementMerges && forcedOffsets.addAll(unreducibleOffsets)) {
+                    continue;
+                }
                 return false;
             }
 
@@ -99,22 +102,28 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
     }
 
     /**
-     * Repeatedly scans the graph for merge points with more than one predecessor - either a duplicable-type
-     * node found that way naturally, or any node at an offset a previous rebuild attempt found still shared
-     * after construction - and gives every predecessor but the first its own private edge, until none remain.
-     * The original block list is sufficient because detached value flows are cloned as a unit and statement
-     * continuations are represented by private jump blocks.
+     * Splits value/terminal merges plus the exact offsets identified by a failed or residual construction.
+     * For a high-fan-in conditional tail, ordinary statement merges are deferred until construction proves
+     * one is unreducible; other methods keep the prior statement pre-splitting behavior.
      */
-    private void splitMultiPredecessorMerges(ControlFlowGraph cfg, Set<Integer> forcedOffsets) {
+    private static boolean hasHighFanInConditionalMerge(ControlFlowGraph cfg) {
+        return cfg.getBasicBlocks().stream()
+                .anyMatch(basicBlock -> basicBlock.matchType(TYPE_CONDITIONAL_BRANCH)
+                        && basicBlock.getPredecessors().size() > 2);
+    }
+
+    private void splitMultiPredecessorMerges(
+            ControlFlowGraph cfg, Set<Integer> forcedOffsets, boolean deferStatementMerges) {
         for (BasicBlock target : new ArrayList<>(cfg.getBasicBlocks())) {
-            boolean matchesNaturally = target.matchType(DUPLICABLE_TYPES);
+            boolean matchesNaturally = target.matchType(AUTOMATIC_SPLIT_TYPES)
+                    || (!deferStatementMerges && target.matchType(TYPE_STATEMENTS));
             boolean forced = forcedOffsets.contains(target.getFromOffset());
 
             if ((!matchesNaturally && !forced) || target.getPredecessors().size() <= 1) {
                 continue;
             }
 
-            boolean forceDuplicate = forcedDuplicateOffsets.contains(target.getFromOffset());
+            boolean duplicateEveryPredecessor = forcedDuplicateOffsets.contains(target.getFromOffset());
 
             if (forced && target.matchType(TYPE_CONDITIONAL_BRANCH)) {
                 while (aggregateConditionalBranches(target)) {
@@ -126,11 +135,11 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             }
 
             List<BasicBlock> predecessors = new ArrayList<>(target.getPredecessors());
-            int startIndex = forceDuplicate ? 0 : 1;
+            int startIndex = duplicateEveryPredecessor ? 0 : 1;
 
             for (int i = startIndex; i < predecessors.size(); i++) {
                 BasicBlock predecessor = predecessors.get(i);
-                predecessor.replace(target, detachOneEdge(predecessor, target, forceDuplicate));
+                predecessor.replace(target, detachOneEdge(predecessor, target, duplicateEveryPredecessor));
             }
         }
     }
@@ -161,6 +170,17 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             return predecessor.getControlFlowGraph().newJumpBasicBlock(predecessor, target);
         }
         return duplicateForSinglePredecessor(predecessor, target);
+    }
+
+    @Override
+    protected boolean reduceUnreducibleMerge(BasicBlock basicBlock, BasicBlock next, BasicBlock branch) {
+        if (next.getPredecessors().size() > 1) {
+            unreducibleOffsets.add(next.getFromOffset());
+        }
+        if (branch.getPredecessors().size() > 1) {
+            unreducibleOffsets.add(branch.getFromOffset());
+        }
+        return false;
     }
 
     @Override

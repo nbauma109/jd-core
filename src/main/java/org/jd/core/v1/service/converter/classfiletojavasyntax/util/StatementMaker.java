@@ -74,7 +74,6 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -228,10 +227,6 @@ public class StatementMaker {
 
         if (!breakToReturn && !jumps.isEmpty()) {
             resolveRemainingJumpsWithLabels(statements, jumps);
-        }
-
-        if (!breakToReturn && !jumps.isEmpty()) {
-            updateJumpStatements(jumps, cfg);
         }
 
         return statements;
@@ -1363,8 +1358,7 @@ public class StatementMaker {
      * the offset identifies the exact basic block, and {@link #labeledMergeTargets} was captured against that
      * same offset while rendering, see {@code makeStatements}) and wrap the smallest enclosing scope that
      * contains every one of them (see {@link #wrapCommonScopeWithLabel}) in a synthetic {@link LabelStatement},
-     * then turn each jump into a {@code break} to that label. Anything left unclaimed falls through to
-     * {@link #updateJumpStatements}'s "goto" comment, same as before this method existed.
+     * then turn each jump into a {@code break} to that label.
      */
     protected void resolveRemainingJumpsWithLabels(Statements statements, Statements jumps) {
         Map<Integer, List<ClassFileBreakContinueStatement>> jumpsByTargetOffset = new LinkedHashMap<>();
@@ -1379,11 +1373,6 @@ public class StatementMaker {
             jumpsByTargetOffset.computeIfAbsent(statement.getTargetOffset(), k -> new ArrayList<>()).add(statement);
         }
 
-        // Two passes: relocating a target past a conflicting break site (see pushTargetPastConflicts) mutates
-        // the shared tree at the same textual region other, still-pending offsets may depend on for their own
-        // placement - resolving those first, while nothing has been relocated yet, avoids that disruption.
-        // Only offsets hoisting alone cannot place are deferred to the second pass, once the tree has settled.
-        List<Entry<Integer, List<ClassFileBreakContinueStatement>>> deferred = new ArrayList<>();
         List<Entry<Integer, List<ClassFileBreakContinueStatement>>> targets = new ArrayList<>(jumpsByTargetOffset.entrySet());
 
         // Establish inner merge points before their enclosing, later continuation. Rendering order can put
@@ -1392,13 +1381,7 @@ public class StatementMaker {
         targets.sort(Entry.comparingByKey());
 
         for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : targets) {
-            if (!resolveOneOffset(statements, jumps, entry, false)) {
-                deferred.add(entry);
-            }
-        }
-
-        for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : deferred) {
-            if (!resolveOneOffset(statements, jumps, entry, true)) {
+            if (!resolveOneOffset(statements, jumps, entry)) {
                 unresolvedLabelTargets.add(entry.getKey());
             }
         }
@@ -1408,7 +1391,7 @@ public class StatementMaker {
         return unresolvedLabelTargets;
     }
 
-    private boolean resolveOneOffset(Statements statements, Statements jumps, Entry<Integer, List<ClassFileBreakContinueStatement>> entry, boolean allowPush) {
+    private boolean resolveOneOffset(Statements statements, Statements jumps, Entry<Integer, List<ClassFileBreakContinueStatement>> entry) {
         Statement target = labeledMergeTargets.get(entry.getKey());
 
         if (target == null) {
@@ -1417,7 +1400,7 @@ public class StatementMaker {
 
         String label = "labelMerge" + entry.getKey();
 
-        if (!wrapCommonScopeWithLabel(statements, entry.getValue(), target, label, allowPush)) {
+        if (!wrapCommonScopeWithLabel(statements, entry.getValue(), target, label)) {
             return false;
         }
 
@@ -1448,161 +1431,51 @@ public class StatementMaker {
      * {@link LabelStatement} wrapping them, leaving the target and anything after it unwrapped, continuing
      * immediately after the label's closing brace exactly as forward control flow requires.</p>
      */
-    private static final int MAX_TARGET_HOISTS = 32;
+    private boolean wrapCommonScopeWithLabel(Statements root, List<ClassFileBreakContinueStatement> breakSites, Statement target, String label) {
+        List<PathStep> targetPath = findPath(root, s -> s == target, new ArrayList<>());
 
-    private boolean wrapCommonScopeWithLabel(Statements root, List<ClassFileBreakContinueStatement> breakSites, Statement target, String label, boolean allowPush) {
-        for (int hoists = 0; hoists <= MAX_TARGET_HOISTS; hoists++) {
-            List<PathStep> targetPath = findPath(root, s -> s == target, new ArrayList<>());
+        if (targetPath == null || targetPath.isEmpty()) {
+            return false;
+        }
 
-            if (targetPath == null || targetPath.isEmpty()) {
+        List<List<PathStep>> breakPaths = new ArrayList<>();
+
+        for (ClassFileBreakContinueStatement breakSite : breakSites) {
+            List<PathStep> breakPath = findPath(root, s -> s == breakSite, new ArrayList<>());
+
+            if (breakPath == null) {
                 return false;
             }
+            breakPaths.add(breakPath);
+        }
 
-            List<List<PathStep>> breakPaths = new ArrayList<>();
+        for (int depth = targetPath.size() - 1; depth >= 0; depth--) {
+            Statements candidateList = targetPath.get(depth).list();
+            int targetIndex = targetPath.get(depth).index();
 
-            for (ClassFileBreakContinueStatement breakSite : breakSites) {
-                List<PathStep> breakPath = findPath(root, s -> s == breakSite, new ArrayList<>());
-
-                if (breakPath == null) {
-                    return false;
-                }
-                breakPaths.add(breakPath);
+            if (targetIndex == 0) {
+                continue;
             }
 
-            // Try the tightest possible scope first (deepest shared list), and only widen (walk up toward
-            // root) if some break site does not actually precede the target there: a break site nested inside
-            // a branch that construction ended up placing textually *after* the target's own branch, at this
-            // same shared-list level, cannot be satisfied by any label at this level - break/continue can only
-            // jump forward to just past an enclosing statement, never sideways-then-backward - so a shallower
-            // (larger) scope must be tried, exactly as if this depth simply weren't a valid common ancestor.
-            boolean placed = false;
+            boolean allPrecedeTarget = true;
 
-            for (int depth = targetPath.size() - 1; depth >= 0; depth--) {
-                Statements candidateList = targetPath.get(depth).list();
-                int targetIndex = targetPath.get(depth).index();
-
-                if (targetIndex == 0) {
-                    continue;
-                }
-
-                boolean allPrecedeTarget = true;
-
-                for (List<PathStep> breakPath : breakPaths) {
-                    if (depth >= breakPath.size() || breakPath.get(depth).list() != candidateList || breakPath.get(depth).index() >= targetIndex) {
-                        allPrecedeTarget = false;
-                        break;
-                    }
-                }
-
-                if (allPrecedeTarget) {
-                    List<Statement> prefix = new ArrayList<>(candidateList.subList(0, targetIndex));
-                    candidateList.subList(0, targetIndex).clear();
-                    BaseStatement labelBody = prefix.size() == 1 ? prefix.get(0) : new Statements(prefix);
-                    candidateList.add(0, new LabelStatement(label, labelBody));
-                    placed = true;
+            for (List<PathStep> breakPath : breakPaths) {
+                if (depth >= breakPath.size() || breakPath.get(depth).list() != candidateList || breakPath.get(depth).index() >= targetIndex) {
+                    allPrecedeTarget = false;
                     break;
                 }
             }
 
-            if (placed) {
+            if (allPrecedeTarget) {
+                List<Statement> prefix = new ArrayList<>(candidateList.subList(0, targetIndex));
+                candidateList.subList(0, targetIndex).clear();
+                BaseStatement labelBody = prefix.size() == 1 ? prefix.get(0) : new Statements(prefix);
+                candidateList.add(0, new LabelStatement(label, labelBody));
                 return true;
-            }
-
-            if (!hoistTargetOutOfBranch(targetPath, target) && !(allowPush && pushTargetPastConflicts(targetPath, breakPaths))) {
-                return false;
             }
         }
 
         return false;
-    }
-
-    /**
-     * Reached only when {@code target} is already at the outermost (method-body) list and still fails: some
-     * break site's own top-level ancestor sits *after* target there. Construction placed target where one
-     * particular predecessor's own bytecode happened to lead - typically the first of several validation
-     * checks that can all skip straight to this same shared tail - rather than after every check that can
-     * reach it, which is where every predecessor (including the later checks' own break sites) actually needs
-     * it to sit: real decompilers (verified against Vineflower's output for this exact method) place this kind
-     * of shared tail as the very last thing in the method, after one label wrapping everything else, not
-     * nested partway through it. Moving target (and its own immediate continuation, up to the first
-     * terminal statement - anything past that cannot belong to the same execution path) to just after the
-     * last conflicting break site's top-level position achieves the same result without needing to know in
-     * advance which predecessor that should have been.
-     */
-    private boolean pushTargetPastConflicts(List<PathStep> targetPath, List<List<PathStep>> breakPaths) {
-        if (targetPath.size() != 1) {
-            // Target is nested inside some branch hoistTargetOutOfBranch declined to hoist out of (e.g. a
-            // 'try'): relocating its *enclosing* construct's tail here would move code no one asked to move,
-            // so only handle the case where target itself already sits directly in the root list.
-            return false;
-        }
-
-        PathStep rootStep = targetPath.get(0);
-        Statements rootList = rootStep.list();
-        int targetIndex = rootStep.index();
-        int maxConflictIndex = -1;
-
-        for (List<PathStep> breakPath : breakPaths) {
-            if (!breakPath.isEmpty() && breakPath.get(0).list() == rootList && breakPath.get(0).index() > maxConflictIndex) {
-                maxConflictIndex = breakPath.get(0).index();
-            }
-        }
-
-        if (maxConflictIndex < targetIndex) {
-            return false;
-        }
-
-        int tailEnd = targetIndex + 1;
-
-        while (tailEnd < rootList.size()) {
-            Statement previous = rootList.get(tailEnd - 1);
-
-            if (previous.isReturnStatement() || previous.isReturnExpressionStatement() || previous.isThrowStatement()
-                    || previous.isBreakStatement() || previous.isContinueStatement()) {
-                break;
-            }
-
-            tailEnd++;
-        }
-
-        List<Statement> tail = new ArrayList<>(rootList.subList(targetIndex, tailEnd));
-        rootList.subList(targetIndex, tailEnd).clear();
-        rootList.addAll(maxConflictIndex - tail.size() + 1, tail);
-        return true;
-    }
-
-    /**
-     * Reached only when {@code target} cannot be wrapped at any depth: some break site sits in a branch that
-     * is mutually exclusive with the branch construction happened to nest {@code target} in (an 'if' and its
-     * 'else', typically), all the way up to the method's own root statement list - no label at any level can
-     * make that break site precede the target, since it never lexically can. That nesting is an artifact of
-     * which single predecessor construction happened to follow into a branch, not a reflection of real
-     * semantics: every predecessor reaching {@code target} - including ones in the sibling branch - executes
-     * the exact same bytecode from here on, so moving {@code target} and everything textually after it in its
-     * current list (the rest of the shared tail) out to become the plain continuation right after the
-     * enclosing 'if'/'if-else' is behavior-preserving, and is exactly how the original source reads: the
-     * shared code sits after the conditional, not duplicated inside one branch of it.
-     *
-     * <p>Restricted to an enclosing 'if'/'if-else': hoisting out of a 'try' or 'finally' body would remove the
-     * hoisted code from that block's exception handling, which is not behavior-preserving.</p>
-     */
-    private boolean hoistTargetOutOfBranch(List<PathStep> targetPath, Statement target) {
-        if (targetPath.size() < 2) {
-            return false;
-        }
-
-        PathStep deepest = targetPath.get(targetPath.size() - 1);
-        PathStep parent = targetPath.get(targetPath.size() - 2);
-        Statement enclosing = parent.list().get(parent.index());
-
-        if (!enclosing.isIfStatement() && !enclosing.isIfElseStatement()) {
-            return false;
-        }
-
-        List<Statement> tail = new ArrayList<>(deepest.list().subList(deepest.index(), deepest.list().size()));
-        deepest.list().subList(deepest.index(), deepest.list().size()).clear();
-        parent.list().addAll(parent.index() + 1, tail);
-        return true;
     }
 
     private List<PathStep> findPath(BaseStatement container, Predicate<Statement> matcher, List<PathStep> pathSoFar) {
@@ -1643,29 +1516,6 @@ public class StatementMaker {
             return found;
         }
         return findPath(statement.getFinallyStatements(), matcher, path);
-    }
-
-    protected void updateJumpStatements(Statements jumps, ControlFlowGraph cfg) {
-        Iterator<Statement> iterator = jumps.iterator();
-
-        while (iterator.hasNext()) {
-            ClassFileBreakContinueStatement statement = (ClassFileBreakContinueStatement)iterator.next();
-
-            if (statement.isLoopExitFromSwitch()) {
-                // Already carries a bare 'break' fallback; normally claimed by the enclosing loop's makeLabels
-                continue;
-            }
-
-            // A bare '//' comment has no semicolon of its own: as the sole statement of a brace-less if/else
-            // body it silently swallows whatever the printer emits right after it (a closing brace, the next
-            // statement, ...), corrupting the output. 'assert false : "...";' carries the same "decompilation
-            // gave up here" information but is a real, semicolon-terminated statement, safe in any context.
-            int lineNumber = cfg.getLineNumber(statement.getTargetOffset());
-            AssertStatement assertStatement = new AssertStatement(
-                new BooleanExpression(lineNumber, false),
-                new StringConstantExpression(lineNumber, "goto line number " + lineNumber));
-            statement.setStatement(assertStatement);
-        }
     }
 
     protected static class SwitchCaseComparator implements java.io.Serializable, Comparator<SwitchCase> {

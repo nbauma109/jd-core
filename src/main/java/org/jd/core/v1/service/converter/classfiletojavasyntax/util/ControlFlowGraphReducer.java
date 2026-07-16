@@ -21,10 +21,8 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.MinDepthC
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
@@ -352,33 +350,14 @@ public abstract class ControlFlowGraphReducer {
     /**
      * Gives 'predecessor' its own copy of 'target' instead of sharing it, detaching only that one edge.
      * 'target' keeps its remaining predecessors unchanged, so this never affects any other path through it.
-     * Any condition/sub1/sub2 children the clone has are also given fresh copies (recursively: a ternary can
-     * nest another ternary in sub1/sub2, and a merged conditional branch - {@code aggregateConditionalBranches}
-     * - can nest further conditions in its own 'condition'), matching the existing 'newBasicBlock(original)'
-     * pattern already used for condition nodes elsewhere in this file (e.g. {@code createIf}). This is
-     * required, not optional, for any node with such children, not just {@code TYPE_TERNARY_OPERATOR}: they
-     * compute their value through a one-shot bytecode parse gated by {@code BasicBlock#isByteCodeParsed()}, so
-     * two independent renderings sharing the same child would starve whichever one runs second (verified
-     * empirically, initially for ternaries: it renders as jd-core's generic "empty stack" placeholder instead
-     * of the real value; for a shared condition on a plain conditional branch it instead corrupts the shared
-     * expression-evaluation stack, since the condition's own comparison operands never get pushed a second
-     * time). Gating this on the node's type was never actually safe: {@code reduce(Method)}'s retry loop can
-     * hand this method a node of *any* type discovered to be a residual merge point, not only the types this
-     * reducer originally targets.
+     * Any condition/sub1/sub2 children the clone has are also given fresh copies, matching the existing
+     * {@code newBasicBlock(original)} pattern used for condition nodes elsewhere in this file.
      *
      * <p>'next' and 'branch' are never shared either: each non-terminal continuation is routed through a
      * one-off jump stub, which {@code StatementMaker} resolves against a label around the real, once-only
      * rendering of that continuation.</p>
      */
     protected static BasicBlock duplicateForSinglePredecessor(BasicBlock predecessor, BasicBlock target) {
-        if (target.matchType(TYPE_STATEMENTS | TYPE_CONDITIONAL_BRANCH | TYPE_TERNARY_OPERATOR)) {
-            BasicBlock clone = duplicateValueFlow(target, new IdentityHashMap<>());
-
-            target.getPredecessors().remove(predecessor);
-            clone.getPredecessors().add(predecessor);
-            return clone;
-        }
-
         BasicBlock clone = target.getControlFlowGraph().newBasicBlock(target);
 
         target.getPredecessors().remove(predecessor);
@@ -392,37 +371,6 @@ public abstract class ControlFlowGraphReducer {
         clone.setSub2(duplicateExpressionNode(clone.getSub2()));
 
         return clone;
-    }
-
-    private static BasicBlock duplicateValueFlow(BasicBlock original, Map<BasicBlock, BasicBlock> copies) {
-        if (original == null || original.getIndex() < 0) {
-            return original;
-        }
-
-        BasicBlock existing = copies.get(original);
-
-        if (existing != null) {
-            return existing;
-        }
-
-        BasicBlock clone = original.getControlFlowGraph().newBasicBlock(original);
-        copies.put(original, clone);
-
-        clone.setNext(duplicateValueFlow(original.getNext(), copies));
-        clone.setBranch(duplicateValueFlow(original.getBranch(), copies));
-        clone.setCondition(duplicateExpressionNode(original.getCondition()));
-        clone.setSub1(duplicateExpressionNode(original.getSub1()));
-        clone.setSub2(duplicateExpressionNode(original.getSub2()));
-
-        addClonedPredecessor(clone, clone.getNext());
-        addClonedPredecessor(clone, clone.getBranch());
-        return clone;
-    }
-
-    private static void addClonedPredecessor(BasicBlock predecessor, BasicBlock successor) {
-        if (successor != null && successor.getIndex() >= 0) {
-            successor.getPredecessors().add(predecessor);
-        }
     }
 
     private static BasicBlock duplicateContinuation(BasicBlock clone, BasicBlock continuation) {

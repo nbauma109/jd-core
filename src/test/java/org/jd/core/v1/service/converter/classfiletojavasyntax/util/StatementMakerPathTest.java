@@ -12,6 +12,7 @@ import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
 import org.jd.core.v1.util.DefaultList;
 import org.junit.Test;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class StatementMakerPathTest {
     @Test
@@ -43,6 +45,18 @@ public class StatementMakerPathTest {
         root.add(new SwitchStatement(BooleanExpression.TRUE, blocks));
 
         assertNotNull(findPath(root, target));
+    }
+
+    @Test
+    public void unresolvedJumpUsesAlwaysThrowingFallback() throws Exception {
+        ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(1, 2);
+        Method fallback = StatementMaker.class.getDeclaredMethod("useThrowFallback", List.class);
+        fallback.setAccessible(true);
+
+        fallback.invoke(null, List.of(jump));
+
+        assertTrue(jump.getStatement().isThrowStatement());
+        assertTrue(jump.getStatement().getExpression().isNullExpression());
     }
 
     private static Object findPath(Statements root, Statement target) throws Exception {

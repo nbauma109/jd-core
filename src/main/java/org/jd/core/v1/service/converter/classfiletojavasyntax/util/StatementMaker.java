@@ -38,6 +38,7 @@ import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
@@ -1385,7 +1386,14 @@ public class StatementMaker {
         for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : targets) {
             if (!resolveOneOffset(statements, jumps, entry)) {
                 unresolvedLabelTargets.add(entry.getKey());
+                useThrowFallback(entry.getValue());
             }
+        }
+    }
+
+    private static void useThrowFallback(List<ClassFileBreakContinueStatement> jumps) {
+        for (ClassFileBreakContinueStatement jump : jumps) {
+            jump.setStatement(new ThrowStatement(new NullExpression(ObjectType.TYPE_THROWABLE)));
         }
     }
 

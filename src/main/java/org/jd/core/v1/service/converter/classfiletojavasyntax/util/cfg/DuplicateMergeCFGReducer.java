@@ -30,15 +30,12 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  * tail with more than one predecessor, which every construction heuristic in the base class requires
  * exactly one of, so those reducers report the method unreducible rather than risk a wrong guess.
  *
- * <p>When the raw graph contains a conditional merge with more than two incoming edges, ordinary statement
- * merges are left alone on the first construction attempt: they are usually intermediate joins on the way to
- * that one high-fan-in tail, and splitting all of them creates redundant nested labels. If construction then
- * reaches a genuinely unreducible shared successor, the reducer records that exact offset, rebuilds the graph,
- * and detaches only that merge on the next attempt. Methods without this shape retain the established broad
- * pre-split behavior. Statement/value continuations use a one-off jump stub (the same mechanism jd-core already
- * uses for loop-exit gotos), and {@code StatementMaker} later renders the once-only continuation inside one
- * synthetic label. Terminal shapes ({@code TYPE_RETURN}, {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are
- * duplicated because they have no continuation to label.</p>
+ * <p>Ordinary statement merges are left alone on the first construction attempt. If construction reaches a
+ * genuinely unreducible shared successor, the reducer records that exact offset, rebuilds the graph, and
+ * detaches only that merge on the next attempt. Statement/value continuations use a one-off jump stub, and
+ * {@code StatementMaker} later renders the once-only continuation inside one synthetic label. Terminal shapes
+ * ({@code TYPE_RETURN}, {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are duplicated because they have no
+ * continuation to label.</p>
  *
  * <p>A single upfront pass cannot always predict every merge, though: construction can itself aggregate
  * several predecessors' worth of code into a single bigger construct, which can leave some other node
@@ -71,8 +68,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             rebuildControlFlowGraph(method);
 
             ControlFlowGraph cfg = getControlFlowGraph();
-            boolean deferStatementMerges = hasHighFanInConditionalMerge(cfg);
-            splitMultiPredecessorMerges(cfg, forcedOffsets, deferStatementMerges);
+            splitMultiPredecessorMerges(cfg, forcedOffsets);
 
             BasicBlock start = cfg.getStart();
             BitSet jsrTargets = new BitSet();
@@ -80,7 +76,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
             unreducibleOffsets.clear();
             if (!reduce(visited, start, jsrTargets)) {
-                if (deferStatementMerges && forcedOffsets.addAll(unreducibleOffsets)) {
+                if (forcedOffsets.addAll(unreducibleOffsets)) {
                     continue;
                 }
                 return false;
@@ -103,20 +99,11 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
     /**
      * Splits value/terminal merges plus the exact offsets identified by a failed or residual construction.
-     * For a high-fan-in conditional tail, ordinary statement merges are deferred until construction proves
-     * one is unreducible; other methods keep the prior statement pre-splitting behavior.
+     * Ordinary statement merges are deferred until construction proves one is unreducible.
      */
-    private static boolean hasHighFanInConditionalMerge(ControlFlowGraph cfg) {
-        return cfg.getBasicBlocks().stream()
-                .anyMatch(basicBlock -> basicBlock.matchType(TYPE_CONDITIONAL_BRANCH)
-                        && basicBlock.getPredecessors().size() > 2);
-    }
-
-    private void splitMultiPredecessorMerges(
-            ControlFlowGraph cfg, Set<Integer> forcedOffsets, boolean deferStatementMerges) {
+    private void splitMultiPredecessorMerges(ControlFlowGraph cfg, Set<Integer> forcedOffsets) {
         for (BasicBlock target : new ArrayList<>(cfg.getBasicBlocks())) {
-            boolean matchesNaturally = target.matchType(AUTOMATIC_SPLIT_TYPES)
-                    || (!deferStatementMerges && target.matchType(TYPE_STATEMENTS));
+            boolean matchesNaturally = target.matchType(AUTOMATIC_SPLIT_TYPES);
             boolean forced = forcedOffsets.contains(target.getFromOffset());
 
             if ((!matchesNaturally && !forced) || target.getPredecessors().size() <= 1) {

@@ -30,9 +30,10 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
  * tail with more than one predecessor, which every construction heuristic in the base class requires
  * exactly one of, so those reducers report the method unreducible rather than risk a wrong guess.
  *
- * <p>Ordinary statement merges are left alone on the first construction attempt. If construction reaches a
- * genuinely unreducible shared successor, the reducer records that exact offset, rebuilds the graph, and
- * detaches only that merge on the next attempt. Statement/value continuations use a one-off jump stub, and
+ * <p>For an unusually large conditional merge, ordinary statement merges are left alone on the first
+ * construction attempt. If construction reaches a genuinely unreducible shared successor, the reducer records
+ * that exact offset, rebuilds the graph, and detaches only that merge on the next attempt. Other methods retain
+ * the established broad pre-split behavior. Statement/value continuations use a one-off jump stub, and
  * {@code StatementMaker} later renders the once-only continuation inside one synthetic label. Terminal shapes
  * ({@code TYPE_RETURN}, {@code TYPE_RETURN_VALUE}, {@code TYPE_THROW}) are duplicated because they have no
  * continuation to label.</p>
@@ -68,7 +69,8 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             rebuildControlFlowGraph(method);
 
             ControlFlowGraph cfg = getControlFlowGraph();
-            splitMultiPredecessorMerges(cfg, forcedOffsets);
+            boolean deferStatementMerges = hasLargeConditionalMerge(cfg);
+            splitMultiPredecessorMerges(cfg, forcedOffsets, deferStatementMerges);
 
             BasicBlock start = cfg.getStart();
             BitSet jsrTargets = new BitSet();
@@ -76,7 +78,7 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
             unreducibleOffsets.clear();
             if (!reduce(visited, start, jsrTargets)) {
-                if (forcedOffsets.addAll(unreducibleOffsets)) {
+                if (deferStatementMerges && forcedOffsets.addAll(unreducibleOffsets)) {
                     continue;
                 }
                 return false;
@@ -99,11 +101,20 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
 
     /**
      * Splits value/terminal merges plus the exact offsets identified by a failed or residual construction.
-     * Ordinary statement merges are deferred until construction proves one is unreducible.
+     * For a large conditional tail, ordinary statement merges are deferred until construction proves one is
+     * unreducible; other methods keep the prior statement pre-splitting behavior.
      */
-    private void splitMultiPredecessorMerges(ControlFlowGraph cfg, Set<Integer> forcedOffsets) {
+    private static boolean hasLargeConditionalMerge(ControlFlowGraph cfg) {
+        return cfg.getBasicBlocks().stream()
+                .anyMatch(basicBlock -> basicBlock.matchType(TYPE_CONDITIONAL_BRANCH)
+                        && basicBlock.getPredecessors().size() > 10);
+    }
+
+    private void splitMultiPredecessorMerges(
+            ControlFlowGraph cfg, Set<Integer> forcedOffsets, boolean deferStatementMerges) {
         for (BasicBlock target : new ArrayList<>(cfg.getBasicBlocks())) {
-            boolean matchesNaturally = target.matchType(AUTOMATIC_SPLIT_TYPES);
+            boolean matchesNaturally = target.matchType(AUTOMATIC_SPLIT_TYPES)
+                    || (!deferStatementMerges && target.matchType(TYPE_STATEMENTS));
             boolean forced = forcedOffsets.contains(target.getFromOffset());
 
             if ((!matchesNaturally && !forced) || target.getPredecessors().size() <= 1) {

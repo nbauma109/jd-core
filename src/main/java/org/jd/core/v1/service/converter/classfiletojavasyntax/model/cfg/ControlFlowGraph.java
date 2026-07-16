@@ -80,7 +80,9 @@ public class ControlFlowGraph {
         predecessors.add(bb);
         target.getPredecessors().remove(bb);
 
-        return newBasicBlock(TYPE_JUMP, bb.getFromOffset(), target.getFromOffset(), predecessors);
+        BasicBlock jump = newBasicBlock(TYPE_JUMP, bb.getFromOffset(), target.getFromOffset(), predecessors);
+        jump.setJumpTarget(target);
+        return jump;
     }
 
     public void setOffsetToLineNumbers(int[] offsetToLineNumbers) {

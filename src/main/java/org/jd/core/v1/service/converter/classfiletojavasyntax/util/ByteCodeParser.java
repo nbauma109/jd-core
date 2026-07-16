@@ -842,7 +842,7 @@ public class ByteCodeParser {
                                 }
                             } else {
                                 expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                    lineNumber, getMethodInstanceReference(expression1, ot,  name, descriptor), ot,  name, descriptor, methodTypes, parameters);
+                                    lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters);
                                 typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
                                 statements.add(new ExpressionStatement(expression1));
                             }
@@ -855,7 +855,7 @@ public class ByteCodeParser {
                                 }
                             }
                             stack.push(typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                lineNumber, getMethodInstanceReference(expression1, ot,  name, descriptor), ot, name, descriptor, methodTypes, parameters));
+                                lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters));
                         }
                     }
                     break;
@@ -2497,7 +2497,7 @@ public class ByteCodeParser {
     /**
      * @return expression, 'this' or 'super'
      */
-    private Expression getMethodInstanceReference(Expression expression, ObjectType ot, String name, String descriptor) {
+    private Expression getMethodInstanceReference(Expression expression, ObjectType ot, String name, String descriptor, boolean specialInvocation) {
         if (bodyDeclaration.getMethodDeclarations() != null && expression.isThisExpression()) {
             String internalName = expression.getType().getInternalName();
 
@@ -2518,7 +2518,7 @@ public class ByteCodeParser {
                 // An overload with the same name in this class can obscure the intended inherited call.
                 // Object.toString() is the exception: it is virtual and frequently used deliberately so an
                 // overriding implementation on the runtime type is dispatched (e.g. AbstractPartial).
-                if (!(TYPE_OBJECT.rawEquals(ot) && "toString".equals(name) && "()Ljava/lang/String;".equals(descriptor))) {
+                if (specialInvocation || !(TYPE_OBJECT.rawEquals(ot) && "toString".equals(name) && "()Ljava/lang/String;".equals(descriptor))) {
                     memberVisitor.init(name, null);
 
                     for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {

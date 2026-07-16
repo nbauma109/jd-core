@@ -15,15 +15,18 @@ import org.jd.core.v1.util.DefaultList;
 
 public class ClassFileTryStatement extends TryStatement {
     private final boolean jsr;
+    private final boolean eclipse;
 
-    public ClassFileTryStatement(BaseStatement tryStatements, DefaultList<TryStatement.CatchClause> catchClauses, BaseStatement finallyStatements, boolean jsr) {
+    public ClassFileTryStatement(BaseStatement tryStatements, DefaultList<TryStatement.CatchClause> catchClauses, BaseStatement finallyStatements, boolean jsr, boolean eclipse) {
         super(tryStatements, catchClauses, finallyStatements);
         this.jsr = jsr;
+        this.eclipse = eclipse;
     }
 
-    public ClassFileTryStatement(DefaultList<Resource> resources, BaseStatement tryStatements, DefaultList<TryStatement.CatchClause> catchClauses, BaseStatement finallyStatements, boolean jsr) {
+    public ClassFileTryStatement(DefaultList<Resource> resources, BaseStatement tryStatements, DefaultList<TryStatement.CatchClause> catchClauses, BaseStatement finallyStatements, boolean jsr, boolean eclipse) {
         super(resources, tryStatements, catchClauses, finallyStatements);
         this.jsr = jsr;
+        this.eclipse = eclipse;
     }
 
     public void addResources(DefaultList<Resource> resources) {
@@ -38,6 +41,10 @@ public class ClassFileTryStatement extends TryStatement {
 
     public boolean isJsr() {
         return jsr;
+    }
+
+    public boolean isEclipse() {
+        return eclipse;
     }
 
     public static class CatchClause extends TryStatement.CatchClause {

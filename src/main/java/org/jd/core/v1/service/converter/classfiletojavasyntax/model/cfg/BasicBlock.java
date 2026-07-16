@@ -85,6 +85,7 @@ public class BasicBlock {
     private boolean byteCodeParsed;
     private BasicBlock sub1;
     private BasicBlock sub2;
+    private BasicBlock jumpTarget;
     private DefaultList<ExceptionHandler> exceptionHandlers = EMPTY_EXCEPTION_HANDLERS;
     private DefaultList<SwitchCase> switchCases = EMPTY_SWITCH_CASES;
     private final Set<BasicBlock> predecessors;
@@ -106,6 +107,7 @@ public class BasicBlock {
         this.inverseCondition = original.inverseCondition;
         this.sub1 = original.sub1;
         this.sub2 = original.sub2;
+        this.jumpTarget = original.jumpTarget;
         this.exceptionHandlers = original.exceptionHandlers;
         this.switchCases = original.switchCases;
         this.predecessors = predecessors;
@@ -180,6 +182,14 @@ public class BasicBlock {
 
     public void setBranch(BasicBlock branch) {
         this.branch = branch;
+    }
+
+    public BasicBlock getJumpTarget() {
+        return jumpTarget;
+    }
+
+    public void setJumpTarget(BasicBlock jumpTarget) {
+        this.jumpTarget = jumpTarget;
     }
 
     public DefaultList<ExceptionHandler> getExceptionHandlers() {

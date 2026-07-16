@@ -79,6 +79,9 @@ public class DuplicateMergeCFGReducer extends CmpDepthCFGReducer {
             if (shared == null) {
                 return true;
             }
+            if (!forcedOffsets.add(shared.getFromOffset())) {
+                return false;
+            }
         }
 
     }

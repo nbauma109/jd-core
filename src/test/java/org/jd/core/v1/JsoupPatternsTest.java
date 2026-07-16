@@ -25,6 +25,23 @@ import java.net.SocketTimeoutException;
 @SuppressFBWarnings
 public class JsoupPatternsTest extends AbstractJdTest {
 
+    // --- invokespecial Object.toString must remain a super call even when this class has an overload ---
+
+    static class OverloadedToString {
+        String toString(int value) { return Integer.toString(value); }
+
+        String objectIdentity() { return super.toString(); }
+    }
+
+    @Test
+    public void testObjectToStringInvokespecialRemainsSuperCall() throws Exception {
+        String internalClassName = OverloadedToString.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(source.contains("return super.toString();"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
     // --- org.jsoup.nodes.NodeIterator#findNextNode: shared null guard lost on the 'node = null' branch ---
 
     static class Node {

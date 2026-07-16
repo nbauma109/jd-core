@@ -71,9 +71,8 @@ import java.util.BitSet;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -163,12 +162,10 @@ public class StatementMaker {
     private boolean mergeTryWithResourcesStatementFlag;
     /** Number of 'switch' statements between the innermost loop being built and the current basic block. */
     private int switchDepthInLoop;
-    /**
-     * The first statement rendered for each basic block offset, captured as it is produced (see
-     * {@code makeStatements}) - used by {@link #resolveRemainingJumpsWithLabels} to find the label target for
-     * a jump by its target offset, rather than by a line number several statements could share.
-     */
-    private final Map<Integer, Statement> labeledMergeTargets = new HashMap<>();
+    /** The first statement rendered by each merge-target block, keyed by block identity so clones stay distinct. */
+    private final Map<BasicBlock, Statement> labeledMergeTargets = new IdentityHashMap<>();
+    /** The original target block for each synthetic jump statement. */
+    private final Map<ClassFileBreakContinueStatement, BasicBlock> labeledMergeJumpTargets = new IdentityHashMap<>();
     private final Set<Integer> unresolvedLabelTargets = new HashSet<>();
 
     public StatementMaker(TypeMaker typeMaker, LocalVariableMaker localVariableMaker, ClassFileConstructorOrMethodDeclaration comd) {
@@ -187,6 +184,10 @@ public class StatementMaker {
     }
 
     public Statements make(ControlFlowGraph cfg, Statements statements) {
+        labeledMergeTargets.clear();
+        labeledMergeJumpTargets.clear();
+        unresolvedLabelTargets.clear();
+
         Statements jumps = new Statements();
         WatchDog watchdog = new WatchDog();
 
@@ -259,8 +260,7 @@ public class StatementMaker {
         Expression exp1;
         Expression exp2;
 
-        int mergeOffset = basicBlock.getFromOffset();
-        boolean captureMergeTarget = !labeledMergeTargets.containsKey(mergeOffset);
+        boolean captureMergeTarget = !labeledMergeTargets.containsKey(basicBlock);
         int sizeBeforeMergeTarget = captureMergeTarget ? statements.size() : -1;
 
         switch (basicBlock.getType()) {
@@ -402,9 +402,10 @@ public class StatementMaker {
                 statements.add(ContinueStatement.CONTINUE);
                 break;
             case TYPE_JUMP:
-                Statement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), basicBlock.getToOffset());
+                ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), basicBlock.getToOffset());
                 statements.add(jump);
                 jumps.add(jump);
+                labeledMergeJumpTargets.put(jump, basicBlock.getJumpTarget());
                 break;
             case TYPE_INFINITE_GOTO:
                 statements.add(new WhileStatement(BooleanExpression.TRUE, null));
@@ -415,10 +416,10 @@ public class StatementMaker {
 
         if (captureMergeTarget && statements.size() > sizeBeforeMergeTarget) {
             // Record the first statement this specific basic block rendered (not any of its 'next' chain,
-            // recursed into above) as the label target for this offset - identified by object identity, not
+            // recursed into above) as the label target for this block - identified by object identity, not
             // by line number, since several statements can share a line and a search "by line" could latch
             // onto the wrong one. See resolveRemainingJumpsWithLabels.
-            labeledMergeTargets.put(mergeOffset, statements.get(sizeBeforeMergeTarget));
+            labeledMergeTargets.put(basicBlock, statements.get(sizeBeforeMergeTarget));
         }
     }
 
@@ -810,7 +811,7 @@ public class StatementMaker {
                 }
             }
             if (statement == null) {
-                statement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr);
+                statement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr, eclipse);
             } else {
                 mergeTryWithResourcesStatementFlag = true;
             }
@@ -1352,15 +1353,15 @@ public class StatementMaker {
      * Resolves jumps left by {@code DuplicateMergeCFGReducer}'s statement-level merge splitting (a labeled
      * block whose several 'break label;' sites converge on the same tail, none of which is a loop): unlike a
      * loop exit, there is no enclosing construct whose {@code makeLabels}-style logic already claims these, so
-     * this does the equivalent for a plain merge point - group the still-unresolved jumps by target offset
+     * this does the equivalent for a plain merge point - group the still-unresolved jumps by target block
      * (not line: several statements can share a line, so matching by line risks latching onto the wrong one -
-     * the offset identifies the exact basic block, and {@link #labeledMergeTargets} was captured against that
-     * same offset while rendering, see {@code makeStatements}) and wrap the smallest enclosing scope that
-     * contains every one of them (see {@link #wrapCommonScopeWithLabel}) in a synthetic {@link LabelStatement},
-     * then turn each jump into a {@code break} to that label.
+     * each jump retains the identity of its exact target block, and {@link #labeledMergeTargets} was captured
+     * against that same block while rendering, see {@code makeStatements}) and wrap the smallest enclosing
+     * scope that contains every one of them (see {@link #wrapCommonScopeWithLabel}) in a synthetic
+     * {@link LabelStatement}, then turn each jump into a {@code break} to that label.
      */
     protected void resolveRemainingJumpsWithLabels(Statements statements, Statements jumps) {
-        Map<Integer, List<ClassFileBreakContinueStatement>> jumpsByTargetOffset = new LinkedHashMap<>();
+        Map<BasicBlock, List<ClassFileBreakContinueStatement>> jumpsByTarget = new IdentityHashMap<>();
 
         for (Statement jump : jumps) {
             ClassFileBreakContinueStatement statement = (ClassFileBreakContinueStatement) jump;
@@ -1369,19 +1370,26 @@ public class StatementMaker {
                 continue;
             }
 
-            jumpsByTargetOffset.computeIfAbsent(statement.getTargetOffset(), k -> new ArrayList<>()).add(statement);
+            BasicBlock target = labeledMergeJumpTargets.get(statement);
+
+            if (target == null) {
+                unresolvedLabelTargets.add(statement.getTargetOffset());
+                continue;
+            }
+
+            jumpsByTarget.computeIfAbsent(target, k -> new ArrayList<>()).add(statement);
         }
 
-        List<Entry<Integer, List<ClassFileBreakContinueStatement>>> targets = new ArrayList<>(jumpsByTargetOffset.entrySet());
+        List<Entry<BasicBlock, List<ClassFileBreakContinueStatement>>> targets = new ArrayList<>(jumpsByTarget.entrySet());
 
         // Establish inner merge points before their enclosing, later continuation. Rendering order can put
         // the outer jump in the map first, but wrapping it first buries the inner targets inside a synthetic
         // label and prevents their own minimal scopes from being found.
-        targets.sort(Entry.comparingByKey());
+        targets.sort(Comparator.comparingInt(entry -> entry.getKey().getFromOffset()));
 
-        for (Entry<Integer, List<ClassFileBreakContinueStatement>> entry : targets) {
+        for (Entry<BasicBlock, List<ClassFileBreakContinueStatement>> entry : targets) {
             if (!resolveOneOffset(statements, jumps, entry)) {
-                unresolvedLabelTargets.add(entry.getKey());
+                unresolvedLabelTargets.add(entry.getKey().getFromOffset());
             }
         }
     }
@@ -1390,14 +1398,14 @@ public class StatementMaker {
         return unresolvedLabelTargets;
     }
 
-    private boolean resolveOneOffset(Statements statements, Statements jumps, Entry<Integer, List<ClassFileBreakContinueStatement>> entry) {
+    private boolean resolveOneOffset(Statements statements, Statements jumps, Entry<BasicBlock, List<ClassFileBreakContinueStatement>> entry) {
         Statement target = labeledMergeTargets.get(entry.getKey());
 
         if (target == null) {
             return false;
         }
 
-        String label = "labelMerge" + entry.getKey();
+        String label = "labelMerge" + entry.getKey().getFromOffset();
 
         if (!wrapCommonScopeWithLabel(statements, entry.getValue(), target, label)) {
             return false;
@@ -1477,7 +1485,7 @@ public class StatementMaker {
         return false;
     }
 
-    private List<PathStep> findPath(BaseStatement container, Predicate<Statement> matcher, List<PathStep> pathSoFar) {
+    private static List<PathStep> findPath(BaseStatement container, Predicate<Statement> matcher, List<PathStep> pathSoFar) {
         if (container instanceof Statements list) {
             for (int i = 0; i < list.size(); i++) {
                 Statement element = list.get(i);
@@ -1498,7 +1506,25 @@ public class StatementMaker {
         return null;
     }
 
-    private List<PathStep> findPathInChildren(Statement statement, Predicate<Statement> matcher, List<PathStep> path) {
+    private static List<PathStep> findPathInChildren(Statement statement, Predicate<Statement> matcher, List<PathStep> path) {
+        if (statement instanceof LabelStatement labelStatement) {
+            List<PathStep> found = findPath(labelStatement.statement(), matcher, path);
+
+            if (found != null) {
+                return found;
+            }
+        }
+
+        if (statement instanceof SwitchStatement switchStatement) {
+            for (SwitchStatement.Block block : switchStatement.getBlocks()) {
+                List<PathStep> found = findPath(block.getStatements(), matcher, path);
+
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+
         List<PathStep> found = findPath(statement.getStatements(), matcher, path);
 
         if (found != null) {

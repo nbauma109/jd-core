@@ -402,7 +402,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             if (canonical == null) {
                 AbstractLocalVariable inherited = inheritedVariables.get(slotKey);
                 AbstractLocalVariable variable = declarator.getLocalVariable();
-                if (inherited == variable || inherited != null && inherited.getName().equals(variable.getName())) {
+                if (sameSourceVariable(inherited, variable)) {
                     canonical = inherited;
                 }
             }
@@ -417,6 +417,17 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 statement.setInit(new BinaryOperatorExpression(declarator.getLineNumber(), declaration.getType(),
                         reference, "=", initializer.getExpression(), 16));
             }
+        }
+
+        private static boolean sameSourceVariable(AbstractLocalVariable first, AbstractLocalVariable second) {
+            if (first == null) {
+                return false;
+            }
+            AbstractLocalVariable firstOriginal = first.getOriginalVariable();
+            AbstractLocalVariable secondOriginal = second.getOriginalVariable();
+            return first == second || first.getName().equals(second.getName())
+                    || firstOriginal == second || secondOriginal == first
+                    || firstOriginal != null && firstOriginal == secondOriginal;
         }
 
         @Override

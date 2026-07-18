@@ -112,6 +112,10 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     && replaceSplitVariableDeclaration(statements, index, declarationStatement)) {
                 statement = index < statements.size() ? statements.get(index) : null;
             }
+            if (statement instanceof ForStatement forStatement
+                    && moveMisplacedForUpdateAfterLoop(statements, index, forStatement)) {
+                statement = statements.get(index);
+            }
             restorePrecedingLoopUpdate(statements, index, statement);
             if (isRedundantBreakAfterInfiniteLoop(statements, index, statement)) {
                 statements.remove(index);
@@ -199,6 +203,31 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 return declaration;
             }
             return null;
+        }
+
+        private static boolean moveMisplacedForUpdateAfterLoop(Statements containingStatements, int index,
+                ForStatement statement) {
+            if (index == 0
+                    || !(containingStatements.get(index - 1) instanceof LocalVariableDeclarationStatement)
+                    || !(statement.getCondition() == null
+                            || statement.getCondition() instanceof BooleanExpression condition && condition.isTrue())
+                    || statement.getUpdate() == null || statement.getUpdate().size() != 1
+                    || !(statement.getStatements() instanceof Statements loopStatements)
+                    || loopStatements.size() != 1 || !(loopStatements.getFirst() instanceof IfStatement ifStatement)
+                    || !(ifStatement.getStatements() instanceof Statements thenStatements) || thenStatements.isEmpty()
+                    || !isUnlabelledContinue(thenStatements.getLast())
+                    || !(ifStatement.getCondition() instanceof BinaryOperatorExpression)) {
+                return false;
+            }
+
+            Expression update = statement.getUpdate().getFirst();
+            thenStatements.remove(thenStatements.size() - 1);
+            statement.setCondition(ifStatement.getCondition());
+            statement.setUpdate(null);
+            loopStatements.clear();
+            loopStatements.addAll(thenStatements);
+            containingStatements.add(index + 1, new ExpressionStatement(update));
+            return true;
         }
 
         private static void restoreLoopUpdateBeforeContinue(Statements statements, PostOperatorExpression update) {

@@ -801,7 +801,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         ObjectType currentObjectType = expectedType instanceof ObjectType objectType ? objectType : null;
         copyContextualTypeArguments(expression, currentObjectType);
         boolean rawCast = requiresRawConstructorCast(expression, currentObjectType);
-        if (rawCast && currentObjectType != null) {
+        if (rawCast && currentObjectType != null
+                && !hasUnboundedWildcardTypeArgument(currentObjectType.getTypeArguments())) {
             expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
         }
         BaseType parameterTypes = restoreErasedConstructorParameterTypes(

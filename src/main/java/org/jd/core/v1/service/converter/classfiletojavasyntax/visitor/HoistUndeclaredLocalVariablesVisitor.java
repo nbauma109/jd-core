@@ -185,7 +185,8 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 AbstractLocalVariable elseVariable = elseDeclarator.getLocalVariable();
                 String thenKey = slotKey(thenVariable, thenDeclaration.getType());
                 if (thenKey.equals(slotKey(elseVariable, elseDeclaration.getType()))
-                        && thenDeclarator.getName().equals(elseDeclarator.getName())) {
+                        && thenDeclarator.getName().equals(elseDeclarator.getName())
+                        && hasSharedVariableLineage(thenVariable, elseVariable)) {
                     splitVariables.putIfAbsent(thenKey, thenVariable);
                     splitVariableTypes.putIfAbsent(thenKey, thenDeclaration.getType());
                 }
@@ -423,10 +424,14 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             if (first == null) {
                 return false;
             }
+            return first.getName().equals(second.getName()) || hasSharedVariableLineage(first, second);
+        }
+
+        private static boolean hasSharedVariableLineage(
+                AbstractLocalVariable first, AbstractLocalVariable second) {
             AbstractLocalVariable firstOriginal = first.getOriginalVariable();
             AbstractLocalVariable secondOriginal = second.getOriginalVariable();
-            return first == second || first.getName().equals(second.getName())
-                    || firstOriginal == second || secondOriginal == first
+            return first == second || firstOriginal == second || secondOriginal == first
                     || firstOriginal != null && firstOriginal == secondOriginal;
         }
 

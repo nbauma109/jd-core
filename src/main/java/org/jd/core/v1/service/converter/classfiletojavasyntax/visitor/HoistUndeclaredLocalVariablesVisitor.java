@@ -131,7 +131,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             if (statement instanceof WhileStatement whileStatement && index > 0
                     && statements.get(index - 1) instanceof ExpressionStatement precedingStatement
                     && precedingStatement.getExpression() instanceof PostOperatorExpression update
-                    && "--".equals(update.getOperator())
+                    && ("--".equals(update.getOperator()) || "++".equals(update.getOperator()))
                     && whileStatement.getStatements() instanceof Statements loopStatements) {
                 restoreLoopUpdateBeforeContinue(loopStatements, update);
             }

@@ -67,6 +67,20 @@ public class BinaryOpTest extends AbstractJdTest {
     }
 
     @Test
+    public void testRightNestedShift() throws Exception {
+        class Shift {
+            @SuppressWarnings("unused")
+            int shift(int i, int j, int k) {
+                return i << (j << k);
+            }
+        }
+        String internalClassName = Shift.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(source.matches(PatternMaker.make("return i << (j << k);")));
+    }
+
+    @Test
     public void testMultiply() throws Exception {
         class Multiply {
             @SuppressWarnings("unused")

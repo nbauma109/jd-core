@@ -78,6 +78,9 @@ public class JavaSyntaxToJavaFragmentProcessor {
             if ("-".equals(operator) || "/".equals(operator) || "%".equals(operator)) {
                 return true;
             }
+            if ("<<".equals(operator) || ">>".equals(operator) || ">>>".equals(operator)) {
+                return true;
+            }
             if ("*".equals(operator) && !"*".equals(rightOperator)) {
                 return true;
             }

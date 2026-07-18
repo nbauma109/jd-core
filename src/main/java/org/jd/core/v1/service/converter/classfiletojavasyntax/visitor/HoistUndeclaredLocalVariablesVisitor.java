@@ -89,29 +89,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             int index = 0;
             while (index < statements.size()) {
                 int previousSize = statements.size();
-                Statement statement = statements.get(index);
-                if (statement instanceof LocalVariableDeclarationStatement declarationStatement
-                        && replaceSplitVariableDeclaration(statements, index, declarationStatement)) {
-                    statement = index < statements.size() ? statements.get(index) : null;
-                }
-                if (statement != null && statement instanceof ForStatement forStatement
-                        && moveMisplacedForUpdateAfterLoop(statements, index, forStatement)) {
-                    statement = statements.get(index);
-                }
-                if (statement != null && statement instanceof WhileStatement whileStatement && index > 0
-                        && statements.get(index - 1) instanceof ExpressionStatement precedingStatement
-                        && precedingStatement.getExpression() instanceof PostOperatorExpression update
-                        && "--".equals(update.getOperator())
-                        && whileStatement.getStatements() instanceof Statements loopStatements) {
-                    restoreLoopUpdateBeforeContinue(loopStatements, update);
-                }
-                if (statement != null && statement instanceof BreakStatement && index > 0
-                        && statements.get(index - 1) instanceof WhileStatement whileStatement
-                        && whileStatement.getCondition() instanceof BooleanExpression condition
-                        && condition.isTrue()) {
-                    statements.remove(index);
-                    statement = null;
-                }
+                Statement statement = processStatement(statements, index);
                 if (statement != null) {
                     statement.accept(this);
                 }
@@ -125,6 +103,42 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             declaredVariables.putAll(previousDeclaredVariables);
             inheritedVariables = previousInheritedVariables;
             currentStatements = previousStatements;
+        }
+
+        private Statement processStatement(Statements statements, int index) {
+            Statement statement = statements.get(index);
+            if (statement instanceof LocalVariableDeclarationStatement declarationStatement
+                    && replaceSplitVariableDeclaration(statements, index, declarationStatement)) {
+                statement = index < statements.size() ? statements.get(index) : null;
+            }
+            if (statement instanceof ForStatement forStatement
+                    && moveMisplacedForUpdateAfterLoop(statements, index, forStatement)) {
+                statement = statements.get(index);
+            }
+            restorePrecedingLoopUpdate(statements, index, statement);
+            if (isRedundantBreakAfterInfiniteLoop(statements, index, statement)) {
+                statements.remove(index);
+                return null;
+            }
+            return statement;
+        }
+
+        private static void restorePrecedingLoopUpdate(Statements statements, int index, Statement statement) {
+            if (statement instanceof WhileStatement whileStatement && index > 0
+                    && statements.get(index - 1) instanceof ExpressionStatement precedingStatement
+                    && precedingStatement.getExpression() instanceof PostOperatorExpression update
+                    && "--".equals(update.getOperator())
+                    && whileStatement.getStatements() instanceof Statements loopStatements) {
+                restoreLoopUpdateBeforeContinue(loopStatements, update);
+            }
+        }
+
+        private static boolean isRedundantBreakAfterInfiniteLoop(
+                Statements statements, int index, Statement statement) {
+            return statement instanceof BreakStatement && index > 0
+                    && statements.get(index - 1) instanceof WhileStatement whileStatement
+                    && whileStatement.getCondition() instanceof BooleanExpression condition
+                    && condition.isTrue();
         }
 
         private boolean replaceSplitVariableDeclaration(Statements statements, int index,

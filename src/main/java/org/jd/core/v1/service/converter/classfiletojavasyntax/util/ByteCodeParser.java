@@ -679,10 +679,20 @@ public class ByteCodeParser {
                 case I2S:
                     stack.push(new CastExpression(lineNumber, TYPE_SHORT, forceExplicitCastExpression(stack.pop())));
                     break;
-                case LCMP, FCMPL, FCMPG, DCMPL, DCMPG:
+                case LCMP:
                     expression2 = stack.pop();
                     expression1 = stack.pop();
-                    stack.push(new ClassFileCmpExpression(lineNumber, expression1, expression2));
+                    stack.push(new ClassFileCmpExpression(lineNumber, expression1, expression2, 0));
+                    break;
+                case FCMPL, DCMPL:
+                    expression2 = stack.pop();
+                    expression1 = stack.pop();
+                    stack.push(new ClassFileCmpExpression(lineNumber, expression1, expression2, -1));
+                    break;
+                case FCMPG, DCMPG:
+                    expression2 = stack.pop();
+                    expression1 = stack.pop();
+                    stack.push(new ClassFileCmpExpression(lineNumber, expression1, expression2, 1));
                     break;
                 case IFEQ:
                     parseIF(stack, lineNumber, basicBlock, "!=", "==", 8);
@@ -2116,7 +2126,22 @@ public class ByteCodeParser {
             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(cmp.getLeftExpression().getType(), cmp.getLeftExpression());
             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(cmp.getRightExpression().getType(), cmp.getRightExpression());
 
-            stack.push(new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, cmp.getLeftExpression(), basicBlock.mustInverseCondition() ? operator1 : operator2, cmp.getRightExpression(), priority));
+            boolean inverse = basicBlock.mustInverseCondition();
+            String operator = inverse ? operator1 : operator2;
+            boolean nanResult = cmp.getNanResult() != 0 && compare(cmp.getNanResult(), operator2);
+            if (inverse && cmp.getNanResult() != 0) {
+                nanResult = !nanResult;
+            }
+
+            if (nanResult && !"!=".equals(operator)) {
+                String oppositeOperator = inverse ? operator2 : operator1;
+                Expression comparison = new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN,
+                        cmp.getLeftExpression(), oppositeOperator, cmp.getRightExpression(), priority);
+                stack.push(new PreOperatorExpression(lineNumber, "!", comparison));
+            } else {
+                stack.push(new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN,
+                        cmp.getLeftExpression(), operator, cmp.getRightExpression(), priority));
+            }
         } else if (expression.getType().isPrimitiveType()) {
             PrimitiveType pt = (PrimitiveType)expression.getType();
 
@@ -2153,6 +2178,18 @@ public class ByteCodeParser {
         } else {
             stack.push(new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, expression, basicBlock.mustInverseCondition() ? operator1 : operator2, new NullExpression(lineNumber, expression.getType()), 9));
         }
+    }
+
+    private static boolean compare(int value, String operator) {
+        return switch (operator) {
+            case "==" -> value == 0;
+            case "!=" -> value != 0;
+            case "<" -> value < 0;
+            case ">=" -> value >= 0;
+            case ">" -> value > 0;
+            case "<=" -> value <= 0;
+            default -> false;
+        };
     }
 
     private void parseXRETURN(Statements statements, DefaultStack<Expression> stack, int lineNumber) {

@@ -702,7 +702,7 @@ public class Frame {
 
                 @Override
                 public void visit(LocalVariableReferenceExpression expression) {
-                    if (foundFor && ((ClassFileLocalVariableReferenceExpression)expression).getLocalVariable().getName().equals(localVariable.getOldName())) {
+                    if (foundFor && ((ClassFileLocalVariableReferenceExpression)expression).getLocalVariable() == localVariable) {
                         createDeclaration[0] = false;
                     }
                 }
@@ -710,7 +710,7 @@ public class Frame {
 
             if (createDeclaration[0] && parent.parent != null && parent.parent.statements != null && parent.parent.statements.getFirst() instanceof LocalVariableDeclarationStatement lvds) {
                 for (LocalVariableDeclarator localVariableDeclarator : lvds.getLocalVariableDeclarators()) {
-                    if (localVariableDeclarator instanceof ClassFileLocalVariableDeclarator cflvd && cflvd.getLocalVariable().getName().equals(localVariable.getOldName())) {
+                    if (localVariableDeclarator instanceof ClassFileLocalVariableDeclarator cflvd && cflvd.getLocalVariable() == localVariable) {
                         createDeclaration[0] = false;
                     }
                 }

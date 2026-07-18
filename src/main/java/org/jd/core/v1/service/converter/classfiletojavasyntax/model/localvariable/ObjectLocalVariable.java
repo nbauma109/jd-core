@@ -127,7 +127,10 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
                                 fireChangeEvent(typeBounds);
                             }
                         } else // Assignable types
-                        if (typeMaker.isAssignable(typeBounds, thisObjectType, otherObjectType) && thisObjectType.getTypeArguments() == null && otherObjectType.getTypeArguments() != null) {
+                        if (typeMaker.isAssignable(typeBounds, thisObjectType, otherObjectType)
+                                && thisObjectType.getTypeArguments() == null && otherObjectType.getTypeArguments() != null
+                                && typeMaker.makeTypeTypes(thisObjectType.getInternalName()) != null
+                                && typeMaker.makeTypeTypes(thisObjectType.getInternalName()).getTypeParameters() != null) {
                             // Keep type, update type arguments
                             this.type = thisObjectType.createType(otherObjectType.getTypeArguments());
                             fireChangeEvent(typeBounds);
@@ -158,7 +161,10 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
                         fireChangeEvent(typeBounds);
                     }
                 } else // Assignable types
-                if (typeMaker.isAssignable(typeBounds, otherObjectType, thisObjectType) && thisObjectType.getTypeArguments() == null && otherObjectType.getTypeArguments() != null) {
+                if (typeMaker.isAssignable(typeBounds, otherObjectType, thisObjectType)
+                        && thisObjectType.getTypeArguments() == null && otherObjectType.getTypeArguments() != null
+                        && typeMaker.makeTypeTypes(thisObjectType.getInternalName()) != null
+                        && typeMaker.makeTypeTypes(thisObjectType.getInternalName()).getTypeParameters() != null) {
                     // Keep type, update type arguments
                     this.type = thisObjectType.createType(otherObjectType.getTypeArguments());
                     fireChangeEvent(typeBounds);

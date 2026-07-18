@@ -124,7 +124,7 @@ public class BinaryOpTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
             
         // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make("return i * j / k;")));
+        assertTrue(source.matches(PatternMaker.make("return i * (j / k);")));
     }
     @Test
     public void testMultiplyAdd() throws Exception {

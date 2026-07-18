@@ -159,8 +159,10 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         if (parameterTypes.isList() && expression.getParameters().isList()) {
             for (int i = 0; i < expression.getParameters().getList().size() && i < parameterTypes.getList().size(); i++) {
                 Type parameterType = parameterTypes.getList().get(i);
-                boolean skip = isSelfOverload || (crossOverloadRisk && isRiskyToUnbox(expression, i));
-                if (skip && isBoxingOrUnboxing(expression.getParameters().getList().get(i))) {
+                Expression parameter = expression.getParameters().getList().get(i);
+                boolean skip = isSelfOverload || (crossOverloadRisk &&
+                        (isRiskyToUnbox(expression, i) || isPrimitiveUnboxing(parameterType, parameter)));
+                if (skip && isBoxingOrUnboxing(parameter)) {
                     continue;
                 }
                 if (shouldUpdateParameter(parameterType)) {
@@ -168,11 +170,18 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
                 }
             }
         } else {
-            boolean skip = isSelfOverload || (crossOverloadRisk && isRiskyToUnbox(expression, 0));
+            Type parameterType = parameterTypes.getFirst();
+            Expression parameter = expression.getParameters().getFirst();
+            boolean skip = isSelfOverload || (crossOverloadRisk &&
+                    (isRiskyToUnbox(expression, 0) || isPrimitiveUnboxing(parameterType, parameter)));
             if ((!skip || !isBoxingOrUnboxing(expression.getParameters().getFirst())) && shouldUpdateParameter(parameterTypes.getFirst())) {
                 expression.setParameters(updateExpression(expression.getParameters().getFirst()));
             }
         }
+    }
+
+    private static boolean isPrimitiveUnboxing(Type parameterType, Expression parameter) {
+        return parameterType.isPrimitiveType() && isUnboxingMethod(parameter);
     }
 
     private boolean isOverloaded(MethodInvocationExpression expression) {

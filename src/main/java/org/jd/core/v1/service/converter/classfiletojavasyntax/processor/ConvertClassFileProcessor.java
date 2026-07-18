@@ -49,9 +49,11 @@ import org.jd.core.v1.model.javasyntax.declaration.RecordDeclaration.RecordCompo
 import org.jd.core.v1.model.javasyntax.declaration.TypeDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.DoubleConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.FloatConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.LongConstantExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
 import org.jd.core.v1.model.javasyntax.reference.BaseAnnotationReference;
 import org.jd.core.v1.model.javasyntax.reference.BaseElementValue;
@@ -399,11 +401,29 @@ public class ConvertClassFileProcessor {
             case Const.CONSTANT_Integer -> new IntegerConstantExpression(typeField, ((ConstantInteger)constantValue).getBytes());
             case Const.CONSTANT_Float -> new FloatConstantExpression(((ConstantFloat)constantValue).getBytes());
             case Const.CONSTANT_Long -> new LongConstantExpression(((ConstantLong)constantValue).getBytes());
-            case Const.CONSTANT_Double -> new DoubleConstantExpression(((ConstantDouble)constantValue).getBytes());
+            case Const.CONSTANT_Double -> convertDoubleConstant(((ConstantDouble)constantValue).getBytes());
             case Const.CONSTANT_String -> new StringConstantExpression(((ConstantString)constantValue).getBytes(acv.getConstantPool()));
             default -> throw new ConvertClassFileException("Invalid attributes");
         };
         return new ExpressionVariableInitializer(expression);
+    }
+
+    private static Expression convertDoubleConstant(double value) {
+        String name;
+        if (Double.compare(value, Double.NEGATIVE_INFINITY) == 0) {
+            name = "NEGATIVE_INFINITY";
+        } else if (Double.compare(value, Double.POSITIVE_INFINITY) == 0) {
+            name = "POSITIVE_INFINITY";
+        } else if (Double.isNaN(value)) {
+            name = "NaN";
+        } else {
+            return new DoubleConstantExpression(value);
+        }
+
+        return new FieldReferenceExpression(
+                org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_DOUBLE,
+                new ObjectTypeReferenceExpression(ObjectType.TYPE_DOUBLE),
+                StringConstants.JAVA_LANG_DOUBLE, name, "D");
     }
 
     protected ModuleDeclaration convertModuleDeclaration(ClassFile classFile) {

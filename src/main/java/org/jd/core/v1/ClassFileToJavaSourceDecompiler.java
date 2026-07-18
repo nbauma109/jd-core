@@ -16,7 +16,7 @@ import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.model.token.Token;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.ClassFileToJavaSyntaxProcessor;
 import org.jd.core.v1.service.deserializer.classfile.ClassFileDeserializer;
-import org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.JavaSyntaxToJavaFragmentProcessor;
+import org.jd.core.v1.service.fragmenter.JavaSyntaxToJavaFragmentProcessor;
 import org.jd.core.v1.service.layouter.LayoutFragmentProcessor;
 import org.jd.core.v1.service.tokenizer.javafragmenttotoken.JavaFragmentToTokenProcessor;
 import org.jd.core.v1.service.writer.WriteTokenProcessor;

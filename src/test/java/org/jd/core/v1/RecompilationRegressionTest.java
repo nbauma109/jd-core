@@ -22,6 +22,7 @@ import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.RawDeclaredOverloads;
+import org.jd.core.v1.stub.RawWildcardConstructor;
 import org.jd.core.v1.stub.SneakyThrow;
 import org.jd.core.v1.stub.WildcardExtendsBound;
 import org.jd.core.v1.stub.WildcardExtendsThrows;
@@ -57,6 +58,12 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(RawDeclaredMethodReference.class);
         assertTrue(source.matches(PatternMaker.make("use((F1<List>)this::foo);")));
         assertRecompiles(RawDeclaredMethodReference.class, source);
+    }
+
+    @Test
+    public void testRawConstructorInWildcardContext() throws Exception {
+        String source = decompile(RawWildcardConstructor.class);
+        assertRecompiles(RawWildcardConstructor.class, source);
     }
 
     @Test

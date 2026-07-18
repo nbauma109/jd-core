@@ -831,7 +831,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return currentObjectType != null && expression.getType() instanceof ObjectType
                 && typeMaker.isRawTypeAssignable(currentObjectType, expression.getObjectType())
                 && !typeMaker.isAssignable(typeBounds, currentObjectType, expression.getObjectType())
-                && (!hasKnownTypeParameters(expression.getObjectType().getTypeArguments())
+                && (expression.getObjectType().getTypeArguments() == null
+                        || !hasKnownTypeParameters(expression.getObjectType().getTypeArguments())
                         || containsWildcardSuper(currentObjectType.getTypeArguments()));
     }
 

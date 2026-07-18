@@ -148,6 +148,9 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         }
 
         private static boolean containsBreakForCurrentLoop(BaseStatement statement) {
+            if (statement == null) {
+                return false;
+            }
             BreakSearch search = new BreakSearch();
             statement.accept(search);
             return search.found;

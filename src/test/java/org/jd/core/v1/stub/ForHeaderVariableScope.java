@@ -13,6 +13,7 @@ public class ForHeaderVariableScope {
             // Empty loop.
         }
         int value = 2;
+        value++;
         return value;
     }
 }

@@ -19,6 +19,8 @@ import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
+import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
+import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LabelStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -53,6 +55,7 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import static org.apache.bcel.Const.MAJOR_1_5;
+import static org.jd.core.v1.model.javasyntax.statement.ContinueStatement.CONTINUE;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_ITERABLE;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_OBJECT;
 
@@ -69,6 +72,7 @@ public final class LoopStatementMaker {
             Statements jumps) {
         Statement loop = makeLoop(majorVersion, typeBounds, localVariableMaker, loopBasicBlock, statements, condition, subStatements);
         int continueOffset = loopBasicBlock.getSub1().getFromOffset();
+        preserveNestedContinueTargets(subStatements, continueOffset);
         int breakOffset = loopBasicBlock.getNext().getFromOffset();
 
         if (breakOffset <= 0) {
@@ -170,6 +174,7 @@ public final class LoopStatementMaker {
 
         Statement loop = makeLoop(localVariableMaker, loopBasicBlock, statements, subStatements);
         int continueOffset = loopBasicBlock.getSub1().getFromOffset();
+        preserveNestedContinueTargets(subStatements, continueOffset);
         int breakOffset = loopBasicBlock.getNext().getFromOffset();
 
         if (breakOffset <= 0) {
@@ -182,7 +187,7 @@ public final class LoopStatementMaker {
     private static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements) {
         int subStatementsSize = subStatements.size();
 
-        if (subStatementsSize > 0 && subStatements.getLast() instanceof ContinueStatement) {
+        if (subStatementsSize > 0 && subStatements.getLast() == CONTINUE) {
             subStatements.removeLast();
             subStatementsSize--;
         }
@@ -693,7 +698,7 @@ public final class LoopStatementMaker {
                             statement.setStatement(new ContinueStatement(label));
                             createLabel = true;
                         } else {
-                            statement.setStatement(new ClassFileContinueStatement(targetOffset));
+                            statement.setStatement(CONTINUE);
                         }
                         iterator.remove();
                     } else {
@@ -708,6 +713,28 @@ public final class LoopStatementMaker {
         }
 
         return loop;
+    }
+
+    private static void preserveNestedContinueTargets(Statements statements, int targetOffset) {
+        for (int index = 0; index < statements.size(); index++) {
+            Statement statement = statements.get(index);
+            if (statement instanceof ContinueStatement continueStatement
+                    && continueStatement.getLabel() == null
+                    && !(statement instanceof ClassFileContinueStatement)) {
+                statements.set(index, new ClassFileContinueStatement(targetOffset));
+            } else if (statement instanceof IfElseStatement ifElseStatement) {
+                preserveNestedContinueTargets(ifElseStatement.getStatements(), targetOffset);
+                preserveNestedContinueTargets(ifElseStatement.getElseStatements(), targetOffset);
+            } else if (statement instanceof IfStatement ifStatement) {
+                preserveNestedContinueTargets(ifStatement.getStatements(), targetOffset);
+            }
+        }
+    }
+
+    private static void preserveNestedContinueTargets(BaseStatement statement, int targetOffset) {
+        if (statement instanceof Statements statements) {
+            preserveNestedContinueTargets(statements, targetOffset);
+        }
     }
 
     private static ClassFileForStatement newClassFileForStatement(

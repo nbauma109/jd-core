@@ -400,7 +400,11 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 canonical = uninitializedVariables.get(slotKey);
             }
             if (canonical == null) {
-                canonical = inheritedVariables.get(slotKey);
+                AbstractLocalVariable inherited = inheritedVariables.get(slotKey);
+                AbstractLocalVariable variable = declarator.getLocalVariable();
+                if (inherited == variable || inherited != null && inherited.getName().equals(variable.getName())) {
+                    canonical = inherited;
+                }
             }
             if (canonical == null) {
                 return;

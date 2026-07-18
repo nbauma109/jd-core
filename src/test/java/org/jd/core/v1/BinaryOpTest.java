@@ -53,6 +53,20 @@ public class BinaryOpTest extends AbstractJdTest {
     }
 
     @Test
+    public void testNumericAddInsideStringConcatenation() throws Exception {
+        class StringConcatenation {
+            @SuppressWarnings("unused")
+            String concatenate(int i, int j) {
+                return "x" + (i + j);
+            }
+        }
+        String internalClassName = StringConcatenation.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(source.matches(PatternMaker.make("return \"x\" + (i + j);")));
+    }
+
+    @Test
     public void testMultiply() throws Exception {
         class Multiply {
             @SuppressWarnings("unused")

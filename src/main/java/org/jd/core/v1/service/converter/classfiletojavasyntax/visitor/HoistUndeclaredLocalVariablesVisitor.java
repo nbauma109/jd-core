@@ -84,6 +84,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             Map<String, AbstractLocalVariable> previousUninitializedVariables =
                     new LinkedHashMap<>(uninitializedVariables);
             Map<String, AbstractLocalVariable> previousDeclaredVariables = new LinkedHashMap<>(declaredVariables);
+            Map<String, Boolean> previousSeenDeclarations = new LinkedHashMap<>(seenDeclarations);
             Map<String, AbstractLocalVariable> previousInheritedVariables = inheritedVariables;
             inheritedVariables = new LinkedHashMap<>(declaredVariables);
             currentStatements = statements;
@@ -102,6 +103,8 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             uninitializedVariables.putAll(previousUninitializedVariables);
             declaredVariables.clear();
             declaredVariables.putAll(previousDeclaredVariables);
+            seenDeclarations.clear();
+            seenDeclarations.putAll(previousSeenDeclarations);
             inheritedVariables = previousInheritedVariables;
             currentStatements = previousStatements;
         }

@@ -21,6 +21,7 @@ import org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.visitor.Search
 
 import static org.apache.bcel.Const.MAJOR_1_5;
 import static org.jd.core.v1.api.printer.Printer.TYPE;
+import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_STRING;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_DOUBLE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_FLOAT;
 
@@ -81,6 +82,10 @@ public class JavaSyntaxToJavaFragmentProcessor {
                 return true;
             }
             if ("+".equals(operator) && "-".equals(rightOperator)) {
+                return true;
+            }
+            if ("+".equals(operator) && "+".equals(rightOperator)
+                    && TYPE_STRING.equals(expression.getType()) && !TYPE_STRING.equals(right.getType())) {
                 return true;
             }
             return ("+".equals(operator) || "*".equals(operator))

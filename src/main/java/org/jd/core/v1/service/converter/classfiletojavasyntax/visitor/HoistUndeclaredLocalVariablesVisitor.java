@@ -249,11 +249,10 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
 
         private static void restoreLoopUpdateBeforeContinue(
                 Statements statements, PostOperatorExpression update, int updateOffset) {
-            for (int index = 0; index < statements.size(); index++) {
+            for (int index = statements.size() - 1; index >= 0; index--) {
                 Statement statement = statements.get(index);
                 if (isContinueTargeting(statement, updateOffset)) {
                     statements.add(index, new ExpressionStatement(update.copyTo(update.getLineNumber())));
-                    index++;
                 } else if (statement instanceof IfStatement ifStatement) {
                     insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
                 }
@@ -400,7 +399,10 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         @Override
         public void visit(ForStatement statement) {
             replaceSplitVariableForDeclaration(statement);
+            Map<String, Boolean> previousSeenDeclarations = new LinkedHashMap<>(seenDeclarations);
             super.visit(statement);
+            seenDeclarations.clear();
+            seenDeclarations.putAll(previousSeenDeclarations);
         }
 
         private void replaceSplitVariableForDeclaration(ForStatement statement) {

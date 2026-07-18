@@ -19,6 +19,7 @@ import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
 import org.jd.core.v1.stub.ExceptionWitness;
+import org.jd.core.v1.stub.ForHeaderVariableScope;
 import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
@@ -88,6 +89,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(PrecedingLoopUpdate.class);
         assertEquals(1, source.split("value--;", -1).length - 1);
         assertRecompiles(PrecedingLoopUpdate.class, source);
+    }
+
+    @Test
+    public void testForHeaderVariableScopeEndsAfterLoop() throws Exception {
+        String source = decompile(ForHeaderVariableScope.class);
+        assertTrue(source.matches(PatternMaker.make("value = 2;")));
+        assertRecompiles(ForHeaderVariableScope.class, source);
     }
 
     @Test

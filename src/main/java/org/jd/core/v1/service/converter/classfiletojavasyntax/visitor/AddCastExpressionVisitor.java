@@ -1413,9 +1413,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocationExpression
                 && methodInvocationExpression.getUnboundType() instanceof GenericType genericReturnType
                 && localTypeBounds.get(genericReturnType.getName()) instanceof ObjectType returnBound
-                && (castType.rawEquals(returnBound)
-                        || typeMaker.isRawTypeAssignable(castType, returnBound)
-                        || typeMaker.isRawTypeAssignable(returnBound, castType))) {
+                && castType.rawEquals(returnBound)) {
             // javac inserts CHECKCAST to the erasure after invoking a method whose source-level return
             // type is a type variable (notably T extends FieldElement<T>). The type variable is still
             // known here, so retaining and parameterizing that implementation cast produces recursive

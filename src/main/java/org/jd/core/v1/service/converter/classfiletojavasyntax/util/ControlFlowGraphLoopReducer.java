@@ -25,7 +25,6 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_SINGLE_SUCCESSOR;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_END;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_START;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_CONDITIONAL_BRANCH;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_GOTO;
@@ -645,6 +644,8 @@ public final class ControlFlowGraphLoopReducer {
 
         // Build new basic block for loop
         BasicBlock loopBB = start.getControlFlowGraph().newBasicBlock(TYPE_LOOP, start.getFromOffset(), start.getToOffset());
+        BasicBlock loopStart = start.getControlFlowGraph().newBasicBlock(
+                TYPE_LOOP_START, start.getFromOffset(), start.getFromOffset());
 
         // Update predecessors
         Iterator<BasicBlock> startPredecessorIterator = start.getPredecessors().iterator();
@@ -668,7 +669,7 @@ public final class ControlFlowGraphLoopReducer {
                 BasicBlock bb = member.getNext();
 
                 if (bb == start) {
-                    member.setNext(LOOP_START);
+                    member.setNext(loopStart);
                 } else if (bb == end) {
                     member.setNext(LOOP_END);
                 } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
@@ -678,7 +679,7 @@ public final class ControlFlowGraphLoopReducer {
                 BasicBlock bb = member.getNext();
 
                 if (bb == start) {
-                    member.setNext(LOOP_START);
+                    member.setNext(loopStart);
                 } else if (bb == end) {
                     member.setNext(LOOP_END);
                 } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
@@ -688,7 +689,7 @@ public final class ControlFlowGraphLoopReducer {
                 bb = member.getBranch();
 
                 if (bb == start) {
-                    member.setBranch(LOOP_START);
+                    member.setBranch(loopStart);
                 } else if (bb == end) {
                     member.setBranch(LOOP_END);
                 } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
@@ -700,7 +701,7 @@ public final class ControlFlowGraphLoopReducer {
                     bb = switchCase.getBasicBlock();
 
                     if (bb == start) {
-                        switchCase.setBasicBlock(LOOP_START);
+                        switchCase.setBasicBlock(loopStart);
                     } else if (bb == end) {
                         switchCase.setBasicBlock(LOOP_END);
                     } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {

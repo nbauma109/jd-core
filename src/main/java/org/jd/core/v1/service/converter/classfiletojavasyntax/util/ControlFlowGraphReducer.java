@@ -37,7 +37,6 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_SINGLE_SUCCESSOR;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_SYNTHETIC;
-import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_CONTINUE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.LOOP_START;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.SWITCH_BREAK;
@@ -1286,7 +1285,7 @@ public abstract class ControlFlowGraphReducer {
 
                 BasicBlock conditionalBranch = getLastConditionalBranch(visitedMembers, basicBlock.getSub1());
 
-                if (conditionalBranch != null && conditionalBranch.getNext() == LOOP_START) {
+                if (conditionalBranch != null && conditionalBranch.getNext().getType() == TYPE_LOOP_START) {
                     visitedMembers.clear();
                     visitedMembers.set(conditionalBranch.getIndex());
                     changeEndLoopToJump(visitedMembers, basicBlock.getNext(), basicBlock.getSub1());
@@ -1326,7 +1325,7 @@ public abstract class ControlFlowGraphReducer {
             next = basicBlock.getNext();
         }
 
-        if (next == LOOP_CONTINUE) {
+        if (next.getType() == TYPE_LOOP_CONTINUE) {
             basicBlock.setNext(END);
         }
     }
@@ -1519,9 +1518,11 @@ public abstract class ControlFlowGraphReducer {
     private static void removePredecessors(BasicBlock basicBlock) {
         Set<BasicBlock> predecessors = basicBlock.getPredecessors();
         Iterator<BasicBlock> iterator = predecessors.iterator();
+        BasicBlock loopContinue = basicBlock.getControlFlowGraph().newBasicBlock(
+                TYPE_LOOP_CONTINUE, basicBlock.getFromOffset(), basicBlock.getFromOffset());
 
         while (iterator.hasNext()) {
-            iterator.next().replace(basicBlock, LOOP_CONTINUE);
+            iterator.next().replace(basicBlock, loopContinue);
         }
 
         predecessors.clear();

@@ -43,6 +43,7 @@ import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileLocalVariableDeclarator;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 
 
@@ -132,8 +133,9 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     && statements.get(index - 1) instanceof ExpressionStatement precedingStatement
                     && precedingStatement.getExpression() instanceof PostOperatorExpression update
                     && ("--".equals(update.getOperator()) || "++".equals(update.getOperator()))
+                    && update.getExpression() instanceof ClassFileLocalVariableReferenceExpression updateReference
                     && whileStatement.getStatements() instanceof Statements loopStatements) {
-                restoreLoopUpdateBeforeContinue(loopStatements, update);
+                restoreLoopUpdateBeforeContinue(loopStatements, update, updateReference.getOffset());
             }
         }
 
@@ -245,29 +247,44 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             return true;
         }
 
-        private static void restoreLoopUpdateBeforeContinue(Statements statements, PostOperatorExpression update) {
+        private static void restoreLoopUpdateBeforeContinue(
+                Statements statements, PostOperatorExpression update, int updateOffset) {
             for (int index = 0; index < statements.size(); index++) {
-                if (statements.get(index) instanceof IfStatement ifStatement) {
-                    insertUpdateBeforeContinue(ifStatement.getStatements(), update);
+                Statement statement = statements.get(index);
+                if (isContinueTargeting(statement, updateOffset)) {
+                    statements.add(index, new ExpressionStatement(update.copyTo(update.getLineNumber())));
+                    index++;
+                } else if (statement instanceof IfStatement ifStatement) {
+                    insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
                 }
             }
         }
 
-        private static boolean insertUpdateBeforeContinue(BaseStatement statement, PostOperatorExpression update) {
+        private static void insertUpdateBeforeContinue(
+                BaseStatement statement, PostOperatorExpression update, int updateOffset) {
             if (statement instanceof Statements statements) {
-                for (int index = 0; index < statements.size(); index++) {
-                    Statement nested = statements.get(index);
-                    if (isUnlabelledContinue(nested)) {
-                        statements.add(index, new ExpressionStatement(update.copyTo(update.getLineNumber())));
-                        return true;
-                    }
-                    if (nested instanceof IfStatement nestedIf
-                            && insertUpdateBeforeContinue(nestedIf.getStatements(), update)) {
-                        return true;
-                    }
-                }
+                restoreLoopUpdateBeforeContinue(statements, update, updateOffset);
+            } else if (statement instanceof IfStatement ifStatement) {
+                insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
             }
-            return false;
+        }
+
+        private static boolean isContinueTargeting(Statement statement, int targetOffset) {
+            if (statement instanceof ClassFileContinueStatement classFileContinueStatement) {
+                return isIincTarget(classFileContinueStatement.getTargetOffset(), targetOffset);
+            }
+            return statement instanceof ClassFileBreakContinueStatement classFileStatement
+                    && isIincTarget(classFileStatement.getTargetOffset(), targetOffset)
+                    && classFileStatement.getStatement() instanceof ContinueStatement continueStatement
+                    && continueStatement.getLabel() == null;
+        }
+
+        private static boolean isIincTarget(int jumpTargetOffset, int localVariableOperandOffset) {
+            // A normal IINC stores its local index one byte after the opcode. A WIDE IINC stores the
+            // reference offset at its final operand, five bytes after WIDE. Only a jump back to that
+            // exact instruction proves that the preceding update belongs on the continue path.
+            return jumpTargetOffset == localVariableOperandOffset - 1
+                    || jumpTargetOffset == localVariableOperandOffset - 5;
         }
 
         private static boolean isUnlabelledContinue(Statement statement) {
@@ -383,26 +400,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         @Override
         public void visit(ForStatement statement) {
             replaceSplitVariableForDeclaration(statement);
-            // Restore a nested while loop when control-flow reduction attaches the enclosing
-            // for-loop update to the inner loop. Match the empty outer update, inner update,
-            // single conditional inner body, and trailing continue as structural evidence.
-            if (statement.getUpdate() == null && statement.getStatements() instanceof Statements outerStatements
-                    && !outerStatements.isEmpty() && outerStatements.getLast() instanceof ForStatement inner
-                    && (inner.getCondition() == null || inner.getCondition() instanceof BooleanExpression condition && condition.isTrue())
-                    && inner.getUpdate() != null
-                    && inner.getStatements() instanceof Statements innerStatements && innerStatements.size() == 1
-                    && innerStatements.getFirst() instanceof IfStatement ifStatement) {
-                BaseStatement thenStatement = ifStatement.getStatements();
-                if (thenStatement instanceof Statements thenStatements && !thenStatements.isEmpty()
-                        && isUnlabelledContinue(thenStatements.getLast())) {
-                    thenStatements.remove(thenStatements.size() - 1);
-                    statement.setUpdate(inner.getUpdate());
-                    inner.setUpdate(null);
-                    inner.setCondition(ifStatement.getCondition());
-                    innerStatements.clear();
-                    innerStatements.addAll(thenStatements);
-                }
-            }
             super.visit(statement);
         }
 

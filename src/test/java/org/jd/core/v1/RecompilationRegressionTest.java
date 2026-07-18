@@ -13,6 +13,7 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.AmbiguousMethodReference;
+import org.jd.core.v1.stub.BoundedGenericReturnCast;
 import org.jd.core.v1.stub.ConflictingWildcardCapture;
 import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
@@ -22,6 +23,7 @@ import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.ParameterizedCastReceiver;
+import org.jd.core.v1.stub.PrecedingLoopUpdate;
 import org.jd.core.v1.stub.RawDeclaredOverloads;
 import org.jd.core.v1.stub.RawWildcardConstructor;
 import org.jd.core.v1.stub.SneakyThrow;
@@ -55,6 +57,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
     }
 
     @Test
+    public void testNarrowingCastFromBoundedGenericReturn() throws Exception {
+        String source = decompile(BoundedGenericReturnCast.class);
+        assertTrue(source.matches(PatternMaker.make("return (Integer)get();")));
+        assertRecompiles(BoundedGenericReturnCast.class, source);
+    }
+
+    @Test
     public void testRawDeclaredMethodReferenceCast() throws Exception {
         String source = decompile(RawDeclaredMethodReference.class);
         assertTrue(source.matches(PatternMaker.make("use((F1<List>)this::foo);")));
@@ -72,6 +81,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(ParameterizedCastReceiver.class);
         assertTrue(source.matches(PatternMaker.make("return ((List<String>)value).get(0);")));
         assertRecompiles(ParameterizedCastReceiver.class, source);
+    }
+
+    @Test
+    public void testPrecedingLoopUpdateRunsOnlyOnce() throws Exception {
+        String source = decompile(PrecedingLoopUpdate.class);
+        assertEquals(1, source.split("value--;", -1).length - 1);
+        assertRecompiles(PrecedingLoopUpdate.class, source);
     }
 
     @Test

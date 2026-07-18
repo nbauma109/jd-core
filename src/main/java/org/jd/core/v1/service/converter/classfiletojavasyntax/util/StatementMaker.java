@@ -55,6 +55,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.MergeTryWithResourcesStatementVisitor;
@@ -398,8 +399,15 @@ public class StatementMaker {
             case TYPE_LOOP:
                 parseLoop(watchdog, basicBlock, statements, jumps);
                 break;
-            case TYPE_LOOP_START, TYPE_LOOP_CONTINUE:
-                statements.add(ContinueStatement.CONTINUE);
+            case TYPE_LOOP_START:
+                if (basicBlock.getFromOffset() > 0) {
+                    statements.add(new ClassFileContinueStatement(basicBlock.getFromOffset()));
+                } else {
+                    statements.add(ContinueStatement.CONTINUE);
+                }
+                break;
+            case TYPE_LOOP_CONTINUE:
+                statements.add(new ClassFileContinueStatement(basicBlock.getFromOffset()));
                 break;
             case TYPE_JUMP:
                 Statement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), basicBlock.getToOffset());
@@ -671,7 +679,7 @@ public class StatementMaker {
 
         tryStatements = makeSubStatements(watchdog, basicBlock.getSub1(), statements, jumps);
         if (basicBlock.getNext().getType() == TYPE_LOOP_CONTINUE) {
-            tryStatements.add(ContinueStatement.CONTINUE);
+            tryStatements.add(new ClassFileContinueStatement(basicBlock.getNext().getFromOffset()));
             basicBlock.setNext(END);
         }
         for (ExceptionHandler exceptionHandler : basicBlock.getExceptionHandlers()) {
@@ -989,7 +997,7 @@ public class StatementMaker {
             next = next.getNext();
         }
 
-        if (next == LOOP_START && last.getType() == TYPE_IF && last.getSub1() == LOOP_END && countStartLoop(sub1) == 1) {
+        if (next.getType() == TYPE_LOOP_START && last.getType() == TYPE_IF && last.getSub1() == LOOP_END && countStartLoop(sub1) == 1) {
             parseDoWhileLoop(watchdog, basicBlock, sub1, last, updateBasicBlock, statements, jumps);
         } else {
             // Infinite loop
@@ -1014,7 +1022,7 @@ public class StatementMaker {
             return false;
         }
 
-        if (ifBB.getNext() == LOOP_START) {
+        if (ifBB.getNext().getType() == TYPE_LOOP_START) {
             // 'do-while' pattern
             ifBB.getCondition().inverseCondition();
 
@@ -1046,7 +1054,7 @@ public class StatementMaker {
             changeEndLoopToStartLoop(new BitSet(), sub1.getSub1());
             subStatements = makeSubStatements(watchdog, sub1.getSub1(), statements, jumps, updateBasicBlock);
 
-            if (subStatements.getLast() != ContinueStatement.CONTINUE) {
+            if (!(subStatements.getLast() instanceof ContinueStatement)) {
                 throw new IllegalStateException("StatementMaker.parseLoop(...) : unexpected basic block for create a do-while loop");
             }
 

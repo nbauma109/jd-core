@@ -33,6 +33,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlo
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileForEachStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileForStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
@@ -52,7 +53,6 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import static org.apache.bcel.Const.MAJOR_1_5;
-import static org.jd.core.v1.model.javasyntax.statement.ContinueStatement.CONTINUE;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_ITERABLE;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_OBJECT;
 
@@ -182,7 +182,7 @@ public final class LoopStatementMaker {
     private static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements) {
         int subStatementsSize = subStatements.size();
 
-        if (subStatementsSize > 0 && subStatements.getLast() == CONTINUE) {
+        if (subStatementsSize > 0 && subStatements.getLast() instanceof ContinueStatement) {
             subStatements.removeLast();
             subStatementsSize--;
         }
@@ -693,7 +693,7 @@ public final class LoopStatementMaker {
                             statement.setStatement(new ContinueStatement(label));
                             createLabel = true;
                         } else {
-                            statement.setStatement(CONTINUE);
+                            statement.setStatement(new ClassFileContinueStatement(targetOffset));
                         }
                         iterator.remove();
                     } else {

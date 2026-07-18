@@ -186,7 +186,8 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 String thenKey = slotKey(thenVariable, thenDeclaration.getType());
                 if (thenKey.equals(slotKey(elseVariable, elseDeclaration.getType()))
                         && thenDeclarator.getName().equals(elseDeclarator.getName())
-                        && hasSharedVariableLineage(thenVariable, elseVariable)) {
+                        && (hasSharedVariableLineage(thenVariable, elseVariable)
+                                || hasSingleNullInitializer(thenDeclarator, elseDeclarator))) {
                     splitVariables.putIfAbsent(thenKey, thenVariable);
                     splitVariableTypes.putIfAbsent(thenKey, thenDeclaration.getType());
                 }
@@ -204,6 +205,16 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 return declaration;
             }
             return null;
+        }
+
+        private static boolean hasSingleNullInitializer(
+                LocalVariableDeclarator first, LocalVariableDeclarator second) {
+            return hasNullInitializer(first) != hasNullInitializer(second);
+        }
+
+        private static boolean hasNullInitializer(LocalVariableDeclarator declarator) {
+            return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
+                    && initializer.getExpression() instanceof NullExpression;
         }
 
         private static boolean moveMisplacedForUpdateAfterLoop(Statements containingStatements, int index,

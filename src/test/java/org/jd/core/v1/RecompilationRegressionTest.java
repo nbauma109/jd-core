@@ -21,6 +21,7 @@ import org.jd.core.v1.stub.ExceptionWitness;
 import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
+import org.jd.core.v1.stub.ParameterizedCastReceiver;
 import org.jd.core.v1.stub.RawDeclaredOverloads;
 import org.jd.core.v1.stub.RawWildcardConstructor;
 import org.jd.core.v1.stub.SneakyThrow;
@@ -64,6 +65,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
     public void testRawConstructorInWildcardContext() throws Exception {
         String source = decompile(RawWildcardConstructor.class);
         assertRecompiles(RawWildcardConstructor.class, source);
+    }
+
+    @Test
+    public void testParameterizedCastMethodReceiver() throws Exception {
+        String source = decompile(ParameterizedCastReceiver.class);
+        assertTrue(source.matches(PatternMaker.make("return ((List<String>)value).get(0);")));
+        assertRecompiles(ParameterizedCastReceiver.class, source);
     }
 
     @Test

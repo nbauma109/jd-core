@@ -351,10 +351,13 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
 
         @Override
         public void visit(ForEachStatement statement) {
+            statement.getExpression().accept(this);
+            Map<String, Boolean> previousSeenDeclarations = new LinkedHashMap<>(seenDeclarations);
             seenDeclarations.put(key(statement.getName(), statement.getType().getDescriptor()), Boolean.TRUE);
             restoreConnectionLoopBreak(statement.getStatements());
-            statement.getExpression().accept(this);
             safeAccept(statement.getStatements());
+            seenDeclarations.clear();
+            seenDeclarations.putAll(previousSeenDeclarations);
         }
 
         private static void restoreConnectionLoopBreak(BaseStatement statement) {

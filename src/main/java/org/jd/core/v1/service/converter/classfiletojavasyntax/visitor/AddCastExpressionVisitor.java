@@ -805,8 +805,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && !hasUnboundedWildcardTypeArgument(currentObjectType.getTypeArguments())) {
             expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
         }
-        BaseType parameterTypes = restoreErasedConstructorParameterTypes(
-                expression.getParameterTypes(), expression.getObjectType());
+        BaseType parameterTypes = expression.getParameterTypes();
+        if (expression.getBodyDeclaration() != null && expression.getBodyDeclaration().isAnonymous()) {
+            parameterTypes = restoreErasedConstructorParameterTypes(parameterTypes, expression.getObjectType());
+        }
         boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
         visitingWitnessedInvocation = false;
         expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null,

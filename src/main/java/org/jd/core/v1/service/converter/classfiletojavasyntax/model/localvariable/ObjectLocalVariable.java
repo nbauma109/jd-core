@@ -10,6 +10,7 @@ import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
 
 import java.util.Map;
 
@@ -126,14 +127,15 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
                                 this.type = otherObjectType;
                                 fireChangeEvent(typeBounds);
                             }
-                        } else // Assignable types
-                        if (typeMaker.isAssignable(typeBounds, thisObjectType, otherObjectType)
+                        } else { // Assignable types
+                            TypeTypes thisTypeTypes = typeMaker.makeTypeTypes(thisObjectType.getInternalName());
+                            if (typeMaker.isAssignable(typeBounds, thisObjectType, otherObjectType)
                                 && thisObjectType.getTypeArguments() == null && otherObjectType.getTypeArguments() != null
-                                && typeMaker.makeTypeTypes(thisObjectType.getInternalName()) != null
-                                && typeMaker.makeTypeTypes(thisObjectType.getInternalName()).getTypeParameters() != null) {
-                            // Keep type, update type arguments
-                            this.type = thisObjectType.createType(otherObjectType.getTypeArguments());
-                            fireChangeEvent(typeBounds);
+                                && thisTypeTypes != null && thisTypeTypes.getTypeParameters() != null) {
+                                // Keep type, update type arguments
+                                this.type = thisObjectType.createType(otherObjectType.getTypeArguments());
+                                fireChangeEvent(typeBounds);
+                            }
                         }
                     }
                 } else if (this.type.isGenericType() && type.isGenericType()) {
@@ -160,14 +162,15 @@ public class ObjectLocalVariable extends AbstractLocalVariable {
                         this.type = otherObjectType;
                         fireChangeEvent(typeBounds);
                     }
-                } else // Assignable types
-                if (typeMaker.isAssignable(typeBounds, otherObjectType, thisObjectType)
+                } else { // Assignable types
+                    TypeTypes thisTypeTypes = typeMaker.makeTypeTypes(thisObjectType.getInternalName());
+                    if (typeMaker.isAssignable(typeBounds, otherObjectType, thisObjectType)
                         && thisObjectType.getTypeArguments() == null && otherObjectType.getTypeArguments() != null
-                        && typeMaker.makeTypeTypes(thisObjectType.getInternalName()) != null
-                        && typeMaker.makeTypeTypes(thisObjectType.getInternalName()).getTypeParameters() != null) {
-                    // Keep type, update type arguments
-                    this.type = thisObjectType.createType(otherObjectType.getTypeArguments());
-                    fireChangeEvent(typeBounds);
+                        && thisTypeTypes != null && thisTypeTypes.getTypeParameters() != null) {
+                        // Keep type, update type arguments
+                        this.type = thisObjectType.createType(otherObjectType.getTypeArguments());
+                        fireChangeEvent(typeBounds);
+                    }
                 }
             }
         }

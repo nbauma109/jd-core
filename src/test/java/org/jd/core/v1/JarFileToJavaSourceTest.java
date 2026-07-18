@@ -418,8 +418,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 System.getenv("JAVA_HOME_8_X64")
         }) {
             if (configured != null && !configured.isBlank()) {
-                Path home = Paths.get(configured);
-                if (Files.isExecutable(home.resolve("bin/java"))) {
+                Path home = javaHome(Paths.get(configured));
+                if (home != null) {
                     return home;
                 }
             }
@@ -430,7 +430,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             try (var homes = Files.list(candidates)) {
                 Path home = homes
                         .filter(path -> path.getFileName().toString().startsWith("8."))
-                        .filter(path -> Files.isExecutable(path.resolve("bin/java")))
+                        .map(JarFileToJavaSourceTest::javaHome)
+                        .filter(javaHome -> javaHome != null)
                         .sorted(Comparator.reverseOrder())
                         .findFirst()
                         .orElse(null);
@@ -441,6 +442,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         }
 
         throw new IOException("Commons Math 3.6.1 tests require Java 8; set -Djd.test.java8.home or JAVA8_HOME");
+    }
+
+    private static Path javaHome(Path configured) {
+        Path fileName = configured.getFileName();
+        if (fileName != null && ("java".equals(fileName.toString()) || "java.exe".equals(fileName.toString()))
+                && Files.isRegularFile(configured)) {
+            Path bin = configured.getParent();
+            return bin == null ? null : bin.getParent();
+        }
+        return Files.isRegularFile(configured.resolve("bin/java"))
+                || Files.isRegularFile(configured.resolve("bin/java.exe")) ? configured : null;
     }
 
     private static void forwardProcessOutput(Process process, AtomicReference<IOException> outputForwardError) {

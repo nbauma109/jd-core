@@ -771,32 +771,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         BaseExpression parameters = expression.getParameters();
 
         if (parameters != null) {
-            inferNewExpressionTypeArgument((ClassFileNewExpression) expression, parameters);
-            boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
-            boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
-            Type currentType = expectedType;
-            ObjectType currentObjectType = currentType instanceof ObjectType ot ? ot : null;
-            if (currentObjectType != null
-                    && currentObjectType.rawEquals(expression.getObjectType())
-                    && currentObjectType.getTypeArguments() != null
-                    && expression.getObjectType().getTypeArguments() == null) {
-                expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
-            }
-            boolean rawCast = currentObjectType != null && expression.getType() instanceof ObjectType
-                    && typeMaker.isRawTypeAssignable(currentObjectType, expression.getObjectType())
-                    && !typeMaker.isAssignable(typeBounds, currentObjectType, expression.getObjectType())
-                    && (!hasKnownTypeParameters(expression.getObjectType().getTypeArguments())
-                            || containsWildcardSuper(currentObjectType.getTypeArguments()));
-            if (rawCast) {
-                expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
-            }
-            BaseType parameterTypes = restoreErasedConstructorParameterTypes(
-                    ((ClassFileNewExpression) expression).getParameterTypes(), expression.getObjectType());
-            // The enclosing call's witness cannot disambiguate this constructor's own overload
-            boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
-            visitingWitnessedInvocation = false;
-            expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast)));
-            visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
+            updateNewExpressionParameters((ClassFileNewExpression) expression, parameters);
         }
 
         if (expression.getBodyDeclaration() != null && expression.getBodyDeclaration().isAnonymous()) {
@@ -816,16 +791,56 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    private void updateNewExpressionParameters(ClassFileNewExpression expression, BaseExpression parameters) {
+        inferNewExpressionTypeArgument(expression, parameters);
+        boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(),
+                StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
+        boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds,
+                expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR,
+                parameters, true) > 1;
+        ObjectType currentObjectType = expectedType instanceof ObjectType objectType ? objectType : null;
+        copyContextualTypeArguments(expression, currentObjectType);
+        boolean rawCast = requiresRawConstructorCast(expression, currentObjectType);
+        if (rawCast) {
+            expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
+        }
+        BaseType parameterTypes = restoreErasedConstructorParameterTypes(
+                expression.getParameterTypes(), expression.getObjectType());
+        boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
+        visitingWitnessedInvocation = false;
+        expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null,
+                parameters, new CastFlags(forceCast, unique, rawCast)));
+        visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
+    }
+
+    private static void copyContextualTypeArguments(ClassFileNewExpression expression,
+            ObjectType currentObjectType) {
+        if (currentObjectType != null && currentObjectType.rawEquals(expression.getObjectType())
+                && currentObjectType.getTypeArguments() != null
+                && !hasWildcardTypeArgument(currentObjectType)
+                && expression.getObjectType().getTypeArguments() == null) {
+            expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
+        }
+    }
+
+    private boolean requiresRawConstructorCast(ClassFileNewExpression expression, ObjectType currentObjectType) {
+        return currentObjectType != null && expression.getType() instanceof ObjectType
+                && typeMaker.isRawTypeAssignable(currentObjectType, expression.getObjectType())
+                && !typeMaker.isAssignable(typeBounds, currentObjectType, expression.getObjectType())
+                && (!hasKnownTypeParameters(expression.getObjectType().getTypeArguments())
+                        || containsWildcardSuper(currentObjectType.getTypeArguments()));
+    }
+
     private void inferNewExpressionTypeArgument(ClassFileNewExpression expression, BaseExpression parameters) {
         TypeTypes typeTypes = typeMaker.makeTypeTypes(expression.getObjectType().getInternalName());
-        BaseTypeParameter typeParameters = typeTypes == null ? null : typeTypes.getTypeParameters();
+        BaseTypeParameter classTypeParameters = typeTypes == null ? null : typeTypes.getTypeParameters();
         BaseType parameterTypes = expression.getParameterTypes();
 
-        if (typeParameters == null || typeParameters.size() != 1 || parameterTypes == null
+        if (classTypeParameters == null || classTypeParameters.size() != 1 || parameterTypes == null
                 || parameterTypes.size() != parameters.size()) {
             return;
         }
-        org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameters.getFirst();
+        org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = classTypeParameters.getFirst();
         if (!(typeParameter instanceof TypeParameterWithTypeBounds parameterWithBounds)
                 || !(parameterWithBounds.getTypeBounds().getFirst() instanceof ObjectType parameterBound)) {
             return;
@@ -962,32 +977,63 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(TernaryOperatorExpression expression) {
-        Type expressionType = expectedType == null ? expression.getType() : expectedType;
+        Type expressionType = contextualTernaryType(expression.getType());
 
         expression.getCondition().accept(this);
+        normalizeTernaryBooleanConstants(expression);
+        expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
+        expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
+    }
+
+    private Type contextualTernaryType(Type ternaryType) {
+        if (expectedType == null) {
+            return ternaryType;
+        }
+        if (expectedType instanceof ObjectType expectedObjectType
+                && ternaryType instanceof ObjectType ternaryObjectType
+                && expectedObjectType.rawEquals(ternaryObjectType)) {
+            return expectedType;
+        }
+        if (expectedType instanceof GenericType expectedGenericType
+                && ternaryType instanceof GenericType ternaryGenericType
+                && expectedGenericType.getName().equals(ternaryGenericType.getName())
+                && expectedGenericType.getDimension() == ternaryGenericType.getDimension()) {
+            return expectedType;
+        }
+        return expectedType.isPrimitiveType() && ternaryType.isPrimitiveType() ? expectedType : ternaryType;
+    }
+
+    private static void normalizeTernaryBooleanConstants(TernaryOperatorExpression expression) {
         Expression trueExpression = expression.getTrueExpression();
         Expression falseExpression = expression.getFalseExpression();
         if (trueExpression instanceof BooleanExpression value
                 && falseExpression instanceof IntegerConstantExpression) {
             expression.setTrueExpression(new IntegerConstantExpression(
                     expression.getLineNumber(), TYPE_INT, value.isTrue() ? 1 : 0));
-        } else if (falseExpression instanceof BooleanExpression value
+            return;
+        }
+        if (falseExpression instanceof BooleanExpression value
                 && trueExpression instanceof IntegerConstantExpression) {
             expression.setFalseExpression(new IntegerConstantExpression(
                     expression.getLineNumber(), TYPE_INT, value.isTrue() ? 1 : 0));
-        } else if (trueExpression instanceof IntegerConstantExpression trueValue
-                && falseExpression instanceof IntegerConstantExpression falseValue) {
-            boolean trueCanBeBoolean = (((PrimitiveType)trueValue.getType()).getFlags() & FLAG_BOOLEAN) != 0;
-            boolean falseCanBeBoolean = (((PrimitiveType)falseValue.getType()).getFlags() & FLAG_BOOLEAN) != 0;
-            if (trueCanBeBoolean && !falseCanBeBoolean) {
-                trueValue.setType(TYPE_INT);
-            }
-            if (falseCanBeBoolean && !trueCanBeBoolean) {
-                falseValue.setType(TYPE_INT);
-            }
+            return;
         }
-        expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
-        expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
+        if (trueExpression instanceof IntegerConstantExpression trueValue
+                && falseExpression instanceof IntegerConstantExpression falseValue) {
+            normalizeTernaryIntegerConstants(trueValue, falseValue);
+        }
+    }
+
+    private static void normalizeTernaryIntegerConstants(IntegerConstantExpression trueValue,
+            IntegerConstantExpression falseValue) {
+        boolean trueCanBeBoolean = (((PrimitiveType)trueValue.getType()).getFlags() & FLAG_BOOLEAN) != 0;
+        boolean falseCanBeBoolean = (((PrimitiveType)falseValue.getType()).getFlags() & FLAG_BOOLEAN) != 0;
+        if (trueCanBeBoolean && !falseCanBeBoolean) {
+            trueValue.setType(TYPE_INT);
+        }
+        if (falseCanBeBoolean && !trueCanBeBoolean) {
+            falseValue.setType(TYPE_INT);
+        }
     }
 
     @Override

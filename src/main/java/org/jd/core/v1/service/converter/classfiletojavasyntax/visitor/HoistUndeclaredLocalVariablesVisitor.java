@@ -37,10 +37,6 @@ import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
-import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
-import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
-import org.jd.core.v1.model.javasyntax.statement.ReturnStatement;
-import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileLocalVariableDeclarator;
@@ -76,41 +72,58 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         private final Map<String, Boolean> seenDeclarations = new LinkedHashMap<>();
         private final Map<String, AbstractLocalVariable> splitVariables = new LinkedHashMap<>();
         private final Map<String, Type> splitVariableTypes = new LinkedHashMap<>();
+        private final Map<String, AbstractLocalVariable> uninitializedVariables = new LinkedHashMap<>();
+        private final Map<String, AbstractLocalVariable> declaredVariables = new LinkedHashMap<>();
+        private Map<String, AbstractLocalVariable> inheritedVariables = new LinkedHashMap<>();
         private Statements currentStatements;
 
         @Override
         public void visit(Statements statements) {
             Statements previousStatements = currentStatements;
+            Map<String, AbstractLocalVariable> previousUninitializedVariables =
+                    new LinkedHashMap<>(uninitializedVariables);
+            Map<String, AbstractLocalVariable> previousDeclaredVariables = new LinkedHashMap<>(declaredVariables);
+            Map<String, AbstractLocalVariable> previousInheritedVariables = inheritedVariables;
+            inheritedVariables = new LinkedHashMap<>(declaredVariables);
             currentStatements = statements;
-            for (int index = 0; index < statements.size(); index++) {
+            int index = 0;
+            while (index < statements.size()) {
+                int previousSize = statements.size();
                 Statement statement = statements.get(index);
                 if (statement instanceof LocalVariableDeclarationStatement declarationStatement
                         && replaceSplitVariableDeclaration(statements, index, declarationStatement)) {
-                    if (index >= statements.size()) {
-                        break;
-                    }
-                    statement = statements.get(index);
+                    statement = index < statements.size() ? statements.get(index) : null;
                 }
-                if (statement instanceof ForStatement forStatement
+                if (statement != null && statement instanceof ForStatement forStatement
                         && moveMisplacedForUpdateAfterLoop(statements, index, forStatement)) {
                     statement = statements.get(index);
                 }
-                if (statement instanceof WhileStatement whileStatement && index > 0
+                if (statement != null && statement instanceof WhileStatement whileStatement && index > 0
                         && statements.get(index - 1) instanceof ExpressionStatement precedingStatement
                         && precedingStatement.getExpression() instanceof PostOperatorExpression update
                         && "--".equals(update.getOperator())
                         && whileStatement.getStatements() instanceof Statements loopStatements) {
                     restoreLoopUpdateBeforeContinue(loopStatements, update);
                 }
-                if (statement instanceof BreakStatement && index > 0
+                if (statement != null && statement instanceof BreakStatement && index > 0
                         && statements.get(index - 1) instanceof WhileStatement whileStatement
                         && whileStatement.getCondition() instanceof BooleanExpression condition
                         && condition.isTrue()) {
-                    statements.remove(index--);
-                    continue;
+                    statements.remove(index);
+                    statement = null;
                 }
-                statement.accept(this);
+                if (statement != null) {
+                    statement.accept(this);
+                }
+                if (statements.size() >= previousSize) {
+                    index++;
+                }
             }
+            uninitializedVariables.clear();
+            uninitializedVariables.putAll(previousUninitializedVariables);
+            declaredVariables.clear();
+            declaredVariables.putAll(previousDeclaredVariables);
+            inheritedVariables = previousInheritedVariables;
             currentStatements = previousStatements;
         }
 
@@ -228,38 +241,27 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         }
 
         @Override
-        public void visit(SwitchStatement statement) {
-            MethodInvocationNameSearch getSide = new MethodInvocationNameSearch("getSide");
-            statement.getCondition().accept(getSide);
-            if (getSide.found) {
-                for (SwitchStatement.Block block : statement.getBlocks()) {
-                    if (block.getStatements() instanceof Statements statements && !statements.isEmpty()
-                            && !isTerminal(statements.getLast())) {
-                        statements.add(BreakStatement.BREAK);
+        public void visit(LocalVariableDeclarationStatement statement) {
+            for (LocalVariableDeclarator declarator : statement.getLocalVariableDeclarators()) {
+                seenDeclarations.put(key(declarator.getName(), statement.getType().getDescriptor()), Boolean.TRUE);
+            }
+            if (statement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
+                String key = key(declarator.getName(), statement.getType().getDescriptor());
+                declarations.putIfAbsent(key, new DeclarationLocation(currentStatements, statement, declarator));
+                if (declarator instanceof ClassFileLocalVariableDeclarator classFileDeclarator) {
+                    String slotKey = slotKey(classFileDeclarator.getLocalVariable(), statement.getType());
+                    declaredVariables.putIfAbsent(slotKey, classFileDeclarator.getLocalVariable());
+                    if (declarator.getVariableInitializer() == null) {
+                        uninitializedVariables.putIfAbsent(slotKey, classFileDeclarator.getLocalVariable());
                     }
                 }
             }
             super.visit(statement);
         }
 
-        private static boolean isTerminal(Statement statement) {
-            return statement instanceof BreakStatement || statement instanceof ReturnStatement
-                    || statement instanceof ReturnExpressionStatement || statement instanceof ThrowStatement;
-        }
-
-        @Override
-        public void visit(LocalVariableDeclarationStatement statement) {
-            if (statement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
-                String key = key(declarator.getName(), statement.getType().getDescriptor());
-                seenDeclarations.put(key, Boolean.TRUE);
-                declarations.putIfAbsent(key, new DeclarationLocation(currentStatements, statement, declarator));
-            }
-            super.visit(statement);
-        }
-
         @Override
         public void visit(LocalVariableDeclaration declaration) {
-            if (declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
+            for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
                 seenDeclarations.put(key(declarator.getName(), declaration.getType().getDescriptor()), Boolean.TRUE);
             }
             super.visit(declaration);
@@ -268,8 +270,8 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         @Override
         public void visit(LocalVariableReferenceExpression expression) {
             if (expression instanceof ClassFileLocalVariableReferenceExpression reference) {
-                AbstractLocalVariable canonical = splitVariables.get(slotKey(
-                        reference.getLocalVariable(), reference.getType()));
+                String slotKey = slotKey(reference.getLocalVariable(), reference.getType());
+                AbstractLocalVariable canonical = splitVariables.get(slotKey);
                 if (canonical != null) {
                     reference.setLocalVariable(canonical);
                     return;
@@ -336,9 +338,10 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
 
         @Override
         public void visit(ForStatement statement) {
-            // Restore a nested while loop when its enclosing for-loop update was attached to
-            // the inner loop by control-flow reduction. The characteristic shape is:
-            // for (init; condition; ) { ...; for (innerInit; ; outerUpdate) { if (test) { ...; continue; } } }
+            replaceSplitVariableForDeclaration(statement);
+            // Restore a nested while loop when control-flow reduction attaches the enclosing
+            // for-loop update to the inner loop. Match the empty outer update, inner update,
+            // single conditional inner body, and trailing continue as structural evidence.
             if (statement.getUpdate() == null && statement.getStatements() instanceof Statements outerStatements
                     && !outerStatements.isEmpty() && outerStatements.getLast() instanceof ForStatement inner
                     && (inner.getCondition() == null || inner.getCondition() instanceof BooleanExpression condition && condition.isTrue())
@@ -359,6 +362,33 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             super.visit(statement);
         }
 
+        private void replaceSplitVariableForDeclaration(ForStatement statement) {
+            LocalVariableDeclaration declaration = statement.getDeclaration();
+            if (declaration == null
+                    || !(declaration.getLocalVariableDeclarators() instanceof ClassFileLocalVariableDeclarator declarator)) {
+                return;
+            }
+            String slotKey = slotKey(declarator.getLocalVariable(), declaration.getType());
+            AbstractLocalVariable canonical = splitVariables.get(slotKey);
+            if (canonical == null) {
+                canonical = uninitializedVariables.get(slotKey);
+            }
+            if (canonical == null) {
+                canonical = inheritedVariables.get(slotKey);
+            }
+            if (canonical == null) {
+                return;
+            }
+            declarator.getLocalVariable().setName(canonical.getName());
+            statement.setDeclaration(null);
+            if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer) {
+                LocalVariableReferenceExpression reference = new LocalVariableReferenceExpression(
+                        declarator.getLineNumber(), declaration.getType(), canonical.getName());
+                statement.setInit(new BinaryOperatorExpression(declarator.getLineNumber(), declaration.getType(),
+                        reference, "=", initializer.getExpression(), 16));
+            }
+        }
+
         @Override
         public void visit(DoWhileStatement statement) {
             MethodInvocationNameSearch search = new MethodInvocationNameSearch("isNaN");
@@ -366,13 +396,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             if (search.found && statement.getStatements() instanceof Statements statements) {
                 for (int index = 0; index < statements.size() - 1; index++) {
                     if (statements.get(index) instanceof IfStatement ifStatement) {
-                        BaseStatement thenStatement = ifStatement.getStatements();
-                        if (replaceContinueWithBreak(thenStatement)) {
-                            // The bytecode jump leaves this do/while; keep the wrapper but correct its target.
-                        } else if (thenStatement instanceof ContinueStatement continueStatement
-                                && continueStatement.getLabel() == null) {
-                            statements.set(index, new IfStatement(ifStatement.getCondition(), BreakStatement.BREAK));
-                        }
+                        replaceContinueWithBreak(ifStatement.getStatements());
                     }
                 }
             }
@@ -404,14 +428,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 classFileStatement.setStatement(BreakStatement.BREAK);
                 return true;
             }
-            if (statement instanceof Statements statements && statements.size() == 1) {
-                Statement nested = statements.getFirst();
-                if (nested instanceof ContinueStatement continueStatement && continueStatement.getLabel() == null) {
-                    statements.set(0, BreakStatement.BREAK);
-                    return true;
-                }
-                return replaceContinueWithBreak(nested);
-            }
             return false;
         }
 
@@ -421,7 +437,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     && statement.getStatements() instanceof Statements statements && !statements.isEmpty()
                     && statements.getLast() instanceof IfStatement ifStatement
                     && ifStatement.getCondition().isBinaryOperatorExpression()
-                    && "==".equals(ifStatement.getCondition().getOperator())
                     && "==".equals(ifStatement.getCondition().getOperator())) {
                 BaseStatement thenStatement = ifStatement.getStatements();
                 if (thenStatement instanceof ExpressionStatement expressionStatement) {
@@ -452,18 +467,27 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                         splitVariableTypes.get(entry.getKey()), new LocalVariableDeclarator(entry.getValue().getName())));
             }
             for (Map.Entry<String, DeclarationLocation> entry : declarations.entrySet()) {
-                if (!referencedBeforeDeclaration.containsKey(entry.getKey())) {
-                    continue;
+                if (isHoistable(entry)) {
+                    hoistDeclaration(methodStatements, entry, insertionIndex);
+                    insertionIndex++;
                 }
+            }
+        }
 
+        private boolean isHoistable(Map.Entry<String, DeclarationLocation> entry) {
+            DeclarationLocation location = entry.getValue();
+            return referencedBeforeDeclaration.containsKey(entry.getKey())
+                    && location.declarator().getVariableInitializer() instanceof ExpressionVariableInitializer
+                    && location.statements().indexOf(location.statement()) >= 0;
+        }
+
+        private void hoistDeclaration(Statements methodStatements,
+                Map.Entry<String, DeclarationLocation> entry, int insertionIndex) {
+            if (isHoistable(entry)) {
                 DeclarationLocation location = entry.getValue();
-                if (!(location.declarator().getVariableInitializer() instanceof ExpressionVariableInitializer initializer)) {
-                    continue;
-                }
+                ExpressionVariableInitializer initializer =
+                        (ExpressionVariableInitializer) location.declarator().getVariableInitializer();
                 int index = location.statements().indexOf(location.statement());
-                if (index < 0) {
-                    continue;
-                }
                 LocalVariableReferenceExpression reference = new LocalVariableReferenceExpression(
                         location.declarator().getLineNumber(), location.statement().getType(), location.declarator().getName());
                 BinaryOperatorExpression assignment = new BinaryOperatorExpression(
@@ -478,7 +502,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 } else {
                     hoistedDeclarator = new LocalVariableDeclarator(location.declarator().getName());
                 }
-                methodStatements.add(insertionIndex++, new LocalVariableDeclarationStatement(
+                methodStatements.add(insertionIndex, new LocalVariableDeclarationStatement(
                         location.statement().getType(), hoistedDeclarator));
             }
         }

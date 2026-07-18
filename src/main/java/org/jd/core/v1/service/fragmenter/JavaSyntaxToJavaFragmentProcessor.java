@@ -37,65 +37,73 @@ public class JavaSyntaxToJavaFragmentProcessor {
         ImportsFragment importsFragment = importsVisitor.getImportsFragment();
         decompileContext.setMaxLineNumber(importsVisitor.getMaxLineNumber());
 
-        CompilationUnitVisitor visitor = new CompilationUnitVisitor(loader, mainInternalTypeName, majorVersion, importsFragment) {
-            @Override
-            public void visit(BinaryOperatorExpression expression) {
-                if (expression.getRightExpression() instanceof BinaryOperatorExpression right
-                        && right.getPriority() == expression.getPriority()
-                        && requiresRightParentheses(expression, right)) {
-                    // Equal-precedence operators are only left-associative in source. Preserve a
-                    // right-nested bytecode tree: flattening it can change floating-point rounding,
-                    // integer division, string concatenation, and subtraction semantics.
-                    visit(expression, expression.getLeftExpression());
-                    tokens.add(TextToken.SPACE);
-                    tokens.add(newTextToken(expression.getOperator()));
-                    tokens.add(TextToken.SPACE);
-                    visit(expression, expression.getRightExpression(), true);
-                } else {
-                    super.visit(expression);
-                }
-            }
-
-            private boolean requiresRightParentheses(BinaryOperatorExpression expression,
-                    BinaryOperatorExpression right) {
-                String operator = expression.getOperator();
-                String rightOperator = right.getOperator();
-                if ("-".equals(operator) || "/".equals(operator) || "%".equals(operator)) {
-                    return true;
-                }
-                if ("*".equals(operator) && !"*".equals(rightOperator)) {
-                    return true;
-                }
-                if ("+".equals(operator) && "-".equals(rightOperator)) {
-                    return true;
-                }
-                return ("+".equals(operator) || "*".equals(operator))
-                        && (TYPE_FLOAT.equals(expression.getType()) || TYPE_DOUBLE.equals(expression.getType()));
-            }
-
-            @Override
-            public void visit(InnerObjectType type) {
-                ObjectType outerType = type.getOuterType();
-
-                if (outerType != null && (outerType.getName() == null || outerType.getName().isEmpty())) {
-                    // An anonymous class has no source-level name. Its member types are directly in scope
-                    // inside its body and must not be prefixed with the anonymous class's empty name.
-                    tokens.add(new ReferenceToken(TYPE, type.getInternalName(), type.getName(), null, currentType));
-
-                    if (majorVersion >= MAJOR_1_5) {
-                        BaseTypeArgument typeArguments = type.getTypeArguments();
-                        if (typeArguments != null) {
-                            visitTypeArgumentList(typeArguments);
-                        }
-                    }
-
-                    visitDimension(type.getDimension());
-                } else {
-                    super.visit(type);
-                }
-            }
-        };
+        CompilationUnitVisitor visitor = new ParenthesizingCompilationUnitVisitor(
+                loader, mainInternalTypeName, majorVersion, importsFragment);
         visitor.visit(compilationUnit);
         decompileContext.setBody(visitor.getFragments());
+    }
+
+    private static final class ParenthesizingCompilationUnitVisitor extends CompilationUnitVisitor {
+        private final int majorVersion;
+
+        private ParenthesizingCompilationUnitVisitor(Loader loader, String mainInternalTypeName,
+                int majorVersion, ImportsFragment importsFragment) {
+            super(loader, mainInternalTypeName, majorVersion, importsFragment);
+            this.majorVersion = majorVersion;
+        }
+
+        @Override
+        public void visit(BinaryOperatorExpression expression) {
+            if (expression.getRightExpression() instanceof BinaryOperatorExpression right
+                    && right.getPriority() == expression.getPriority()
+                    && requiresRightParentheses(expression, right)) {
+                // Equal-precedence operators are only left-associative in source. Preserve a
+                // right-nested bytecode tree: flattening it can change floating-point rounding,
+                // integer division, string concatenation, and subtraction semantics.
+                visit(expression, expression.getLeftExpression());
+                tokens.add(TextToken.SPACE);
+                tokens.add(newTextToken(expression.getOperator()));
+                tokens.add(TextToken.SPACE);
+                visit(expression, expression.getRightExpression(), true);
+            } else {
+                super.visit(expression);
+            }
+        }
+
+        private static boolean requiresRightParentheses(BinaryOperatorExpression expression,
+                BinaryOperatorExpression right) {
+            String operator = expression.getOperator();
+            String rightOperator = right.getOperator();
+            if ("-".equals(operator) || "/".equals(operator) || "%".equals(operator)) {
+                return true;
+            }
+            if ("*".equals(operator) && !"*".equals(rightOperator)) {
+                return true;
+            }
+            if ("+".equals(operator) && "-".equals(rightOperator)) {
+                return true;
+            }
+            return ("+".equals(operator) || "*".equals(operator))
+                    && (TYPE_FLOAT.equals(expression.getType()) || TYPE_DOUBLE.equals(expression.getType()));
+        }
+
+        @Override
+        public void visit(InnerObjectType type) {
+            ObjectType outerType = type.getOuterType();
+            if (outerType != null && (outerType.getName() == null || outerType.getName().isEmpty())) {
+                // An anonymous class has no source-level name. Its member types are directly in scope
+                // inside its body and must not be prefixed with the anonymous class's empty name.
+                tokens.add(new ReferenceToken(TYPE, type.getInternalName(), type.getName(), null, currentType));
+                if (majorVersion >= MAJOR_1_5) {
+                    BaseTypeArgument typeArguments = type.getTypeArguments();
+                    if (typeArguments != null) {
+                        visitTypeArgumentList(typeArguments);
+                    }
+                }
+                visitDimension(type.getDimension());
+            } else {
+                super.visit(type);
+            }
+        }
     }
 }

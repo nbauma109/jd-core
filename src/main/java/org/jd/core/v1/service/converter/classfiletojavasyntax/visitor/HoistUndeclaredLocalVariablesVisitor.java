@@ -455,11 +455,21 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 }
             }
 
-            @Override public void visit(DoWhileStatement statement) {}
-            @Override public void visit(ForEachStatement statement) {}
-            @Override public void visit(ForStatement statement) {}
-            @Override public void visit(SwitchStatement statement) {}
-            @Override public void visit(WhileStatement statement) {}
+            @Override public void visit(DoWhileStatement statement) {
+                // A nested loop owns its unlabelled breaks.
+            }
+            @Override public void visit(ForEachStatement statement) {
+                // A nested loop owns its unlabelled breaks.
+            }
+            @Override public void visit(ForStatement statement) {
+                // A nested loop owns its unlabelled breaks.
+            }
+            @Override public void visit(SwitchStatement statement) {
+                // A nested switch owns its unlabelled breaks.
+            }
+            @Override public void visit(WhileStatement statement) {
+                // A nested loop owns its unlabelled breaks.
+            }
         }
 
         private static boolean replaceContinueWithBreak(BaseStatement statement) {

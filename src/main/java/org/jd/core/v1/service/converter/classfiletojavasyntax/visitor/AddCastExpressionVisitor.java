@@ -818,6 +818,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (currentObjectType != null && currentObjectType.rawEquals(expression.getObjectType())
                 && currentObjectType.getTypeArguments() != null
                 && !hasWildcardTypeArgument(currentObjectType)
+                && !containsWildcardSuper(currentObjectType.getTypeArguments())
                 && expression.getObjectType().getTypeArguments() == null) {
             expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
         }

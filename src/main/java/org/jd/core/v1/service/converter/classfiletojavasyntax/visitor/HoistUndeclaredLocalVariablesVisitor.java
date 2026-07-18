@@ -328,8 +328,10 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     || !(secondIndex.getExpression() instanceof LocalVariableReferenceExpression secondVariable)) {
                 return false;
             }
-            return first.getExpression().toString().equals(second.getExpression().toString())
-                    && firstVariable.getName().equals(secondVariable.getName());
+            // DUP-based compound array assignments reuse the same array and index expressions. Two source-level
+            // post-increments merely look alike, but are distinct nodes and must retain both side effects.
+            return first.getExpression() == second.getExpression()
+                    && firstVariable == secondVariable;
         }
 
         @Override

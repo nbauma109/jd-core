@@ -37,6 +37,7 @@ import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileLocalVariableDeclarator;
@@ -111,10 +112,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     && replaceSplitVariableDeclaration(statements, index, declarationStatement)) {
                 statement = index < statements.size() ? statements.get(index) : null;
             }
-            if (statement instanceof ForStatement forStatement
-                    && moveMisplacedForUpdateAfterLoop(statements, index, forStatement)) {
-                statement = statements.get(index);
-            }
             restorePrecedingLoopUpdate(statements, index, statement);
             if (isRedundantBreakAfterInfiniteLoop(statements, index, statement)) {
                 statements.remove(index);
@@ -138,7 +135,13 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             return statement instanceof BreakStatement && index > 0
                     && statements.get(index - 1) instanceof WhileStatement whileStatement
                     && whileStatement.getCondition() instanceof BooleanExpression condition
-                    && condition.isTrue();
+                    && condition.isTrue() && !containsBreakForCurrentLoop(whileStatement.getStatements());
+        }
+
+        private static boolean containsBreakForCurrentLoop(BaseStatement statement) {
+            BreakSearch search = new BreakSearch();
+            statement.accept(search);
+            return search.found;
         }
 
         private boolean replaceSplitVariableDeclaration(Statements statements, int index,
@@ -196,28 +199,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 return declaration;
             }
             return null;
-        }
-
-        private static boolean moveMisplacedForUpdateAfterLoop(Statements containingStatements, int index,
-                ForStatement statement) {
-            if (!(statement.getCondition() == null
-                    || statement.getCondition() instanceof BooleanExpression condition && condition.isTrue())
-                    || statement.getUpdate() == null || statement.getUpdate().size() != 1
-                    || !(statement.getStatements() instanceof Statements loopStatements)
-                    || loopStatements.size() != 1 || !(loopStatements.getFirst() instanceof IfStatement ifStatement)
-                    || !(ifStatement.getStatements() instanceof Statements thenStatements) || thenStatements.isEmpty()
-                    || !isUnlabelledContinue(thenStatements.getLast())) {
-                return false;
-            }
-
-            Expression update = statement.getUpdate().getFirst();
-            thenStatements.remove(thenStatements.size() - 1);
-            statement.setCondition(ifStatement.getCondition());
-            statement.setUpdate(null);
-            loopStatements.clear();
-            loopStatements.addAll(thenStatements);
-            containingStatements.add(index + 1, new ExpressionStatement(update));
-            return true;
         }
 
         private static void restoreLoopUpdateBeforeContinue(Statements statements, PostOperatorExpression update) {
@@ -435,6 +416,23 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             }
         }
 
+        private static final class BreakSearch extends AbstractJavaSyntaxVisitor {
+            private boolean found;
+
+            @Override
+            public void visit(BreakStatement statement) {
+                if (statement.getLabel() == null) {
+                    found = true;
+                }
+            }
+
+            @Override public void visit(DoWhileStatement statement) {}
+            @Override public void visit(ForEachStatement statement) {}
+            @Override public void visit(ForStatement statement) {}
+            @Override public void visit(SwitchStatement statement) {}
+            @Override public void visit(WhileStatement statement) {}
+        }
+
         private static boolean replaceContinueWithBreak(BaseStatement statement) {
             if (statement instanceof ClassFileBreakContinueStatement classFileStatement
                     && classFileStatement.getStatement() instanceof ContinueStatement continueStatement
@@ -475,7 +473,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         }
 
         void hoistInto(Statements methodStatements) {
-            int insertionIndex = 0;
+            int insertionIndex = constructorInvocationOffset(methodStatements);
             for (Map.Entry<String, AbstractLocalVariable> entry : splitVariables.entrySet()) {
                 methodStatements.add(insertionIndex++, new LocalVariableDeclarationStatement(
                         splitVariableTypes.get(entry.getKey()), new LocalVariableDeclarator(entry.getValue().getName())));
@@ -486,6 +484,17 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     insertionIndex++;
                 }
             }
+        }
+
+        private static int constructorInvocationOffset(Statements statements) {
+            if (!statements.isEmpty() && statements.getFirst() instanceof ExpressionStatement expressionStatement) {
+                Expression expression = expressionStatement.getExpression();
+                if (expression.isSuperConstructorInvocationExpression()
+                        || expression.isConstructorInvocationExpression()) {
+                    return 1;
+                }
+            }
+            return 0;
         }
 
         private boolean isHoistable(Map.Entry<String, DeclarationLocation> entry) {

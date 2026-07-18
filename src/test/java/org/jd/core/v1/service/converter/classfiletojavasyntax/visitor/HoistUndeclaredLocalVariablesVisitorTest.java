@@ -13,11 +13,13 @@ import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
+import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
@@ -25,6 +27,7 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.ObjectLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
@@ -52,6 +55,10 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
     private void process(Statement statement) {
         Statements methodStatements = new Statements();
         methodStatements.add(statement);
+        process(methodStatements);
+    }
+
+    private void process(Statements methodStatements) {
         MethodDeclaration method = new MethodDeclaration(0, "test", PrimitiveType.TYPE_VOID, "()V", methodStatements);
         new HoistUndeclaredLocalVariablesVisitor().visit(method);
     }
@@ -100,5 +107,27 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         process(loop);
 
         assertSame(BreakStatement.BREAK, jump.getStatement());
+    }
+
+    @Test
+    public void testRecoveredUpdateIsCopiedIntoBothIfElseBranches() {
+        PostOperatorExpression update = new PostOperatorExpression(
+                1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
+        Statements thenStatements = new Statements();
+        thenStatements.add(new ClassFileContinueStatement(10));
+        Statements elseStatements = new Statements();
+        elseStatements.add(new ClassFileContinueStatement(10));
+        IfElseStatement branch = new IfElseStatement(BooleanExpression.TRUE, thenStatements, elseStatements);
+        Statements loopStatements = new Statements();
+        loopStatements.add(branch);
+        WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, loopStatements);
+        Statements methodStatements = new Statements(new ExpressionStatement(update), loop);
+
+        process(methodStatements);
+
+        assertEquals(2, thenStatements.size());
+        assertEquals(2, elseStatements.size());
+        assertTrue(thenStatements.getFirst() instanceof ExpressionStatement);
+        assertTrue(elseStatements.getFirst() instanceof ExpressionStatement);
     }
 }

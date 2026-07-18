@@ -256,6 +256,9 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 Statement statement = statements.get(index);
                 if (isContinueTargeting(statement, updateOffset)) {
                     statements.add(index, new ExpressionStatement(update.copyTo(update.getLineNumber())));
+                } else if (statement instanceof IfElseStatement ifElseStatement) {
+                    insertUpdateBeforeContinue(ifElseStatement.getStatements(), update, updateOffset);
+                    insertUpdateBeforeContinue(ifElseStatement.getElseStatements(), update, updateOffset);
                 } else if (statement instanceof IfStatement ifStatement) {
                     insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
                 }
@@ -266,6 +269,9 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 BaseStatement statement, PostOperatorExpression update, int updateOffset) {
             if (statement instanceof Statements statements) {
                 restoreLoopUpdateBeforeContinue(statements, update, updateOffset);
+            } else if (statement instanceof IfElseStatement ifElseStatement) {
+                insertUpdateBeforeContinue(ifElseStatement.getStatements(), update, updateOffset);
+                insertUpdateBeforeContinue(ifElseStatement.getElseStatements(), update, updateOffset);
             } else if (statement instanceof IfStatement ifStatement) {
                 insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
             }

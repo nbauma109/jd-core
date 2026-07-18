@@ -25,6 +25,7 @@ import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.ParameterizedCastReceiver;
 import org.jd.core.v1.stub.PrecedingLoopUpdate;
+import org.jd.core.v1.stub.PrimitiveOverloadExpression;
 import org.jd.core.v1.stub.RawDeclaredOverloads;
 import org.jd.core.v1.stub.RawWildcardConstructor;
 import org.jd.core.v1.stub.SneakyThrow;
@@ -89,6 +90,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(PrecedingLoopUpdate.class);
         assertEquals(1, source.split("value--;", -1).length - 1);
         assertRecompiles(PrecedingLoopUpdate.class, source);
+    }
+
+    @Test
+    public void testPrimitiveOverloadAcceptsExpressionArgument() throws Exception {
+        String source = decompile(PrimitiveOverloadExpression.class);
+        assertTrue(source.matches(PatternMaker.make("consume(left + right);")));
+        assertRecompiles(PrimitiveOverloadExpression.class, source);
     }
 
     @Test

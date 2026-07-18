@@ -181,7 +181,8 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
     }
 
     private static boolean isPrimitiveUnboxing(Type parameterType, Expression parameter) {
-        return parameterType.isPrimitiveType() && isUnboxingMethod(parameter);
+        return parameterType.isPrimitiveType() && parameter.isMethodInvocationExpression()
+                && isUnboxingMethod(parameter);
     }
 
     private boolean isOverloaded(MethodInvocationExpression expression) {

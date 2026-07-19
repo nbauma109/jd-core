@@ -99,7 +99,7 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
     }
 
     @Test
-    public void testNanDoWhileContinueBecomesBreak() {
+    public void testNanDoWhilePreservesContinue() {
         ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(10, 20);
         jump.setStatement(ContinueStatement.CONTINUE);
         IfStatement exit = new IfStatement(BooleanExpression.TRUE, jump);
@@ -108,7 +108,7 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
 
         process(loop);
 
-        assertSame(BreakStatement.BREAK, jump.getStatement());
+        assertSame(ContinueStatement.CONTINUE, jump.getStatement());
     }
 
     @Test

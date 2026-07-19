@@ -867,8 +867,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && erasedParameterType.getDimension() == genericArgumentType.getDimension()
                     && hasKnownTypeParameters(genericArgumentType)
                     && erasedParameterType.getInternalName().equals(parameterBound.getInternalName())) {
+                // The dimensions belong to the constructor parameter occurrence: T[] erases to Bound[]
+                // and an argument U[] therefore infers the class type argument U, not U[].
                 expression.setObjectType(expression.getObjectType().createType(
-                        new GenericType(genericArgumentType.getName())));
+                        new GenericType(genericArgumentType.getName(),
+                                genericArgumentType.getDimension() - erasedParameterType.getDimension())));
                 return;
             }
         }

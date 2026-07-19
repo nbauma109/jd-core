@@ -22,6 +22,7 @@ import org.jd.core.v1.stub.ExceptionWitness;
 import org.jd.core.v1.stub.ForHeaderVariableScope;
 import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.GenericArrayReturnCast;
+import org.jd.core.v1.stub.GenericArrayConstructorInference;
 import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.ParameterizedCastReceiver;
@@ -71,6 +72,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(GenericArrayReturnCast.class);
         assertTrue(source.matches(PatternMaker.make("return (T[])get();")));
         assertRecompiles(GenericArrayReturnCast.class, source);
+    }
+
+    @Test
+    public void testGenericArrayConstructorInferenceStripsOccurrenceDimension() throws Exception {
+        String source = decompile(GenericArrayConstructorInference.class);
+        assertTrue(source.matches(PatternMaker.make("public Box<U> create(U[] values)")));
+        assertRecompiles(GenericArrayConstructorInference.class, source);
     }
 
     @Test

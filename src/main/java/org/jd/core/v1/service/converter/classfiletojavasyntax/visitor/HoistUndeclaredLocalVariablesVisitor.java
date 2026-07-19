@@ -471,20 +471,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     || firstOriginal != null && firstOriginal == secondOriginal;
         }
 
-        @Override
-        public void visit(DoWhileStatement statement) {
-            MethodInvocationNameSearch search = new MethodInvocationNameSearch("isNaN");
-            statement.getCondition().accept(search);
-            if (search.found && statement.getStatements() instanceof Statements statements) {
-                for (int index = 0; index < statements.size() - 1; index++) {
-                    if (statements.get(index) instanceof IfStatement ifStatement) {
-                        replaceContinueWithBreak(ifStatement.getStatements());
-                    }
-                }
-            }
-            super.visit(statement);
-        }
-
         private static final class MethodInvocationNameSearch extends AbstractJavaSyntaxVisitor {
             private final String name;
             private boolean found;
@@ -528,16 +514,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             @Override public void visit(WhileStatement statement) {
                 // A nested loop owns its unlabelled breaks.
             }
-        }
-
-        private static boolean replaceContinueWithBreak(BaseStatement statement) {
-            if (statement instanceof ClassFileBreakContinueStatement classFileStatement
-                    && classFileStatement.getStatement() instanceof ContinueStatement continueStatement
-                    && continueStatement.getLabel() == null) {
-                classFileStatement.setStatement(BreakStatement.BREAK);
-                return true;
-            }
-            return false;
         }
 
         @Override

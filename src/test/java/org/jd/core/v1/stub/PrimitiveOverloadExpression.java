@@ -7,9 +7,15 @@
 package org.jd.core.v1.stub;
 
 public class PrimitiveOverloadExpression {
-    private static void consume(int value) {}
+    @SuppressWarnings({"java:S1172", "unused"})
+    private static void consume(int value) {
+        // Overload target only: the body is irrelevant to the decompilation fixture.
+    }
 
-    private static void consume(Integer value) {}
+    @SuppressWarnings({"java:S1144", "java:S1172", "unused"})
+    private static void consume(Integer value) {
+        // Boxed overload only exists to make the primitive call ambiguous when unboxed.
+    }
 
     public void consumeSum(int left, int right) {
         consume(left + right);

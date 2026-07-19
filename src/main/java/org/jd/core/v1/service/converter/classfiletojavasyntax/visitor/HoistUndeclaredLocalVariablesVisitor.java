@@ -334,15 +334,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     || jumpTargetOffset == localVariableOperandOffset - 5;
         }
 
-        private static boolean isUnlabelledContinue(Statement statement) {
-            if (statement instanceof ContinueStatement continueStatement) {
-                return continueStatement.getLabel() == null;
-            }
-            return statement instanceof ClassFileBreakContinueStatement classFileStatement
-                    && classFileStatement.getStatement() instanceof ContinueStatement continueStatement
-                    && continueStatement.getLabel() == null;
-        }
-
         @Override
         public void visit(LocalVariableDeclarationStatement statement) {
             for (LocalVariableDeclarator declarator : statement.getLocalVariableDeclarators()) {

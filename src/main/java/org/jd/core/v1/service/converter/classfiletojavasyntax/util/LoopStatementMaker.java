@@ -188,10 +188,25 @@ public final class LoopStatementMaker {
             safeAccept(statement.getStatements());
         }
 
-        @Override public void visit(DoWhileStatement statement) {}
-        @Override public void visit(ForEachStatement statement) {}
-        @Override public void visit(ForStatement statement) {}
-        @Override public void visit(WhileStatement statement) {}
+        @Override
+        public void visit(DoWhileStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+
+        @Override
+        public void visit(ForStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+
+        @Override
+        public void visit(WhileStatement statement) {
+            // A nested loop owns its proven exits.
+        }
     }
 
     public static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements, Statements jumps) {
@@ -765,10 +780,25 @@ public final class LoopStatementMaker {
             }
         }
 
-        @Override public void visit(DoWhileStatement statement) {}
-        @Override public void visit(ForEachStatement statement) {}
-        @Override public void visit(ForStatement statement) {}
-        @Override public void visit(WhileStatement statement) {}
+        @Override
+        public void visit(DoWhileStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
+
+        @Override
+        public void visit(ForStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
+
+        @Override
+        public void visit(WhileStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
     }
 
     private static ClassFileForStatement newClassFileForStatement(

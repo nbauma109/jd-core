@@ -19,6 +19,7 @@ import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
 import org.jd.core.v1.stub.ExceptionWitness;
+import org.jd.core.v1.stub.ForEachSegmentFilter;
 import org.jd.core.v1.stub.ForHeaderVariableScope;
 import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.GenericArrayReturnCast;
@@ -114,6 +115,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(PrimitiveOverloadExpression.class);
         assertTrue(source.matches(PatternMaker.make("consume(left + right);")));
         assertRecompiles(PrimitiveOverloadExpression.class, source);
+    }
+
+    @Test
+    public void testForEachIfElseJoinJumpIsNotALoopExit() throws Exception {
+        String source = decompile(ForEachSegmentFilter.class);
+        assertFalse(source.contains("break"));
+        assertRecompiles(ForEachSegmentFilter.class, source);
     }
 
     @Test

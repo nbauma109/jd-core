@@ -164,6 +164,7 @@ public class StatementMaker {
     private boolean mergeTryWithResourcesStatementFlag;
     /** Number of 'switch' statements between the innermost loop being built and the current basic block. */
     private int switchDepthInLoop;
+    private int loopBreakTargetOffset = -1;
     /**
      * The first statement rendered for each basic block offset, captured as it is produced (see
      * {@code makeStatements}) - used by {@link #resolveRemainingJumpsWithLabels} to find the label target for
@@ -919,7 +920,7 @@ public class StatementMaker {
             boolean thenExitsLoop = !subStatements.isEmpty()
                     && basicBlock.getSub1().getNext() == END
                     && basicBlock.getNext().getType() == TYPE_LOOP_START
-                    && hasForwardJumpAtEnd(basicBlock.getSub1())
+                    && hasLoopExitJumpAtEnd(basicBlock.getSub1())
                     && !isTerminalStatement(subStatements.getLast());
             statements.add(thenExitsLoop
                     ? new ClassFileIfStatement(cond, subStatements)
@@ -974,34 +975,39 @@ public class StatementMaker {
                 || statement instanceof ThrowStatement;
     }
 
-    private static boolean hasForwardJumpAtEnd(BasicBlock basicBlock) {
-        if (basicBlock.getControlFlowGraph() == null) {
+    private boolean hasLoopExitJumpAtEnd(BasicBlock basicBlock) {
+        if (basicBlock.getControlFlowGraph() == null || loopBreakTargetOffset <= 0) {
             return false;
         }
         byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
         // The branch-ending goto is either split into its own block, sitting at the
-        // exclusive end offset, or retained as the branch's own last instruction.
-        return isForwardGoto(code, basicBlock.getToOffset())
-                || isForwardGoto(code, ByteCodeUtil.getLastInstructionOffset(basicBlock));
+        // branch's exclusive end offset, or retained as the branch's own last
+        // instruction. Only a jump to the enclosing loop's break target proves a loop
+        // exit: an if/else join jump also ends a branch but stays inside the loop.
+        return isGotoTo(code, basicBlock.getToOffset(), loopBreakTargetOffset)
+                || isGotoTo(code, ByteCodeUtil.getLastInstructionOffset(basicBlock), loopBreakTargetOffset);
     }
 
-    private static boolean isForwardGoto(byte[] code, int offset) {
+    private static boolean isGotoTo(byte[] code, int offset, int targetOffset) {
         if (offset < 0 || offset + 2 >= code.length || (code[offset] & 0xFF) != GOTO) {
             return false;
         }
         int delta = (short) (((code[offset + 1] & 0xFF) << 8) | (code[offset + 2] & 0xFF));
-        return delta > 0;
+        return delta > 0 && offset + delta == targetOffset;
     }
 
     protected void parseLoop(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
         // Loop-exit tracking is relative to the innermost loop: a 'switch' enclosing this loop must not
         // make this loop's own exits look like they need labeled breaks.
         int enclosingSwitchDepth = switchDepthInLoop;
+        int enclosingLoopBreakTarget = loopBreakTargetOffset;
         switchDepthInLoop = 0;
+        loopBreakTargetOffset = basicBlock.getNext().getFromOffset();
         try {
             parseLoopBody(watchdog, basicBlock, statements, jumps);
         } finally {
             switchDepthInLoop = enclosingSwitchDepth;
+            loopBreakTargetOffset = enclosingLoopBreakTarget;
         }
 
         makeStatements(watchdog, basicBlock.getNext(), statements, jumps);

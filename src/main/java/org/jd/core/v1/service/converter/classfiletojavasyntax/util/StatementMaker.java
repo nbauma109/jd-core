@@ -995,8 +995,8 @@ public class StatementMaker {
         if (loopBreakTargetOffset > 0 && target == loopBreakTargetOffset) {
             return true;
         }
-        // A forward jump onto this loop's own backedge is an if/else join, not an exit;
-        // a break out of a loop nested at the end of an outer loop body lands on the
+        // A forward jump onto this loop's own backedge is an if/else join, not an exit.
+        // A break out of a loop nested at the end of an outer loop body lands on the
         // outer loop's backedge instead.
         return !isBackedgeOfCurrentLoop(code, target);
     }

@@ -12,9 +12,9 @@ public class NestedForEachBreak {
     public int connect(List<StringBuilder> segments) {
         int connected = 0;
         for (StringBuilder segment : segments) {
-            if (segment.length() == 0) {
+            if (segment.isEmpty()) {
                 for (StringBuilder candidate : segments) {
-                    if (candidate.length() > 0) {
+                    if (!candidate.isEmpty()) {
                         segment.append(candidate);
                         connected++;
                         break;

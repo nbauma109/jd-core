@@ -130,4 +130,50 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         assertTrue(thenStatements.getFirst() instanceof ExpressionStatement);
         assertTrue(elseStatements.getFirst() instanceof ExpressionStatement);
     }
+
+    @Test
+    public void testRecoveredUpdateDescendsThroughNestedIfIntoIfElse() {
+        PostOperatorExpression update = new PostOperatorExpression(
+                1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
+        Statements thenStatements = new Statements();
+        thenStatements.add(new ClassFileContinueStatement(10));
+        Statements elseStatements = new Statements();
+        elseStatements.add(new ClassFileContinueStatement(10));
+        IfElseStatement branch = new IfElseStatement(BooleanExpression.TRUE, thenStatements, elseStatements);
+        IfStatement nested = new IfStatement(BooleanExpression.TRUE,
+                new IfStatement(BooleanExpression.TRUE, branch));
+        Statements loopStatements = new Statements();
+        loopStatements.add(nested);
+        WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, loopStatements);
+        Statements methodStatements = new Statements(new ExpressionStatement(update), loop);
+
+        process(methodStatements);
+
+        assertEquals(2, thenStatements.size());
+        assertEquals(2, elseStatements.size());
+    }
+
+    @Test
+    public void testTrailingBreakAfterBodylessInfiniteLoopIsRemoved() {
+        WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, null);
+        Statements methodStatements = new Statements(loop, BreakStatement.BREAK);
+
+        process(methodStatements);
+
+        assertEquals(1, methodStatements.size());
+        assertSame(loop, methodStatements.getFirst());
+    }
+
+    @Test
+    public void testTrailingBreakRemainsWhenInfiniteLoopBodyCanBreak() {
+        Statements body = new Statements();
+        body.add(BreakStatement.BREAK);
+        WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, body);
+        Statements methodStatements = new Statements(loop, BreakStatement.BREAK);
+
+        process(methodStatements);
+
+        assertEquals(2, methodStatements.size());
+        assertSame(BreakStatement.BREAK, methodStatements.getLast());
+    }
 }

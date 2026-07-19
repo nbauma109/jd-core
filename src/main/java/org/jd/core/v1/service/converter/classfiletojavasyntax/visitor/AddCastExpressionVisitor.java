@@ -989,7 +989,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Type expressionType = contextualTernaryType(expression.getType());
 
         expression.getCondition().accept(this);
-        normalizeTernaryBooleanConstants(expression);
+        normalizeTernaryBooleanConstants(expression, expressionType);
         expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
         expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
     }
@@ -1012,9 +1012,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return expectedType.isPrimitiveType() && ternaryType.isPrimitiveType() ? expectedType : ternaryType;
     }
 
-    private static void normalizeTernaryBooleanConstants(TernaryOperatorExpression expression) {
+    private static void normalizeTernaryBooleanConstants(TernaryOperatorExpression expression, Type expressionType) {
         Expression trueExpression = expression.getTrueExpression();
         Expression falseExpression = expression.getFalseExpression();
+        if (TYPE_BOOLEAN.equals(expressionType)) {
+            if (trueExpression instanceof IntegerConstantExpression value) {
+                expression.setTrueExpression(new BooleanExpression(value.getLineNumber(), value.getIntegerValue() != 0));
+            }
+            if (falseExpression instanceof IntegerConstantExpression value) {
+                expression.setFalseExpression(new BooleanExpression(value.getLineNumber(), value.getIntegerValue() != 0));
+            }
+            return;
+        }
         if (trueExpression instanceof BooleanExpression value
                 && falseExpression instanceof IntegerConstantExpression) {
             expression.setTrueExpression(new IntegerConstantExpression(

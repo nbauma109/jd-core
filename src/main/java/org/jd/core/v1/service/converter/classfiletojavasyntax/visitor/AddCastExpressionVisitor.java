@@ -989,7 +989,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Type expressionType = contextualTernaryType(expression.getType());
 
         expression.getCondition().accept(this);
-        normalizeTernaryBooleanConstants(expression, expressionType);
+        normalizeTernaryBooleanConstants(expression, expression.getType());
         expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
         expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
     }

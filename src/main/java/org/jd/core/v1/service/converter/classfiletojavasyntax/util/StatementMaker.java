@@ -165,6 +165,7 @@ public class StatementMaker {
     /** Number of 'switch' statements between the innermost loop being built and the current basic block. */
     private int switchDepthInLoop;
     private int loopBreakTargetOffset = -1;
+    private int loopStartOffset = -1;
     /**
      * The first statement rendered for each basic block offset, captured as it is produced (see
      * {@code makeStatements}) - used by {@link #resolveRemainingJumpsWithLabels} to find the label target for
@@ -976,24 +977,44 @@ public class StatementMaker {
     }
 
     private boolean hasLoopExitJumpAtEnd(BasicBlock basicBlock) {
-        if (basicBlock.getControlFlowGraph() == null || loopBreakTargetOffset <= 0) {
+        if (basicBlock.getControlFlowGraph() == null) {
             return false;
         }
         byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
         // The branch-ending goto is either split into its own block, sitting at the
-        // branch's exclusive end offset, or retained as the branch's own last
-        // instruction. Only a jump to the enclosing loop's break target proves a loop
-        // exit: an if/else join jump also ends a branch but stays inside the loop.
-        return isGotoTo(code, basicBlock.getToOffset(), loopBreakTargetOffset)
-                || isGotoTo(code, ByteCodeUtil.getLastInstructionOffset(basicBlock), loopBreakTargetOffset);
+        // branch's exclusive end offset, or retained as the branch's own last instruction.
+        return isLoopExitGoto(code, basicBlock.getToOffset())
+                || isLoopExitGoto(code, ByteCodeUtil.getLastInstructionOffset(basicBlock));
     }
 
-    private static boolean isGotoTo(byte[] code, int offset, int targetOffset) {
-        if (offset < 0 || offset + 2 >= code.length || (code[offset] & 0xFF) != GOTO) {
+    private boolean isLoopExitGoto(byte[] code, int offset) {
+        int target = forwardGotoTarget(code, offset);
+        if (target < 0) {
+            return false;
+        }
+        if (loopBreakTargetOffset > 0 && target == loopBreakTargetOffset) {
+            return true;
+        }
+        // A forward jump onto this loop's own backedge is an if/else join, not an exit;
+        // a break out of a loop nested at the end of an outer loop body lands on the
+        // outer loop's backedge instead.
+        return !isBackedgeOfCurrentLoop(code, target);
+    }
+
+    private boolean isBackedgeOfCurrentLoop(byte[] code, int offset) {
+        if (loopStartOffset < 0 || offset < 0 || offset + 2 >= code.length || (code[offset] & 0xFF) != GOTO) {
             return false;
         }
         int delta = (short) (((code[offset + 1] & 0xFF) << 8) | (code[offset + 2] & 0xFF));
-        return delta > 0 && offset + delta == targetOffset;
+        return delta < 0 && offset + delta == loopStartOffset;
+    }
+
+    private static int forwardGotoTarget(byte[] code, int offset) {
+        if (offset < 0 || offset + 2 >= code.length || (code[offset] & 0xFF) != GOTO) {
+            return -1;
+        }
+        int delta = (short) (((code[offset + 1] & 0xFF) << 8) | (code[offset + 2] & 0xFF));
+        return delta > 0 ? offset + delta : -1;
     }
 
     protected void parseLoop(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
@@ -1001,13 +1022,16 @@ public class StatementMaker {
         // make this loop's own exits look like they need labeled breaks.
         int enclosingSwitchDepth = switchDepthInLoop;
         int enclosingLoopBreakTarget = loopBreakTargetOffset;
+        int enclosingLoopStart = loopStartOffset;
         switchDepthInLoop = 0;
         loopBreakTargetOffset = basicBlock.getNext().getFromOffset();
+        loopStartOffset = basicBlock.getFromOffset();
         try {
             parseLoopBody(watchdog, basicBlock, statements, jumps);
         } finally {
             switchDepthInLoop = enclosingSwitchDepth;
             loopBreakTargetOffset = enclosingLoopBreakTarget;
+            loopStartOffset = enclosingLoopStart;
         }
 
         makeStatements(watchdog, basicBlock.getNext(), statements, jumps);

@@ -25,6 +25,7 @@ import org.jd.core.v1.stub.ForwardStaticReference;
 import org.jd.core.v1.stub.GenericArrayReturnCast;
 import org.jd.core.v1.stub.GenericArrayConstructorInference;
 import org.jd.core.v1.stub.MultiWitness;
+import org.jd.core.v1.stub.NestedForEachBreak;
 import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.ParameterizedCastReceiver;
 import org.jd.core.v1.stub.PrecedingLoopUpdate;
@@ -122,6 +123,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(ForEachSegmentFilter.class);
         assertFalse(source.contains("break"));
         assertRecompiles(ForEachSegmentFilter.class, source);
+    }
+
+    @Test
+    public void testNestedForEachKeepsProvenBreak() throws Exception {
+        String source = decompile(NestedForEachBreak.class);
+        assertTrue(source.matches(PatternMaker.make("break;")));
+        assertRecompiles(NestedForEachBreak.class, source);
     }
 
     @Test

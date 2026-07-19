@@ -1436,7 +1436,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && type instanceof GenericType expectedGenericType
                 && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocationExpression
                 && methodInvocationExpression.getUnboundType() instanceof GenericType returnedGenericType
-                && expectedGenericType.getName().equals(returnedGenericType.getName())) {
+                && expectedGenericType.getName().equals(returnedGenericType.getName())
+                && expectedGenericType.getDimension() == returnedGenericType.getDimension()) {
             return true;
         }
         if (isParameterizedJavaLangObject(expression.getType())) {

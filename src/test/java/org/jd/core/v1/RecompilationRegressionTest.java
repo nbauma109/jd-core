@@ -21,6 +21,7 @@ import org.jd.core.v1.stub.ExceptionBoundViolation;
 import org.jd.core.v1.stub.ExceptionWitness;
 import org.jd.core.v1.stub.ForHeaderVariableScope;
 import org.jd.core.v1.stub.ForwardStaticReference;
+import org.jd.core.v1.stub.GenericArrayReturnCast;
 import org.jd.core.v1.stub.MultiWitness;
 import org.jd.core.v1.stub.NullArgumentWitness;
 import org.jd.core.v1.stub.ParameterizedCastReceiver;
@@ -63,6 +64,13 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(BoundedGenericReturnCast.class);
         assertTrue(source.matches(PatternMaker.make("return (Integer)get();")));
         assertRecompiles(BoundedGenericReturnCast.class, source);
+    }
+
+    @Test
+    public void testArrayCastFromGenericReturn() throws Exception {
+        String source = decompile(GenericArrayReturnCast.class);
+        assertTrue(source.matches(PatternMaker.make("return (T[])get();")));
+        assertRecompiles(GenericArrayReturnCast.class, source);
     }
 
     @Test

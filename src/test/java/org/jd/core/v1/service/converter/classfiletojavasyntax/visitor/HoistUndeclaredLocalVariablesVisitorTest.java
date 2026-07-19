@@ -118,8 +118,7 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
     public void testInfiniteForContinueTargetingUpdateIsNotRewritten() {
         PostOperatorExpression update = new PostOperatorExpression(
                 1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
-        ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(20, 10);
-        jump.setStatement(ContinueStatement.CONTINUE);
+        ClassFileContinueStatement jump = new ClassFileContinueStatement(10);
         Statements thenStatements = new Statements(new ExpressionStatement(
                 invocation("next", PrimitiveType.TYPE_BOOLEAN)), jump);
         Statements loopStatements = new Statements();

@@ -63,6 +63,9 @@ public class RemoveLastContinueStatementVisitor extends AbstractJavaSyntaxVisito
 
     @Override
     public void visit(SwitchStatement statement) {
+        // Statements traversal only follows the final statement on each enclosing path. Reaching a switch here
+        // therefore proves that leaving the switch also reaches the end of the loop iteration; only in that
+        // terminal position is an outer-loop continue equivalent to a switch break.
         for (SwitchStatement.Block block : statement.getBlocks()) {
             replaceLastContinueWithBreak(block.getStatements());
         }

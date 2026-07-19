@@ -116,7 +116,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Type type;
     private boolean visitingAnonymousClass;
     private boolean visitingLambda;
-    private Expression methodReceiver;
+    private Expression memberReceiver;
     private boolean visitingWitnessedInvocation;
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
     private Set<String> fieldNamesInLambda = new HashSet<>();
@@ -564,10 +564,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && containsFunctionalExpression(parameters)) {
             castReceiverWithFunctionalUse.getExpression().accept(this);
         } else {
-            Expression oldMethodReceiver = methodReceiver;
-            methodReceiver = expression.getExpression();
+            Expression oldMemberReceiver = memberReceiver;
+            memberReceiver = expression.getExpression();
             expression.getExpression().accept(this);
-            methodReceiver = oldMethodReceiver;
+            memberReceiver = oldMemberReceiver;
         }
     }
 
@@ -955,7 +955,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             if (localType.getName() != null) {
+                Expression oldMemberReceiver = memberReceiver;
+                memberReceiver = exp;
                 expression.setExpression(updateExpression(Collections.emptyMap(), typeBounds, localType, null, exp, false, true, false));
+                memberReceiver = oldMemberReceiver;
             }
         }
     }
@@ -1059,7 +1062,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (expression.isByteCodeCheckCast() && expression.getType() instanceof ObjectType objectType
                 && objectType.getTypeArguments() != null
                 && objectType.findTypeParametersInType().isEmpty()
-                && expression != methodReceiver
+                && expression != memberReceiver
                 && !(expression.getExpression() instanceof MethodReferenceExpression)) {
             // A CHECKCAST records only the erased class. A concrete parameterization inferred for the
             // implementation cast can be invariantly incompatible with the source-level use.

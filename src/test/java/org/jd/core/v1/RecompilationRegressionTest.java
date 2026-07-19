@@ -79,9 +79,10 @@ public class RecompilationRegressionTest extends AbstractJdTest {
     }
 
     @Test
-    public void testParameterizedCastMethodReceiver() throws Exception {
+    public void testParameterizedCastMemberReceivers() throws Exception {
         String source = decompile(ParameterizedCastReceiver.class);
         assertTrue(source.matches(PatternMaker.make("return ((List<String>)value).get(0);")));
+        assertTrue(source.matches(PatternMaker.make("return (String)((Holder)value).value;")));
         assertRecompiles(ParameterizedCastReceiver.class, source);
     }
 

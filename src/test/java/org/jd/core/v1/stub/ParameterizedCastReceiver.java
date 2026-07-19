@@ -10,8 +10,17 @@ package org.jd.core.v1.stub;
 import java.util.List;
 
 public class ParameterizedCastReceiver {
+    private static class Holder<T> {
+        private T value;
+    }
+
     @SuppressWarnings("unchecked")
     public String first(Object value) {
         return ((List<String>) value).get(0);
+    }
+
+    @SuppressWarnings("unchecked")
+    public String value(Object value) {
+        return ((Holder<String>) value).value;
     }
 }

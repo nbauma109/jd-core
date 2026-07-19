@@ -261,6 +261,8 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     insertUpdateBeforeContinue(ifElseStatement.getElseStatements(), update, updateOffset);
                 } else if (statement instanceof IfStatement ifStatement) {
                     insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
+                } else if (statement instanceof SwitchStatement switchStatement) {
+                    insertUpdateBeforeSwitchContinues(switchStatement, update, updateOffset);
                 }
             }
         }
@@ -274,6 +276,15 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 insertUpdateBeforeContinue(ifElseStatement.getElseStatements(), update, updateOffset);
             } else if (statement instanceof IfStatement ifStatement) {
                 insertUpdateBeforeContinue(ifStatement.getStatements(), update, updateOffset);
+            } else if (statement instanceof SwitchStatement switchStatement) {
+                insertUpdateBeforeSwitchContinues(switchStatement, update, updateOffset);
+            }
+        }
+
+        private static void insertUpdateBeforeSwitchContinues(
+                SwitchStatement statement, PostOperatorExpression update, int updateOffset) {
+            for (SwitchStatement.Block block : statement.getBlocks()) {
+                insertUpdateBeforeContinue(block.getStatements(), update, updateOffset);
             }
         }
 

@@ -22,6 +22,7 @@ import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
@@ -31,6 +32,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.s
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.ObjectLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
+import org.jd.core.v1.util.DefaultList;
 import org.junit.Test;
 
 public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
@@ -151,6 +153,27 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
 
         assertEquals(2, thenStatements.size());
         assertEquals(2, elseStatements.size());
+    }
+
+    @Test
+    public void testRecoveredUpdateIsCopiedBeforeSwitchContinue() {
+        PostOperatorExpression update = new PostOperatorExpression(
+                1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
+        Statements caseStatements = new Statements();
+        caseStatements.add(new ClassFileContinueStatement(10));
+        DefaultList<SwitchStatement.Block> blocks = new DefaultList<>();
+        blocks.add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, caseStatements));
+        SwitchStatement switchStatement = new SwitchStatement(BooleanExpression.TRUE, blocks);
+        Statements loopStatements = new Statements();
+        loopStatements.add(switchStatement);
+        WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, loopStatements);
+        Statements methodStatements = new Statements(new ExpressionStatement(update), loop);
+
+        process(methodStatements);
+
+        assertEquals(2, caseStatements.size());
+        assertTrue(caseStatements.getFirst() instanceof ExpressionStatement);
+        assertTrue(caseStatements.getLast() instanceof ClassFileContinueStatement);
     }
 
     @Test

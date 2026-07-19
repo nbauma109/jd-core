@@ -137,6 +137,27 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
     }
 
     @Test
+    public void testInfiniteForWithoutBytecodeContinueTargetIsNotRewritten() {
+        PostOperatorExpression update = new PostOperatorExpression(
+                1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
+        Statements thenStatements = new Statements(new ExpressionStatement(
+                invocation("next", PrimitiveType.TYPE_BOOLEAN)), ContinueStatement.CONTINUE);
+        Statements loopStatements = new Statements();
+        loopStatements.add(new IfStatement(equalityCondition(), thenStatements));
+        ForStatement loop = new ForStatement(null, null, update, loopStatements);
+        Statements methodStatements = new Statements(
+                new LocalVariableDeclarationStatement(PrimitiveType.TYPE_INT, new LocalVariableDeclarator("seed")),
+                loop);
+
+        process(methodStatements);
+
+        assertNull(loop.getCondition());
+        assertSame(update, loop.getUpdate().getFirst());
+        assertEquals(2, methodStatements.size());
+        assertSame(ContinueStatement.CONTINUE, thenStatements.getLast());
+    }
+
+    @Test
     public void testMisplacedForUpdateRequiresDistinctContinueTarget() {
         PostOperatorExpression update = new PostOperatorExpression(
                 1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");

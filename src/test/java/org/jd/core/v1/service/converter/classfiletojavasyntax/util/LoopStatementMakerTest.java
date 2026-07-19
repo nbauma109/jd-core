@@ -22,10 +22,13 @@ import org.junit.Test;
 public class LoopStatementMakerTest extends TestCase {
     @Test
     public void testRestoresProvenExitNestedInOrdinaryIf() {
-        Statements exitStatements = new Statements(new ExpressionStatement(BooleanExpression.TRUE));
+        Statements exitStatements = new Statements();
+        exitStatements.add(new ExpressionStatement(BooleanExpression.TRUE));
         ClassFileIfStatement provenExit = new ClassFileIfStatement(BooleanExpression.TRUE, exitStatements);
-        Statements wrapperStatements = new Statements(provenExit);
-        Statements loopStatements = new Statements(new IfStatement(BooleanExpression.TRUE, wrapperStatements));
+        Statements wrapperStatements = new Statements();
+        wrapperStatements.add(provenExit);
+        Statements loopStatements = new Statements();
+        loopStatements.add(new IfStatement(BooleanExpression.TRUE, wrapperStatements));
 
         LoopStatementMaker.restoreProvenForEachBreaks(loopStatements);
 
@@ -34,8 +37,10 @@ public class LoopStatementMakerTest extends TestCase {
 
     @Test
     public void testPreservesContinueTargetInsideTry() {
-        Statements tryStatements = new Statements(ContinueStatement.CONTINUE);
-        Statements loopStatements = new Statements(new TryStatement(tryStatements, null, null));
+        Statements tryStatements = new Statements();
+        tryStatements.add(ContinueStatement.CONTINUE);
+        Statements loopStatements = new Statements();
+        loopStatements.add(new TryStatement(tryStatements, null, null));
 
         LoopStatementMaker.preserveNestedContinueTargets(loopStatements, 42);
 

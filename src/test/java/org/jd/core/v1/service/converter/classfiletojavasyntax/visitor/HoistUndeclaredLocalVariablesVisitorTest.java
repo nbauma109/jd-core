@@ -106,7 +106,7 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
     }
 
     @Test
-    public void testNanDoWhilePreservesContinue() {
+    public void testNaNDoWhilePreservesContinue() {
         ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(10, 20);
         jump.setStatement(ContinueStatement.CONTINUE);
         IfStatement exit = new IfStatement(BooleanExpression.TRUE, jump);

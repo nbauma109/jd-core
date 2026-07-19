@@ -79,10 +79,6 @@ public class RemoveLastContinueStatementVisitor extends AbstractJavaSyntaxVisito
         }
     }
     @Override
-    public void visit(SwitchStatement.LabelBlock statement) { statement.getStatements().accept(this); }
-    @Override
-    public void visit(SwitchStatement.MultiLabelsBlock statement) { statement.getStatements().accept(this); }
-    @Override
     public void visit(IfStatement statement) { safeAccept(statement.getStatements()); }
     @Override
     public void visit(SynchronizedStatement statement) { safeAccept(statement.getStatements()); }

@@ -8,17 +8,21 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import junit.framework.TestCase;
 import org.jd.core.v1.loader.ClassPathLoader;
+import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.ForStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
@@ -178,6 +182,51 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         assertSame(update, ((ExpressionStatement) methodStatements.getLast()).getExpression());
         assertNull(loop.getUpdate());
         assertSame(bodyStatement, ((Statements) loop.getStatements()).getFirst());
+    }
+
+    @Test
+    public void testForEachConnectionCallsDoNotInventBreak() {
+        Statements thenStatements = new Statements();
+        thenStatements.add(new ExpressionStatement(invocation("setNext", PrimitiveType.TYPE_BOOLEAN)));
+        thenStatements.add(new ExpressionStatement(invocation("setPrevious", PrimitiveType.TYPE_BOOLEAN)));
+        thenStatements.add(new ExpressionStatement(new PostOperatorExpression(1, valueReference(), "++")));
+        Statements body = new Statements();
+        body.add(new IfStatement(BooleanExpression.TRUE, thenStatements));
+        ForEachStatement loop = new ForEachStatement(
+                ObjectType.TYPE_OBJECT, "item", valueReference(), body);
+
+        process(loop);
+
+        assertEquals(3, thenStatements.size());
+        assertTrue(thenStatements.getLast() instanceof ExpressionStatement);
+    }
+
+    @Test
+    public void testLaterOuterDeclarationReplacesClosedInnerCandidate() {
+        LocalVariableDeclarationStatement innerDeclaration = new LocalVariableDeclarationStatement(
+                PrimitiveType.TYPE_INT, new LocalVariableDeclarator(1, "x",
+                        new ExpressionVariableInitializer(
+                                new IntegerConstantExpression(1, PrimitiveType.TYPE_INT, 1))));
+        Statements innerStatements = new Statements();
+        innerStatements.add(innerDeclaration);
+
+        LocalVariableReferenceExpression earlyReference = new LocalVariableReferenceExpression(
+                2, PrimitiveType.TYPE_INT, "x");
+        LocalVariableDeclarationStatement outerDeclaration = new LocalVariableDeclarationStatement(
+                PrimitiveType.TYPE_INT, new LocalVariableDeclarator(3, "x",
+                        new ExpressionVariableInitializer(
+                                new IntegerConstantExpression(3, PrimitiveType.TYPE_INT, 2))));
+        Statements methodStatements = new Statements();
+        methodStatements.add(new IfStatement(BooleanExpression.TRUE, innerStatements));
+        methodStatements.add(new ExpressionStatement(earlyReference));
+        methodStatements.add(outerDeclaration);
+
+        process(methodStatements);
+
+        assertTrue(methodStatements.getFirst() instanceof LocalVariableDeclarationStatement);
+        assertSame(innerDeclaration, innerStatements.getFirst());
+        assertFalse(methodStatements.contains(outerDeclaration));
+        assertTrue(methodStatements.getLast() instanceof ExpressionStatement);
     }
 
     @Test

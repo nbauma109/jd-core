@@ -21,7 +21,6 @@ import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
-import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
@@ -78,6 +77,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         private final Map<String, AbstractLocalVariable> declaredVariables = new LinkedHashMap<>();
         private Map<String, AbstractLocalVariable> inheritedVariables = new LinkedHashMap<>();
         private Statements currentStatements;
+        private int statementDepth;
 
         @Override
         public void visit(Statements statements) {
@@ -89,6 +89,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             Map<String, AbstractLocalVariable> previousInheritedVariables = inheritedVariables;
             inheritedVariables = new LinkedHashMap<>(declaredVariables);
             currentStatements = statements;
+            statementDepth++;
             int index = 0;
             while (index < statements.size()) {
                 int previousSize = statements.size();
@@ -106,6 +107,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             declaredVariables.putAll(previousDeclaredVariables);
             seenDeclarations.clear();
             seenDeclarations.putAll(previousSeenDeclarations);
+            statementDepth--;
             inheritedVariables = previousInheritedVariables;
             currentStatements = previousStatements;
         }
@@ -348,7 +350,11 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             }
             if (statement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
                 String key = key(declarator.getName(), statement.getType().getDescriptor());
-                declarations.putIfAbsent(key, new DeclarationLocation(currentStatements, statement, declarator));
+                DeclarationLocation previous = declarations.get(key);
+                if (previous == null || statementDepth <= previous.depth()) {
+                    declarations.put(key,
+                            new DeclarationLocation(currentStatements, statement, declarator, statementDepth));
+                }
                 if (declarator instanceof ClassFileLocalVariableDeclarator classFileDeclarator) {
                     String slotKey = slotKey(classFileDeclarator.getLocalVariable(), statement.getType());
                     declaredVariables.putIfAbsent(slotKey, classFileDeclarator.getLocalVariable());
@@ -416,30 +422,9 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             statement.getExpression().accept(this);
             Map<String, Boolean> previousSeenDeclarations = new LinkedHashMap<>(seenDeclarations);
             seenDeclarations.put(key(statement.getName(), statement.getType().getDescriptor()), Boolean.TRUE);
-            restoreConnectionLoopBreak(statement.getStatements());
             safeAccept(statement.getStatements());
             seenDeclarations.clear();
             seenDeclarations.putAll(previousSeenDeclarations);
-        }
-
-        private static void restoreConnectionLoopBreak(BaseStatement statement) {
-            if (!(statement instanceof Statements statements) || statements.isEmpty()
-                    || !(statements.getLast() instanceof IfStatement ifStatement)
-                    || !(ifStatement.getStatements() instanceof Statements thenStatements)
-                    || thenStatements.isEmpty()
-                    || !(thenStatements.getLast() instanceof ExpressionStatement expressionStatement)
-                    || !(expressionStatement.getExpression() instanceof PostOperatorExpression increment)
-                    || !"++".equals(increment.getOperator())) {
-                return;
-            }
-
-            MethodInvocationNameSearch setNext = new MethodInvocationNameSearch("setNext");
-            MethodInvocationNameSearch setPrevious = new MethodInvocationNameSearch("setPrevious");
-            thenStatements.accept(setNext);
-            thenStatements.accept(setPrevious);
-            if (setNext.found && setPrevious.found) {
-                thenStatements.add(BreakStatement.BREAK);
-            }
         }
 
         @Override
@@ -495,24 +480,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             AbstractLocalVariable secondOriginal = second.getOriginalVariable();
             return first == second || firstOriginal == second || secondOriginal == first
                     || firstOriginal != null && firstOriginal == secondOriginal;
-        }
-
-        private static final class MethodInvocationNameSearch extends AbstractJavaSyntaxVisitor {
-            private final String name;
-            private boolean found;
-
-            private MethodInvocationNameSearch(String name) {
-                this.name = name;
-            }
-
-            @Override
-            public void visit(MethodInvocationExpression expression) {
-                if (name.equals(expression.getName())) {
-                    found = true;
-                } else {
-                    super.visit(expression);
-                }
-            }
         }
 
         private static final class BreakSearch extends AbstractJavaSyntaxVisitor {
@@ -639,5 +606,6 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
     }
 
     private record DeclarationLocation(
-            Statements statements, LocalVariableDeclarationStatement statement, LocalVariableDeclarator declarator) {}
+            Statements statements, LocalVariableDeclarationStatement statement,
+            LocalVariableDeclarator declarator, int depth) {}
 }

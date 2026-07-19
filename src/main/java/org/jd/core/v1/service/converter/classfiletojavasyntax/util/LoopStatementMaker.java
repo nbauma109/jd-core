@@ -38,6 +38,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.s
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileForEachStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileForStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.GenericLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.ObjectLocalVariable;
@@ -93,12 +94,14 @@ public final class LoopStatementMaker {
             Statement statement = makeForEachArray(typeBounds, localVariableMaker, statements, condition, subStatements);
 
             if (statement != null) {
+                restoreProvenForEachBreaks(statement.getStatements());
                 return statement;
             }
 
             statement = makeForEachList(typeBounds, localVariableMaker, statements, condition, subStatements);
 
             if (statement != null) {
+                restoreProvenForEachBreaks(statement.getStatements());
                 return statement;
             }
         }
@@ -167,6 +170,20 @@ public final class LoopStatementMaker {
         }
 
         return new WhileStatement(condition, subStatements);
+    }
+
+    private static void restoreProvenForEachBreaks(BaseStatement statement) {
+        if (!(statement instanceof Statements statements)) {
+            return;
+        }
+        for (Statement nested : statements) {
+            if (nested instanceof ClassFileIfStatement ifStatement) {
+                if (ifStatement.getStatements() instanceof Statements thenStatements) {
+                    thenStatements.add(BreakStatement.BREAK);
+                }
+                restoreProvenForEachBreaks(ifStatement.getStatements());
+            }
+        }
     }
 
     public static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements, Statements jumps) {

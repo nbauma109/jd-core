@@ -55,6 +55,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.MergeTryWithResourcesStatementVisitor;
@@ -80,6 +81,7 @@ import java.util.Map.Entry;
 import java.util.function.Predicate;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.apache.bcel.Const.ASTORE;
+import static org.apache.bcel.Const.GOTO;
 import static org.apache.bcel.Const.MAJOR_1_7;
 import static org.apache.bcel.Const.MAJOR_1_8;
 import static org.jd.core.v1.model.javasyntax.expression.Expression.UNKNOWN_LINE_NUMBER;
@@ -914,7 +916,14 @@ public class StatementMaker {
             makeStatements(watchdog, basicBlock.getCondition(), statements, jumps);
             Expression cond = stack.pop();
             Statements subStatements = makeSubStatements(watchdog, basicBlock.getSub1(), statements, jumps);
-            statements.add(new IfStatement(cond, subStatements));
+            boolean thenExitsLoop = !subStatements.isEmpty()
+                    && basicBlock.getSub1().getNext() == END
+                    && basicBlock.getNext().getType() == TYPE_LOOP_START
+                    && hasForwardJumpAtEnd(basicBlock.getSub1())
+                    && !isTerminalStatement(subStatements.getLast());
+            statements.add(thenExitsLoop
+                    ? new ClassFileIfStatement(cond, subStatements)
+                    : new IfStatement(cond, subStatements));
             int index = statements.size();
             makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
 
@@ -951,6 +960,35 @@ public class StatementMaker {
                 }
             }
         }
+    }
+
+    private static boolean isTerminalStatement(Statement statement) {
+        if (statement instanceof ClassFileBreakContinueStatement classFileStatement) {
+            return classFileStatement.getStatement() == null
+                    || isTerminalStatement(classFileStatement.getStatement());
+        }
+        return statement instanceof BreakStatement
+                || statement instanceof ContinueStatement
+                || statement instanceof ReturnStatement
+                || statement instanceof ReturnExpressionStatement
+                || statement instanceof ThrowStatement;
+    }
+
+    private static boolean hasForwardJumpAtEnd(BasicBlock basicBlock) {
+        if (basicBlock.getControlFlowGraph() == null) {
+            return false;
+        }
+        byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
+        int offset = basicBlock.getToOffset();
+        if (offset < 0 || offset >= code.length) {
+            return false;
+        }
+        int opcode = code[offset] & 0xFF;
+        if (opcode == GOTO && offset + 2 < code.length) {
+            int delta = (short) (((code[offset + 1] & 0xFF) << 8) | (code[offset + 2] & 0xFF));
+            return delta > 0;
+        }
+        return false;
     }
 
     protected void parseLoop(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {

@@ -71,4 +71,17 @@ public class AddCastExpressionVisitorTest extends TestCase {
         assertTrue(expression.getFalseExpression() instanceof IntegerConstantExpression);
         assertEquals(0, ((IntegerConstantExpression) expression.getFalseExpression()).getIntegerValue());
     }
+
+    @Test
+    public void testNumericTernaryNormalizesBooleanFlaggedIntegerFalseArm() {
+        IntegerConstantExpression falseExpression =
+                new IntegerConstantExpression(1, PrimitiveType.TYPE_BOOLEAN, 0);
+        TernaryOperatorExpression expression = new TernaryOperatorExpression(
+                1, PrimitiveType.TYPE_INT, BooleanExpression.TRUE,
+                new IntegerConstantExpression(1, PrimitiveType.TYPE_INT, 1), falseExpression);
+
+        expression.accept(visitor);
+
+        assertSame(PrimitiveType.TYPE_INT, falseExpression.getType());
+    }
 }

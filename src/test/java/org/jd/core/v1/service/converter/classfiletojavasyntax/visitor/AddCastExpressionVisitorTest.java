@@ -45,4 +45,30 @@ public class AddCastExpressionVisitorTest extends TestCase {
         assertTrue(((BooleanExpression) expression.getTrueExpression()).isTrue());
         assertTrue(expression.getFalseExpression() instanceof BooleanExpression);
     }
+
+    @Test
+    public void testNumericTernaryConvertsBooleanTrueArm() {
+        TernaryOperatorExpression expression = new TernaryOperatorExpression(
+                1, PrimitiveType.TYPE_INT, BooleanExpression.TRUE, BooleanExpression.TRUE,
+                new IntegerConstantExpression(1, PrimitiveType.TYPE_INT, 0));
+
+        expression.accept(visitor);
+
+        assertTrue(expression.getTrueExpression() instanceof IntegerConstantExpression);
+        assertEquals(1, ((IntegerConstantExpression) expression.getTrueExpression()).getIntegerValue());
+        assertTrue(expression.getFalseExpression() instanceof IntegerConstantExpression);
+    }
+
+    @Test
+    public void testNumericTernaryConvertsBooleanFalseArm() {
+        TernaryOperatorExpression expression = new TernaryOperatorExpression(
+                1, PrimitiveType.TYPE_INT, BooleanExpression.TRUE,
+                new IntegerConstantExpression(1, PrimitiveType.TYPE_INT, 1), new BooleanExpression(1, false));
+
+        expression.accept(visitor);
+
+        assertTrue(expression.getTrueExpression() instanceof IntegerConstantExpression);
+        assertTrue(expression.getFalseExpression() instanceof IntegerConstantExpression);
+        assertEquals(0, ((IntegerConstantExpression) expression.getFalseExpression()).getIntegerValue());
+    }
 }

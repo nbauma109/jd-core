@@ -979,16 +979,18 @@ public class StatementMaker {
             return false;
         }
         byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
-        int offset = basicBlock.getToOffset();
-        if (offset < 0 || offset >= code.length) {
+        // The branch-ending goto is either split into its own block, sitting at the
+        // exclusive end offset, or retained as the branch's own last instruction.
+        return isForwardGoto(code, basicBlock.getToOffset())
+                || isForwardGoto(code, ByteCodeUtil.getLastInstructionOffset(basicBlock));
+    }
+
+    private static boolean isForwardGoto(byte[] code, int offset) {
+        if (offset < 0 || offset + 2 >= code.length || (code[offset] & 0xFF) != GOTO) {
             return false;
         }
-        int opcode = code[offset] & 0xFF;
-        if (opcode == GOTO && offset + 2 < code.length) {
-            int delta = (short) (((code[offset + 1] & 0xFF) << 8) | (code[offset + 2] & 0xFF));
-            return delta > 0;
-        }
-        return false;
+        int delta = (short) (((code[offset + 1] & 0xFF) << 8) | (code[offset + 2] & 0xFF));
+        return delta > 0;
     }
 
     protected void parseLoop(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {

@@ -7,6 +7,7 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -19,7 +20,8 @@ import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
-import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LabelStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -172,18 +174,24 @@ public final class LoopStatementMaker {
         return new WhileStatement(condition, subStatements);
     }
 
-    private static void restoreProvenForEachBreaks(BaseStatement statement) {
-        if (!(statement instanceof Statements statements)) {
-            return;
-        }
-        for (Statement nested : statements) {
-            if (nested instanceof ClassFileIfStatement ifStatement) {
-                if (ifStatement.getStatements() instanceof Statements thenStatements) {
-                    thenStatements.add(BreakStatement.BREAK);
-                }
-                restoreProvenForEachBreaks(ifStatement.getStatements());
+    static void restoreProvenForEachBreaks(BaseStatement statement) {
+        statement.accept(new RestoreProvenForEachBreaksVisitor());
+    }
+
+    private static final class RestoreProvenForEachBreaksVisitor extends AbstractJavaSyntaxVisitor {
+        @Override
+        public void visit(IfStatement statement) {
+            if (statement instanceof ClassFileIfStatement
+                    && statement.getStatements() instanceof Statements thenStatements) {
+                thenStatements.add(BreakStatement.BREAK);
             }
+            safeAccept(statement.getStatements());
         }
+
+        @Override public void visit(DoWhileStatement statement) {}
+        @Override public void visit(ForEachStatement statement) {}
+        @Override public void visit(ForStatement statement) {}
+        @Override public void visit(WhileStatement statement) {}
     }
 
     public static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements, Statements jumps) {
@@ -732,26 +740,35 @@ public final class LoopStatementMaker {
         return loop;
     }
 
-    private static void preserveNestedContinueTargets(Statements statements, int targetOffset) {
-        for (int index = 0; index < statements.size(); index++) {
-            Statement statement = statements.get(index);
-            if (statement instanceof ContinueStatement continueStatement
-                    && continueStatement.getLabel() == null
-                    && !(statement instanceof ClassFileContinueStatement)) {
-                statements.set(index, new ClassFileContinueStatement(targetOffset));
-            } else if (statement instanceof IfElseStatement ifElseStatement) {
-                preserveNestedContinueTargets(ifElseStatement.getStatements(), targetOffset);
-                preserveNestedContinueTargets(ifElseStatement.getElseStatements(), targetOffset);
-            } else if (statement instanceof IfStatement ifStatement) {
-                preserveNestedContinueTargets(ifStatement.getStatements(), targetOffset);
-            }
-        }
+    static void preserveNestedContinueTargets(Statements statements, int targetOffset) {
+        statements.accept(new PreserveNestedContinueTargetsVisitor(targetOffset));
     }
 
-    private static void preserveNestedContinueTargets(BaseStatement statement, int targetOffset) {
-        if (statement instanceof Statements statements) {
-            preserveNestedContinueTargets(statements, targetOffset);
+    private static final class PreserveNestedContinueTargetsVisitor extends AbstractJavaSyntaxVisitor {
+        private final int targetOffset;
+
+        private PreserveNestedContinueTargetsVisitor(int targetOffset) {
+            this.targetOffset = targetOffset;
         }
+
+        @Override
+        public void visit(Statements statements) {
+            for (int index = 0; index < statements.size(); index++) {
+                Statement statement = statements.get(index);
+                if (statement instanceof ContinueStatement continueStatement
+                        && continueStatement.getLabel() == null
+                        && !(statement instanceof ClassFileContinueStatement)) {
+                    statements.set(index, new ClassFileContinueStatement(targetOffset));
+                } else {
+                    statement.accept(this);
+                }
+            }
+        }
+
+        @Override public void visit(DoWhileStatement statement) {}
+        @Override public void visit(ForEachStatement statement) {}
+        @Override public void visit(ForStatement statement) {}
+        @Override public void visit(WhileStatement statement) {}
     }
 
     private static ClassFileForStatement newClassFileForStatement(

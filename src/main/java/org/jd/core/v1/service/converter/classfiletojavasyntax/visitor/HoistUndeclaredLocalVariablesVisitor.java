@@ -235,12 +235,19 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                     || !(statement.getStatements() instanceof Statements loopStatements)
                     || loopStatements.size() != 1 || !(loopStatements.getFirst() instanceof IfStatement ifStatement)
                     || !(ifStatement.getStatements() instanceof Statements thenStatements) || thenStatements.isEmpty()
-                    || !isUnlabelledContinue(thenStatements.getLast())
                     || !(ifStatement.getCondition() instanceof BinaryOperatorExpression)) {
                 return false;
             }
 
             Expression update = statement.getUpdate().getFirst();
+            SearchFromOffsetVisitor offsetSearch = new SearchFromOffsetVisitor();
+            update.accept(offsetSearch);
+            if (!hasBytecodeContinueTarget(thenStatements.getLast())
+                    || offsetSearch.getOffset() == Integer.MAX_VALUE
+                    || isContinueTargetingUpdate(thenStatements.getLast(), offsetSearch.getOffset())) {
+                return false;
+            }
+
             thenStatements.remove(thenStatements.size() - 1);
             statement.setCondition(ifStatement.getCondition());
             statement.setUpdate(null);
@@ -248,6 +255,29 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             loopStatements.addAll(thenStatements);
             containingStatements.add(index + 1, new ExpressionStatement(update));
             return true;
+        }
+
+        private static boolean hasBytecodeContinueTarget(Statement statement) {
+            if (statement instanceof ClassFileContinueStatement) {
+                return true;
+            }
+            return statement instanceof ClassFileBreakContinueStatement classFileStatement
+                    && classFileStatement.getStatement() instanceof ContinueStatement continueStatement
+                    && continueStatement.getLabel() == null;
+        }
+
+        private static boolean isContinueTargetingUpdate(Statement statement, int updateOffset) {
+            int targetOffset;
+            if (statement instanceof ClassFileContinueStatement classFileContinueStatement) {
+                targetOffset = classFileContinueStatement.getTargetOffset();
+            } else if (statement instanceof ClassFileBreakContinueStatement classFileStatement) {
+                targetOffset = classFileStatement.getTargetOffset();
+            } else {
+                return false;
+            }
+            // Assignment updates begin at their first local-variable load; IINC references retain
+            // the operand offset immediately after the opcode (or after WIDE's operand sequence).
+            return targetOffset == updateOffset || isIincTarget(targetOffset, updateOffset);
         }
 
         private static void restoreLoopUpdateBeforeContinue(

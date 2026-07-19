@@ -8,6 +8,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import junit.framework.TestCase;
 import org.jd.core.v1.loader.ClassPathLoader;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -18,8 +19,10 @@ import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
+import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
@@ -109,6 +112,52 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         process(loop);
 
         assertSame(ContinueStatement.CONTINUE, jump.getStatement());
+    }
+
+    @Test
+    public void testInfiniteForContinueTargetingUpdateIsNotRewritten() {
+        PostOperatorExpression update = new PostOperatorExpression(
+                1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
+        ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(20, 10);
+        jump.setStatement(ContinueStatement.CONTINUE);
+        Statements thenStatements = new Statements(new ExpressionStatement(
+                invocation("next", PrimitiveType.TYPE_BOOLEAN)), jump);
+        Statements loopStatements = new Statements();
+        loopStatements.add(new IfStatement(equalityCondition(), thenStatements));
+        ForStatement loop = new ForStatement(null, null, update, loopStatements);
+        Statements methodStatements = new Statements(
+                new LocalVariableDeclarationStatement(PrimitiveType.TYPE_INT, new LocalVariableDeclarator("seed")),
+                loop);
+
+        process(methodStatements);
+
+        assertNull(loop.getCondition());
+        assertSame(update, loop.getUpdate().getFirst());
+        assertEquals(2, methodStatements.size());
+        assertSame(jump, thenStatements.getLast());
+    }
+
+    @Test
+    public void testMisplacedForUpdateRequiresDistinctContinueTarget() {
+        PostOperatorExpression update = new PostOperatorExpression(
+                1, new ClassFileLocalVariableReferenceExpression(1, 11, value), "++");
+        ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(20, 4);
+        jump.setStatement(ContinueStatement.CONTINUE);
+        ExpressionStatement bodyStatement = new ExpressionStatement(
+                invocation("next", PrimitiveType.TYPE_BOOLEAN));
+        Statements thenStatements = new Statements(bodyStatement, jump);
+        Statements loopStatements = new Statements();
+        loopStatements.add(new IfStatement(equalityCondition(), thenStatements));
+        ForStatement loop = new ForStatement(null, null, update, loopStatements);
+        Statements methodStatements = new Statements(
+                new LocalVariableDeclarationStatement(PrimitiveType.TYPE_INT, new LocalVariableDeclarator("seed")),
+                loop);
+
+        process(methodStatements);
+
+        assertSame(update, ((ExpressionStatement) methodStatements.getLast()).getExpression());
+        assertNull(loop.getUpdate());
+        assertSame(bodyStatement, ((Statements) loop.getStatements()).getFirst());
     }
 
     @Test

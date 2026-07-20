@@ -29,8 +29,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -78,10 +80,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.20.0");
     }
 
-//    @Test
-//    public void testCommonsMath3() throws Exception {
-//        test(org.apache.commons.math3.Field.class);
-//    }
+    @Test
+    public void testCommonsMath3() throws Exception {
+        testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_3_6_1",
+                "org.apache.commons", "commons-math3", "3.6.1", true, findJava8Home());
+    }
 
     @Test
     public void testDiskLruCache() throws Exception {
@@ -166,7 +169,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     protected void test(String repo, String repoName, String tagPrefix, String groupId, String artifactId, String version, boolean runUnitTests) throws Exception {
-    	String tag = tagPrefix + version;
+        testAtTag(repo, repoName, tagPrefix + version, groupId, artifactId, version, runUnitTests);
+    }
+
+    protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId, String version, boolean runUnitTests) throws Exception {
+		testAtTag(repo, repoName, tag, groupId, artifactId, version, runUnitTests, null);
+    }
+
+    protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
+            String version, boolean runUnitTests, Path testJavaHome) throws Exception {
     	if (runUnitTests) {
     		System.out.println("====== Decompiling, recompiling and running unit tests for " + repoName + " tag " + tag + " ======");
     	} else {
@@ -324,19 +335,26 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
                 String mavenRepoLocal = Paths.get("target", "m2-local").toAbsolutePath().normalize().toString();
-                ProcessBuilder pbTest = new ProcessBuilder(
-                        mvnCommand,
-                        "--batch-mode",
-                        "test",
-                        "--no-transfer-progress",
-                        "-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
-                                + " --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.time.chrono=ALL-UNNAMED"
-                                + " --add-opens java.base/java.time.format=ALL-UNNAMED --add-opens java.base/java.time.temporal=ALL-UNNAMED"
-                                + " --add-opens java.base/java.time.zone=ALL-UNNAMED",
-                        "-Danimal.sniffer.skip=true",
-                        "-Dmaven.repo.local=" + mavenRepoLocal
-                );
+                List<String> command = new ArrayList<>();
+                command.add(mvnCommand);
+                command.add("--batch-mode");
+                command.add("test");
+                command.add("--no-transfer-progress");
+                if (testJavaHome == null) {
+                    command.add("-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
+                            + " --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.time.chrono=ALL-UNNAMED"
+                            + " --add-opens java.base/java.time.format=ALL-UNNAMED --add-opens java.base/java.time.temporal=ALL-UNNAMED"
+                            + " --add-opens java.base/java.time.zone=ALL-UNNAMED");
+                }
+                command.add("-Danimal.sniffer.skip=true");
+                command.add("-Dmaven.repo.local=" + mavenRepoLocal);
+                ProcessBuilder pbTest = new ProcessBuilder(command);
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");
+                if (testJavaHome != null) {
+                    pbTest.environment().put("JAVA_HOME", testJavaHome.toString());
+                    String path = pbTest.environment().getOrDefault("PATH", "");
+                    pbTest.environment().put("PATH", testJavaHome.resolve("bin") + File.pathSeparator + path);
+                }
                 pbTest.directory(projectDir);
                 pbTest.redirectErrorStream(true);
                 Process pTest = pbTest.start();
@@ -391,6 +409,50 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     private int getCount(String stat) {
         return Integer.parseInt(stat.substring(0, 5).trim());
+    }
+
+    private static Path findJava8Home() throws IOException {
+        for (String configured : new String[] {
+                System.getProperty("jd.test.java8.home"),
+                System.getenv("JAVA8_HOME"),
+                System.getenv("JAVA_HOME_8_X64")
+        }) {
+            if (configured != null && !configured.isBlank()) {
+                Path home = javaHome(Paths.get(configured));
+                if (home != null) {
+                    return home;
+                }
+            }
+        }
+
+        Path candidates = Paths.get(System.getProperty("user.home"), ".sdkman", "candidates", "java");
+        if (Files.isDirectory(candidates)) {
+            try (var homes = Files.list(candidates)) {
+                Path home = homes
+                        .filter(path -> path.getFileName().toString().startsWith("8."))
+                        .map(JarFileToJavaSourceTest::javaHome)
+                        .filter(javaHome -> javaHome != null)
+                        .sorted(Comparator.reverseOrder())
+                        .findFirst()
+                        .orElse(null);
+                if (home != null) {
+                    return home;
+                }
+            }
+        }
+
+        throw new IOException("Commons Math 3.6.1 tests require Java 8; set -Djd.test.java8.home or JAVA8_HOME");
+    }
+
+    private static Path javaHome(Path configured) {
+        Path fileName = configured.getFileName();
+        if (fileName != null && ("java".equals(fileName.toString()) || "java.exe".equals(fileName.toString()))
+                && Files.isRegularFile(configured)) {
+            Path bin = configured.getParent();
+            return bin == null ? null : bin.getParent();
+        }
+        return Files.isRegularFile(configured.resolve("bin/java"))
+                || Files.isRegularFile(configured.resolve("bin/java.exe")) ? configured : null;
     }
 
     private static void forwardProcessOutput(Process process, AtomicReference<IOException> outputForwardError) {

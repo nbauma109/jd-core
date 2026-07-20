@@ -9,6 +9,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.statement.AssertStatement;
+import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.CommentStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
@@ -61,11 +62,22 @@ public class RemoveLastContinueStatementVisitor extends AbstractJavaSyntaxVisito
     }
 
     @Override
-    public void visit(SwitchStatement statement) { acceptListStatement(statement.getBlocks()); }
-    @Override
-    public void visit(SwitchStatement.LabelBlock statement) { statement.getStatements().accept(this); }
-    @Override
-    public void visit(SwitchStatement.MultiLabelsBlock statement) { statement.getStatements().accept(this); }
+    public void visit(SwitchStatement statement) {
+        // Statements traversal only follows the final statement on each enclosing path. Reaching a switch here
+        // therefore proves that leaving the switch also reaches the end of the loop iteration; only in that
+        // terminal position is an outer-loop continue equivalent to a switch break.
+        for (SwitchStatement.Block block : statement.getBlocks()) {
+            replaceLastContinueWithBreak(block.getStatements());
+        }
+    }
+
+    private static void replaceLastContinueWithBreak(BaseStatement statement) {
+        if (statement instanceof Statements statements && !statements.isEmpty()
+                && statements.getLast() instanceof ContinueStatement continueStatement
+                && continueStatement.getLabel() == null) {
+            statements.set(statements.size() - 1, BreakStatement.BREAK);
+        }
+    }
     @Override
     public void visit(IfStatement statement) { safeAccept(statement.getStatements()); }
     @Override

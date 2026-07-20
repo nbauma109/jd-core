@@ -13,15 +13,25 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.AmbiguousMethodReference;
+import org.jd.core.v1.stub.BoundedGenericReturnCast;
 import org.jd.core.v1.stub.ConflictingWildcardCapture;
 import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
 import org.jd.core.v1.stub.ExceptionWitness;
+import org.jd.core.v1.stub.ForEachSegmentFilter;
+import org.jd.core.v1.stub.ForHeaderVariableScope;
 import org.jd.core.v1.stub.ForwardStaticReference;
+import org.jd.core.v1.stub.GenericArrayReturnCast;
+import org.jd.core.v1.stub.GenericArrayConstructorInference;
 import org.jd.core.v1.stub.MultiWitness;
+import org.jd.core.v1.stub.NestedForEachBreak;
 import org.jd.core.v1.stub.NullArgumentWitness;
+import org.jd.core.v1.stub.ParameterizedCastReceiver;
+import org.jd.core.v1.stub.PrecedingLoopUpdate;
+import org.jd.core.v1.stub.PrimitiveOverloadExpression;
 import org.jd.core.v1.stub.RawDeclaredOverloads;
+import org.jd.core.v1.stub.RawWildcardConstructor;
 import org.jd.core.v1.stub.SneakyThrow;
 import org.jd.core.v1.stub.WildcardExtendsBound;
 import org.jd.core.v1.stub.WildcardExtendsThrows;
@@ -53,10 +63,80 @@ public class RecompilationRegressionTest extends AbstractJdTest {
     }
 
     @Test
+    public void testNarrowingCastFromBoundedGenericReturn() throws Exception {
+        String source = decompile(BoundedGenericReturnCast.class);
+        assertTrue(source.matches(PatternMaker.make("return (Integer)get();")));
+        assertRecompiles(BoundedGenericReturnCast.class, source);
+    }
+
+    @Test
+    public void testArrayCastFromGenericReturn() throws Exception {
+        String source = decompile(GenericArrayReturnCast.class);
+        assertTrue(source.matches(PatternMaker.make("return (T[])get();")));
+        assertRecompiles(GenericArrayReturnCast.class, source);
+    }
+
+    @Test
+    public void testGenericArrayConstructorInferenceStripsOccurrenceDimension() throws Exception {
+        String source = decompile(GenericArrayConstructorInference.class);
+        assertTrue(source.matches(PatternMaker.make("public Box<U> create(U[] values)")));
+        assertRecompiles(GenericArrayConstructorInference.class, source);
+    }
+
+    @Test
     public void testRawDeclaredMethodReferenceCast() throws Exception {
         String source = decompile(RawDeclaredMethodReference.class);
         assertTrue(source.matches(PatternMaker.make("use((F1<List>)this::foo);")));
         assertRecompiles(RawDeclaredMethodReference.class, source);
+    }
+
+    @Test
+    public void testRawConstructorInWildcardContext() throws Exception {
+        String source = decompile(RawWildcardConstructor.class);
+        assertRecompiles(RawWildcardConstructor.class, source);
+    }
+
+    @Test
+    public void testParameterizedCastMemberReceivers() throws Exception {
+        String source = decompile(ParameterizedCastReceiver.class);
+        assertTrue(source.matches(PatternMaker.make("return ((List<String>)value).get(0);")));
+        assertTrue(source.matches(PatternMaker.make("return (String)((Holder)value).value;")));
+        assertRecompiles(ParameterizedCastReceiver.class, source);
+    }
+
+    @Test
+    public void testPrecedingLoopUpdateRunsOnlyOnce() throws Exception {
+        String source = decompile(PrecedingLoopUpdate.class);
+        assertEquals(1, source.split("value--;", -1).length - 1);
+        assertRecompiles(PrecedingLoopUpdate.class, source);
+    }
+
+    @Test
+    public void testPrimitiveOverloadAcceptsExpressionArgument() throws Exception {
+        String source = decompile(PrimitiveOverloadExpression.class);
+        assertTrue(source.matches(PatternMaker.make("consume(left + right);")));
+        assertRecompiles(PrimitiveOverloadExpression.class, source);
+    }
+
+    @Test
+    public void testForEachIfElseJoinJumpIsNotALoopExit() throws Exception {
+        String source = decompile(ForEachSegmentFilter.class);
+        assertFalse(source.contains("break"));
+        assertRecompiles(ForEachSegmentFilter.class, source);
+    }
+
+    @Test
+    public void testNestedForEachKeepsProvenBreak() throws Exception {
+        String source = decompile(NestedForEachBreak.class);
+        assertTrue(source.matches(PatternMaker.make("break;")));
+        assertRecompiles(NestedForEachBreak.class, source);
+    }
+
+    @Test
+    public void testForHeaderVariableScopeEndsAfterLoop() throws Exception {
+        String source = decompile(ForHeaderVariableScope.class);
+        assertTrue(source.matches(PatternMaker.make("value = 2;")));
+        assertRecompiles(ForHeaderVariableScope.class, source);
     }
 
     @Test

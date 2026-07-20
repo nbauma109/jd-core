@@ -95,12 +95,22 @@ public final class ByteCodeUtil {
     }
 
     public static int getLastOpcode(final BasicBlock basicBlock) {
+        final int lastOffset = getLastInstructionOffset(basicBlock);
+
+        if (lastOffset < 0) {
+            return 0;
+        }
+
+        return basicBlock.getControlFlowGraph().getMethod().getCode().getCode()[lastOffset] & 255;
+    }
+
+    public static int getLastInstructionOffset(final BasicBlock basicBlock) {
         final byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
         int offset = basicBlock.getFromOffset();
         final int toOffset = basicBlock.getToOffset();
 
         if (offset >= toOffset) {
-            return 0;
+            return -1;
         }
 
         int lastOffset = offset;
@@ -113,7 +123,7 @@ public final class ByteCodeUtil {
             offset = computeNextOffset(code, offset, opcode);
         }
 
-        return code[lastOffset] & 255;
+        return lastOffset;
     }
 
     public static void invertLastOpCode(final BasicBlock basicBlock) {

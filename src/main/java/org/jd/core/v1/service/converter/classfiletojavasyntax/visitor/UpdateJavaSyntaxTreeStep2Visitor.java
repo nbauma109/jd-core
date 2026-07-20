@@ -36,6 +36,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final AddCastExpressionVisitor addCastExpressionVisitor;
     private final AutoboxingVisitor autoboxingVisitor;
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
+    private final HoistUndeclaredLocalVariablesVisitor hoistUndeclaredLocalVariablesVisitor = new HoistUndeclaredLocalVariablesVisitor();
 
     private TypeDeclaration typeDeclaration;
 
@@ -73,6 +74,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
                 // Replace bridge method invocation
                 replaceBridgeMethodVisitor.visit(bodyDeclaration);
             }
+            hoistUndeclaredLocalVariablesVisitor.visit(declaration);
             // Add cast expressions
             addCastExpressionVisitor.visit(declaration);
             // Autoboxing

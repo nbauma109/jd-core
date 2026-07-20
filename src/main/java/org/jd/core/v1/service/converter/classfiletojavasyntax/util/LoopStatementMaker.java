@@ -7,6 +7,7 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -19,6 +20,9 @@ import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.DoWhileStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForStatement;
+import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LabelStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
@@ -33,8 +37,10 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlo
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileForEachStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileForStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.GenericLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.ObjectLocalVariable;
@@ -69,6 +75,7 @@ public final class LoopStatementMaker {
             Statements jumps) {
         Statement loop = makeLoop(majorVersion, typeBounds, localVariableMaker, loopBasicBlock, statements, condition, subStatements);
         int continueOffset = loopBasicBlock.getSub1().getFromOffset();
+        preserveNestedContinueTargets(subStatements, continueOffset);
         int breakOffset = loopBasicBlock.getNext().getFromOffset();
 
         if (breakOffset <= 0) {
@@ -89,12 +96,14 @@ public final class LoopStatementMaker {
             Statement statement = makeForEachArray(typeBounds, localVariableMaker, statements, condition, subStatements);
 
             if (statement != null) {
+                restoreProvenForEachBreaks(statement.getStatements());
                 return statement;
             }
 
             statement = makeForEachList(typeBounds, localVariableMaker, statements, condition, subStatements);
 
             if (statement != null) {
+                restoreProvenForEachBreaks(statement.getStatements());
                 return statement;
             }
         }
@@ -165,11 +174,47 @@ public final class LoopStatementMaker {
         return new WhileStatement(condition, subStatements);
     }
 
+    static void restoreProvenForEachBreaks(BaseStatement statement) {
+        statement.accept(new RestoreProvenForEachBreaksVisitor());
+    }
+
+    private static final class RestoreProvenForEachBreaksVisitor extends AbstractJavaSyntaxVisitor {
+        @Override
+        public void visit(IfStatement statement) {
+            if (statement instanceof ClassFileIfStatement
+                    && statement.getStatements() instanceof Statements thenStatements) {
+                thenStatements.add(BreakStatement.BREAK);
+            }
+            safeAccept(statement.getStatements());
+        }
+
+        @Override
+        public void visit(DoWhileStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+
+        @Override
+        public void visit(ForStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+
+        @Override
+        public void visit(WhileStatement statement) {
+            // A nested loop owns its proven exits.
+        }
+    }
+
     public static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements, Statements jumps) {
         subStatements.accept(REMOVE_LAST_CONTINUE_STATEMENT_VISITOR);
 
         Statement loop = makeLoop(localVariableMaker, loopBasicBlock, statements, subStatements);
         int continueOffset = loopBasicBlock.getSub1().getFromOffset();
+        preserveNestedContinueTargets(subStatements, continueOffset);
         int breakOffset = loopBasicBlock.getNext().getFromOffset();
 
         if (breakOffset <= 0) {
@@ -708,6 +753,52 @@ public final class LoopStatementMaker {
         }
 
         return loop;
+    }
+
+    static void preserveNestedContinueTargets(Statements statements, int targetOffset) {
+        statements.accept(new PreserveNestedContinueTargetsVisitor(targetOffset));
+    }
+
+    private static final class PreserveNestedContinueTargetsVisitor extends AbstractJavaSyntaxVisitor {
+        private final int targetOffset;
+
+        private PreserveNestedContinueTargetsVisitor(int targetOffset) {
+            this.targetOffset = targetOffset;
+        }
+
+        @Override
+        public void visit(Statements statements) {
+            for (int index = 0; index < statements.size(); index++) {
+                Statement statement = statements.get(index);
+                if (statement instanceof ContinueStatement continueStatement
+                        && continueStatement.getLabel() == null
+                        && !(statement instanceof ClassFileContinueStatement)) {
+                    statements.set(index, new ClassFileContinueStatement(targetOffset));
+                } else {
+                    statement.accept(this);
+                }
+            }
+        }
+
+        @Override
+        public void visit(DoWhileStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
+
+        @Override
+        public void visit(ForStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
+
+        @Override
+        public void visit(WhileStatement statement) {
+            // A nested loop owns its unlabelled continues.
+        }
     }
 
     private static ClassFileForStatement newClassFileForStatement(

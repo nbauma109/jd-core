@@ -231,8 +231,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 ForStatement statement) {
             if (index == 0
                     || !(containingStatements.get(index - 1) instanceof LocalVariableDeclarationStatement)
-                    || !(statement.getCondition() == null
-                            || statement.getCondition() instanceof BooleanExpression condition && condition.isTrue())
+                    || ((statement.getCondition() != null) && (!(statement.getCondition() instanceof BooleanExpression condition) || !condition.isTrue()))
                     || statement.getUpdate() == null || statement.getUpdate().size() != 1
                     || !(statement.getStatements() instanceof Statements loopStatements)
                     || loopStatements.size() != 1 || !(loopStatements.getFirst() instanceof IfStatement ifStatement)

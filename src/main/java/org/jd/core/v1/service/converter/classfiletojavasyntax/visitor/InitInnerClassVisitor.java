@@ -317,7 +317,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         protected Expression updateExpression(Expression expression) {
             if (expression.isLocalVariableReferenceExpression() && expression.getName() != null && expression.getName().equals(outerTypeFieldName) && expression.getType().isObjectType()) {
                 ObjectType objectType = (ObjectType)expression.getType();
-                if (bodyDeclaration.getOuterBodyDeclaration().getInternalTypeName().equals(objectType.getInternalName())) {
+                if (bodyDeclaration.getOuterBodyDeclaration() != null && bodyDeclaration.getOuterBodyDeclaration().getInternalTypeName().equals(objectType.getInternalName())) {
                     return new FieldReferenceExpression(objectType, new ObjectTypeReferenceExpression(expression.getLineNumber(), objectType.createType(null)), objectType.getInternalName(), "this", objectType.getDescriptor());
                 }
             }

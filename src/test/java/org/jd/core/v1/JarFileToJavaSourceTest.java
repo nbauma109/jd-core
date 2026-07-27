@@ -103,10 +103,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJodaTime() throws Exception {
-        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.2");
+        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.3");
 
         String source = Files.readString(Paths.get(
-                "target/joda-time/joda-time-2.14.2/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
+                "target/joda-time/joda-time-2.14.3/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
         int classStart = source.indexOf("static class TimeZoneOffset");
         int methodStart = source.indexOf("public int parseInto(", classStart);
         int methodEnd = source.indexOf("private int digitCount(", methodStart);

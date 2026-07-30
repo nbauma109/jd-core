@@ -1374,12 +1374,10 @@ public abstract class ControlFlowGraphReducer {
     }
 
     private static void visit(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends) {
-        if (basicBlock == SWITCH_BREAK) {
+        if ((basicBlock == SWITCH_BREAK) || (basicBlock.getFromOffset() >= maxOffset)) {
             // Here the case exits an enclosing switch that was reduced first and already rewrote this edge.
             // Recording the marker as an end prevents an inner switch with no other join from hoisting its
             // last case as the join, which would wrongly funnel these breaks into that case's code.
-            ends.add(basicBlock);
-        } else if (basicBlock.getFromOffset() >= maxOffset) {
             ends.add(basicBlock);
         } else if (basicBlock.getIndex() >= 0 && !visited.get(basicBlock.getIndex())) {
             visited.set(basicBlock.getIndex());

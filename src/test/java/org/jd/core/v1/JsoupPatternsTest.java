@@ -7,6 +7,7 @@
 package org.jd.core.v1;
 
 import org.jd.core.v1.compiler.CompilerUtil;
+import org.jd.core.v1.compiler.InMemoryClassLoader;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
@@ -15,7 +16,14 @@ import org.junit.Test;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.SocketTimeoutException;
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Decompilation patterns distilled from the jsoup 1.22.2 upgrade: each fixture reproduces, from plain source,
@@ -92,9 +100,103 @@ public class JsoupPatternsTest extends AbstractJdTest {
         String internalClassName = NodeIter.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
-        // The 'node = null' branch must be followed by the null guard, not fall through to a dereference
-        assertEquals(2, countOccurrences(source, "(node == null)"));
+        // The 'node = null' branch must flow into the shared null guard, not fall through to a dereference
+        assertEquals(1, countOccurrences(source, "(node == null)"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    // --- ControlFlowGraphLoopReducer: a loop-with-break sibling must not absorb the shared merge tail that
+    // follows the whole if/else-if chain as if it belonged to that loop alone (root cause of the NodeIterator
+    // bug above, isolated down to plain int arithmetic so the failure doesn't depend on jsoup's own classes) ---
+
+    static class SharedTailAfterLoopBreak {
+        static int run(int[] values, int start) {
+            int i = start;
+            while (true) {
+                if (i % 7 == 0) {
+                    i++;
+                } else if (i <= 0) {
+                    i = -1;
+                } else if (i % 5 == 0) {
+                    i += 2;
+                } else {
+                    while (true) {
+                        i -= 4;
+                        if (i < 0) {
+                            return -1;
+                        }
+                        if (i % 3 == 0) {
+                            i--;
+                            break;
+                        }
+                    }
+                }
+                // Shared tail: every branch above - including the loop-with-break one - must reach these
+                // two checks. The bug folded this tail exclusively into the loop-with-break branch, so three
+                // of the four converging branches rendered as a bare 'continue' that skipped both checks.
+                if (i < 0) {
+                    return -1;
+                }
+                if (values[Math.floorMod(i, values.length)] == 42) {
+                    return i;
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testLoopWithBreakDoesNotAbsorbSharedMergeTail() throws Exception {
+        String internalClassName = SharedTailAfterLoopBreak.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // The bug rewrote the if/else-if chain as independent 'if's, each ending in its own 'continue;' that
+        // jumped straight back to the loop header and skipped the shared tail below entirely (for 3 of the 4
+        // converging branches, the array-lookup-against-42 check was never reached at all). A fixed decompile
+        // has no reason to emit any 'continue;' here: every branch falls through to the shared tail normally.
+        assertEquals(0, countOccurrences(source, "continue;"));
+        assertEquals(1, countOccurrences(source, "42"));
+
+        InMemoryClassLoader classLoader = new InMemoryClassLoader();
+        assertTrue(CompilerUtil.compile("17", classLoader, new InMemoryJavaSourceFileObject(internalClassName, source)));
+
+        // The decompiler renders a nested static class standalone: dropped $ nesting, simple name only.
+        String recompiledInternalName = "org/jd/core/v1/" + SharedTailAfterLoopBreak.class.getSimpleName();
+        Class<?> recompiledClass = classLoader.findClassByInternalName(recompiledInternalName);
+        Method original = SharedTailAfterLoopBreak.class.getDeclaredMethod("run", int[].class, int.class);
+        Method recompiled = recompiledClass.getDeclaredMethod("run", int[].class, int.class);
+        original.setAccessible(true);
+        recompiled.setAccessible(true);
+
+        // Behavioral cross-check across many inputs: with the bug, skipping the shared tail doesn't just
+        // return a wrong value for the affected branches - since the 42-check that would otherwise end the
+        // loop is unreachable from them, feeding an array that never hits the one branch that still reaches
+        // it spins the buggy recompiled method forever. Run each call on its own thread with a timeout so
+        // that regressing this bug fails the test instead of hanging the whole suite.
+        ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "shared-tail-invoke");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            Random random = new Random(42);
+            for (int t = 0; t < 2000; t++) {
+                int[] values = new int[1 + random.nextInt(20)];
+                for (int i = 0; i < values.length; i++) {
+                    values[i] = random.nextInt(100) - 10;
+                }
+                int start = random.nextInt(2000) - 500;
+
+                Object expected = original.invoke(null, values, start);
+                Future<Object> actual = executor.submit(() -> recompiled.invoke(null, values, start));
+                try {
+                    assertEquals(expected, actual.get(2, TimeUnit.SECONDS));
+                } catch (TimeoutException e) {
+                    fail("Recompiled method did not terminate for values=" + java.util.Arrays.toString(values) + ", start=" + start);
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     // --- Legitimate 'var = null; continue;' source must NOT gain a spurious guard ---
@@ -254,7 +356,8 @@ public class JsoupPatternsTest extends AbstractJdTest {
         String internalClassName = FieldDerefAfterLostGuard.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
-        assertEquals(2, countOccurrences(source, "(node == null)"));
+        // The 'node = null' branch must flow into the shared null guard, not fall through to a dereference
+        assertEquals(1, countOccurrences(source, "(node == null)"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 

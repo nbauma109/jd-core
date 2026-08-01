@@ -316,7 +316,7 @@ public final class ControlFlowGraphLoopReducer {
             // Not found, check all member blocks
             end = searchEndBasicBlock(memberIndexes, maxOffset, members);
 
-            if (!end.matchType(TYPE_END|TYPE_RETURN|TYPE_LOOP_START|TYPE_LOOP_CONTINUE|TYPE_LOOP_END) &&
+            if (!end.matchType(TYPE_END|TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_LOOP_START|TYPE_LOOP_CONTINUE|TYPE_LOOP_END) &&
                 end.getPredecessors().size() == 1 &&
                 end.getPredecessors().iterator().next().getLastLineNumber() + 1 >= end.getFirstLineNumber())
             {
@@ -330,7 +330,8 @@ public final class ControlFlowGraphLoopReducer {
                  * This preserves short compiler-generated tails while avoiding broad merges observed on adjacent loops.
                  */
                 if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null) &&
-                    set.size() <= MAX_END_EXTENSION_BLOCKS)
+                    set.size() <= MAX_END_EXTENSION_BLOCKS &&
+                    allPredecessorsAccountedFor(members, set))
                 {
                     members.addAll(set);
 
@@ -567,6 +568,31 @@ public final class ControlFlowGraphLoopReducer {
         }
 
         return false;
+    }
+
+    /**
+     * 'set' is only a genuine "short compiler-generated tail" exclusive to this loop if every block in it has
+     * all of its predecessors accounted for by 'members' (already established) or 'set' itself (discovered by
+     * this same search). A block with a predecessor outside both is a merge point shared with code outside
+     * this loop instead (e.g. the common continuation after an if/else-if chain that this loop is just one
+     * branch of); folding 'set' in would wrongly claim that block - and everything reachable from it - as
+     * exclusive to this loop.
+     *
+     * <p>Checked once against the fully-discovered 'set', not inline during the forward search: a DFS that
+     * reaches a join via one sibling branch before another has fully explored the join's other incoming
+     * branch would otherwise see that branch's blocks as "not yet known" even though they belong to the very
+     * same candidate tail - a false rejection driven purely by traversal order.</p>
+     */
+    private static boolean allPredecessorsAccountedFor(Set<BasicBlock> members, Set<BasicBlock> set) {
+        for (BasicBlock basicBlock : set) {
+            for (BasicBlock predecessor : basicBlock.getPredecessors()) {
+                if (!members.contains(predecessor) && !set.contains(predecessor)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static boolean predecessorsInSearchZone(BasicBlock basicBlock, BitSet searchZoneIndexes) {

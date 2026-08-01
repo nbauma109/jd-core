@@ -316,7 +316,7 @@ public final class ControlFlowGraphLoopReducer {
             // Not found, check all member blocks
             end = searchEndBasicBlock(memberIndexes, maxOffset, members);
 
-            if (!end.matchType(TYPE_END|TYPE_RETURN|TYPE_LOOP_START|TYPE_LOOP_CONTINUE|TYPE_LOOP_END) &&
+            if (!end.matchType(TYPE_END|TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_LOOP_START|TYPE_LOOP_CONTINUE|TYPE_LOOP_END) &&
                 end.getPredecessors().size() == 1 &&
                 end.getPredecessors().iterator().next().getLastLineNumber() + 1 >= end.getFirstLineNumber())
             {
@@ -329,7 +329,7 @@ public final class ControlFlowGraphLoopReducer {
                  * Why MAX_END_EXTENSION_BLOCKS == 3:
                  * This preserves short compiler-generated tails while avoiding broad merges observed on adjacent loops.
                  */
-                if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null) &&
+                if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null, true) &&
                     set.size() <= MAX_END_EXTENSION_BLOCKS)
                 {
                     members.addAll(set);
@@ -353,11 +353,11 @@ public final class ControlFlowGraphLoopReducer {
             for (BasicBlock member : m) {
                 if (member.getType() == TYPE_CONDITIONAL_BRANCH && member != start) {
                     set.clear();
-                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getNext(), end)) {
+                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getNext(), end, false)) {
                         members.addAll(set);
                     }
                     set.clear();
-                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getBranch(), end)) {
+                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getBranch(), end, false)) {
                         members.addAll(set);
                     }
                 }
@@ -532,27 +532,29 @@ public final class ControlFlowGraphLoopReducer {
         }
     }
 
-    private static boolean recursiveForwardSearchLastLoopMemberIndexes(Set<BasicBlock> members, BitSet searchZoneIndexes, Set<BasicBlock> set, BasicBlock current, BasicBlock end) {
+    private static boolean recursiveForwardSearchLastLoopMemberIndexes(Set<BasicBlock> members, BitSet searchZoneIndexes, Set<BasicBlock> set, BasicBlock current, BasicBlock end, boolean restrictForeignMerges) {
         if (current == end || members.contains(current) || set.contains(current)) {
             return true;
         }
         if (current.matchType(GROUP_SINGLE_SUCCESSOR)) {
-            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)) {
+            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)
+                    || (restrictForeignMerges && !predecessorsKnown(current, members, set))) {
                 searchZoneIndexes.clear(current.getIndex());
                 return true;
             }
             set.add(current);
-            return recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end);
+            return recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end, restrictForeignMerges);
         }
         if (current.getType() == TYPE_CONDITIONAL_BRANCH) {
-            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !inSearchZone(current.getBranch(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)) {
+            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !inSearchZone(current.getBranch(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)
+                    || (restrictForeignMerges && !predecessorsKnown(current, members, set))) {
                 searchZoneIndexes.clear(current.getIndex());
                 return true;
             }
             set.add(current);
             boolean searchResult = false;
-            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end);
-            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getBranch(), end);
+            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end, restrictForeignMerges);
+            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getBranch(), end, restrictForeignMerges);
             return searchResult;
         }
         if (current.matchType(GROUP_END)) {
@@ -564,6 +566,59 @@ public final class ControlFlowGraphLoopReducer {
                 set.add(current);
             }
             return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * A block reachable from more than one place can only be a genuine "short compiler-generated tail" of
+     * this loop if every one of its predecessors is either already known to belong to it (an earlier member,
+     * or an earlier stop on this very forward walk) or is itself reachable forward from this block - a back
+     * edge from a loop rooted at or beyond this block, which this same forward walk will reach and fold in on
+     * its own. A predecessor this block cannot reach is a merge point shared with code outside this loop
+     * instead (e.g. the common continuation after an if/else-if chain that this loop is just one branch of),
+     * and folding the block in would wrongly claim it - and everything reachable from it - as exclusive to
+     * this loop.
+     */
+    private static boolean predecessorsKnown(BasicBlock basicBlock, Set<BasicBlock> members, Set<BasicBlock> set) {
+        for (BasicBlock predecessor : basicBlock.getPredecessors()) {
+            if (!members.contains(predecessor) && !set.contains(predecessor)
+                    && !canReach(basicBlock, predecessor, new HashSet<>())) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Bounded forward search (next/branch/switch-cases/exception-handlers) from 'from' looking for 'target',
+     * used to tell a back edge (target is reachable, so it closes a cycle rooted at/after 'from') apart from
+     * an unrelated merge (target is not reachable from 'from' at all).
+     */
+    private static boolean canReach(BasicBlock from, BasicBlock target, Set<BasicBlock> visited) {
+        if (from == null) {
+            return false;
+        }
+        if (from == target) {
+            return true;
+        }
+        if (from.matchType(GROUP_END) || !visited.add(from)) {
+            return false;
+        }
+        if (canReach(from.getNext(), target, visited) || canReach(from.getBranch(), target, visited)) {
+            return true;
+        }
+        for (SwitchCase switchCase : from.getSwitchCases()) {
+            if (canReach(switchCase.getBasicBlock(), target, visited)) {
+                return true;
+            }
+        }
+        for (ExceptionHandler exceptionHandler : from.getExceptionHandlers()) {
+            if (canReach(exceptionHandler.getBasicBlock(), target, visited)) {
+                return true;
+            }
         }
 
         return false;

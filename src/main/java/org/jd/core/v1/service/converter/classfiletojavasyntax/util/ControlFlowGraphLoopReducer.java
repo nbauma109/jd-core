@@ -329,8 +329,9 @@ public final class ControlFlowGraphLoopReducer {
                  * Why MAX_END_EXTENSION_BLOCKS == 3:
                  * This preserves short compiler-generated tails while avoiding broad merges observed on adjacent loops.
                  */
-                if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null, true) &&
-                    set.size() <= MAX_END_EXTENSION_BLOCKS)
+                if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, end, null) &&
+                    set.size() <= MAX_END_EXTENSION_BLOCKS &&
+                    allPredecessorsAccountedFor(members, set))
                 {
                     members.addAll(set);
 
@@ -353,11 +354,11 @@ public final class ControlFlowGraphLoopReducer {
             for (BasicBlock member : m) {
                 if (member.getType() == TYPE_CONDITIONAL_BRANCH && member != start) {
                     set.clear();
-                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getNext(), end, false)) {
+                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getNext(), end)) {
                         members.addAll(set);
                     }
                     set.clear();
-                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getBranch(), end, false)) {
+                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getBranch(), end)) {
                         members.addAll(set);
                     }
                 }
@@ -532,29 +533,27 @@ public final class ControlFlowGraphLoopReducer {
         }
     }
 
-    private static boolean recursiveForwardSearchLastLoopMemberIndexes(Set<BasicBlock> members, BitSet searchZoneIndexes, Set<BasicBlock> set, BasicBlock current, BasicBlock end, boolean restrictForeignMerges) {
+    private static boolean recursiveForwardSearchLastLoopMemberIndexes(Set<BasicBlock> members, BitSet searchZoneIndexes, Set<BasicBlock> set, BasicBlock current, BasicBlock end) {
         if (current == end || members.contains(current) || set.contains(current)) {
             return true;
         }
         if (current.matchType(GROUP_SINGLE_SUCCESSOR)) {
-            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)
-                    || (restrictForeignMerges && !predecessorsKnown(current, members, set))) {
+            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)) {
                 searchZoneIndexes.clear(current.getIndex());
                 return true;
             }
             set.add(current);
-            return recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end, restrictForeignMerges);
+            return recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end);
         }
         if (current.getType() == TYPE_CONDITIONAL_BRANCH) {
-            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !inSearchZone(current.getBranch(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)
-                    || (restrictForeignMerges && !predecessorsKnown(current, members, set))) {
+            if (!inSearchZone(current.getNext(), searchZoneIndexes) || !inSearchZone(current.getBranch(), searchZoneIndexes) || !predecessorsInSearchZone(current, searchZoneIndexes)) {
                 searchZoneIndexes.clear(current.getIndex());
                 return true;
             }
             set.add(current);
             boolean searchResult = false;
-            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end, restrictForeignMerges);
-            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getBranch(), end, restrictForeignMerges);
+            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getNext(), end);
+            searchResult |= recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current.getBranch(), end);
             return searchResult;
         }
         if (current.matchType(GROUP_END)) {
@@ -572,56 +571,28 @@ public final class ControlFlowGraphLoopReducer {
     }
 
     /**
-     * A block reachable from more than one place can only be a genuine "short compiler-generated tail" of
-     * this loop if every one of its predecessors is either already known to belong to it (an earlier member,
-     * or an earlier stop on this very forward walk) or is itself reachable forward from this block - a back
-     * edge from a loop rooted at or beyond this block, which this same forward walk will reach and fold in on
-     * its own. A predecessor this block cannot reach is a merge point shared with code outside this loop
-     * instead (e.g. the common continuation after an if/else-if chain that this loop is just one branch of),
-     * and folding the block in would wrongly claim it - and everything reachable from it - as exclusive to
-     * this loop.
+     * 'set' is only a genuine "short compiler-generated tail" exclusive to this loop if every block in it has
+     * all of its predecessors accounted for by 'members' (already established) or 'set' itself (discovered by
+     * this same search). A block with a predecessor outside both is a merge point shared with code outside
+     * this loop instead (e.g. the common continuation after an if/else-if chain that this loop is just one
+     * branch of); folding 'set' in would wrongly claim that block - and everything reachable from it - as
+     * exclusive to this loop.
+     *
+     * <p>Checked once against the fully-discovered 'set', not inline during the forward search: a DFS that
+     * reaches a join via one sibling branch before another has fully explored the join's other incoming
+     * branch would otherwise see that branch's blocks as "not yet known" even though they belong to the very
+     * same candidate tail - a false rejection driven purely by traversal order.</p>
      */
-    private static boolean predecessorsKnown(BasicBlock basicBlock, Set<BasicBlock> members, Set<BasicBlock> set) {
-        for (BasicBlock predecessor : basicBlock.getPredecessors()) {
-            if (!members.contains(predecessor) && !set.contains(predecessor)
-                    && !canReach(basicBlock, predecessor, new HashSet<>())) {
-                return false;
+    private static boolean allPredecessorsAccountedFor(Set<BasicBlock> members, Set<BasicBlock> set) {
+        for (BasicBlock basicBlock : set) {
+            for (BasicBlock predecessor : basicBlock.getPredecessors()) {
+                if (!members.contains(predecessor) && !set.contains(predecessor)) {
+                    return false;
+                }
             }
         }
 
         return true;
-    }
-
-    /**
-     * Bounded forward search (next/branch/switch-cases/exception-handlers) from 'from' looking for 'target',
-     * used to tell a back edge (target is reachable, so it closes a cycle rooted at/after 'from') apart from
-     * an unrelated merge (target is not reachable from 'from' at all).
-     */
-    private static boolean canReach(BasicBlock from, BasicBlock target, Set<BasicBlock> visited) {
-        if (from == null) {
-            return false;
-        }
-        if (from == target) {
-            return true;
-        }
-        if (from.matchType(GROUP_END) || !visited.add(from)) {
-            return false;
-        }
-        if (canReach(from.getNext(), target, visited) || canReach(from.getBranch(), target, visited)) {
-            return true;
-        }
-        for (SwitchCase switchCase : from.getSwitchCases()) {
-            if (canReach(switchCase.getBasicBlock(), target, visited)) {
-                return true;
-            }
-        }
-        for (ExceptionHandler exceptionHandler : from.getExceptionHandlers()) {
-            if (canReach(exceptionHandler.getBasicBlock(), target, visited)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static boolean predecessorsInSearchZone(BasicBlock basicBlock, BitSet searchZoneIndexes) {

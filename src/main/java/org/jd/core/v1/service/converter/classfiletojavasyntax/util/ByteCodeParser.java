@@ -2555,7 +2555,7 @@ public class ByteCodeParser {
                 // An overload with the same name in this class can obscure the intended inherited call.
                 // Object.toString() is the exception: it is virtual and frequently used deliberately so an
                 // overriding implementation on the runtime type is dispatched (e.g. AbstractPartial).
-                if (specialInvocation || !(TYPE_OBJECT.rawEquals(ot) && "toString".equals(name) && "()Ljava/lang/String;".equals(descriptor))) {
+                if (specialInvocation || (!TYPE_OBJECT.rawEquals(ot) || !"toString".equals(name) || !"()Ljava/lang/String;".equals(descriptor))) {
                     memberVisitor.init(name, null);
 
                     for (ClassFileConstructorOrMethodDeclaration member : bodyDeclaration.getMethodDeclarations()) {

@@ -31,6 +31,7 @@ import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
@@ -712,20 +713,38 @@ public final class LoopStatementMaker {
                 && fieldReference.getExpression() instanceof CastExpression receiverCast
                 && receiverCast.getType() instanceof ObjectType receiverType
                 && receiverType.getTypeArguments() == null
-                && isGenericTypeDeclaration(localVariableMaker, receiverType)
+                && isGenericField(localVariableMaker, fieldReference)
                 && !TYPE_OBJECT.equals(item.getType())) {
             // A field selected through a raw CHECKCAST has an erased source type even when the local-variable
             // table still describes the foreach item precisely. Keep that item type at the use site: otherwise
             // javac sees Object elements (for example IteratorChain.iteratorQueue in Commons Collections 4.6).
-            list = new CastExpression(TYPE_ITERABLE.createType(item.getType()), list);
+            list = new CastExpression(TYPE_ITERABLE.createType(box(item.getType())), list);
         }
 
         return new ClassFileForEachStatement(item, list, subStatements);
     }
 
-    private static boolean isGenericTypeDeclaration(LocalVariableMaker localVariableMaker, ObjectType type) {
-        TypeMaker.TypeTypes typeTypes = localVariableMaker.getTypeMaker().makeTypeTypes(type.getInternalName());
-        return typeTypes != null && typeTypes.getTypeParameters() != null;
+    private static boolean isGenericField(LocalVariableMaker localVariableMaker, FieldReferenceExpression field) {
+        Type declaredType = localVariableMaker.getTypeMaker().makeFieldType(
+                field.getInternalTypeName(), field.getName(), field.getDescriptor());
+        return declaredType != null && !declaredType.findTypeParametersInType().isEmpty();
+    }
+
+    static Type box(Type type) {
+        if (!(type instanceof PrimitiveType primitiveType)) {
+            return type;
+        }
+        return switch (primitiveType.getDescriptor().charAt(0)) {
+            case 'B' -> ObjectType.TYPE_BYTE;
+            case 'C' -> ObjectType.TYPE_CHARACTER;
+            case 'D' -> ObjectType.TYPE_DOUBLE;
+            case 'F' -> ObjectType.TYPE_FLOAT;
+            case 'I' -> ObjectType.TYPE_INTEGER;
+            case 'J' -> ObjectType.TYPE_LONG;
+            case 'S' -> ObjectType.TYPE_SHORT;
+            case 'Z' -> ObjectType.TYPE_BOOLEAN;
+            default -> type;
+        };
     }
 
     private static Statement makeLabels(int loopIndex, int continueOffset, int breakOffset, Statement loop, Statements jumps) {

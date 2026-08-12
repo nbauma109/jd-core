@@ -15,11 +15,26 @@ import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.junit.Test;
 
 public class LoopStatementMakerTest extends TestCase {
+    @Test
+    public void testBoxesPrimitiveForEachTypes() {
+        assertSame(ObjectType.TYPE_BYTE, LoopStatementMaker.box(PrimitiveType.TYPE_BYTE));
+        assertSame(ObjectType.TYPE_CHARACTER, LoopStatementMaker.box(PrimitiveType.TYPE_CHAR));
+        assertSame(ObjectType.TYPE_DOUBLE, LoopStatementMaker.box(PrimitiveType.TYPE_DOUBLE));
+        assertSame(ObjectType.TYPE_FLOAT, LoopStatementMaker.box(PrimitiveType.TYPE_FLOAT));
+        assertSame(ObjectType.TYPE_INTEGER, LoopStatementMaker.box(PrimitiveType.TYPE_INT));
+        assertSame(ObjectType.TYPE_LONG, LoopStatementMaker.box(PrimitiveType.TYPE_LONG));
+        assertSame(ObjectType.TYPE_SHORT, LoopStatementMaker.box(PrimitiveType.TYPE_SHORT));
+        assertSame(ObjectType.TYPE_BOOLEAN, LoopStatementMaker.box(PrimitiveType.TYPE_BOOLEAN));
+        assertSame(ObjectType.TYPE_STRING, LoopStatementMaker.box(ObjectType.TYPE_STRING));
+    }
+
     @Test
     public void testRestoresProvenExitNestedInOrdinaryIf() {
         Statements exitStatements = new Statements();

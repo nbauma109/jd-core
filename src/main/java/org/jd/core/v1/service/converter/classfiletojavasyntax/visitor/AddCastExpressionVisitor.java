@@ -1071,7 +1071,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             // implementation cast can be invariantly incompatible with the source-level use.
             expression.setType(objectType.createType(null));
         }
-        expression.getExpression().accept(this);
+        Expression nestedExpression = expression.getExpression();
+        nestedExpression.accept(this);
+        if (expression.isByteCodeCheckCast()
+                && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocation
+                && methodInvocation.getUnboundType() instanceof GenericType genericReturnType) {
+            hasProperArgumentConstraint(methodInvocation, genericReturnType);
+        }
     }
 
     @Override
@@ -1466,6 +1472,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
                     && methodInvocationExpression.getTypeParameters() != null
                     && methodInvocationExpression.getUnboundType() instanceof GenericType genericReturnType
+                    && isMethodTypeParameter(methodInvocationExpression, genericReturnType)
                     && left.getTypeArguments() != null
                     && isJavaLangObject(right)
                     && !hasProperArgumentConstraint(methodInvocationExpression, genericReturnType)) {
@@ -1473,10 +1480,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
             if (expression.isByteCodeCheckCast()
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
-                    && methodInvocationExpression.getUnboundType() instanceof GenericType
+                    && methodInvocationExpression.getUnboundType() instanceof GenericType genericReturnType
                     && hasUnboundedWildcardTypeArgument(methodInvocationExpression.getExpression())) {
                 // Keep narrowing casts required by wildcard capture, except for the poly-invocation case above:
                 // there the target type is what resolves the method's own type parameters.
+                hasProperArgumentConstraint(methodInvocationExpression, genericReturnType);
                 return false;
             }
             if (unique
@@ -1505,29 +1513,52 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean hasProperArgumentConstraint(ClassFileMethodInvocationExpression expression, GenericType genericReturnType) {
         BaseType parameterTypes = expression.getUnboundParameterTypes();
         BaseExpression arguments = expression.getParameters();
+        Set<String> methodTypeParameters = getMethodTypeParameterNames(expression);
 
         if (parameterTypes != null && arguments != null) {
             var parameterTypeIterator = parameterTypes.iterator();
             var argumentIterator = arguments.iterator();
+            int index = 0;
 
             while (parameterTypeIterator.hasNext() && argumentIterator.hasNext()) {
                 Type parameterType = parameterTypeIterator.next();
                 Expression argument = argumentIterator.next();
 
-                if (parameterType.findTypeParametersInType().contains(genericReturnType.getName())
+                if (!Collections.disjoint(parameterType.findTypeParametersInType(), methodTypeParameters)
                         && !argument.isNullExpression()
-                        && !isGenericPolyInvocation(argument)) {
+                        && !isTargetDependentGenericInvocation(argument)) {
+                    restoreIndependentGenericArgument(expression, arguments, index, argument);
                     return true;
                 }
+                index++;
             }
         }
 
         return false;
     }
 
-    private static boolean isGenericPolyInvocation(Expression expression) {
+    private static void restoreIndependentGenericArgument(ClassFileMethodInvocationExpression invocation,
+            BaseExpression arguments, int index, Expression argument) {
+        if (argument instanceof CastExpression cast
+                && cast.getExpression() instanceof ClassFileMethodInvocationExpression nested
+                && nested.getTypeParameters() != null) {
+            invocation.setNonWildcardTypeArguments(null);
+            if (arguments.isList()) {
+                arguments.getList().set(index, cast.getExpression());
+            } else {
+                invocation.setParameters(cast.getExpression());
+            }
+        }
+    }
+
+    private static boolean isMethodTypeParameter(ClassFileMethodInvocationExpression expression, GenericType type) {
+        return getMethodTypeParameterNames(expression).contains(type.getName());
+    }
+
+    private static boolean isTargetDependentGenericInvocation(Expression expression) {
         return expression instanceof ClassFileMethodInvocationExpression methodInvocation
-                && methodInvocation.getTypeParameters() != null;
+                && methodInvocation.getTypeParameters() != null
+                && containsFunctionalExpression(methodInvocation.getParameters());
     }
 
     private static boolean containsFunctionalExpression(BaseExpression parameters) {

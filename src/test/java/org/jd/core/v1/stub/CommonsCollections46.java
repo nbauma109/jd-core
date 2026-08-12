@@ -40,6 +40,14 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.get(objectClass());
     }
 
+    public static List<String> constrainedByGenericInvocation(Box<?> box) {
+        return (List<String>) box.get(identity(Object.class));
+    }
+
+    private static <T> T identity(T value) {
+        return value;
+    }
+
     private static Class<Object> objectClass() {
         return Object.class;
     }
@@ -48,9 +56,29 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.getObject(Object.class);
     }
 
+    public static List<String> classOwnedReturn(Box<?> box) {
+        return (List<String>) box.getOwned(Object.class);
+    }
+
+    public static List<String> transitivelyConstrainedReturn(Box<?> box) {
+        return (List<String>) box.getBound(new Object());
+    }
+
     public static void nonGenericReceiver(Object value) {
         for (CharSequence string : ((Holder) value).strings) {
             string.length();
+        }
+    }
+
+    public static void primitiveReceiver(Object value) {
+        for (int number : ((PrimitiveHolder<Integer>) value).values) {
+            System.out.println(number);
+        }
+    }
+
+    public static void enclosingReceiver(Object value) {
+        for (String string : ((Outer<String>.Inner) value).values) {
+            System.out.println(string);
         }
     }
 
@@ -76,9 +104,27 @@ public class CommonsCollections46<E> implements Iterator<E> {
         public <U> Object getObject(Class<U> type) {
             return null;
         }
+
+        public <U> T getOwned(Class<U> type) {
+            return null;
+        }
+
+        public <T, U extends T> T getBound(U value) {
+            return null;
+        }
     }
 
     public static class Holder {
         private final List<String> strings = new LinkedList<>();
+    }
+
+    public static class PrimitiveHolder<T> {
+        private final List<Integer> values = new LinkedList<>();
+    }
+
+    public static class Outer<T> {
+        public class Inner {
+            private final List<T> values = new LinkedList<>();
+        }
     }
 }

@@ -15,6 +15,7 @@ import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.AmbiguousMethodReference;
 import org.jd.core.v1.stub.BoundedGenericReturnCast;
 import org.jd.core.v1.stub.ConflictingWildcardCapture;
+import org.jd.core.v1.stub.CommonsCollections46;
 import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
@@ -53,6 +54,14 @@ public class RecompilationRegressionTest extends AbstractJdTest {
 
     private void assertRecompiles(Class<?> clazz, String source) throws Exception {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(clazz.getName().replace('.', '/'), source)));
+    }
+
+    @Test
+    public void testCommonsCollections46GenericInference() throws Exception {
+        String source = decompile(CommonsCollections46.class);
+        assertTrue(source.matches(PatternMaker.make("Iterable<Iterator<? extends E>>")));
+        assertFalse(source.matches(PatternMaker.make("return (Set<Map.Entry<Object, Object>>)")));
+        assertRecompiles(CommonsCollections46.class, source);
     }
 
     @Test

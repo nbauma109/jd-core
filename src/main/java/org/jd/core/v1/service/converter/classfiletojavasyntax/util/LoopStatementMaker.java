@@ -14,6 +14,7 @@ import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.Expressions;
+import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
@@ -705,6 +706,17 @@ public final class LoopStatementMaker {
             if (ot.getTypeArguments() instanceof WildcardExtendsTypeArgument || ot.getTypeArguments() instanceof WildcardSuperTypeArgument) {
                 exp.setNonWildcardTypeArguments(null);
             }
+        }
+
+        if (list instanceof FieldReferenceExpression fieldReference
+                && fieldReference.getExpression() instanceof CastExpression receiverCast
+                && receiverCast.getType() instanceof ObjectType receiverType
+                && receiverType.getTypeArguments() == null
+                && !TYPE_OBJECT.equals(item.getType())) {
+            // A field selected through a raw CHECKCAST has an erased source type even when the local-variable
+            // table still describes the foreach item precisely. Keep that item type at the use site: otherwise
+            // javac sees Object elements (for example IteratorChain.iteratorQueue in Commons Collections 4.6).
+            list = new CastExpression(TYPE_ITERABLE.createType(item.getType()), list);
         }
 
         return new ClassFileForEachStatement(item, list, subStatements);

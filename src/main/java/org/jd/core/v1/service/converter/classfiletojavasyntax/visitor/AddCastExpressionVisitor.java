@@ -1461,12 +1461,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (type.isObjectType() && nestedExpressionType.isObjectType()) {
             ObjectType left = (ObjectType) type;
             ObjectType right = (ObjectType) nestedExpressionType;
-            if (expression.isByteCodeCheckCast()
-                    && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
-                    && methodInvocationExpression.getUnboundType() instanceof GenericType
-                    && hasUnboundedWildcardTypeArgument(methodInvocationExpression.getExpression())) {
-                return false;
-            }
             if (unique
                     && expression.isByteCodeCheckCast()
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
@@ -1474,6 +1468,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && left.getTypeArguments() != null
                     && isJavaLangObject(right)) {
                 return true;
+            }
+            if (expression.isByteCodeCheckCast()
+                    && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
+                    && methodInvocationExpression.getUnboundType() instanceof GenericType
+                    && hasUnboundedWildcardTypeArgument(methodInvocationExpression.getExpression())) {
+                // Keep narrowing casts required by wildcard capture, except for the poly-invocation case above:
+                // there the target type is what resolves the method's own type parameters.
+                return false;
             }
             if (unique
                     && nestedExpression.isMethodInvocationExpression()

@@ -4,6 +4,7 @@ import java.util.AbstractMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -31,6 +32,28 @@ public class CommonsCollections46<E> implements Iterator<E> {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    public static List<String> constrainedReturn(Box<?> box) {
+        return (List<String>) box.get(Object.class);
+    }
+
+    public static List<String> constrainedByInvocation(Box<?> box) {
+        return (List<String>) box.get(objectClass());
+    }
+
+    private static Class<Object> objectClass() {
+        return Object.class;
+    }
+
+    public static List<String> objectReturn(Box<?> box) {
+        return (List<String>) box.getObject(Object.class);
+    }
+
+    public static void nonGenericReceiver(Object value) {
+        for (CharSequence string : ((Holder) value).strings) {
+            string.length();
+        }
+    }
+
     @Override
     public boolean hasNext() {
         return false;
@@ -43,5 +66,19 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     private abstract static class UnmodifiableIterator<E> implements Iterator<E> {
         abstract Iterator<E> unwrap();
+    }
+
+    public static class Box<T> {
+        public <U> U get(Class<U> type) {
+            return null;
+        }
+
+        public <U> Object getObject(Class<U> type) {
+            return null;
+        }
+    }
+
+    public static class Holder {
+        private final List<String> strings = new LinkedList<>();
     }
 }

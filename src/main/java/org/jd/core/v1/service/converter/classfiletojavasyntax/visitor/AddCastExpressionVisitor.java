@@ -1465,8 +1465,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && expression.isByteCodeCheckCast()
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
                     && methodInvocationExpression.getTypeParameters() != null
+                    && methodInvocationExpression.getUnboundType() instanceof GenericType genericReturnType
                     && left.getTypeArguments() != null
-                    && isJavaLangObject(right)) {
+                    && isJavaLangObject(right)
+                    && !hasProperArgumentConstraint(methodInvocationExpression, genericReturnType)) {
                 return true;
             }
             if (expression.isByteCodeCheckCast()
@@ -1498,6 +1500,34 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return false;
+    }
+
+    private static boolean hasProperArgumentConstraint(ClassFileMethodInvocationExpression expression, GenericType genericReturnType) {
+        BaseType parameterTypes = expression.getUnboundParameterTypes();
+        BaseExpression arguments = expression.getParameters();
+
+        if (parameterTypes != null && arguments != null) {
+            var parameterTypeIterator = parameterTypes.iterator();
+            var argumentIterator = arguments.iterator();
+
+            while (parameterTypeIterator.hasNext() && argumentIterator.hasNext()) {
+                Type parameterType = parameterTypeIterator.next();
+                Expression argument = argumentIterator.next();
+
+                if (parameterType.findTypeParametersInType().contains(genericReturnType.getName())
+                        && !argument.isNullExpression()
+                        && !isGenericPolyInvocation(argument)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isGenericPolyInvocation(Expression expression) {
+        return expression instanceof ClassFileMethodInvocationExpression methodInvocation
+                && methodInvocation.getTypeParameters() != null;
     }
 
     private static boolean containsFunctionalExpression(BaseExpression parameters) {

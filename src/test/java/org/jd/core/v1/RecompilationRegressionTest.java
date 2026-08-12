@@ -61,6 +61,10 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         String source = decompile(CommonsCollections46.class);
         assertTrue(source.matches(PatternMaker.make("Iterable<Iterator<? extends E>>")));
         assertFalse(source.matches(PatternMaker.make("return (Set<Map.Entry<Object, Object>>)")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(Object.class);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(objectClass());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getObject(Object.class);")));
+        assertFalse(source.matches(PatternMaker.make("(Iterable<CharSequence>)((Holder)value).strings")));
         assertRecompiles(CommonsCollections46.class, source);
     }
 

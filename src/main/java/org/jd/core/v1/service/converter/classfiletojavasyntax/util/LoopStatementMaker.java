@@ -712,6 +712,7 @@ public final class LoopStatementMaker {
                 && fieldReference.getExpression() instanceof CastExpression receiverCast
                 && receiverCast.getType() instanceof ObjectType receiverType
                 && receiverType.getTypeArguments() == null
+                && isGenericTypeDeclaration(localVariableMaker, receiverType)
                 && !TYPE_OBJECT.equals(item.getType())) {
             // A field selected through a raw CHECKCAST has an erased source type even when the local-variable
             // table still describes the foreach item precisely. Keep that item type at the use site: otherwise
@@ -720,6 +721,11 @@ public final class LoopStatementMaker {
         }
 
         return new ClassFileForEachStatement(item, list, subStatements);
+    }
+
+    private static boolean isGenericTypeDeclaration(LocalVariableMaker localVariableMaker, ObjectType type) {
+        TypeMaker.TypeTypes typeTypes = localVariableMaker.getTypeMaker().makeTypeTypes(type.getInternalName());
+        return typeTypes != null && typeTypes.getTypeParameters() != null;
     }
 
     private static Statement makeLabels(int loopIndex, int continueOffset, int breakOffset, Statement loop, Statements jumps) {

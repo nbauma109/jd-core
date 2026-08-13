@@ -44,6 +44,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.get(identity(Object.class));
     }
 
+    public static List<String> constrainedByGenericInvocationList(Box<?> box) {
+        return (List<String>) box.getWithFlag(identity(Object.class), true);
+    }
+
     public static List<String> concreteGenericReturn(Box<?> box) {
         return (List<String>) box.get((Class<Object>) genericObject("x"));
     }
@@ -141,6 +145,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     public static class Box<T> {
         public <U> U get(Class<U> type) {
+            return null;
+        }
+
+        public <U> U getWithFlag(Class<U> type, boolean flag) {
             return null;
         }
 

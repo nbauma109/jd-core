@@ -1639,19 +1639,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Map<String, Type> replacements = new HashMap<>();
         Set<String> methodTypeParameters = getMethodTypeParameterNames(invocation);
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : invocation.getTypeParameters()) {
-            Type replacement = ObjectType.TYPE_OBJECT;
-            if (typeParameter instanceof TypeParameterWithTypeBounds bounded) {
-                if (bounded.getTypeBounds().size() != 1) {
-                    continue;
-                }
-                replacement = bounded.getTypeBounds().getFirst();
-                if (!Collections.disjoint(replacement.findTypeParametersInType(), methodTypeParameters)) {
-                    continue;
-                }
+            Type replacement = getAccessibleTypeParameterReplacement(typeParameter, methodTypeParameters);
+            if (replacement != null) {
+                replacements.put(typeParameter.getIdentifier(), replacement);
             }
-            replacements.put(typeParameter.getIdentifier(), replacement);
         }
         return replacements;
+    }
+
+    private static Type getAccessibleTypeParameterReplacement(
+            org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter,
+            Set<String> methodTypeParameters) {
+        if (!(typeParameter instanceof TypeParameterWithTypeBounds bounded)) {
+            return ObjectType.TYPE_OBJECT;
+        }
+        if (bounded.getTypeBounds().size() != 1) {
+            return null;
+        }
+        Type replacement = bounded.getTypeBounds().getFirst();
+        return Collections.disjoint(replacement.findTypeParametersInType(), methodTypeParameters) ? replacement : null;
     }
 
     private static Type replaceMethodTypeParameters(Type type, Map<String, Type> methodTypeParameters) {
@@ -1746,7 +1752,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         @Override
-        public void visit(LambdaIdentifiersExpression expression) {}
+        public void visit(LambdaIdentifiersExpression expression) {
+            // A nested lambda has its own target type and must not constrain the enclosing lambda's result.
+        }
     }
 
     private static boolean isFunctionalExpression(Expression expression) {

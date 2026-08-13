@@ -52,8 +52,28 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.get(choose(Object.class, () -> {}));
     }
 
+    public static List<String> boundedArgumentCast(Box<?> box) {
+        return (List<String>) box.getText((CharSequence) genericObject("x"));
+    }
+
+    public static List<String> overloadedArgumentCast() {
+        return (List<String>) use((String) identity());
+    }
+
     private static <T> T identity(T value) {
         return value;
+    }
+
+    private static <T> T identity() {
+        return null;
+    }
+
+    private static <T, U extends CharSequence> T use(U value) {
+        return null;
+    }
+
+    private static <T, U extends Number> T use(U value) {
+        return null;
     }
 
     private static <V> Object genericObject(V value) {
@@ -99,6 +119,12 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
     }
 
+    public static void arrayReceiver(Object value) {
+        for (String string : ((ArrayHolder<String>) value).values) {
+            System.out.println(string);
+        }
+    }
+
     @Override
     public boolean hasNext() {
         return false;
@@ -129,6 +155,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
         public <T, U extends T> T getBound(U value) {
             return null;
         }
+
+        public <V, U extends CharSequence> V getText(U value) {
+            return null;
+        }
     }
 
     public static class Holder {
@@ -137,6 +167,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     public static class PrimitiveHolder<T> {
         private final List<Integer> values = new LinkedList<>();
+    }
+
+    public static class ArrayHolder<T> {
+        private final T[] values = (T[]) new Object[0];
     }
 
     public static class Outer<T> {

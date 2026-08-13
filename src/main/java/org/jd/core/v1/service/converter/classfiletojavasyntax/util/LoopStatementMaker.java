@@ -709,25 +709,29 @@ public final class LoopStatementMaker {
             }
         }
 
+        Type genericFieldType;
         if (list instanceof FieldReferenceExpression fieldReference
                 && fieldReference.getExpression() instanceof CastExpression receiverCast
                 && receiverCast.getType() instanceof ObjectType receiverType
                 && receiverType.getTypeArguments() == null
-                && isGenericField(localVariableMaker, fieldReference)
+                && (genericFieldType = getGenericFieldType(localVariableMaker, fieldReference)) != null
                 && !TYPE_OBJECT.equals(item.getType())) {
             // A field selected through a raw CHECKCAST has an erased source type even when the local-variable
             // table still describes the foreach item precisely. Keep that item type at the use site: otherwise
             // javac sees Object elements (for example IteratorChain.iteratorQueue in Commons Collections 4.6).
-            list = new CastExpression(TYPE_ITERABLE.createType(box(item.getType())), list);
+            Type castType = genericFieldType.getDimension() == 0
+                    ? TYPE_ITERABLE.createType(box(item.getType()))
+                    : box(item.getType()).createType(item.getType().getDimension() + 1);
+            list = new CastExpression(castType, list);
         }
 
         return new ClassFileForEachStatement(item, list, subStatements);
     }
 
-    private static boolean isGenericField(LocalVariableMaker localVariableMaker, FieldReferenceExpression field) {
+    private static Type getGenericFieldType(LocalVariableMaker localVariableMaker, FieldReferenceExpression field) {
         Type declaredType = localVariableMaker.getTypeMaker().makeFieldType(
                 field.getInternalTypeName(), field.getName(), field.getDescriptor());
-        return declaredType != null && !declaredType.findTypeParametersInType().isEmpty();
+        return declaredType != null && !declaredType.findTypeParametersInType().isEmpty() ? declaredType : null;
     }
 
     static Type box(Type type) {

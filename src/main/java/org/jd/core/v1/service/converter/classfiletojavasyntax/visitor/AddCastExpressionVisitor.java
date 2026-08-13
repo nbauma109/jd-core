@@ -1510,7 +1510,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    private static boolean hasProperArgumentConstraint(ClassFileMethodInvocationExpression expression) {
+    private boolean hasProperArgumentConstraint(ClassFileMethodInvocationExpression expression) {
         BaseType parameterTypes = expression.getUnboundParameterTypes();
         BaseExpression arguments = expression.getParameters();
         Set<String> methodTypeParameters = getMethodTypeParameterNames(expression);
@@ -1537,13 +1537,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    private static void restoreIndependentGenericArgument(ClassFileMethodInvocationExpression invocation,
+    private void restoreIndependentGenericArgument(ClassFileMethodInvocationExpression invocation,
             BaseExpression arguments, int index, Type parameterType, Expression argument) {
         if (argument instanceof CastExpression cast
                 && cast.getExpression() instanceof ClassFileMethodInvocationExpression nested) {
             invocation.setNonWildcardTypeArguments(null);
             if (nested.getUnboundType() != null
-                    && !Collections.disjoint(nested.getUnboundType().findTypeParametersInType(), getMethodTypeParameterNames(nested))) {
+                    && !Collections.disjoint(nested.getUnboundType().findTypeParametersInType(), getMethodTypeParameterNames(nested))
+                    && typeMaker.matchCount(invocation.getInternalTypeName(), invocation.getName(), arguments.size(), true) == 1) {
                 if (arguments.isList()) {
                     arguments.getList().set(index, cast.getExpression());
                 } else {
@@ -1552,8 +1553,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             } else if (parameterType instanceof ObjectType objectParameterType
                     && !objectParameterType.findTypeParametersInType().isEmpty()) {
                 cast.setType(objectParameterType.createType(ObjectType.TYPE_OBJECT));
-            } else {
-                cast.setType(parameterType);
             }
         }
     }

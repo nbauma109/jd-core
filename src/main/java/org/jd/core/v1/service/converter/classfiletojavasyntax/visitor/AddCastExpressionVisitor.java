@@ -1599,7 +1599,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         BaseTypeArgument restoredArguments = restoredParameterType.getTypeArguments();
         TypeTypes castTypeTypes = typeMaker.makeTypeTypes(castObjectType.getInternalName());
-        if (restoredArguments != null && castTypeTypes != null && castTypeTypes.getTypeParameters() != null
+        if (restoredArguments != null && restoredArguments.findTypeParametersInType().isEmpty()
+                && castTypeTypes != null && castTypeTypes.getTypeParameters() != null
                 && castTypeTypes.getTypeParameters().size() == toTypeArgumentList(restoredArguments).size()) {
             cast.setType(castObjectType.createType(restoredArguments));
         }

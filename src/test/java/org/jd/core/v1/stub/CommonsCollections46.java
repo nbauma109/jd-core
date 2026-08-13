@@ -1,5 +1,6 @@
 package org.jd.core.v1.stub;
 
+import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -131,9 +132,22 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.getRecursiveMap((Map<String, String>) genericObject("x"));
     }
 
+    public static List<String> intersectionBoundParameterizedArgumentCast(Box<?> box) {
+        return (List<String>) box.getIntersectionMap((Map<String, String>) genericObject("x"));
+    }
+
     public static List<String> blockLambdaResultConstraint(Box<?> box) {
         return (List<String>) box.get(clazz(() -> {
             System.out.println("result");
+            return new Object();
+        }));
+    }
+
+    public static List<String> nestedBlockLambdaResultConstraint(Box<?> box, boolean flag) {
+        return (List<String>) box.get(clazz(() -> {
+            if (flag) {
+                return new Object();
+            }
             return new Object();
         }));
     }
@@ -294,6 +308,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
 
         public <V, U extends Comparable<U>> V getRecursiveMap(Map<String, U> value) {
+            return null;
+        }
+
+        public <V, U extends Serializable & Comparable<U>> V getIntersectionMap(Map<String, U> value) {
             return null;
         }
 

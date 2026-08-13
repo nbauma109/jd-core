@@ -55,7 +55,6 @@ import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.LambdaExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
-import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
@@ -1620,7 +1619,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         BaseTypeArgument restoredArguments = restoredParameterType.getTypeArguments();
         TypeTypes castTypeTypes = typeMaker.makeTypeTypes(castObjectType.getInternalName());
-        if (restoredArguments != null && restoredArguments.findTypeParametersInType().isEmpty()
+        if (restoredArguments != null
+                && !Collections.disjoint(restoredArguments.findTypeParametersInType(), getMethodTypeParameterNames(invocation))) {
+            cast.setType(castObjectType.createType((BaseTypeArgument)null));
+        } else if (restoredArguments != null && restoredArguments.findTypeParametersInType().isEmpty()
                 && castTypeTypes != null && castTypeTypes.getTypeParameters() != null
                 && castTypeTypes.getTypeParameters().size() == toTypeArgumentList(restoredArguments).size()) {
             cast.setType(castObjectType.createType(restoredArguments));
@@ -1639,6 +1641,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : invocation.getTypeParameters()) {
             Type replacement = ObjectType.TYPE_OBJECT;
             if (typeParameter instanceof TypeParameterWithTypeBounds bounded) {
+                if (bounded.getTypeBounds().size() != 1) {
+                    continue;
+                }
                 replacement = bounded.getTypeBounds().getFirst();
                 if (!Collections.disjoint(replacement.findTypeParametersInType(), methodTypeParameters)) {
                     continue;
@@ -1724,16 +1729,24 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
         BaseStatement statements = lambda.getStatements();
-        if ((statements.isLambdaExpressionStatement() || statements.isReturnExpressionStatement())
-                && !statements.getExpression().isNullExpression()) {
-            return true;
+        if (statements.isLambdaExpressionStatement()) {
+            return !statements.getExpression().isNullExpression();
         }
-        for (Statement statement : statements) {
-            if (statement.isReturnExpressionStatement() && !statement.getExpression().isNullExpression()) {
-                return true;
-            }
+        NonNullReturnExpressionVisitor visitor = new NonNullReturnExpressionVisitor();
+        statements.accept(visitor);
+        return visitor.found;
+    }
+
+    private static final class NonNullReturnExpressionVisitor extends AbstractJavaSyntaxVisitor {
+        private boolean found;
+
+        @Override
+        public void visit(ReturnExpressionStatement statement) {
+            found |= !statement.getExpression().isNullExpression();
         }
-        return false;
+
+        @Override
+        public void visit(LambdaIdentifiersExpression expression) {}
     }
 
     private static boolean isFunctionalExpression(Expression expression) {

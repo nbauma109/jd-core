@@ -68,11 +68,11 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return null;
     }
 
-    private static <T, U extends CharSequence> T use(U value) {
+    public static <T, U extends CharSequence> T use(U value) {
         return null;
     }
 
-    private static <T, U extends Number> T use(U value) {
+    public static <T, U extends Number> T use(U value) {
         return null;
     }
 

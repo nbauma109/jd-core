@@ -55,6 +55,7 @@ import org.jd.core.v1.model.javasyntax.statement.BreakStatement;
 import org.jd.core.v1.model.javasyntax.statement.ContinueStatement;
 import org.jd.core.v1.model.javasyntax.statement.LambdaExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
+import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
@@ -1658,11 +1659,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private static boolean hasConstrainingLambdaResult(Expression expression) {
-        if (expression instanceof LambdaIdentifiersExpression lambda) {
-            BaseStatement statements = lambda.getStatements();
-            return statements != null
-                    && (statements.isLambdaExpressionStatement() || statements.isReturnExpressionStatement())
-                    && !statements.getExpression().isNullExpression();
+        if (!(expression instanceof LambdaIdentifiersExpression lambda) || lambda.getStatements() == null) {
+            return false;
+        }
+        BaseStatement statements = lambda.getStatements();
+        if ((statements.isLambdaExpressionStatement() || statements.isReturnExpressionStatement())
+                && !statements.getExpression().isNullExpression()) {
+            return true;
+        }
+        for (Statement statement : statements) {
+            if (statement.isReturnExpressionStatement() && !statement.getExpression().isNullExpression()) {
+                return true;
+            }
         }
         return false;
     }

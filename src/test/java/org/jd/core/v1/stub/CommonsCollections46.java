@@ -69,12 +69,43 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.getMap((Map<String, Object>) genericObject("x"));
     }
 
+    public static List<String> wildcardExtendsArgumentCast(Box<?> box) {
+        return (List<String>) box.getExtends((Map<? extends CharSequence, Object>) genericObject("x"));
+    }
+
+    public static List<String> wildcardSuperArgumentCast(Box<?> box) {
+        return (List<String>) box.getSuper((Map<? super String, Object>) genericObject("x"));
+    }
+
+    public static List<String> unboundedWildcardArgumentCast(Box<?> box) {
+        return (List<String>) box.getAny((Map<?, Object>) genericObject("x"));
+    }
+
+    public static <T> List<String> ownerParameterizedArgumentCast(Box<T> box) {
+        return (List<String>) box.getOwnerMap((Map<T, Object>) genericObject("x"));
+    }
+
+    public static List<String> soleArgumentCast(Box<?> box) {
+        return (List<String>) box.getText((String) sole());
+    }
+
     public static List<String> concreteFunctionalReturn() {
         return (List<String>) identity(generic(() -> "x"));
     }
 
     public static List<String> lambdaResultConstraint(Box<?> box) {
         return (List<String>) box.get(clazz(() -> new Object()));
+    }
+
+    public static List<String> blockLambdaResultConstraint(Box<?> box) {
+        return (List<String>) box.get(clazz(() -> {
+            System.out.println("result");
+            return new Object();
+        }));
+    }
+
+    public static List<String> nullLambdaResult(Box<?> box) {
+        return (List<String>) box.get(clazz(() -> null));
     }
 
     public static List<String> overloadedArgumentCast() {
@@ -86,6 +117,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
     }
 
     private static <T> T identity() {
+        return null;
+    }
+
+    private static <T> T sole() {
         return null;
     }
 
@@ -195,6 +230,22 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
 
         public <V, U> V getMap(Map<String, U> value) {
+            return null;
+        }
+
+        public <V, U> V getExtends(Map<? extends CharSequence, U> value) {
+            return null;
+        }
+
+        public <V, U> V getSuper(Map<? super String, U> value) {
+            return null;
+        }
+
+        public <V, U> V getAny(Map<?, U> value) {
+            return null;
+        }
+
+        public <V, U> V getOwnerMap(Map<T, U> value) {
             return null;
         }
     }

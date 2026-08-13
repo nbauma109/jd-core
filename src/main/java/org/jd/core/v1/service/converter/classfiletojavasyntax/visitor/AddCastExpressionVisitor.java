@@ -1520,8 +1520,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean requiresNarrowingCastForNestedConstraint(Map<String, TypeArgument> typeBindings,
             Map<String, BaseType> localTypeBounds, ObjectType castType,
             ClassFileMethodInvocationExpression invocation) {
-        if (!(invocation.getUnboundType() instanceof GenericType returnedType)
-                || !getMethodTypeParameterNames(invocation).contains(returnedType.getName())
+        if (!(invocation.getUnboundType() instanceof GenericType returnedGenericType)
+                || !getMethodTypeParameterNames(invocation).contains(returnedGenericType.getName())
                 || invocation.getUnboundParameterTypes() == null
                 || invocation.getParameters() == null) {
             return false;
@@ -1531,7 +1531,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         while (parameterTypeIterator.hasNext() && argumentIterator.hasNext()) {
             Type parameterType = parameterTypeIterator.next();
             Expression argument = argumentIterator.next();
-            if (returnedType.equals(parameterType)
+            if (returnedGenericType.equals(parameterType)
                     && (!(argument.getType() instanceof ObjectType argumentType)
                             || !typeMaker.isAssignable(typeBindings, localTypeBounds, castType, argumentType))) {
                 return true;

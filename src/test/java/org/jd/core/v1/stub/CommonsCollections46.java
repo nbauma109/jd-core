@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,7 +46,7 @@ public class CommonsCollections46<E> implements Iterator<E> {
     }
 
     public static List<String> constrainedByGenericInvocationList(Box<?> box) {
-        return (List<String>) box.getWithFlag(identity(Object.class), true);
+        return (List<String>) box.getWithFlag((Class<Object>) identity(), true);
     }
 
     public static List<String> concreteGenericReturn(Box<?> box) {
@@ -58,6 +59,22 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     public static List<String> boundedArgumentCast(Box<?> box) {
         return (List<String>) box.getText((CharSequence) genericObject("x"));
+    }
+
+    public static List<String> independentlyConstrainedArgument(Box<?> box) {
+        return (List<String>) box.getText((String) identity(new Object()));
+    }
+
+    public static List<String> parameterizedArgumentCast(Box<?> box) {
+        return (List<String>) box.getMap((Map<String, Object>) genericObject("x"));
+    }
+
+    public static List<String> concreteFunctionalReturn() {
+        return (List<String>) identity(generic(() -> "x"));
+    }
+
+    public static List<String> lambdaResultConstraint(Box<?> box) {
+        return (List<String>) box.get(clazz(() -> new Object()));
     }
 
     public static List<String> overloadedArgumentCast() {
@@ -87,6 +104,15 @@ public class CommonsCollections46<E> implements Iterator<E> {
     private static <T> Class<T> choose(Class<T> type, Runnable action) {
         action.run();
         return type;
+    }
+
+    private static <V> Object generic(Supplier<V> supplier) {
+        return supplier.get();
+    }
+
+    private static <T> Class<T> clazz(Supplier<T> supplier) {
+        supplier.get();
+        return null;
     }
 
     private static Class<Object> objectClass() {
@@ -165,6 +191,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
 
         public <V, U extends CharSequence> V getText(U value) {
+            return null;
+        }
+
+        public <V, U> V getMap(Map<String, U> value) {
             return null;
         }
     }

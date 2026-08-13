@@ -63,10 +63,11 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         assertFalse(source.matches(PatternMaker.make("return (Set<Map.Entry<Object, Object>>)")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(Object.class);")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(objectClass());")));
-        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(identity(Object.class));")));
-        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getWithFlag(identity(Object.class), true);")));
-        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get((Class<Object>)CommonsCollections46.<String>genericObject(\"x\"));")));
-        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((CharSequence)CommonsCollections46.<String>genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getWithFlag(CommonsCollections46.<Class<List<String>>>identity(), true);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get((Class<Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((CharSequence)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((String)identity(new Object()));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((Map<String, Object>)genericObject(\"x\"));")));
         assertFalse(source.matches(PatternMaker.make("return use(identity());")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getObject(Object.class);")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getOwned(Object.class);")));

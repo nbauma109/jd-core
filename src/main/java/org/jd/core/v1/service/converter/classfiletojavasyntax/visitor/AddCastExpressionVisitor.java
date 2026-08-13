@@ -1452,6 +1452,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (isParameterizedJavaLangObject(expression.getType())) {
             return true;
         }
+        if (expression.isByteCodeCheckCast()
+                && expression.getType() instanceof ObjectType castType
+                && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocation
+                && requiresNarrowingCastForNestedConstraint(
+                        typeBindings, localTypeBounds, castType, methodInvocation)) {
+            return false;
+        }
         if (!hasKnownTypeParameters(expression.getType())) {
             return true;
         }
@@ -1510,6 +1517,29 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
+    private boolean requiresNarrowingCastForNestedConstraint(Map<String, TypeArgument> typeBindings,
+            Map<String, BaseType> localTypeBounds, ObjectType castType,
+            ClassFileMethodInvocationExpression invocation) {
+        if (!(invocation.getUnboundType() instanceof GenericType returnedType)
+                || !getMethodTypeParameterNames(invocation).contains(returnedType.getName())
+                || invocation.getUnboundParameterTypes() == null
+                || invocation.getParameters() == null) {
+            return false;
+        }
+        var parameterTypeIterator = invocation.getUnboundParameterTypes().iterator();
+        var argumentIterator = invocation.getParameters().iterator();
+        while (parameterTypeIterator.hasNext() && argumentIterator.hasNext()) {
+            Type parameterType = parameterTypeIterator.next();
+            Expression argument = argumentIterator.next();
+            if (returnedType.equals(parameterType)
+                    && (!(argument.getType() instanceof ObjectType argumentType)
+                            || !typeMaker.isAssignable(typeBindings, localTypeBounds, castType, argumentType))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean hasProperArgumentConstraint(ClassFileMethodInvocationExpression expression) {
         BaseType parameterTypes = expression.getUnboundParameterTypes();
         BaseExpression arguments = expression.getParameters();
@@ -1544,17 +1574,51 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             invocation.setNonWildcardTypeArguments(null);
             if (nested.getUnboundType() != null
                     && !Collections.disjoint(nested.getUnboundType().findTypeParametersInType(), getMethodTypeParameterNames(nested))
+                    && nested.getParameters() == null
                     && typeMaker.matchCount(invocation.getInternalTypeName(), invocation.getName(), arguments.size(), true) == 1) {
                 if (arguments.isList()) {
                     arguments.getList().set(index, cast.getExpression());
                 } else {
                     invocation.setParameters(cast.getExpression());
                 }
-            } else if (parameterType instanceof ObjectType objectParameterType
-                    && !objectParameterType.findTypeParametersInType().isEmpty()) {
-                cast.setType(objectParameterType.createType(ObjectType.TYPE_OBJECT));
+            } else {
+                nested.setNonWildcardTypeArguments(null);
+                if (parameterType instanceof ObjectType) {
+                    cast.setType(replaceMethodTypeParameters(parameterType, getMethodTypeParameterNames(invocation)));
+                }
             }
         }
+    }
+
+    private static Type replaceMethodTypeParameters(Type type, Set<String> methodTypeParameters) {
+        if (type instanceof GenericType genericType && methodTypeParameters.contains(genericType.getName())) {
+            return ObjectType.TYPE_OBJECT.createType(genericType.getDimension());
+        }
+        if (type instanceof ObjectType objectType && objectType.getTypeArguments() != null) {
+            return objectType.createType(replaceMethodTypeParameters(objectType.getTypeArguments(), methodTypeParameters));
+        }
+        return type;
+    }
+
+    private static BaseTypeArgument replaceMethodTypeParameters(
+            BaseTypeArgument typeArguments, Set<String> methodTypeParameters) {
+        if (typeArguments instanceof Type type) {
+            return replaceMethodTypeParameters(type, methodTypeParameters);
+        }
+        if (typeArguments instanceof TypeArguments arguments) {
+            TypeArguments replacements = new TypeArguments(arguments.size());
+            for (TypeArgument argument : arguments) {
+                replacements.add((TypeArgument) replaceMethodTypeParameters(argument, methodTypeParameters));
+            }
+            return replacements;
+        }
+        if (typeArguments instanceof WildcardExtendsTypeArgument wildcard) {
+            return new WildcardExtendsTypeArgument(replaceMethodTypeParameters(wildcard.type(), methodTypeParameters));
+        }
+        if (typeArguments instanceof WildcardSuperTypeArgument wildcard) {
+            return new WildcardSuperTypeArgument(replaceMethodTypeParameters(wildcard.type(), methodTypeParameters));
+        }
+        return typeArguments;
     }
 
     private static boolean isMethodTypeParameter(ClassFileMethodInvocationExpression expression, GenericType type) {
@@ -1564,6 +1628,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean isTargetDependentGenericInvocation(Expression expression) {
         return expression instanceof ClassFileMethodInvocationExpression methodInvocation
                 && methodInvocation.getTypeParameters() != null
+                && methodInvocation.getUnboundType() != null
+                && !Collections.disjoint(methodInvocation.getUnboundType().findTypeParametersInType(), getMethodTypeParameterNames(methodInvocation))
                 && containsFunctionalExpression(methodInvocation.getParameters())
                 && !hasProperMethodArgumentConstraint(methodInvocation);
     }
@@ -1582,11 +1648,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 Expression argument = argumentIterator.next();
                 if (!Collections.disjoint(parameterType.findTypeParametersInType(), methodTypeParameters)
                         && !argument.isNullExpression()
-                        && !isFunctionalExpression(argument)
+                        && (!isFunctionalExpression(argument) || hasConstrainingLambdaResult(argument))
                         && !isTargetDependentGenericInvocation(argument)) {
                     return true;
                 }
             }
+        }
+        return false;
+    }
+
+    private static boolean hasConstrainingLambdaResult(Expression expression) {
+        if (expression instanceof LambdaIdentifiersExpression lambda) {
+            BaseStatement statements = lambda.getStatements();
+            return statements != null
+                    && (statements.isLambdaExpressionStatement() || statements.isReturnExpressionStatement())
+                    && !statements.getExpression().isNullExpression();
         }
         return false;
     }

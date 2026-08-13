@@ -1458,6 +1458,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocation
                 && requiresNarrowingCastForNestedConstraint(
                         typeBindings, localTypeBounds, castType, methodInvocation)) {
+            methodInvocation.setNonWildcardTypeArguments(null);
             return false;
         }
         if (!hasKnownTypeParameters(expression.getType())) {

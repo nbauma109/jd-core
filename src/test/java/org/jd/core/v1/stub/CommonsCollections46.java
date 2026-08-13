@@ -119,6 +119,18 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.get(clazz(CommonsCollections46::newObject));
     }
 
+    public static List<String> directConstructorReferenceConstraint() {
+        return (List<String>) (Object) supply(Object::new);
+    }
+
+    public static List<String> directMethodReferenceConstraint() {
+        return (List<String>) (Object) supply(CommonsCollections46::newObject);
+    }
+
+    public static List<String> recursiveBoundParameterizedArgumentCast(Box<?> box) {
+        return (List<String>) box.getRecursiveMap((Map<String, String>) genericObject("x"));
+    }
+
     public static List<String> blockLambdaResultConstraint(Box<?> box) {
         return (List<String>) box.get(clazz(() -> {
             System.out.println("result");
@@ -174,6 +186,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
     private static <T> Class<T> clazz(Supplier<T> supplier) {
         supplier.get();
         return null;
+    }
+
+    private static <T> T supply(Supplier<T> supplier) {
+        return supplier.get();
     }
 
     private static Class<Object> objectClass() {
@@ -274,6 +290,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
 
         public <V, U> V getArrayList(ArrayList<U> value) {
+            return null;
+        }
+
+        public <V, U extends Comparable<U>> V getRecursiveMap(Map<String, U> value) {
             return null;
         }
 

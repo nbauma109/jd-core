@@ -78,6 +78,10 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getArrayList((ArrayList<Object>)soleList());")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(clazz(Object::new));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(clazz(CommonsCollections46::newObject));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)supply(Object::new);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)supply(CommonsCollections46::newObject);")));
+        assertFalse(source.matches(PatternMaker.make("<List<String>>supply")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getRecursiveMap((Map<String, Comparable>)genericObject(\"x\"));")));
         assertFalse(source.matches(PatternMaker.make("return use(identity());")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getObject(Object.class);")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getOwned(Object.class);")));

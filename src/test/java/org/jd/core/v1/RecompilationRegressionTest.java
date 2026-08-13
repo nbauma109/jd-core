@@ -68,6 +68,7 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((CharSequence)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((String)identity(new Object()));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((Map<String, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((HashMap<String, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getExtends((Map<? extends CharSequence, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getSuper((Map<? super String, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getAny((Map<?, Object>)genericObject(\"x\"));")));
@@ -81,6 +82,7 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         assertFalse(source.matches(PatternMaker.make("Iterable<int>")));
         assertTrue(source.matches(PatternMaker.make("(Iterable<String>)((Outer.Inner)value).values")));
         assertTrue(source.matches(PatternMaker.make("(String[])((ArrayHolder)value).values")));
+        assertTrue(source.matches(PatternMaker.make("(String[])((ValueHolder)value).values")));
         assertRecompiles(CommonsCollections46.class, source);
     }
 

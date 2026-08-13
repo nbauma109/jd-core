@@ -1584,8 +1584,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
             } else {
                 nested.setNonWildcardTypeArguments(null);
-                if (parameterType instanceof ObjectType) {
-                    cast.setType(replaceMethodTypeParameters(parameterType, getMethodTypeParameterNames(invocation)));
+                if (parameterType instanceof ObjectType
+                        && cast.getType() instanceof ObjectType castObjectType
+                        && replaceMethodTypeParameters(parameterType, getMethodTypeParameterNames(invocation))
+                                instanceof ObjectType restoredParameterType) {
+                    BaseTypeArgument restoredArguments = restoredParameterType.getTypeArguments();
+                    TypeTypes castTypeTypes = typeMaker.makeTypeTypes(castObjectType.getInternalName());
+                    if (restoredArguments != null && castTypeTypes != null && castTypeTypes.getTypeParameters() != null
+                            && castTypeTypes.getTypeParameters().size() == toTypeArgumentList(restoredArguments).size()) {
+                        cast.setType(castObjectType.createType(restoredArguments));
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 package org.jd.core.v1.stub;
 
 import java.util.AbstractMap;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -67,6 +68,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     public static List<String> parameterizedArgumentCast(Box<?> box) {
         return (List<String>) box.getMap((Map<String, Object>) genericObject("x"));
+    }
+
+    public static List<String> concreteParameterizedArgumentCast(Box<?> box) {
+        return (List<String>) box.getMap((HashMap<String, Object>) genericObject("x"));
     }
 
     public static List<String> wildcardExtendsArgumentCast(Box<?> box) {
@@ -190,6 +195,12 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
     }
 
+    public static void typeVariableArrayReceiver(Object value) {
+        for (String string : ((ValueHolder<String[]>) value).values) {
+            System.out.println(string);
+        }
+    }
+
     @Override
     public boolean hasNext() {
         return false;
@@ -260,6 +271,14 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     public static class ArrayHolder<T> {
         private final T[] values = (T[]) new Object[0];
+    }
+
+    public static class ValueHolder<T> {
+        private final T values;
+
+        public ValueHolder(T values) {
+            this.values = values;
+        }
     }
 
     public static class Outer<T> {

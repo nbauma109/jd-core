@@ -1075,7 +1075,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         nestedExpression.accept(this);
         if (expression.isByteCodeCheckCast()
                 && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocation
-                && methodInvocation.getUnboundType() instanceof GenericType genericReturnType) {
+                && methodInvocation.getUnboundType() instanceof GenericType) {
             hasProperArgumentConstraint(methodInvocation);
         }
     }
@@ -1480,7 +1480,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
             if (expression.isByteCodeCheckCast()
                     && nestedExpression instanceof ClassFileMethodInvocationExpression methodInvocationExpression
-                    && methodInvocationExpression.getUnboundType() instanceof GenericType genericReturnType
+                    && methodInvocationExpression.getUnboundType() instanceof GenericType
                     && hasUnboundedWildcardTypeArgument(methodInvocationExpression.getExpression())) {
                 // Keep narrowing casts required by wildcard capture, except for the poly-invocation case above:
                 // there the target type is what resolves the method's own type parameters.

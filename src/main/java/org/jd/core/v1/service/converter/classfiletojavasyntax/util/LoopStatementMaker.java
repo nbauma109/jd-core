@@ -14,6 +14,7 @@ import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.Expressions;
+import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
@@ -30,6 +31,7 @@ import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
@@ -707,7 +709,46 @@ public final class LoopStatementMaker {
             }
         }
 
+        Type genericFieldType;
+        if (list instanceof FieldReferenceExpression fieldReference
+                && fieldReference.getExpression() instanceof CastExpression receiverCast
+                && receiverCast.getType() instanceof ObjectType receiverType
+                && receiverType.getTypeArguments() == null
+                && (genericFieldType = getGenericFieldType(localVariableMaker, fieldReference)) != null
+                && !TYPE_OBJECT.equals(item.getType())) {
+            // A field selected through a raw CHECKCAST has an erased source type even when the local-variable
+            // table still describes the foreach item precisely. Keep that item type at the use site: otherwise
+            // javac sees Object elements (for example IteratorChain.iteratorQueue in Commons Collections 4.6).
+            Type castType = genericFieldType.getDimension() == 0
+                    ? TYPE_ITERABLE.createType(box(item.getType()))
+                    : box(item.getType()).createType(item.getType().getDimension() + 1);
+            list = new CastExpression(castType, list);
+        }
+
         return new ClassFileForEachStatement(item, list, subStatements);
+    }
+
+    private static Type getGenericFieldType(LocalVariableMaker localVariableMaker, FieldReferenceExpression field) {
+        Type declaredType = localVariableMaker.getTypeMaker().makeFieldType(
+                field.getInternalTypeName(), field.getName(), field.getDescriptor());
+        return declaredType != null && !declaredType.findTypeParametersInType().isEmpty() ? declaredType : null;
+    }
+
+    static Type box(Type type) {
+        if (!(type instanceof PrimitiveType primitiveType)) {
+            return type;
+        }
+        return switch (primitiveType.getDescriptor().charAt(0)) {
+            case 'B' -> ObjectType.TYPE_BYTE;
+            case 'C' -> ObjectType.TYPE_CHARACTER;
+            case 'D' -> ObjectType.TYPE_DOUBLE;
+            case 'F' -> ObjectType.TYPE_FLOAT;
+            case 'I' -> ObjectType.TYPE_INTEGER;
+            case 'J' -> ObjectType.TYPE_LONG;
+            case 'S' -> ObjectType.TYPE_SHORT;
+            case 'Z' -> ObjectType.TYPE_BOOLEAN;
+            default -> type;
+        };
     }
 
     private static Statement makeLabels(int loopIndex, int continueOffset, int breakOffset, Statement loop, Statements jumps) {

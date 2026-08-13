@@ -193,6 +193,10 @@ public class LocalVariableMaker {
         localVariableCache = localVariableSet.initialize(currentFrame);
     }
 
+    TypeMaker getTypeMaker() {
+        return typeMaker;
+    }
+
     protected void initLocalVariablesFromAttributes(Method method) {
         Code code = method.getCode();
 

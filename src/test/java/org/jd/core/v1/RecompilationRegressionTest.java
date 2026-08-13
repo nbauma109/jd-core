@@ -15,6 +15,7 @@ import org.jd.core.v1.regex.PatternMaker;
 import org.jd.core.v1.stub.AmbiguousMethodReference;
 import org.jd.core.v1.stub.BoundedGenericReturnCast;
 import org.jd.core.v1.stub.ConflictingWildcardCapture;
+import org.jd.core.v1.stub.CommonsCollections46;
 import org.jd.core.v1.stub.DiamondWithFunctionalArguments;
 import org.jd.core.v1.stub.ErasedMethodReference;
 import org.jd.core.v1.stub.ExceptionBoundViolation;
@@ -53,6 +54,49 @@ public class RecompilationRegressionTest extends AbstractJdTest {
 
     private void assertRecompiles(Class<?> clazz, String source) throws Exception {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(clazz.getName().replace('.', '/'), source)));
+    }
+
+    @Test
+    public void testCommonsCollections46GenericInference() throws Exception {
+        String source = decompile(CommonsCollections46.class);
+        assertTrue(source.matches(PatternMaker.make("Iterable<Iterator<? extends E>>")));
+        assertFalse(source.matches(PatternMaker.make("return (Set<Map.Entry<Object, Object>>)")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(Object.class);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(objectClass());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getWithFlag(CommonsCollections46.<Class<List<String>>>identity(), true);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get((Class<Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((CharSequence)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((String)identity(new Object()));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((Map<String, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getBoundMap((Map<String, Number>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((HashMap<String, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getExtends((Map<? extends CharSequence, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getSuper((Map<? super String, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getAny((Map<?, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return box.getOwnerMap((Map<T, ?>)CommonsCollections46.<String>genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText(CommonsCollections46.<String>sole());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getArrayList((ArrayList<Object>)soleList());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(clazz(Object::new));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(clazz(CommonsCollections46::newObject));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)supply(Object::new);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)supply(CommonsCollections46::newObject);")));
+        assertFalse(source.matches(PatternMaker.make("<List<String>>supply")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getRecursiveMap((Map)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getIntersectionMap((Map)genericObject(\"x\"));")));
+        int nestedLambdaStart = source.indexOf("nestedBlockLambdaResultConstraint");
+        int nestedLambdaEnd = source.indexOf("nullLambdaResult", nestedLambdaStart);
+        assertTrue(source.substring(nestedLambdaStart, nestedLambdaEnd)
+                .matches(PatternMaker.make("return (List<String>)box.get(clazz(() ->")));
+        assertFalse(source.matches(PatternMaker.make("return use(identity());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getObject(Object.class);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getOwned(Object.class);")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getBound(new Object());")));
+        assertFalse(source.matches(PatternMaker.make("(Iterable<CharSequence>)((Holder)value).strings")));
+        assertFalse(source.matches(PatternMaker.make("Iterable<int>")));
+        assertTrue(source.matches(PatternMaker.make("(Iterable<String>)((Outer.Inner)value).values")));
+        assertTrue(source.matches(PatternMaker.make("(String[])((ArrayHolder)value).values")));
+        assertTrue(source.matches(PatternMaker.make("(String[])((ValueHolder)value).values")));
+        assertRecompiles(CommonsCollections46.class, source);
     }
 
     @Test

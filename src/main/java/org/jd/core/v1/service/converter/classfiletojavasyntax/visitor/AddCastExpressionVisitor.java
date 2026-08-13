@@ -1583,19 +1583,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     invocation.setParameters(cast.getExpression());
                 }
             } else {
-                nested.setNonWildcardTypeArguments(null);
-                if (parameterType instanceof ObjectType
-                        && cast.getType() instanceof ObjectType castObjectType
-                        && replaceMethodTypeParameters(parameterType, getMethodTypeParameterNames(invocation))
-                                instanceof ObjectType restoredParameterType) {
-                    BaseTypeArgument restoredArguments = restoredParameterType.getTypeArguments();
-                    TypeTypes castTypeTypes = typeMaker.makeTypeTypes(castObjectType.getInternalName());
-                    if (restoredArguments != null && castTypeTypes != null && castTypeTypes.getTypeParameters() != null
-                            && castTypeTypes.getTypeParameters().size() == toTypeArgumentList(restoredArguments).size()) {
-                        cast.setType(castObjectType.createType(restoredArguments));
-                    }
-                }
+                restoreParameterizedArgumentCast(invocation, parameterType, cast, nested);
             }
+        }
+    }
+
+    private void restoreParameterizedArgumentCast(ClassFileMethodInvocationExpression invocation,
+            Type parameterType, CastExpression cast, ClassFileMethodInvocationExpression nested) {
+        nested.setNonWildcardTypeArguments(null);
+        if (!(parameterType instanceof ObjectType)
+                || !(cast.getType() instanceof ObjectType castObjectType)
+                || !(replaceMethodTypeParameters(parameterType, getMethodTypeParameterNames(invocation))
+                        instanceof ObjectType restoredParameterType)) {
+            return;
+        }
+        BaseTypeArgument restoredArguments = restoredParameterType.getTypeArguments();
+        TypeTypes castTypeTypes = typeMaker.makeTypeTypes(castObjectType.getInternalName());
+        if (restoredArguments != null && castTypeTypes != null && castTypeTypes.getTypeParameters() != null
+                && castTypeTypes.getTypeParameters().size() == toTypeArgumentList(restoredArguments).size()) {
+            cast.setType(castObjectType.createType(restoredArguments));
         }
     }
 

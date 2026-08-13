@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@SuppressWarnings({ "rawtypes", "unchecked" })
+@SuppressWarnings({ "rawtypes", "unchecked", "java:S1172" })
 public class CommonsCollections46<E> implements Iterator<E> {
     private final Queue<Iterator<? extends E>> iteratorQueue = new LinkedList<>();
 
@@ -44,8 +44,25 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.get(identity(Object.class));
     }
 
+    public static List<String> concreteGenericReturn(Box<?> box) {
+        return (List<String>) box.get((Class<Object>) genericObject("x"));
+    }
+
+    public static List<String> mixedGenericInvocation(Box<?> box) {
+        return (List<String>) box.get(choose(Object.class, () -> {}));
+    }
+
     private static <T> T identity(T value) {
         return value;
+    }
+
+    private static <V> Object genericObject(V value) {
+        return value;
+    }
+
+    private static <T> Class<T> choose(Class<T> type, Runnable action) {
+        action.run();
+        return type;
     }
 
     private static Class<Object> objectClass() {

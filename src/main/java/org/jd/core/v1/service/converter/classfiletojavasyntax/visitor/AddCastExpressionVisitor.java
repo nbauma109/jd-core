@@ -1537,8 +1537,27 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             || !typeMaker.isAssignable(typeBindings, localTypeBounds, castType, argumentType))) {
                 return true;
             }
+            Type functionalResultType = getExactFunctionalResultType(argument);
+            if (parameterType.findTypeParametersInType().contains(returnedGenericType.getName())
+                    && functionalResultType instanceof ObjectType functionalResultObjectType
+                    && !typeMaker.isAssignable(typeBindings, localTypeBounds, castType, functionalResultObjectType)) {
+                return true;
+            }
         }
         return false;
+    }
+
+    private Type getExactFunctionalResultType(Expression expression) {
+        if (expression instanceof ConstructorReferenceExpression constructorReference) {
+            return constructorReference.getObjectType();
+        }
+        if (expression instanceof MethodReferenceExpression methodReference
+                && !(expression instanceof MethodInvocationExpression)) {
+            TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(methodReference.getInternalTypeName(),
+                    methodReference.getName(), methodReference.getDescriptor());
+            return methodTypes == null ? null : methodTypes.getReturnedType();
+        }
+        return null;
     }
 
     private boolean hasProperArgumentConstraint(ClassFileMethodInvocationExpression expression) {
@@ -1576,6 +1595,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (nested.getUnboundType() != null
                     && !Collections.disjoint(nested.getUnboundType().findTypeParametersInType(), getMethodTypeParameterNames(nested))
                     && nested.getParameters() == null
+                    && isRawReturnCompatibleWithCast(cast.getType(), nested.getUnboundType())
                     && typeMaker.matchCount(invocation.getInternalTypeName(), invocation.getName(), arguments.size(), true) == 1) {
                 if (arguments.isList()) {
                     arguments.getList().set(index, cast.getExpression());
@@ -1593,7 +1613,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         nested.setNonWildcardTypeArguments(null);
         if (!(parameterType instanceof ObjectType)
                 || !(cast.getType() instanceof ObjectType castObjectType)
-                || !(replaceMethodTypeParameters(parameterType, getMethodTypeParameterNames(invocation))
+                || !(replaceMethodTypeParameters(parameterType, getMethodTypeParameterReplacements(invocation))
                         instanceof ObjectType restoredParameterType)) {
             return;
         }
@@ -1606,9 +1626,34 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    private static Type replaceMethodTypeParameters(Type type, Set<String> methodTypeParameters) {
-        if (type instanceof GenericType genericType && methodTypeParameters.contains(genericType.getName())) {
-            return ObjectType.TYPE_OBJECT.createType(genericType.getDimension());
+    private static boolean isRawReturnCompatibleWithCast(Type castType, Type returnedType) {
+        return !(returnedType instanceof ObjectType returnedObjectType)
+                || castType instanceof ObjectType castObjectType && castObjectType.rawEquals(returnedObjectType);
+    }
+
+    private static Map<String, Type> getMethodTypeParameterReplacements(
+            ClassFileMethodInvocationExpression invocation) {
+        Map<String, Type> replacements = new HashMap<>();
+        Set<String> methodTypeParameters = getMethodTypeParameterNames(invocation);
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : invocation.getTypeParameters()) {
+            Type replacement = ObjectType.TYPE_OBJECT;
+            if (typeParameter instanceof TypeParameterWithTypeBounds bounded) {
+                replacement = bounded.getTypeBounds().getFirst();
+                if (!Collections.disjoint(replacement.findTypeParametersInType(), methodTypeParameters)) {
+                    continue;
+                }
+            }
+            replacements.put(typeParameter.getIdentifier(), replacement);
+        }
+        return replacements;
+    }
+
+    private static Type replaceMethodTypeParameters(Type type, Map<String, Type> methodTypeParameters) {
+        if (type instanceof GenericType genericType) {
+            Type replacement = methodTypeParameters.get(genericType.getName());
+            if (replacement != null) {
+                return replaceMethodTypeParameters(replacement.createType(genericType.getDimension()), methodTypeParameters);
+            }
         }
         if (type instanceof ObjectType objectType && objectType.getTypeArguments() != null) {
             return objectType.createType(replaceMethodTypeParameters(objectType.getTypeArguments(), methodTypeParameters));
@@ -1617,7 +1662,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private static BaseTypeArgument replaceMethodTypeParameters(
-            BaseTypeArgument typeArguments, Set<String> methodTypeParameters) {
+            BaseTypeArgument typeArguments, Map<String, Type> methodTypeParameters) {
         if (typeArguments instanceof Type type) {
             return replaceMethodTypeParameters(type, methodTypeParameters);
         }
@@ -1664,7 +1709,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 Expression argument = argumentIterator.next();
                 if (!Collections.disjoint(parameterType.findTypeParametersInType(), methodTypeParameters)
                         && !argument.isNullExpression()
-                        && (!isFunctionalExpression(argument) || hasConstrainingLambdaResult(argument))
+                        && (!isFunctionalExpression(argument) || hasConstrainingFunctionalResult(argument))
                         && !isTargetDependentGenericInvocation(argument)) {
                     return true;
                 }
@@ -1673,7 +1718,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    private static boolean hasConstrainingLambdaResult(Expression expression) {
+    private static boolean hasConstrainingFunctionalResult(Expression expression) {
         if (!(expression instanceof LambdaIdentifiersExpression lambda) || lambda.getStatements() == null) {
             return false;
         }

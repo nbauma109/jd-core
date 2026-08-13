@@ -68,12 +68,16 @@ public class RecompilationRegressionTest extends AbstractJdTest {
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((CharSequence)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText((String)identity(new Object()));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((Map<String, Object>)genericObject(\"x\"));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getBoundMap((Map<String, Number>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getMap((HashMap<String, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getExtends((Map<? extends CharSequence, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getSuper((Map<? super String, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getAny((Map<?, Object>)genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return box.getOwnerMap((Map<T, ?>)CommonsCollections46.<String>genericObject(\"x\"));")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getText(CommonsCollections46.<String>sole());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getArrayList((ArrayList<Object>)soleList());")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(clazz(Object::new));")));
+        assertTrue(source.matches(PatternMaker.make("return (List<String>)box.get(clazz(CommonsCollections46::newObject));")));
         assertFalse(source.matches(PatternMaker.make("return use(identity());")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getObject(Object.class);")));
         assertTrue(source.matches(PatternMaker.make("return (List<String>)box.getOwned(Object.class);")));

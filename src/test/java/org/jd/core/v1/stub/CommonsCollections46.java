@@ -1,6 +1,7 @@
 package org.jd.core.v1.stub;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -70,6 +71,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.getMap((Map<String, Object>) genericObject("x"));
     }
 
+    public static List<String> boundedParameterizedArgumentCast(Box<?> box) {
+        return (List<String>) box.getBoundMap((Map<String, Integer>) genericObject("x"));
+    }
+
     public static List<String> concreteParameterizedArgumentCast(Box<?> box) {
         return (List<String>) box.getMap((HashMap<String, Object>) genericObject("x"));
     }
@@ -94,12 +99,24 @@ public class CommonsCollections46<E> implements Iterator<E> {
         return (List<String>) box.getText((String) sole());
     }
 
+    public static List<String> narrowingParameterizedArgumentCast(Box<?> box) {
+        return (List<String>) box.getArrayList((ArrayList<String>) (Object) soleList());
+    }
+
     public static List<String> concreteFunctionalReturn() {
         return (List<String>) identity(generic(() -> "x"));
     }
 
     public static List<String> lambdaResultConstraint(Box<?> box) {
         return (List<String>) box.get(clazz(() -> new Object()));
+    }
+
+    public static List<String> constructorReferenceConstraint(Box<?> box) {
+        return (List<String>) box.get(clazz(Object::new));
+    }
+
+    public static List<String> methodReferenceConstraint(Box<?> box) {
+        return (List<String>) box.get(clazz(CommonsCollections46::newObject));
     }
 
     public static List<String> blockLambdaResultConstraint(Box<?> box) {
@@ -126,6 +143,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
     }
 
     private static <T> T sole() {
+        return null;
+    }
+
+    private static <T> List<T> soleList() {
         return null;
     }
 
@@ -157,6 +178,10 @@ public class CommonsCollections46<E> implements Iterator<E> {
 
     private static Class<Object> objectClass() {
         return Object.class;
+    }
+
+    private static Object newObject() {
+        return new Object();
     }
 
     public static List<String> objectReturn(Box<?> box) {
@@ -241,6 +266,14 @@ public class CommonsCollections46<E> implements Iterator<E> {
         }
 
         public <V, U> V getMap(Map<String, U> value) {
+            return null;
+        }
+
+        public <V, U extends Number> V getBoundMap(Map<String, U> value) {
+            return null;
+        }
+
+        public <V, U> V getArrayList(ArrayList<U> value) {
             return null;
         }
 

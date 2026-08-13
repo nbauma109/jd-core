@@ -32,6 +32,14 @@ public class LoopStatementMakerTest extends TestCase {
         assertSame(ObjectType.TYPE_LONG, LoopStatementMaker.box(PrimitiveType.TYPE_LONG));
         assertSame(ObjectType.TYPE_SHORT, LoopStatementMaker.box(PrimitiveType.TYPE_SHORT));
         assertSame(ObjectType.TYPE_BOOLEAN, LoopStatementMaker.box(PrimitiveType.TYPE_BOOLEAN));
+        PrimitiveType unexpected = new PrimitiveType("void", PrimitiveType.FLAG_VOID,
+                PrimitiveType.FLAG_VOID, PrimitiveType.FLAG_VOID) {
+            @Override
+            public String getDescriptor() {
+                return "V";
+            }
+        };
+        assertSame(unexpected, LoopStatementMaker.box(unexpected));
         assertSame(ObjectType.TYPE_STRING, LoopStatementMaker.box(ObjectType.TYPE_STRING));
     }
 

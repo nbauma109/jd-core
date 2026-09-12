@@ -246,16 +246,24 @@ public class ConvertClassFileProcessor {
                     continue;
                 }
                 JavaClass parentClass = new ClassParser(new ByteArrayInputStream(loader.load(parent)), parent).parse();
-                PermittedSubclasses permitted = parentClass.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES);
-                if (permitted != null) {
-                    for (int index : permitted.getClasses()) {
-                        if (childName.equals(parentClass.getConstantPool().getConstantString(index, Const.CONSTANT_Class))) {
-                            return true;
-                        }
-                    }
+                if (isListedAsPermitted(parentClass, childName)) {
+                    return true;
                 }
             } catch (IOException | RuntimeException e) {
                 // The parent may be unavailable or malformed; leave the modifier unspecified.
+            }
+        }
+        return false;
+    }
+
+    private boolean isListedAsPermitted(JavaClass parentClass, String childName) {
+        PermittedSubclasses permitted = parentClass.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES);
+        if (permitted == null) {
+            return false;
+        }
+        for (int index : permitted.getClasses()) {
+            if (childName.equals(parentClass.getConstantPool().getConstantString(index, Const.CONSTANT_Class))) {
+                return true;
             }
         }
         return false;

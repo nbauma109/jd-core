@@ -43,4 +43,13 @@ public class SealedClassTest extends AbstractJdTest {
 
         assertTrue(source.contains("non-sealed interface OpenBranch"));
     }
+
+    @Test
+    public void testSinglePermittedSubclass() throws Exception {
+        String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), "org/jd/core/v1/SinglePermitExample");
+
+        assertTrue(source.contains("sealed class SinglePermitExample permits SinglePermitExample.OnlyChild"));
+        assertTrue(source.contains("final class OnlyChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/SinglePermitExample", source)));
+    }
 }

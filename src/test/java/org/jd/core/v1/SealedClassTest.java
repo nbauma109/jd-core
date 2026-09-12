@@ -88,4 +88,32 @@ public class SealedClassTest extends AbstractJdTest {
         assertTrue(source.contains("non-sealed class SealedExample$OpenChild"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
     }
+
+    @Test
+    public void testStandaloneNestedSealedInterface() throws Exception {
+        String internalName = "org/jd/core/v1/NestedSealedExample$Branch";
+        String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
+
+        assertTrue(source.contains("class NestedSealedExample"));
+        assertTrue(source.contains("sealed interface Branch"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/NestedSealedExample", source)));
+    }
+
+    @Test
+    public void testStandalonePermittedRecord() throws Exception {
+        String internalName = "org/jd/core/v1/NestedSealedExample$Branch$RecordChild";
+        String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
+
+        assertTrue(source.contains("record NestedSealedExample$Branch$RecordChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
+    }
+
+    @Test
+    public void testStandalonePermittedEnum() throws Exception {
+        String internalName = "org/jd/core/v1/NestedSealedExample$Branch$EnumChild";
+        String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
+
+        assertTrue(source.contains("enum NestedSealedExample$Branch$EnumChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
+    }
 }

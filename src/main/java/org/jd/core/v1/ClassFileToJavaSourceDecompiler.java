@@ -59,7 +59,7 @@ public class ClassFileToJavaSourceDecompiler implements Decompiler {
     protected void decompile(DecompileContext decompileContext) throws IOException {
         ClassFile classFile = this.deserializer.loadClassFile(decompileContext.getLoader(),
                 decompileContext.getMainInternalTypeName());
-        if (classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES) != null) {
+        if (!classFile.isEnum() && classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES) != null) {
             String enclosingName;
             while ((enclosingName = enclosingTypeName(classFile)) != null && decompileContext.getLoader().canLoad(enclosingName)) {
                 classFile = this.deserializer.loadClassFile(decompileContext.getLoader(), enclosingName);

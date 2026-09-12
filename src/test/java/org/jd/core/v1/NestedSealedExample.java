@@ -8,4 +8,13 @@ public class NestedSealedExample {
 
         enum EnumChild implements Branch { INSTANCE }
     }
+
+    public enum BehavioralEnum {
+        INSTANCE {
+            @Override
+            int value() { return 1; }
+        };
+
+        abstract int value();
+    }
 }

@@ -116,4 +116,13 @@ public class SealedClassTest extends AbstractJdTest {
         assertTrue(source.contains("enum NestedSealedExample$Branch$EnumChild"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
     }
+
+    @Test
+    public void testStandaloneNestedEnumWithConstantBody() throws Exception {
+        String internalName = "org/jd/core/v1/NestedSealedExample$BehavioralEnum";
+        String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
+
+        assertTrue(source.contains("enum BehavioralEnum"));
+        assertFalse(source.contains("class NestedSealedExample"));
+    }
 }

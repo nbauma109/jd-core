@@ -113,22 +113,20 @@ public class ConvertClassFileProcessor {
 
     public CompilationUnit process(ClassFile classFile, TypeMaker typeMaker, DecompileContext decompileContext) {
         AnnotationConverter annotationConverter = new AnnotationConverter(typeMaker);
-        String standaloneSealedTypeName = standaloneSealedTypeName(classFile, decompileContext.getLoader());
-
         TypeDeclaration typeDeclaration;
 
         if (classFile.isEnum()) {
-            typeDeclaration = convertEnumDeclaration(typeMaker, annotationConverter, classFile, null, standaloneSealedTypeName);
+            typeDeclaration = convertEnumDeclaration(typeMaker, annotationConverter, classFile, null);
         } else if (classFile.isAnnotation()) {
             typeDeclaration = convertAnnotationDeclaration(typeMaker, annotationConverter, classFile, null);
         } else if (classFile.isModule()) {
             typeDeclaration = convertModuleDeclaration(classFile);
         } else if (classFile.isInterface()) {
-            typeDeclaration = convertInterfaceDeclaration(typeMaker, annotationConverter, classFile, null, standaloneSealedTypeName);
+            typeDeclaration = convertInterfaceDeclaration(typeMaker, annotationConverter, classFile, null);
         } else if (classFile.isRecord()) {
-            typeDeclaration = convertRecordDeclaration(typeMaker, annotationConverter, classFile, null, standaloneSealedTypeName);
+            typeDeclaration = convertRecordDeclaration(typeMaker, annotationConverter, classFile, null);
         } else {
-            typeDeclaration = convertClassDeclaration(typeMaker, annotationConverter, classFile, null, standaloneSealedTypeName);
+            typeDeclaration = convertClassDeclaration(typeMaker, annotationConverter, classFile, null);
         }
 
         applyNonSealedFlags(classFile, typeDeclaration, decompileContext.getLoader());
@@ -139,32 +137,24 @@ public class ConvertClassFileProcessor {
     }
 
     protected ClassFileInterfaceDeclaration convertInterfaceDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
-        return convertInterfaceDeclaration(parser, converter, classFile, outerClassFileBodyDeclaration, null);
-    }
-
-    private ClassFileInterfaceDeclaration convertInterfaceDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration, String standaloneSealedTypeName) {
         BaseAnnotationReference annotationReferences = convertAnnotationReferences(converter, classFile);
         TypeMaker.TypeTypes typeTypes = parser.parseClassFileSignature(classFile);
         ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration);
 
         return new ClassFileInterfaceDeclaration(
                 annotationReferences, declarationFlags(classFile),
-                typeTypes.getThisType().getInternalName(), standaloneSealedTypeName == null ? typeTypes.getThisType().getName() : standaloneSealedTypeName,
+                typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
                 typeTypes.getTypeParameters(), typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
     }
 
     protected ClassFileEnumDeclaration convertEnumDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
-        return convertEnumDeclaration(parser, converter, classFile, outerClassFileBodyDeclaration, null);
-    }
-
-    private ClassFileEnumDeclaration convertEnumDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration, String standaloneSealedTypeName) {
         BaseAnnotationReference annotationReferences = convertAnnotationReferences(converter, classFile);
         TypeMaker.TypeTypes typeTypes = parser.parseClassFileSignature(classFile);
         ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration);
 
         return new ClassFileEnumDeclaration(
                 annotationReferences, classFile.getAccessFlags(),
-                typeTypes.getThisType().getInternalName(), standaloneSealedTypeName == null ? typeTypes.getThisType().getName() : standaloneSealedTypeName,
+                typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
                 typeTypes.getInterfaces(), bodyDeclaration);
     }
 
@@ -180,17 +170,13 @@ public class ConvertClassFileProcessor {
     }
 
     protected ClassFileClassDeclaration convertClassDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
-        return convertClassDeclaration(parser, converter, classFile, outerClassFileBodyDeclaration, null);
-    }
-
-    private ClassFileClassDeclaration convertClassDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration, String standaloneSealedTypeName) {
         BaseAnnotationReference annotationReferences = convertAnnotationReferences(converter, classFile);
         TypeMaker.TypeTypes typeTypes = parser.parseClassFileSignature(classFile);
         ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration);
 
         return new ClassFileClassDeclaration(
                 annotationReferences, declarationFlags(classFile),
-                typeTypes.getThisType().getInternalName(), standaloneSealedTypeName == null ? typeTypes.getThisType().getName() : standaloneSealedTypeName,
+                typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
                 typeTypes.getTypeParameters(), typeTypes.getSuperType(),
                 typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
     }
@@ -241,20 +227,8 @@ public class ConvertClassFileProcessor {
         }
     }
 
-    private String standaloneSealedTypeName(ClassFile classFile, Loader loader) {
-        String internalName = classFile.getInternalTypeName();
-        int simpleNameStart = internalName.lastIndexOf('/') + 1;
-        if (internalName.indexOf('$', simpleNameStart) < 0) {
-            return null;
-        }
-        if (!isPermittedByParent(classFile, loader)) {
-            return null;
-        }
-        return internalName.substring(simpleNameStart);
-    }
-
-    private boolean isPermittedByParent(ClassFile classFile, Loader loader) {
-        if (loader == null || classFile.getMajorVersion() < Const.MAJOR_15) {
+    public static boolean isPermittedByParent(ClassFile classFile, Loader loader) {
+        if (loader == null) {
             return false;
         }
         String childName = classFile.getInternalTypeName();
@@ -266,11 +240,8 @@ public class ConvertClassFileProcessor {
 
         for (String parent : parents) {
             try {
-                if (!loader.canLoad(parent)) {
-                    continue;
-                }
-                JavaClass parentClass = new ClassParser(new ByteArrayInputStream(loader.load(parent)), parent).parse();
-                if (isListedAsPermitted(parentClass, childName)) {
+                JavaClass parentClass = loadPotentialSealedParent(loader, parent);
+                if (parentClass != null && isListedAsPermitted(parentClass, childName)) {
                     return true;
                 }
             } catch (IOException | RuntimeException e) {
@@ -280,7 +251,18 @@ public class ConvertClassFileProcessor {
         return false;
     }
 
-    private boolean isListedAsPermitted(JavaClass parentClass, String childName) {
+    private static JavaClass loadPotentialSealedParent(Loader loader, String parent) throws IOException {
+        if (!loader.canLoad(parent)) {
+            return null;
+        }
+        byte[] bytes = loader.load(parent);
+        if (bytes.length < 8 || (((bytes[6] & 0xFF) << 8) | (bytes[7] & 0xFF)) < Const.MAJOR_15) {
+            return null;
+        }
+        return new ClassParser(new ByteArrayInputStream(bytes), parent).parse();
+    }
+
+    private static boolean isListedAsPermitted(JavaClass parentClass, String childName) {
         PermittedSubclasses permitted = parentClass.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES);
         if (permitted == null) {
             return false;
@@ -294,10 +276,6 @@ public class ConvertClassFileProcessor {
     }
 
     protected ClassFileRecordDeclaration convertRecordDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
-        return convertRecordDeclaration(parser, converter, classFile, outerClassFileBodyDeclaration, null);
-    }
-
-    private ClassFileRecordDeclaration convertRecordDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration, String standaloneSealedTypeName) {
         BaseAnnotationReference annotationReferences = convertAnnotationReferences(converter, classFile);
         TypeMaker.TypeTypes typeTypes = parser.parseClassFileSignature(classFile);
         List<RecordComponent> recordComponents = convertRecordComponents(parser, converter, classFile);
@@ -305,7 +283,7 @@ public class ConvertClassFileProcessor {
 
         return new ClassFileRecordDeclaration(
                 annotationReferences, classFile.getAccessFlags(),
-                typeTypes.getThisType().getInternalName(), standaloneSealedTypeName == null ? typeTypes.getThisType().getName() : standaloneSealedTypeName,
+                typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
                 typeTypes.getTypeParameters(), recordComponents,
                 typeTypes.getInterfaces(), bodyDeclaration);
     }

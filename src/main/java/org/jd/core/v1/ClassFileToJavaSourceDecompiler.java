@@ -19,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.CompilationUnit;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.model.token.Token;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.ClassFileToJavaSyntaxProcessor;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.processor.ConvertClassFileProcessor;
 import org.jd.core.v1.service.deserializer.classfile.ClassFileDeserializer;
 import org.jd.core.v1.service.fragmenter.JavaSyntaxToJavaFragmentProcessor;
 import org.jd.core.v1.service.layouter.LayoutFragmentProcessor;
@@ -59,10 +60,12 @@ public class ClassFileToJavaSourceDecompiler implements Decompiler {
     protected void decompile(DecompileContext decompileContext) throws IOException {
         ClassFile classFile = this.deserializer.loadClassFile(decompileContext.getLoader(),
                 decompileContext.getMainInternalTypeName());
-        if (!classFile.isEnum() && classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES) != null) {
-            String enclosingName;
-            while ((enclosingName = enclosingTypeName(classFile)) != null && decompileContext.getLoader().canLoad(enclosingName)) {
+        String enclosingName = enclosingTypeName(classFile);
+        if (enclosingName != null && ((!classFile.isEnum() && classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES) != null)
+                || ConvertClassFileProcessor.isPermittedByParent(classFile, decompileContext.getLoader()))) {
+            while (enclosingName != null && decompileContext.getLoader().canLoad(enclosingName)) {
                 classFile = this.deserializer.loadClassFile(decompileContext.getLoader(), enclosingName);
+                enclosingName = enclosingTypeName(classFile);
             }
         }
         decompileContext.setClassFile(classFile);

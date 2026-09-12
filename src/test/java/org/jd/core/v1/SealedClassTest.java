@@ -27,8 +27,10 @@ public class SealedClassTest extends AbstractJdTest {
         String internalName = "org/jd/core/v1/SealedExample$OpenChild";
         String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
 
-        assertTrue(source.contains("non-sealed class SealedExample$OpenChild"));
-        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
+        assertTrue(source.contains("sealed class SealedExample"));
+        assertTrue(source.contains("non-sealed class OpenChild"));
+        assertTrue(source.contains("OpenChild self(OpenChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/SealedExample", source)));
     }
 
     @Test
@@ -47,8 +49,9 @@ public class SealedClassTest extends AbstractJdTest {
         String internalName = "org/jd/core/v1/SealedInterfaceExample$OpenBranch";
         String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
 
-        assertTrue(source.contains("non-sealed interface SealedInterfaceExample$OpenBranch"));
-        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
+        assertTrue(source.contains("sealed interface SealedInterfaceExample"));
+        assertTrue(source.contains("non-sealed interface OpenBranch"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/SealedInterfaceExample", source)));
     }
 
     @Test
@@ -63,8 +66,25 @@ public class SealedClassTest extends AbstractJdTest {
     @Test
     public void testPreviewVersionPermittedChild() throws Exception {
         String internalName = "org/jd/core/v1/SealedExample$OpenChild";
+        String source = decompileSuccess(loaderWithChildVersion(60, 0xFFFF), new StringBuilderPrinter(), internalName);
+
+        assertTrue(source.contains("non-sealed class OpenChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/SealedExample", source)));
+    }
+
+    @Test
+    public void testLegacyVersionPermittedChild() throws Exception {
+        String internalName = "org/jd/core/v1/SealedExample$OpenChild";
+        String source = decompileSuccess(loaderWithChildVersion(52, 0), new StringBuilderPrinter(), internalName);
+
+        assertTrue(source.contains("non-sealed class OpenChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/SealedExample", source)));
+    }
+
+    private Loader loaderWithChildVersion(int major, int minor) {
+        String internalName = "org/jd/core/v1/SealedExample$OpenChild";
         ClassPathLoader classPathLoader = new ClassPathLoader();
-        Loader previewLoader = new Loader() {
+        return new Loader() {
             @Override
             public boolean canLoad(String name) {
                 return classPathLoader.canLoad(name);
@@ -75,18 +95,14 @@ public class SealedClassTest extends AbstractJdTest {
                 byte[] bytes = classPathLoader.load(name);
                 if (internalName.equals(name)) {
                     bytes = bytes.clone();
-                    bytes[4] = (byte) 0xFF;
-                    bytes[5] = (byte) 0xFF;
-                    bytes[6] = 0;
-                    bytes[7] = 60; // Java 16 preview class-file version
+                    bytes[4] = (byte) (minor >>> 8);
+                    bytes[5] = (byte) minor;
+                    bytes[6] = (byte) (major >>> 8);
+                    bytes[7] = (byte) major;
                 }
                 return bytes;
             }
         };
-
-        String source = decompileSuccess(previewLoader, new StringBuilderPrinter(), internalName);
-        assertTrue(source.contains("non-sealed class SealedExample$OpenChild"));
-        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
     }
 
     @Test
@@ -104,8 +120,9 @@ public class SealedClassTest extends AbstractJdTest {
         String internalName = "org/jd/core/v1/NestedSealedExample$Branch$RecordChild";
         String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
 
-        assertTrue(source.contains("record NestedSealedExample$Branch$RecordChild"));
-        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
+        assertTrue(source.contains("sealed interface Branch"));
+        assertTrue(source.contains("record RecordChild(int value, RecordChild previous)"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/NestedSealedExample", source)));
     }
 
     @Test
@@ -113,8 +130,9 @@ public class SealedClassTest extends AbstractJdTest {
         String internalName = "org/jd/core/v1/NestedSealedExample$Branch$EnumChild";
         String source = decompileSuccess(new ClassPathLoader(), new StringBuilderPrinter(), internalName);
 
-        assertTrue(source.contains("enum NestedSealedExample$Branch$EnumChild"));
-        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalName, source)));
+        assertTrue(source.contains("sealed interface Branch"));
+        assertTrue(source.contains("enum EnumChild"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/NestedSealedExample", source)));
     }
 
     @Test

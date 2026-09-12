@@ -6,6 +6,8 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.processor;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -17,6 +19,7 @@ import org.apache.bcel.Const;
 import org.apache.bcel.classfile.AnnotationDefault;
 import org.apache.bcel.classfile.AnnotationEntry;
 import org.apache.bcel.classfile.Annotations;
+import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.Code;
 import org.apache.bcel.classfile.Constant;
 import org.apache.bcel.classfile.ConstantDouble;
@@ -28,6 +31,7 @@ import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantValue;
 import org.apache.bcel.classfile.Field;
 import org.apache.bcel.classfile.FieldOrMethod;
+import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.classfile.LineNumberTable;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.classfile.Module;
@@ -35,10 +39,12 @@ import org.apache.bcel.classfile.ModuleExports;
 import org.apache.bcel.classfile.ModuleOpens;
 import org.apache.bcel.classfile.ModuleProvides;
 import org.apache.bcel.classfile.ModuleRequires;
+import org.apache.bcel.classfile.PermittedSubclasses;
 import org.apache.bcel.classfile.RecordComponentInfo;
 import org.apache.bcel.classfile.RuntimeInvisibleAnnotations;
 import org.apache.bcel.classfile.RuntimeVisibleAnnotations;
 import org.apache.commons.lang3.ArrayUtils;
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.CompilationUnit;
 import org.jd.core.v1.model.javasyntax.declaration.Declaration;
@@ -65,6 +71,7 @@ import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeParameter;
 import org.jd.core.v1.model.javasyntax.type.TypeParameterWithTypeBounds;
+import org.jd.core.v1.model.javasyntax.type.Types;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileAnnotationDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
@@ -123,6 +130,8 @@ public class ConvertClassFileProcessor {
             typeDeclaration = convertClassDeclaration(typeMaker, annotationConverter, classFile, null);
         }
 
+        applyNonSealedFlags(classFile, typeDeclaration, decompileContext.getLoader());
+
         decompileContext.setMajorVersion(classFile.getMajorVersion());
         decompileContext.setMinorVersion(classFile.getMinorVersion());
         return new CompilationUnit(typeDeclaration);
@@ -134,9 +143,9 @@ public class ConvertClassFileProcessor {
         ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration);
 
         return new ClassFileInterfaceDeclaration(
-                annotationReferences, classFile.getAccessFlags(),
+                annotationReferences, declarationFlags(classFile),
                 typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
-                typeTypes.getTypeParameters(), typeTypes.getInterfaces(), bodyDeclaration);
+                typeTypes.getTypeParameters(), typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
     }
 
     protected ClassFileEnumDeclaration convertEnumDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
@@ -167,10 +176,89 @@ public class ConvertClassFileProcessor {
         ClassFileBodyDeclaration bodyDeclaration = convertBodyDeclaration(parser, converter, classFile, typeTypes.getTypeParameters(), outerClassFileBodyDeclaration);
 
         return new ClassFileClassDeclaration(
-                annotationReferences, classFile.getAccessFlags(),
+                annotationReferences, declarationFlags(classFile),
                 typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
                 typeTypes.getTypeParameters(), typeTypes.getSuperType(),
-                typeTypes.getInterfaces(), bodyDeclaration);
+                typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
+    }
+
+    private int declarationFlags(ClassFile classFile) {
+        return classFile.getAccessFlags() | (classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES) == null ? 0 : Declaration.FLAG_SEALED);
+    }
+
+    private BaseType convertPermittedSubclasses(TypeMaker parser, ClassFile classFile) {
+        PermittedSubclasses attribute = classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES);
+        if (attribute == null || attribute.getNumberClasses() == 0) {
+            return null;
+        }
+
+        int[] classes = attribute.getClasses();
+        ConstantPool pool = classFile.getConstantPool();
+        if (classes.length == 1) {
+            return parser.makeFromInternalTypeName(pool.getConstantString(classes[0], Const.CONSTANT_Class));
+        }
+
+        Types types = new Types(classes.length);
+        for (int index : classes) {
+            types.add(parser.makeFromInternalTypeName(pool.getConstantString(index, Const.CONSTANT_Class)));
+        }
+        return types;
+    }
+
+    private void applyNonSealedFlags(ClassFile classFile, TypeDeclaration declaration, Loader loader) {
+        if ((declaration instanceof ClassFileClassDeclaration || declaration instanceof ClassFileInterfaceDeclaration)
+                && classFile.getMajorVersion() >= Const.MAJOR_17
+                && (declaration.getFlags() & Const.ACC_FINAL) == 0
+                && classFile.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES) == null
+                && isPermittedByParent(classFile, loader)) {
+            if (declaration instanceof ClassFileClassDeclaration classDeclaration) {
+                classDeclaration.setFlags(classDeclaration.getFlags() | Declaration.FLAG_NON_SEALED);
+            } else {
+                ClassFileInterfaceDeclaration interfaceDeclaration = (ClassFileInterfaceDeclaration) declaration;
+                interfaceDeclaration.setFlags(interfaceDeclaration.getFlags() | Declaration.FLAG_NON_SEALED);
+            }
+        }
+
+        if (declaration.getBodyDeclaration() instanceof ClassFileBodyDeclaration body
+                && body.getInnerTypeDeclarations() != null) {
+            for (ClassFileTypeDeclaration inner : body.getInnerTypeDeclarations()) {
+                if (inner.getBodyDeclaration() instanceof ClassFileBodyDeclaration innerBody) {
+                    applyNonSealedFlags(innerBody.getClassFile(), (TypeDeclaration) inner, loader);
+                }
+            }
+        }
+    }
+
+    private boolean isPermittedByParent(ClassFile classFile, Loader loader) {
+        if (loader == null) {
+            return false;
+        }
+        String childName = classFile.getInternalTypeName();
+        List<String> parents = new ArrayList<>();
+        if (classFile.getSuperclassNameIndex() != 0) {
+            parents.add(classFile.getSuperTypeName());
+        }
+        Collections.addAll(parents, classFile.getInterfaceTypeNames());
+
+        for (String parent : parents) {
+            try {
+                if (!loader.canLoad(parent)) {
+                    continue;
+                }
+                JavaClass parentClass = new ClassParser(new ByteArrayInputStream(loader.load(parent)), parent).parse();
+                PermittedSubclasses permitted = parentClass.getAttribute(Const.ATTR_PERMITTED_SUBCLASSES);
+                if (permitted != null) {
+                    for (int index : permitted.getClasses()) {
+                        if (childName.equals(parentClass.getConstantPool().getConstantString(index, Const.CONSTANT_Class))) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (IOException | RuntimeException e) {
+                // The parent may be unavailable or malformed; leave the modifier unspecified.
+            }
+        }
+        return false;
     }
 
     protected ClassFileRecordDeclaration convertRecordDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {

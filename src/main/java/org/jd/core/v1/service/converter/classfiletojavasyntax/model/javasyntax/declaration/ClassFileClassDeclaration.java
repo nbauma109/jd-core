@@ -19,7 +19,11 @@ public class ClassFileClassDeclaration extends ClassDeclaration implements Class
     private final int firstLineNumber;
 
     public ClassFileClassDeclaration(BaseAnnotationReference annotationReferences, int flags, String internalName, String name, BaseTypeParameter typeParameters, ObjectType superType, BaseType interfaces, ClassFileBodyDeclaration bodyDeclaration) {
-        super(annotationReferences, flags, internalName, name, typeParameters, superType, interfaces, bodyDeclaration);
+        this(annotationReferences, flags, internalName, name, typeParameters, superType, interfaces, null, bodyDeclaration);
+    }
+
+    public ClassFileClassDeclaration(BaseAnnotationReference annotationReferences, int flags, String internalName, String name, BaseTypeParameter typeParameters, ObjectType superType, BaseType interfaces, BaseType permittedSubclasses, ClassFileBodyDeclaration bodyDeclaration) {
+        super(annotationReferences, flags, internalName, name, typeParameters, superType, interfaces, permittedSubclasses, bodyDeclaration);
         this.firstLineNumber = Optional.ofNullable(bodyDeclaration).map(ClassFileMemberDeclaration::getFirstLineNumber).orElse(0);
     }
 

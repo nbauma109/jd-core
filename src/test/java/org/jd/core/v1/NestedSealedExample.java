@@ -1,0 +1,20 @@
+package org.jd.core.v1;
+
+public class NestedSealedExample {
+    public sealed interface Branch permits Branch.Child, Branch.RecordChild, Branch.EnumChild {
+        final class Child implements Branch {}
+
+        record RecordChild(int value, RecordChild previous) implements Branch {}
+
+        enum EnumChild implements Branch { INSTANCE }
+    }
+
+    public enum BehavioralEnum {
+        INSTANCE {
+            @Override
+            int value() { return 1; }
+        };
+
+        abstract int value();
+    }
+}

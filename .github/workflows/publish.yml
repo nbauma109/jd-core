@@ -27,10 +27,10 @@ jobs:
           java-version: "17"
           cache: maven
           server-id: central
-          server-username: CENTRAL_TOKEN_USERNAME
-          server-password: CENTRAL_TOKEN_PASSWORD
+          server-username-env-var: CENTRAL_TOKEN_USERNAME
+          server-password-env-var: CENTRAL_TOKEN_PASSWORD
           gpg-private-key: ${{ secrets.PGP_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.PGP_PASSPHRASE }}
+          gpg-passphrase-env-var: MAVEN_GPG_PASSPHRASE
 
       - name: Verify secrets
         shell: bash

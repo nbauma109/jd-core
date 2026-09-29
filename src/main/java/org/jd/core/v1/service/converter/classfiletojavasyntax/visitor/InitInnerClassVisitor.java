@@ -74,6 +74,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     private final UpdateFieldDeclarationsAndReferencesVisitor updateFieldDeclarationsAndReferencesVisitor = new UpdateFieldDeclarationsAndReferencesVisitor();
     private final DefaultList<String> syntheticInnerFieldNames = new DefaultList<>();
     private String outerTypeFieldName;
+    private boolean outerInstanceParameter;
 
     @Override
     public void visit(AnnotationDeclaration declaration) {
@@ -101,11 +102,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         // Init attributes
         outerTypeFieldName = null;
+        outerInstanceParameter = false;
         syntheticInnerFieldNames.clear();
         // Visit methods
         safeAcceptListDeclaration(bodyDeclaration.getMethodDeclarations());
         // Init values
         bodyDeclaration.setOuterTypeFieldName(outerTypeFieldName);
+        bodyDeclaration.setOuterInstanceParameter(outerInstanceParameter || outerTypeFieldName != null);
 
         if (!syntheticInnerFieldNames.isEmpty()) {
             bodyDeclaration.setSyntheticInnerFieldNames(new DefaultList<>(syntheticInnerFieldNames));
@@ -163,9 +166,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 syntheticInnerFieldNames.add(name);
 
                                 Expression value = expression.getRightExpression();
-                                if (value.isLocalVariableReferenceExpression()) {
+                                String capturedName = name.substring(4);
+                                if (value.isLocalVariableReferenceExpression() && !declaresParameter(cfcd.getFormalParameters(), capturedName)) {
                                     // javac 22+ reads the captured parameter (not the 'val$' field) in the constructor body
-                                    ((ClassFileLocalVariableReferenceExpression) value).getLocalVariable().setName(name.substring(4));
+                                    ((ClassFileLocalVariableReferenceExpression) value).getLocalVariable().setName(capturedName);
                                 }
                             }
                         }
@@ -180,10 +184,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         if (!removeFirstParameter && parameters != null && outerClassFile != null && !classFile.isStatic()) {
             // javac 18+ does not store an unused outer instance in 'this$N': the parameter is still passed, named 'this$N'
-            String firstParameterName = parameters.getFirst().getName();
+            FormalParameter firstParameter = parameters.getFirst();
 
-            if (firstParameterName.startsWith(OUTER_THIS_PREFIX)) {
-                outerTypeFieldName = firstParameterName;
+            if (firstParameter.getName().startsWith(OUTER_THIS_PREFIX) && firstParameter.getType() instanceof ObjectType firstParameterType
+                    && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())) {
+                outerInstanceParameter = true;
                 removeFirstParameter = true;
             }
         }
@@ -244,6 +249,18 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
         }
+    }
+
+    private static boolean declaresParameter(BaseFormalParameter parameters, String name) {
+        if (parameters == null) {
+            return false;
+        }
+        for (FormalParameter parameter : parameters) {
+            if (name.equals(parameter.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -497,7 +514,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             DefaultList<Expression> list = parameters.getList();
                             DefaultList<Type> types = parameterTypes.getList();
 
-                            if (cfbd.getOuterTypeFieldName() != null) {
+                            if (cfbd.hasOuterInstanceParameter()) {
                                 // Remove outer this
                                 list.removeFirst();
                                 types.removeFirst();
@@ -531,7 +548,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 lastParameters.clear();
                                 types.subList(size - count, size).clear();
                             }
-                        } else if (cfbd.getOuterTypeFieldName() != null) {
+                        } else if (cfbd.hasOuterInstanceParameter()) {
                             // Remove outer this
                             ne.setParameters(null);
                             ne.setParameterTypes(null);
@@ -585,7 +602,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 // Remove outer 'this' reference parameter
                 Type firstParameterType = parameters.getFirst().getType();
 
-                if (firstParameterType.isObjectType() && !classFile.isStatic() && bodyDeclaration.getOuterTypeFieldName() != null) {
+                if (firstParameterType.isObjectType() && !classFile.isStatic() && bodyDeclaration.hasOuterInstanceParameter()) {
                     TypeMaker.TypeTypes superTypeTypes = typeMaker.makeTypeTypes(classFile.getSuperTypeName());
 
                     if (superTypeTypes != null && superTypeTypes.getThisType().isInnerObjectType() && typeMaker.isRawTypeAssignable(superTypeTypes.getThisType().getOuterType(), (ObjectType)firstParameterType)) {
@@ -606,7 +623,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
             if (!Utils.isEmpty(parameters)) {
                 // Remove outer this reference parameter
-                if (bodyDeclaration.getOuterTypeFieldName() != null) {
+                if (bodyDeclaration.hasOuterInstanceParameter()) {
                     cie.setParameters(removeFirstItem(parameters));
                     cie.setParameterTypes(removeFirstItem(cie.getParameterTypes()));
                 }

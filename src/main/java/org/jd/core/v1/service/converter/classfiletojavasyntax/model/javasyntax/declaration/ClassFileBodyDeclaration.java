@@ -26,6 +26,7 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
     private Map<String, ClassFileTypeDeclaration> innerTypeMap = Collections.emptyMap();
     private int firstLineNumber;
     private String outerTypeFieldName;
+    private boolean outerInstanceParameter;
     private DefaultList<String> syntheticInnerFieldNames;
     private final ClassFileBodyDeclaration outerBodyDeclaration;
     private final Map<String, TypeArgument> bindings;
@@ -130,6 +131,14 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
 
     public void setOuterTypeFieldName(String outerTypeFieldName) {
         this.outerTypeFieldName = outerTypeFieldName;
+    }
+
+    public boolean hasOuterInstanceParameter() {
+        return outerInstanceParameter;
+    }
+
+    public void setOuterInstanceParameter(boolean outerInstanceParameter) {
+        this.outerInstanceParameter = outerInstanceParameter;
     }
 
     public DefaultList<String> getSyntheticInnerFieldNames() {

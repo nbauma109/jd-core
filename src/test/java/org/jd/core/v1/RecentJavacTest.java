@@ -140,6 +140,25 @@ public class RecentJavacTest extends AbstractJdTest {
     }
 
     @Test
+    public void testJdk25OuterParameterEdgeCases() throws Exception {
+        String internalTypeName = "org/jd/core/v1/stub/OuterParameterEdgeCases";
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/outer-parameter-edge-cases-jdk25.0.2.jar")) {
+            String source = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), internalTypeName);
+
+            // A real parameter named 'this$value' of a local class in a static context is not the outer instance
+            assertTrue(source.contains("Local(int this$value) {"));
+            assertTrue(source.contains("this.value = this$value;"));
+            // A constructor parameter shadowing a captured variable keeps its own name
+            assertTrue(source.matches(PatternMaker.make("int captured = x;")));
+            assertTrue(source.contains("Local(int x) {"));
+            assertTrue(source.contains("this.shadowing = x;"));
+            // A user field named 'this$0' is not a synthetic outer field
+            assertTrue(source.contains("OuterParameterEdgeCases this$0 = new OuterParameterEdgeCases();"));
+            assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalTypeName, source)));
+        }
+    }
+
+    @Test
     public void testJdk25BoundsAnonymous() throws Exception {
         testZip("/jar/bounds-anonymous-jdk25.0.2.jar");
     }

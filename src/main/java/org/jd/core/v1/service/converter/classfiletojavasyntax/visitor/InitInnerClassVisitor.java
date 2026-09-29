@@ -160,6 +160,12 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 removeFirstParameter = true;
                             } else if (name.startsWith("val$")) {
                                 syntheticInnerFieldNames.add(name);
+
+                                Expression value = expression.getRightExpression();
+                                if (value.isLocalVariableReferenceExpression()) {
+                                    // javac 22+ reads the captured parameter (not the 'val$' field) in the constructor body
+                                    ((ClassFileLocalVariableReferenceExpression) value).getLocalVariable().setName(name.substring(4));
+                                }
                             }
                         }
                     }
@@ -169,8 +175,19 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        // Remove synthetic parameters
         BaseFormalParameter parameters = cfcd.getFormalParameters();
+
+        if (outerTypeFieldName == null && !removeFirstParameter && parameters != null && outerClassFile != null && !classFile.isStatic()) {
+            // javac 18+ does not store an unused outer instance in 'this$N': the parameter is still passed, named 'this$N'
+            String firstParameterName = parameters.getFirst().getName();
+
+            if (firstParameterName != null && firstParameterName.startsWith("this$")) {
+                outerTypeFieldName = firstParameterName;
+                removeFirstParameter = true;
+            }
+        }
+
+        // Remove synthetic parameters
 
         if (parameters != null) {
             if (parameters.isList()) {

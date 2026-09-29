@@ -70,6 +70,7 @@ import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.declaration.Declaration.FLAG_ANONYMOUS;
 
 public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
+    private static final String OUTER_THIS_PREFIX = "this$";
     private final UpdateFieldDeclarationsAndReferencesVisitor updateFieldDeclarationsAndReferencesVisitor = new UpdateFieldDeclarationsAndReferencesVisitor();
     private final DefaultList<String> syntheticInnerFieldNames = new DefaultList<>();
     private String outerTypeFieldName;
@@ -155,7 +156,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         if (e.isFieldReferenceExpression()) {
                             String name = e.getName();
 
-                            if (name.startsWith("this$")) {
+                            if (name.startsWith(OUTER_THIS_PREFIX)) {
                                 outerTypeFieldName = name;
                                 removeFirstParameter = true;
                             } else if (name.startsWith("val$")) {
@@ -177,11 +178,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         BaseFormalParameter parameters = cfcd.getFormalParameters();
 
-        if (outerTypeFieldName == null && !removeFirstParameter && parameters != null && outerClassFile != null && !classFile.isStatic()) {
+        if (!removeFirstParameter && parameters != null && outerClassFile != null && !classFile.isStatic()) {
             // javac 18+ does not store an unused outer instance in 'this$N': the parameter is still passed, named 'this$N'
             String firstParameterName = parameters.getFirst().getName();
 
-            if (firstParameterName != null && firstParameterName.startsWith("this$")) {
+            if (firstParameterName.startsWith(OUTER_THIS_PREFIX)) {
                 outerTypeFieldName = firstParameterName;
                 removeFirstParameter = true;
             }
@@ -299,7 +300,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(FieldReferenceExpression expression) {
-            if (expression.getName().startsWith("this$")) {
+            if (expression.getName().startsWith(OUTER_THIS_PREFIX)) {
                 if (expression.getInternalTypeName().equals(bodyDeclaration.getInternalTypeName())) {
                     if (expression.getName().equals(outerTypeFieldName)) {
                         ObjectType objectType = (ObjectType)expression.getType();
@@ -703,7 +704,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         protected class AddLocalClassDeclarationVisitor extends AbstractJavaSyntaxVisitor {
             private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
-            private int lineNumber = Expression.UNKNOWN_LINE_NUMBER;
+            private int firstLineNumber = Expression.UNKNOWN_LINE_NUMBER;
 
             @Override
             public void visit(ConstructorDeclaration declaration) {
@@ -734,10 +735,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         statements.accept(searchFirstLineNumberVisitor);
 
                         if (searchFirstLineNumberVisitor.getLineNumber() != -1) {
-                            lineNumber = searchFirstLineNumberVisitor.getLineNumber();
+                            firstLineNumber = searchFirstLineNumberVisitor.getLineNumber();
                         }
 
-                        if (declaration.getFirstLineNumber() <= lineNumber) {
+                        if (declaration.getFirstLineNumber() <= firstLineNumber) {
                             Statements list = new Statements();
                             Iterator<ClassFileClassDeclaration> declarationIterator = localClassDeclarations.iterator();
 
@@ -745,7 +746,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             declarationIterator.next();
                             declarationIterator.remove();
 
-                            while (declarationIterator.hasNext() && (declaration = declarationIterator.next()).getFirstLineNumber() <= lineNumber) {
+                            while (declarationIterator.hasNext() && (declaration = declarationIterator.next()).getFirstLineNumber() <= firstLineNumber) {
                                 list.add(new TypeDeclarationStatement(declaration));
                                 declarationIterator.remove();
                             }
@@ -780,10 +781,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         statement.accept(searchFirstLineNumberVisitor);
 
                         if (searchFirstLineNumberVisitor.getLineNumber() != -1) {
-                            lineNumber = searchFirstLineNumberVisitor.getLineNumber();
+                            firstLineNumber = searchFirstLineNumberVisitor.getLineNumber();
                         }
 
-                        while (declaration.getFirstLineNumber() <= lineNumber) {
+                        while (declaration.getFirstLineNumber() <= firstLineNumber) {
                             statementIterator.previous();
                             statementIterator.add(new TypeDeclarationStatement(declaration));
                             statementIterator.next();

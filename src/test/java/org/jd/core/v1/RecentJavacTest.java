@@ -11,6 +11,7 @@ import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -122,6 +123,20 @@ public class RecentJavacTest extends AbstractJdTest {
     @Test
     public void testJdk21SwitchEnum() throws Exception {
         testZip("/jar/switch-enum-jdk21.0.6.jar");
+    }
+
+    @Test
+    public void testJdk21UnusedOuterInstanceWithSeveralConstructors() throws Exception {
+        String internalTypeName = "org/jd/core/v1/stub/UnusedOuterInstance";
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/unused-outer-instance-jdk21.0.6.jar")) {
+            String source = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), internalTypeName);
+
+            assertFalse(source.contains("this$"));
+            assertTrue(source.matches(PatternMaker.make("public Inner() {")));
+            assertTrue(source.matches(PatternMaker.make("public Inner(int value) {")));
+            assertTrue(source.matches(PatternMaker.make("public Inner(String text) {")));
+            assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalTypeName, source)));
+        }
     }
 
     @Test

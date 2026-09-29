@@ -6,6 +6,7 @@ public class OuterParameterEdgeCases {
         class Local {
             final int value;
 
+            @SuppressWarnings("java:S117") // deliberately named like a synthetic outer-instance parameter
             Local(int this$value) {
                 this.value = this$value;
             }
@@ -27,6 +28,7 @@ public class OuterParameterEdgeCases {
     }
 
     public class Inner {
+        @SuppressWarnings("java:S116") // deliberately named like a synthetic outer-instance field
         OuterParameterEdgeCases this$0 = new OuterParameterEdgeCases();
 
         public Inner() {

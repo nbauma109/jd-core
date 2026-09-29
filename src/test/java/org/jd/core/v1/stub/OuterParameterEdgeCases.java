@@ -11,7 +11,15 @@ public class OuterParameterEdgeCases {
                 this.value = this$value;
             }
         }
-        return new Local(1).value;
+        class Enclosing {
+            final Object outer;
+
+            @SuppressWarnings("java:S117") // deliberately named like a synthetic outer-instance parameter
+            Enclosing(OuterParameterEdgeCases this$0) {
+                this.outer = this$0;
+            }
+        }
+        return new Local(1).value + "" + new Enclosing(new OuterParameterEdgeCases()).outer;
     }
 
     public Object shadowedCapture(int x) {

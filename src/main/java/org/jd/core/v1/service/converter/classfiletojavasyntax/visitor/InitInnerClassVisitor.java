@@ -6,6 +6,11 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
+import org.apache.bcel.Const;
+import org.apache.bcel.classfile.ConstantNameAndType;
+import org.apache.bcel.classfile.ConstantPool;
+import org.apache.bcel.classfile.EnclosingMethod;
+import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
@@ -65,12 +70,14 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.declaration.Declaration.FLAG_ANONYMOUS;
 
 public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     private static final String OUTER_THIS_PREFIX = "this$";
+    private static final Pattern OUTER_THIS_PARAMETER_NAME = Pattern.compile("this\\$\\d+");
     private final UpdateFieldDeclarationsAndReferencesVisitor updateFieldDeclarationsAndReferencesVisitor = new UpdateFieldDeclarationsAndReferencesVisitor();
     private final DefaultList<String> syntheticInnerFieldNames = new DefaultList<>();
     private String outerTypeFieldName;
@@ -186,8 +193,9 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             // javac 18+ does not store an unused outer instance in 'this$N': the parameter is still passed, named 'this$N'
             FormalParameter firstParameter = parameters.getFirst();
 
-            if (firstParameter.getName().startsWith(OUTER_THIS_PREFIX) && firstParameter.getType() instanceof ObjectType firstParameterType
-                    && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())) {
+            if (OUTER_THIS_PARAMETER_NAME.matcher(firstParameter.getName()).matches() && firstParameter.getType() instanceof ObjectType firstParameterType
+                    && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
+                    && !isDeclaredInStaticMethod(classFile, outerClassFile)) {
                 outerInstanceParameter = true;
                 removeFirstParameter = true;
             }
@@ -249,6 +257,26 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
         }
+    }
+
+    private static boolean isDeclaredInStaticMethod(ClassFile classFile, ClassFile outerClassFile) {
+        EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
+
+        if (enclosingMethod == null || enclosingMethod.getEnclosingMethodIndex() == 0) {
+            return false;
+        }
+
+        ConstantPool constants = classFile.getConstantPool();
+        ConstantNameAndType nameAndType = enclosingMethod.getEnclosingMethod();
+        String name = nameAndType.getName(constants);
+        String signature = nameAndType.getSignature(constants);
+
+        for (Method method : outerClassFile.getMethods()) {
+            if (method.getName().equals(name) && method.getSignature().equals(signature)) {
+                return method.isStatic();
+            }
+        }
+        return false;
     }
 
     private static boolean declaresParameter(BaseFormalParameter parameters, String name) {

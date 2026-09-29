@@ -148,6 +148,7 @@ public class RecentJavacTest extends AbstractJdTest {
             // A real parameter named 'this$value' of a local class in a static context is not the outer instance
             assertTrue(source.contains("Local(int this$value) {"));
             assertTrue(source.contains("this.value = this$value;"));
+            assertTrue(source.contains("Enclosing(OuterParameterEdgeCases this$0) {"));
             // A constructor parameter shadowing a captured variable keeps its own name
             assertTrue(source.matches(PatternMaker.make("int captured = x;")));
             assertTrue(source.contains("Local(int x) {"));

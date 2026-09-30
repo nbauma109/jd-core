@@ -6,6 +6,13 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
+import org.apache.bcel.Const;
+import org.apache.bcel.classfile.ConstantNameAndType;
+import org.apache.bcel.classfile.ConstantPool;
+import org.apache.bcel.classfile.EnclosingMethod;
+import org.apache.bcel.classfile.Method;
+import org.apache.bcel.classfile.MethodParameter;
+import org.apache.bcel.classfile.MethodParameters;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
@@ -27,6 +34,7 @@ import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
@@ -49,6 +57,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFormalParameter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
@@ -57,22 +66,29 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.declaration.Declaration.FLAG_ANONYMOUS;
 
 public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
+    private static final String OUTER_THIS_PREFIX = "this$";
+    private static final int MAJOR_VERSION_MANDATED_PARAMETERS = 65;
+    private static final Pattern OUTER_THIS_PARAMETER_NAME = Pattern.compile("this\\$\\d+");
     private final UpdateFieldDeclarationsAndReferencesVisitor updateFieldDeclarationsAndReferencesVisitor = new UpdateFieldDeclarationsAndReferencesVisitor();
     private final DefaultList<String> syntheticInnerFieldNames = new DefaultList<>();
     private String outerTypeFieldName;
+    private boolean outerInstanceParameter;
 
     @Override
     public void visit(AnnotationDeclaration declaration) {
@@ -100,11 +116,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         // Init attributes
         outerTypeFieldName = null;
+        outerInstanceParameter = false;
         syntheticInnerFieldNames.clear();
         // Visit methods
         safeAcceptListDeclaration(bodyDeclaration.getMethodDeclarations());
         // Init values
         bodyDeclaration.setOuterTypeFieldName(outerTypeFieldName);
+        bodyDeclaration.setOuterInstanceParameter(outerInstanceParameter || outerTypeFieldName != null);
 
         if (!syntheticInnerFieldNames.isEmpty()) {
             bodyDeclaration.setSyntheticInnerFieldNames(new DefaultList<>(syntheticInnerFieldNames));
@@ -121,6 +139,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         ClassFile classFile = cfcd.getClassFile();
         ClassFile outerClassFile = classFile.getOuterClassFile();
         boolean removeFirstParameter = false;
+        Map<AbstractLocalVariable, String> capturedNames = new LinkedHashMap<>();
 
         syntheticInnerFieldNames.clear();
 
@@ -155,11 +174,16 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         if (e.isFieldReferenceExpression()) {
                             String name = e.getName();
 
-                            if (name.startsWith("this$")) {
+                            if (name.startsWith(OUTER_THIS_PREFIX)) {
                                 outerTypeFieldName = name;
                                 removeFirstParameter = true;
                             } else if (name.startsWith("val$")) {
                                 syntheticInnerFieldNames.add(name);
+
+                                Expression value = expression.getRightExpression();
+                                if (value.isLocalVariableReferenceExpression()) {
+                                    capturedNames.put(((ClassFileLocalVariableReferenceExpression) value).getLocalVariable(), name.substring(4));
+                                }
                             }
                         }
                     }
@@ -169,8 +193,31 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        // Remove synthetic parameters
         BaseFormalParameter parameters = cfcd.getFormalParameters();
+
+        if (!removeFirstParameter && parameters != null && outerClassFile != null && !classFile.isStatic()) {
+            // javac 18+ does not store an unused outer instance in 'this$N': the parameter is still passed, named 'this$N'
+            FormalParameter firstParameter = parameters.getFirst();
+
+            if (OUTER_THIS_PARAMETER_NAME.matcher(firstParameter.getName()).matches() && firstParameter.getType() instanceof ObjectType firstParameterType
+                    && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
+                    && !isDeclaredInStaticMethod(classFile, outerClassFile)
+                    && isMandatedOuterParameter(classFile, cfcd.getMethod())
+                    && firstParameter instanceof ClassFileFormalParameter outerParameter
+                    && !new ReferenceSearch(outerParameter.getLocalVariable()).isReferencedIn(cfcd.getStatements())) {
+                outerInstanceParameter = true;
+                removeFirstParameter = true;
+            }
+        }
+
+        // javac 22+ reads the captured parameters (not the 'val$' fields) in the constructor body
+        for (Map.Entry<AbstractLocalVariable, String> captured : capturedNames.entrySet()) {
+            if (!declaresParameter(parameters, captured.getValue(), removeFirstParameter)) {
+                captured.getKey().setName(captured.getValue());
+            }
+        }
+
+        // Remove synthetic parameters
 
         if (parameters != null) {
             if (parameters.isList()) {
@@ -228,6 +275,69 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    private static boolean isDeclaredInStaticMethod(ClassFile classFile, ClassFile outerClassFile) {
+        EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
+
+        if (enclosingMethod == null || enclosingMethod.getEnclosingMethodIndex() == 0) {
+            return false;
+        }
+
+        ConstantPool constants = classFile.getConstantPool();
+        ConstantNameAndType nameAndType = enclosingMethod.getEnclosingMethod();
+        String name = nameAndType.getName(constants);
+        String signature = nameAndType.getSignature(constants);
+
+        return Arrays.stream(outerClassFile.getMethods())
+                .filter(method -> method.getName().equals(name) && method.getSignature().equals(signature))
+                .anyMatch(Method::isStatic);
+    }
+
+    private static boolean isMandatedOuterParameter(ClassFile classFile, Method constructor) {
+        if (classFile.getMajorVersion() < MAJOR_VERSION_MANDATED_PARAMETERS) {
+            // javac 18-20 drop the unused outer instance without describing the parameter
+            return true;
+        }
+        // javac 21+ flags the synthetic outer-instance parameter as 'mandated' in MethodParameters
+        return Arrays.stream(constructor.getAttributes())
+                .filter(MethodParameters.class::isInstance)
+                .map(MethodParameters.class::cast)
+                .flatMap(attribute -> Arrays.stream(attribute.getParameters()))
+                .findFirst()
+                .map(MethodParameter::isMandated)
+                .orElse(false);
+    }
+
+    /** A synthetic outer-instance parameter is only null-checked, never read: a read means a real parameter. */
+    private static final class ReferenceSearch extends AbstractJavaSyntaxVisitor {
+        private final AbstractLocalVariable variable;
+        private boolean referenced;
+
+        private ReferenceSearch(AbstractLocalVariable variable) {
+            this.variable = variable;
+        }
+
+        private boolean isReferencedIn(BaseStatement statements) {
+            safeAccept(statements);
+            return referenced;
+        }
+
+        @Override
+        public void visit(LocalVariableReferenceExpression expression) {
+            referenced |= ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable() == variable;
+        }
+    }
+
+    private static boolean declaresParameter(BaseFormalParameter parameters, String name, boolean skipFirst) {
+        boolean first = true;
+        for (FormalParameter parameter : parameters) {
+            if ((!first || !skipFirst) && name.equals(parameter.getName())) {
+                return true;
+            }
+            first = false;
+        }
+        return false;
+    }
+
     @Override
     public void visit(MethodDeclaration declaration) {}
     @Override
@@ -282,7 +392,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(FieldReferenceExpression expression) {
-            if (expression.getName().startsWith("this$")) {
+            if (expression.getName().startsWith(OUTER_THIS_PREFIX)) {
                 if (expression.getInternalTypeName().equals(bodyDeclaration.getInternalTypeName())) {
                     if (expression.getName().equals(outerTypeFieldName)) {
                         ObjectType objectType = (ObjectType)expression.getType();
@@ -479,7 +589,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             DefaultList<Expression> list = parameters.getList();
                             DefaultList<Type> types = parameterTypes.getList();
 
-                            if (cfbd.getOuterTypeFieldName() != null) {
+                            if (cfbd.hasOuterInstanceParameter()) {
                                 // Remove outer this
                                 list.removeFirst();
                                 types.removeFirst();
@@ -513,7 +623,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 lastParameters.clear();
                                 types.subList(size - count, size).clear();
                             }
-                        } else if (cfbd.getOuterTypeFieldName() != null) {
+                        } else if (cfbd.hasOuterInstanceParameter()) {
                             // Remove outer this
                             ne.setParameters(null);
                             ne.setParameterTypes(null);
@@ -567,7 +677,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 // Remove outer 'this' reference parameter
                 Type firstParameterType = parameters.getFirst().getType();
 
-                if (firstParameterType.isObjectType() && !classFile.isStatic() && bodyDeclaration.getOuterTypeFieldName() != null) {
+                if (firstParameterType.isObjectType() && !classFile.isStatic() && bodyDeclaration.hasOuterInstanceParameter()) {
                     TypeMaker.TypeTypes superTypeTypes = typeMaker.makeTypeTypes(classFile.getSuperTypeName());
 
                     if (superTypeTypes != null && superTypeTypes.getThisType().isInnerObjectType() && typeMaker.isRawTypeAssignable(superTypeTypes.getThisType().getOuterType(), (ObjectType)firstParameterType)) {
@@ -588,7 +698,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
             if (!Utils.isEmpty(parameters)) {
                 // Remove outer this reference parameter
-                if (bodyDeclaration.getOuterTypeFieldName() != null) {
+                if (bodyDeclaration.hasOuterInstanceParameter()) {
                     cie.setParameters(removeFirstItem(parameters));
                     cie.setParameterTypes(removeFirstItem(cie.getParameterTypes()));
                 }
@@ -686,7 +796,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         protected class AddLocalClassDeclarationVisitor extends AbstractJavaSyntaxVisitor {
             private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
-            private int lineNumber = Expression.UNKNOWN_LINE_NUMBER;
+            private int firstLineNumber = Expression.UNKNOWN_LINE_NUMBER;
 
             @Override
             public void visit(ConstructorDeclaration declaration) {
@@ -717,10 +827,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         statements.accept(searchFirstLineNumberVisitor);
 
                         if (searchFirstLineNumberVisitor.getLineNumber() != -1) {
-                            lineNumber = searchFirstLineNumberVisitor.getLineNumber();
+                            firstLineNumber = searchFirstLineNumberVisitor.getLineNumber();
                         }
 
-                        if (declaration.getFirstLineNumber() <= lineNumber) {
+                        if (declaration.getFirstLineNumber() <= firstLineNumber) {
                             Statements list = new Statements();
                             Iterator<ClassFileClassDeclaration> declarationIterator = localClassDeclarations.iterator();
 
@@ -728,7 +838,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             declarationIterator.next();
                             declarationIterator.remove();
 
-                            while (declarationIterator.hasNext() && (declaration = declarationIterator.next()).getFirstLineNumber() <= lineNumber) {
+                            while (declarationIterator.hasNext() && (declaration = declarationIterator.next()).getFirstLineNumber() <= firstLineNumber) {
                                 list.add(new TypeDeclarationStatement(declaration));
                                 declarationIterator.remove();
                             }
@@ -763,10 +873,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         statement.accept(searchFirstLineNumberVisitor);
 
                         if (searchFirstLineNumberVisitor.getLineNumber() != -1) {
-                            lineNumber = searchFirstLineNumberVisitor.getLineNumber();
+                            firstLineNumber = searchFirstLineNumberVisitor.getLineNumber();
                         }
 
-                        while (declaration.getFirstLineNumber() <= lineNumber) {
+                        while (declaration.getFirstLineNumber() <= firstLineNumber) {
                             statementIterator.previous();
                             statementIterator.add(new TypeDeclarationStatement(declaration));
                             statementIterator.next();

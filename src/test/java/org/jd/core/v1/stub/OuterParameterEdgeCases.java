@@ -2,6 +2,25 @@ package org.jd.core.v1.stub;
 
 public class OuterParameterEdgeCases {
 
+    static {
+        class InInitializer {
+            final Object outer;
+
+            @SuppressWarnings("java:S117") // deliberately named like a synthetic outer-instance parameter
+            InInitializer(OuterParameterEdgeCases this$0) {
+                this.outer = this$0;
+            }
+        }
+        System.out.println(new InInitializer(new OuterParameterEdgeCases()).outer);
+    }
+
+    final Runnable instanceInitializerAnonymous = new Runnable() {
+        @Override
+        public void run() {
+            System.out.println("run");
+        }
+    };
+
     public static Object staticContextLocal() {
         class Local {
             final int value;

@@ -11,6 +11,10 @@ import org.apache.bcel.classfile.ConstantNameAndType;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.EnclosingMethod;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.generic.ConstantPoolGen;
+import org.apache.bcel.generic.InstructionHandle;
+import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.NEW;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
@@ -262,8 +266,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean isDeclaredInStaticMethod(ClassFile classFile, ClassFile outerClassFile) {
         EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
 
-        if (enclosingMethod == null || enclosingMethod.getEnclosingMethodIndex() == 0) {
+        if (enclosingMethod == null) {
             return false;
+        }
+
+        if (enclosingMethod.getEnclosingMethodIndex() == 0) {
+            // Declared in an initializer: static only if instantiated by the static initializer
+            return isInstantiatedByStaticInitializer(classFile, outerClassFile);
         }
 
         ConstantPool constants = classFile.getConstantPool();
@@ -274,6 +283,22 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         for (Method method : outerClassFile.getMethods()) {
             if (method.getName().equals(name) && method.getSignature().equals(signature)) {
                 return method.isStatic();
+            }
+        }
+        return false;
+    }
+
+    private static boolean isInstantiatedByStaticInitializer(ClassFile classFile, ClassFile outerClassFile) {
+        ConstantPoolGen constantPoolGen = new ConstantPoolGen(outerClassFile.getConstantPool());
+
+        for (Method method : outerClassFile.getMethods()) {
+            if ("<clinit>".equals(method.getName()) && method.getCode() != null) {
+                for (InstructionHandle handle : new InstructionList(method.getCode().getCode())) {
+                    if (handle.getInstruction() instanceof NEW newInstruction
+                            && classFile.getInternalTypeName().equals(newInstruction.getLoadClassType(constantPoolGen).getClassName().replace('.', '/'))) {
+                        return true;
+                    }
+                }
             }
         }
         return false;

@@ -64,6 +64,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -199,7 +200,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
                     && !isDeclaredInStaticMethod(classFile, outerClassFile)
                     && firstParameter instanceof ClassFileFormalParameter outerParameter
-                    && !isReferenced(cfcd.getStatements(), outerParameter.getLocalVariable())) {
+                    && !new ReferenceSearch(outerParameter.getLocalVariable()).isReferencedIn(cfcd.getStatements())) {
                 outerInstanceParameter = true;
                 removeFirstParameter = true;
             }
@@ -282,34 +283,32 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         String name = nameAndType.getName(constants);
         String signature = nameAndType.getSignature(constants);
 
-        for (Method method : outerClassFile.getMethods()) {
-            if (method.getName().equals(name) && method.getSignature().equals(signature)) {
-                return method.isStatic();
-            }
-        }
-        return false;
+        return Arrays.stream(outerClassFile.getMethods())
+                .filter(method -> method.getName().equals(name) && method.getSignature().equals(signature))
+                .anyMatch(Method::isStatic);
     }
 
-    private static boolean isReferenced(BaseStatement statements, AbstractLocalVariable variable) {
-        if (statements == null) {
-            return false;
+    /** A synthetic outer-instance parameter is only null-checked, never read: a read means a real parameter. */
+    private static final class ReferenceSearch extends AbstractJavaSyntaxVisitor {
+        private final AbstractLocalVariable variable;
+        private boolean referenced;
+
+        private ReferenceSearch(AbstractLocalVariable variable) {
+            this.variable = variable;
         }
 
-        // A synthetic outer-instance parameter is only null-checked, never read: a read means a real parameter
-        boolean[] referenced = new boolean[1];
-        statements.accept(new AbstractJavaSyntaxVisitor() {
-            @Override
-            public void visit(LocalVariableReferenceExpression expression) {
-                referenced[0] |= ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable() == variable;
-            }
-        });
-        return referenced[0];
+        private boolean isReferencedIn(BaseStatement statements) {
+            safeAccept(statements);
+            return referenced;
+        }
+
+        @Override
+        public void visit(LocalVariableReferenceExpression expression) {
+            referenced |= ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable() == variable;
+        }
     }
 
     private static boolean declaresParameter(BaseFormalParameter parameters, String name, boolean skipFirst) {
-        if (parameters == null) {
-            return false;
-        }
         boolean first = true;
         for (FormalParameter parameter : parameters) {
             if ((!first || !skipFirst) && name.equals(parameter.getName())) {

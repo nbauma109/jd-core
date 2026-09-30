@@ -12,6 +12,19 @@ public class OuterParameterEdgeCases {
             }
         }
         System.out.println(new InInitializer(new OuterParameterEdgeCases()).outer);
+
+        class UnusedInInitializer {
+            @SuppressWarnings("java:S117") // deliberately named like a synthetic outer-instance parameter
+            UnusedInInitializer(OuterParameterEdgeCases this$0) {
+                // parameter deliberately unused
+            }
+        }
+        System.out.println(new UnusedInInitializer(sideEffect()));
+    }
+
+    private static OuterParameterEdgeCases sideEffect() {
+        System.out.println("side effect");
+        return null;
     }
 
     final Runnable instanceInitializerAnonymous = new Runnable() {

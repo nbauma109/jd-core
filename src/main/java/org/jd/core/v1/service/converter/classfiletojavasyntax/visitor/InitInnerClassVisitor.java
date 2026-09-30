@@ -11,6 +11,8 @@ import org.apache.bcel.classfile.ConstantNameAndType;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.EnclosingMethod;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.classfile.MethodParameter;
+import org.apache.bcel.classfile.MethodParameters;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
@@ -81,6 +83,7 @@ import static org.jd.core.v1.model.javasyntax.declaration.Declaration.FLAG_ANONY
 
 public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     private static final String OUTER_THIS_PREFIX = "this$";
+    private static final int MAJOR_VERSION_MANDATED_PARAMETERS = 65;
     private static final Pattern OUTER_THIS_PARAMETER_NAME = Pattern.compile("this\\$\\d+");
     private final UpdateFieldDeclarationsAndReferencesVisitor updateFieldDeclarationsAndReferencesVisitor = new UpdateFieldDeclarationsAndReferencesVisitor();
     private final DefaultList<String> syntheticInnerFieldNames = new DefaultList<>();
@@ -199,6 +202,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             if (OUTER_THIS_PARAMETER_NAME.matcher(firstParameter.getName()).matches() && firstParameter.getType() instanceof ObjectType firstParameterType
                     && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
                     && !isDeclaredInStaticMethod(classFile, outerClassFile)
+                    && isMandatedOuterParameter(classFile, cfcd.getMethod())
                     && firstParameter instanceof ClassFileFormalParameter outerParameter
                     && !new ReferenceSearch(outerParameter.getLocalVariable()).isReferencedIn(cfcd.getStatements())) {
                 outerInstanceParameter = true;
@@ -286,6 +290,21 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         return Arrays.stream(outerClassFile.getMethods())
                 .filter(method -> method.getName().equals(name) && method.getSignature().equals(signature))
                 .anyMatch(Method::isStatic);
+    }
+
+    private static boolean isMandatedOuterParameter(ClassFile classFile, Method constructor) {
+        if (classFile.getMajorVersion() < MAJOR_VERSION_MANDATED_PARAMETERS) {
+            // javac 18-20 drop the unused outer instance without describing the parameter
+            return true;
+        }
+        // javac 21+ flags the synthetic outer-instance parameter as 'mandated' in MethodParameters
+        return Arrays.stream(constructor.getAttributes())
+                .filter(MethodParameters.class::isInstance)
+                .map(MethodParameters.class::cast)
+                .flatMap(attribute -> Arrays.stream(attribute.getParameters()))
+                .findFirst()
+                .map(MethodParameter::isMandated)
+                .orElse(false);
     }
 
     /** A synthetic outer-instance parameter is only null-checked, never read: a read means a real parameter. */

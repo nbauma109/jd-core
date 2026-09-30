@@ -62,4 +62,20 @@ public class OuterParameterEdgeCases {
             System.out.println(this$0);
         }
     }
+
+    @SuppressWarnings("java:S117") // deliberately named like a synthetic outer-instance parameter
+    public Object capturedLocalNamedLikeOuter(int this$0) {
+        class Local {
+            final int value = this$0;
+        }
+        return new Local().value;
+    }
+
+    public class LambdaInside {
+        @SuppressWarnings("java:S117") // deliberately named like a synthetic outer-instance parameter
+        public LambdaInside() {
+            java.util.function.IntUnaryOperator operator = this$0 -> this$0 + 1;
+            System.out.println(operator.applyAsInt(1));
+        }
+    }
 }

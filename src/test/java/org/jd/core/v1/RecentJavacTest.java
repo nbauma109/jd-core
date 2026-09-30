@@ -152,6 +152,9 @@ public class RecentJavacTest extends AbstractJdTest {
             // ... nor in a static initializer, while an unused outer instance of an instance initializer class is dropped
             assertTrue(source.contains("InInitializer(OuterParameterEdgeCases this$0) {"));
             assertTrue(source.contains("new Runnable() {"));
+            // A captured local named like the outer instance keeps its name, a lambda parameter named like it is not a use
+            assertTrue(source.contains("this.value = this$0;"));
+            assertTrue(source.contains("public LambdaInside() {"));
             // A constructor parameter shadowing a captured variable keeps its own name
             assertTrue(source.matches(PatternMaker.make("int captured = x;")));
             assertTrue(source.contains("Local(int x) {"));

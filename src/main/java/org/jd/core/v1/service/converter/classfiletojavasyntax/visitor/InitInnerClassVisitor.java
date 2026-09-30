@@ -55,6 +55,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFormalParameter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
@@ -67,6 +68,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -133,6 +135,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         ClassFile classFile = cfcd.getClassFile();
         ClassFile outerClassFile = classFile.getOuterClassFile();
         boolean removeFirstParameter = false;
+        Map<AbstractLocalVariable, String> capturedNames = new LinkedHashMap<>();
 
         syntheticInnerFieldNames.clear();
 
@@ -174,10 +177,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 syntheticInnerFieldNames.add(name);
 
                                 Expression value = expression.getRightExpression();
-                                String capturedName = name.substring(4);
-                                if (value.isLocalVariableReferenceExpression() && !declaresParameter(cfcd.getFormalParameters(), capturedName)) {
-                                    // javac 22+ reads the captured parameter (not the 'val$' field) in the constructor body
-                                    ((ClassFileLocalVariableReferenceExpression) value).getLocalVariable().setName(capturedName);
+                                if (value.isLocalVariableReferenceExpression()) {
+                                    capturedNames.put(((ClassFileLocalVariableReferenceExpression) value).getLocalVariable(), name.substring(4));
                                 }
                             }
                         }
@@ -197,9 +198,17 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             if (OUTER_THIS_PARAMETER_NAME.matcher(firstParameter.getName()).matches() && firstParameter.getType() instanceof ObjectType firstParameterType
                     && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
                     && !isDeclaredInStaticMethod(classFile, outerClassFile)
-                    && !isReferenced(cfcd.getStatements(), firstParameter.getName())) {
+                    && firstParameter instanceof ClassFileFormalParameter outerParameter
+                    && !isReferenced(cfcd.getStatements(), outerParameter.getLocalVariable())) {
                 outerInstanceParameter = true;
                 removeFirstParameter = true;
+            }
+        }
+
+        // javac 22+ reads the captured parameters (not the 'val$' fields) in the constructor body
+        for (Map.Entry<AbstractLocalVariable, String> captured : capturedNames.entrySet()) {
+            if (!declaresParameter(parameters, captured.getValue(), removeFirstParameter)) {
+                captured.getKey().setName(captured.getValue());
             }
         }
 
@@ -281,7 +290,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    private static boolean isReferenced(BaseStatement statements, String variableName) {
+    private static boolean isReferenced(BaseStatement statements, AbstractLocalVariable variable) {
         if (statements == null) {
             return false;
         }
@@ -291,20 +300,22 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         statements.accept(new AbstractJavaSyntaxVisitor() {
             @Override
             public void visit(LocalVariableReferenceExpression expression) {
-                referenced[0] |= variableName.equals(expression.getName());
+                referenced[0] |= ((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable() == variable;
             }
         });
         return referenced[0];
     }
 
-    private static boolean declaresParameter(BaseFormalParameter parameters, String name) {
+    private static boolean declaresParameter(BaseFormalParameter parameters, String name, boolean skipFirst) {
         if (parameters == null) {
             return false;
         }
+        boolean first = true;
         for (FormalParameter parameter : parameters) {
-            if (name.equals(parameter.getName())) {
+            if ((!first || !skipFirst) && name.equals(parameter.getName())) {
                 return true;
             }
+            first = false;
         }
         return false;
     }

@@ -11,10 +11,6 @@ import org.apache.bcel.classfile.ConstantNameAndType;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.EnclosingMethod;
 import org.apache.bcel.classfile.Method;
-import org.apache.bcel.generic.ConstantPoolGen;
-import org.apache.bcel.generic.InstructionHandle;
-import org.apache.bcel.generic.InstructionList;
-import org.apache.bcel.generic.NEW;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
@@ -36,6 +32,7 @@ import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
@@ -199,7 +196,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
             if (OUTER_THIS_PARAMETER_NAME.matcher(firstParameter.getName()).matches() && firstParameter.getType() instanceof ObjectType firstParameterType
                     && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
-                    && !isDeclaredInStaticMethod(classFile, outerClassFile)) {
+                    && !isDeclaredInStaticMethod(classFile, outerClassFile)
+                    && !isReferenced(cfcd.getStatements(), firstParameter.getName())) {
                 outerInstanceParameter = true;
                 removeFirstParameter = true;
             }
@@ -266,13 +264,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean isDeclaredInStaticMethod(ClassFile classFile, ClassFile outerClassFile) {
         EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
 
-        if (enclosingMethod == null) {
+        if (enclosingMethod == null || enclosingMethod.getEnclosingMethodIndex() == 0) {
             return false;
-        }
-
-        if (enclosingMethod.getEnclosingMethodIndex() == 0) {
-            // Declared in an initializer: static only if instantiated by the static initializer
-            return isInstantiatedByStaticInitializer(classFile, outerClassFile);
         }
 
         ConstantPool constants = classFile.getConstantPool();
@@ -288,20 +281,20 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    private static boolean isInstantiatedByStaticInitializer(ClassFile classFile, ClassFile outerClassFile) {
-        ConstantPoolGen constantPoolGen = new ConstantPoolGen(outerClassFile.getConstantPool());
-
-        for (Method method : outerClassFile.getMethods()) {
-            if ("<clinit>".equals(method.getName()) && method.getCode() != null) {
-                for (InstructionHandle handle : new InstructionList(method.getCode().getCode())) {
-                    if (handle.getInstruction() instanceof NEW newInstruction
-                            && classFile.getInternalTypeName().equals(newInstruction.getLoadClassType(constantPoolGen).getClassName().replace('.', '/'))) {
-                        return true;
-                    }
-                }
-            }
+    private static boolean isReferenced(BaseStatement statements, String variableName) {
+        if (statements == null) {
+            return false;
         }
-        return false;
+
+        // A synthetic outer-instance parameter is only null-checked, never read: a read means a real parameter
+        boolean[] referenced = new boolean[1];
+        statements.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(LocalVariableReferenceExpression expression) {
+                referenced[0] |= variableName.equals(expression.getName());
+            }
+        });
+        return referenced[0];
     }
 
     private static boolean declaresParameter(BaseFormalParameter parameters, String name) {

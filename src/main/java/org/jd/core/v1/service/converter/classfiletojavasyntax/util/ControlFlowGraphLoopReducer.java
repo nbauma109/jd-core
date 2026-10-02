@@ -739,8 +739,10 @@ public final class ControlFlowGraphLoopReducer {
             }
 
             // The other exit goes back to an enclosing loop (the update of the enclosing loop, i.e. 'continue outer'): the 'end'
-            // block follows the loop, it is not part of it
-            if (isUpdateOfEnclosingLoop(start, newEnd)) {
+            // block follows the loop, it is not part of it. A 'return' or a 'throw' is kept in the loop when the update is copied by
+            // several jumps (it is inlined before each 'continue'), unless the loop goes back to the condition of a 'do ... while'.
+            if (isUpdateOfEnclosingLoop(start, newEnd)
+             && (newEnd.getType() == TYPE_CONDITIONAL_BRANCH || !end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW) || newEnd.getPredecessors().size() < 2)) {
                 break;
             }
 

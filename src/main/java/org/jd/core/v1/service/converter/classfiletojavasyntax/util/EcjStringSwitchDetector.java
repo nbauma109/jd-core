@@ -9,6 +9,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.ConstantCP;
 import org.apache.bcel.classfile.ConstantNameAndType;
+import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantPool;
 
 import java.util.ArrayList;
@@ -60,10 +61,12 @@ final class EcjStringSwitchDetector {
 
     /**
      * @param switchStart the offset of the 'lookupswitch' or 'tableswitch' instruction
+     * @param values the hash codes of the cases, [0] is unused (default case)
      * @param offsets the offsets of the cases, [0] is the default case
-     * @return null if the 'switch' is not the one of a string compiled by ECJ
+     * @return null if the 'switch' is not the one of a string compiled by ECJ: the key of each case is the hash code of the strings which
+     *         are compared in its code
      */
-    static Result detect(ConstantPool constants, byte[] code, int switchStart, int[] offsets) {
+    static Result detect(ConstantPool constants, byte[] code, int switchStart, int[] values, int[] offsets) {
         int local = searchHashCodeReceiver(constants, code, switchStart);
 
         if (local < 0 || offsets.length < 2) {
@@ -86,9 +89,10 @@ final class EcjStringSwitchDetector {
             chainFrom = Math.min(chainFrom, offset);
 
             // The comparisons of the strings which have the hash code, then the jump to the default case
+            int first = strings.size();
             int end = readComparisons(constants, code, offset, local, strings, targets);
 
-            if (end < 0 || (code[end] & 255) != Const.GOTO || end + (short) ((code[end + 1] & 255) << 8 | code[end + 2] & 255) != defaultOffset) {
+            if (end < 0 || !haveHashCode(strings.subList(first, strings.size()), values[j]) || (code[end] & 255) != Const.GOTO || end + (short) ((code[end + 1] & 255) << 8 | code[end + 2] & 255) != defaultOffset) {
                 return null;
             }
 
@@ -148,6 +152,11 @@ final class EcjStringSwitchDetector {
             return -1;
         }
 
+        // Another constant (e.g. a class) is not a string
+        if (!(constants.getConstant(constantIndex) instanceof ConstantString)) {
+            return -1;
+        }
+
         if ((code[next] & 255) != Const.INVOKEVIRTUAL
          || !isMethod(constants, (code[next + 1] & 255) << 8 | code[next + 2] & 255, "java/lang/String", "equals", "(Ljava/lang/Object;)Z")
          || (code[next + 3] & 255) != Const.IFNE) {
@@ -157,6 +166,10 @@ final class EcjStringSwitchDetector {
         strings.add(constants.getConstantString(constantIndex, Const.CONSTANT_String));
         targets.add(next + 3 + (short) ((code[next + 4] & 255) << 8 | code[next + 5] & 255));
         return next + 6;
+    }
+
+    private static boolean haveHashCode(List<String> strings, int hashCode) {
+        return strings.stream().allMatch(string -> string.hashCode() == hashCode);
     }
 
     /** @return the index of the local variable which receives the string before 'hashCode()', or -1 */

@@ -578,7 +578,7 @@ public class ControlFlowGraphMaker {
                     int[] values = switchValues[lastInstructionOffset];
                     int[] offsets = switchOffsets[lastInstructionOffset];
                     String[] strings = null;
-                    EcjStringSwitchDetector.Result ecjStringSwitch = EcjStringSwitchDetector.detect(constants, code, switchStarts[lastInstructionOffset], offsets);
+                    EcjStringSwitchDetector.Result ecjStringSwitch = EcjStringSwitchDetector.detect(constants, code, switchStarts[lastInstructionOffset], values, offsets);
 
                     if (ecjStringSwitch != null) {
                         values = ecjStringSwitch.values();

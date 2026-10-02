@@ -62,8 +62,9 @@ public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(Statements statements) {
-        super.visit(statements);
+        // The tree of tests is rewritten as a whole, before its nested lists of statements would be on their own
         rewrite(statements);
+        super.visit(statements);
     }
 
     private void rewrite(Statements statements) {
@@ -117,11 +118,10 @@ public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
         Statement statement = statements.get(index);
 
         if (statement.isReturnExpressionStatement()) {
-            Expression expression = RecordPatternInstanceOfRewriter.unwrapParenthesesExpression(statement.getExpression());
-
-            if (RecordPatternInstanceOfRewriter.isTrueExpression(expression) || RecordPatternInstanceOfRewriter.isFalseExpression(expression)) {
+            // A constant of an integer is not a boolean: the method may return an integer
+            if (RecordPatternInstanceOfRewriter.unwrapParenthesesExpression(statement.getExpression()) instanceof BooleanExpression value) {
                 returns.add((ReturnExpressionStatement)statement);
-                return RecordPatternInstanceOfRewriter.isTrueExpression(expression) ? TRUE : FALSE;
+                return value.isTrue() ? TRUE : FALSE;
             }
             return null;
         }

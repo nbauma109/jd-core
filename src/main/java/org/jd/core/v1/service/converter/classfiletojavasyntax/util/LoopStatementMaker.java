@@ -107,7 +107,7 @@ public final class LoopStatementMaker {
         subStatements.accept(REMOVE_LAST_CONTINUE_STATEMENT_VISITOR);
 
         if (forEachSupported) {
-            Statement statement = makeForEachArray(typeBounds, localVariableMaker, statements, condition, subStatements);
+            Statement statement = makeForEachArray(typeBounds, localVariableMaker, statements, condition, subStatements, labelOf(loopBasicBlock.getIndex()), labelRequested);
 
             if (statement != null) {
                 restoreProvenForEachBreaks(statement.getStatements());
@@ -201,123 +201,17 @@ public final class LoopStatementMaker {
         return new WhileStatement(condition, subStatements);
     }
 
-    /**
-     * The body of a loop which never falls through (e.g. it ends with a 'return') has no update at its end: the compiler
-     * only copied the update 'i$++' before each 'continue'.
-     *
-     * @return true if there is at least one 'continue' of the loop and each one follows the update of the index
-     */
-    private static boolean isUpdateBeforeEveryContinue(BaseStatement body, AbstractLocalVariable index) {
-        UpdateBeforeContinueVisitor visitor = new UpdateBeforeContinueVisitor(index, false);
-
-        body.accept(visitor);
-        return visitor.continues > 0 && visitor.valid;
-    }
-
-    /** @return the offset of the removed updates (they are copies of the same instruction), or -1 */
-    private static int removeUpdatesBeforeContinues(BaseStatement body, AbstractLocalVariable index) {
-        UpdateBeforeContinueVisitor visitor = new UpdateBeforeContinueVisitor(index, true);
-
-        body.accept(visitor);
-        return visitor.updateOffset;
-    }
-
     /** @return the offset of the 'iinc' instruction of an update 'i$++' (the variable is the offset of its first operand), or -1 */
     private static int offsetOfUpdate(Expression update) {
         return update.getExpression() instanceof ClassFileLocalVariableReferenceExpression variable ? variable.getOffset() - 1 : -1;
     }
 
-    private static final class UpdateBeforeContinueVisitor extends AbstractJavaSyntaxVisitor {
-        private final AbstractLocalVariable index;
-        private final boolean remove;
-        private int continues;
-        private int updateOffset = -1;
-        private boolean valid = true;
-
-        private UpdateBeforeContinueVisitor(AbstractLocalVariable index, boolean remove) {
-            this.index = index;
-            this.remove = remove;
-        }
-
-        @Override
-        public void visit(Statements statements) {
-            int i = 0;
-
-            while (i < statements.size()) {
-                Statement statement = statements.get(i);
-                int next = i + 1;
-
-                if (statement.isContinueStatement() && ((ContinueStatement)statement).getLabel() == null) {
-                    if (visitContinue(statements, i)) {
-                        // The update before the 'continue' has been removed
-                        next = i;
-                    }
-                } else {
-                    statement.accept(this);
-                }
-                i = next;
-            }
-        }
-
-        /** @return true if the update before the 'continue' of the statements has been removed */
-        private boolean visitContinue(Statements statements, int continueIndex) {
-            continues++;
-
-            if (continueIndex == 0 || !isUpdateOf(statements.get(continueIndex - 1), index)) {
-                valid = false;
-                return false;
-            }
-            if (!remove) {
-                return false;
-            }
-            if (updateOffset == -1) {
-                updateOffset = offsetOfUpdate(statements.get(continueIndex - 1).getExpression());
-            }
-            statements.remove(continueIndex - 1);
-            return true;
-        }
-
-        private static boolean isUpdateOf(Statement statement, AbstractLocalVariable index) {
-            if (!statement.isExpressionStatement() || !statement.getExpression().isPostOperatorExpression()) {
-                return false;
-            }
-
-            Expression variable = statement.getExpression().getExpression();
-
-            return variable.isLocalVariableReferenceExpression()
-                && ((ClassFileLocalVariableReferenceExpression)variable).getLocalVariable() == index;
-        }
-
-        @Override
-        public void visit(ContinueStatement statement) {
-            // A 'continue' which is not in a list of statements cannot follow the update
-            if (statement.getLabel() == null) {
-                continues++;
-                valid = false;
-            }
-        }
-
-        @Override
-        public void visit(DoWhileStatement statement) {
-            // The 'continue' of a nested loop is not the one of this loop
-        }
-
-        @Override
-        public void visit(ForEachStatement statement) {
-            // The 'continue' of a nested loop is not the one of this loop
-        }
-
-        @Override
-        public void visit(ForStatement statement) {
-            // The 'continue' of a nested loop is not the one of this loop
-        }
-
-        @Override
-        public void visit(WhileStatement statement) {
-            // The 'continue' of a nested loop is not the one of this loop
-        }
+    /** @return true if the update is 'i++' or 'i--' of the variable */
+    private static boolean isUpdateOf(Expression update, AbstractLocalVariable index) {
+        return update.isPostOperatorExpression()
+            && update.getExpression() instanceof ClassFileLocalVariableReferenceExpression variable
+            && variable.getLocalVariable() == index;
     }
-
 
     /**
      * The body of a loop which never falls through (e.g. it ends with a 'return') has no update at its end: the compiler
@@ -796,7 +690,7 @@ public final class LoopStatementMaker {
 
     private static Statement makeForEachArray(
             Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker, Statements statements,
-            Expression condition, Statements subStatements) {
+            Expression condition, Statements subStatements, String label, boolean[] labelRequested) {
         if (condition == null) {
             return null;
         }
@@ -927,8 +821,16 @@ public final class LoopStatementMaker {
             updateOffset = offsetOfUpdate(expression);
         }
 
-        if (!updateAtTheEnd && !isUpdateBeforeEveryContinue(subStatements, syntheticIndex)) {
-            return null;
+        // The compiler copied the update before each 'continue' of the loop (also the ones of its nested loops) if it never falls through
+        ContinueUpdatesVisitor continueUpdates = new ContinueUpdatesVisitor(condition, label);
+
+        if (!updateAtTheEnd) {
+            subStatements.accept(continueUpdates);
+
+            if (!continueUpdates.isValid() || !isUpdateOf(continueUpdates.update, syntheticIndex)) {
+                return null;
+            }
+            updateOffset = offsetOfUpdate(continueUpdates.update);
         }
 
         // Found
@@ -942,7 +844,9 @@ public final class LoopStatementMaker {
         if (updateAtTheEnd) {
             subStatements.removeLast();
         } else {
-            updateOffset = removeUpdatesBeforeContinues(subStatements, syntheticIndex);
+            continueUpdates.apply = true;
+            subStatements.accept(continueUpdates);
+            labelRequested[0] |= continueUpdates.labelUsed;
         }
 
         item.setDeclared(true);

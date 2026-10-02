@@ -249,6 +249,13 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 projectDir = new File(projectDir, moduleDir);
             }
 
+            // Some projects generate part of their sources from templates (e.g. gson's GsonBuildConfig): the
+            // decompiled class replaces the generated one, which would otherwise be a duplicate class
+            File templatesDir = new File(projectDir, "src/main/java-templates");
+            if (templatesDir.exists()) {
+                FileUtils.deleteDirectory(templatesDir);
+            }
+
             // Delete all .java files in src/main/java
             Files.walk(Paths.get(projectDir.getPath() + "/src/main/java"))
                     .filter(path -> path.toString().endsWith(".java"))
@@ -311,6 +318,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         statistics.merge(msg, 1, Integer::sum);
                         assertFailedCounter++;
                     } catch (Throwable t) {
+                        System.err.println("Decompilation failed for " + internalTypeName);
                         t.printStackTrace();
                         String msg = t.getMessage() == null ? t.getClass().toString() : t.getMessage();
                         statistics.merge(msg, 1, Integer::sum);

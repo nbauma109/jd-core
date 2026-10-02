@@ -51,6 +51,7 @@ import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
@@ -830,7 +831,12 @@ public class ByteCodeParser {
                     withoutInheritedLineNumbersAfterAnonymousClass(cfg, parameters, startOffset);
 
                     if (opcode == INVOKESTATIC) {
-                        expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, new ObjectTypeReferenceExpression(lineNumber, ot), ot, name, descriptor, methodTypes, parameters);
+                        // javac qualifies an inherited static call made from an anonymous class (e.g. an enum constant body) with
+                        // that anonymous class, which has no name to print: leave the call unqualified
+                        Expression receiver = ot.getName() == null && ot.getInternalName().equals(internalTypeName)
+                                ? NoExpression.NO_EXPRESSION
+                                : new ObjectTypeReferenceExpression(lineNumber, ot);
+                        expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, receiver, ot, name, descriptor, methodTypes, parameters);
                         if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
                             typeParametersToTypeArgumentsBinder.setExceptionTypes(exceptionTypes);
                             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);

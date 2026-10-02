@@ -360,6 +360,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // javac refuses outright ("Source option 5 is no longer supported"); bump those up to 8,
                 // which every such library's own pre-8 syntax already compiles under unchanged.
                 raiseObsoleteCompilerLevel(Paths.get(projectDir.getPath(), "pom.xml"));
+                if (moduleDir != null) {
+                    relaxInheritedCompilerChecks(Paths.get(projectDir.getPath(), "pom.xml"));
+                }
 
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
@@ -510,6 +513,39 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         if (!patched.equals(pom)) {
             Files.writeString(pomPath, patched);
         }
+    }
+
+    /**
+     * A module inheriting its compiler configuration from a parent pom may fail the build on warnings and run extra
+     * static analysis (e.g. Error Prone). Decompiled sources lose source-retention annotations such as
+     * {@code @SuppressWarnings}, so those checks would reject them before the unit tests run: keep plain javac
+     * lint, but do not fail on warnings and drop the annotation processors.
+     */
+    private static void relaxInheritedCompilerChecks(Path pomPath) throws IOException {
+        if (!Files.exists(pomPath)) {
+            return;
+        }
+
+        String pom = Files.readString(pomPath);
+        String compilerPlugin = "<artifactId>maven-compiler-plugin</artifactId>";
+        int index = pom.indexOf(compilerPlugin);
+
+        if (index < 0) {
+            return;
+        }
+
+        String configuration = """
+
+                <configuration>
+                  <failOnWarning>false</failOnWarning>
+                  <compilerArgs combine.self="override">
+                    <arg>-Xlint:all,-options</arg>
+                  </compilerArgs>
+                  <annotationProcessorPaths combine.self="override" />
+                </configuration>""";
+        int end = index + compilerPlugin.length();
+
+        Files.writeString(pomPath, pom.substring(0, end) + configuration + pom.substring(end));
     }
 
     private static void disableBundlePlugin(Path pomPath) throws IOException {

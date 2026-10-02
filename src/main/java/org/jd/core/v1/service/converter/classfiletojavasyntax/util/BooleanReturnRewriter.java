@@ -262,7 +262,7 @@ public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
     }
 
     /** The inverse of a comparison of floating point numbers is not the inverse comparison: 'a < b' is false and 'a >= b' is false too if one is NaN */
-    private static Expression negate(Expression test) {
+    static Expression negate(Expression test) {
         if (containsFloatingPointComparison(test)) {
             int lineNumber = test.getLineNumber();
             Expression operand = RecordPatternInstanceOfRewriter.unwrapParenthesesExpression(test);

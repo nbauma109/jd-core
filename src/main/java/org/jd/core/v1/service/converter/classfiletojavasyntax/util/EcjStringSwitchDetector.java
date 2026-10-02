@@ -13,6 +13,7 @@ import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantPool;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -97,6 +98,11 @@ final class EcjStringSwitchDetector {
             }
 
             chainTo = Math.max(chainTo, end + 3);
+        }
+
+        if (new HashSet<>(strings).size() != strings.size()) {
+            // A duplicate 'case' label does not compile
+            return null;
         }
 
         int size = strings.size();

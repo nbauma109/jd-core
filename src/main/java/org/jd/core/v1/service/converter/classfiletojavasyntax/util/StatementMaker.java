@@ -152,6 +152,7 @@ public class StatementMaker {
     private final LocalVariableMaker localVariableMaker;
     /** The temporary of the selector of the last 'switch' on a string compiled by ECJ */
     private AbstractLocalVariable selectedStringTemporary;
+    private Expression selectedStringAssignment;
     private final ByteCodeParser byteCodeParser;
     private final int majorVersion;
     private final String internalTypeName;
@@ -555,11 +556,12 @@ public class StatementMaker {
         boolean stringSwitch = isSwitchOnString(switchCases);
 
         AbstractLocalVariable selectorTemporary = null;
-        Expression selectedString = null;
+        Expression selectorAssignment = null;
 
         if (stringSwitch) {
-            selectedString = selectString(switchStatement);
-            selectorTemporary = this.selectedStringTemporary;
+            selectString(switchStatement);
+            selectorTemporary = selectedStringTemporary;
+            selectorAssignment = selectedStringAssignment;
         }
 
         Expression selector = switchStatement.getCondition();
@@ -572,13 +574,13 @@ public class StatementMaker {
 
         if (ByteCodeUtil.isSwitchExpressionJoin(join)
                 && tryMakeSwitchExpression(watchdog, switchCases, selector, selectorType, entryStack, statements, jumps)) {
-            localVariableMaker.removeLocalVariable(selectorTemporary);
+            keepSelectorTemporaryOfSwitchExpression(selectorTemporary, selectorAssignment);
             // The join block is processed by parseSwitch, outside the switch-depth scope
             return;
         }
 
         makeSwitchBlocks(watchdog, switchCases, switchStatement, selectorType, entryStack, jumps);
-        keepSelectorTemporaryIfReferenced(statements, switchStatement, selectorTemporary, selectedString);
+        keepSelectorTemporaryIfReferenced(switchStatement, selectorTemporary, selectorAssignment);
 
         int size = statements.size();
 
@@ -595,26 +597,29 @@ public class StatementMaker {
     }
 
     /** The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch (s)'. */
-    private Expression selectString(SwitchStatement switchStatement) {
+    private void selectString(SwitchStatement switchStatement) {
         Expression selector = switchStatement.getCondition();
 
         selectedStringTemporary = null;
+        selectedStringAssignment = null;
         if (selector.isMethodInvocationExpression() && "hashCode".equals(selector.getName())) {
             Expression string = selector.getExpression();
 
             if (string.isBinaryOperatorExpression() && "=".equals(string.getOperator()) && string.getLeftExpression().isLocalVariableReferenceExpression()) {
                 selectedStringTemporary = ((ClassFileLocalVariableReferenceExpression) string.getLeftExpression()).getLocalVariable();
+                selectedStringAssignment = string;
                 string = string.getRightExpression();
             }
 
             switchStatement.setCondition(string);
-            return string;
         }
-        return null;
     }
 
-    /** The temporary of the selector is only removed if the bodies of the 'switch' do not use it, else it is assigned before the 'switch'. */
-    private void keepSelectorTemporaryIfReferenced(Statements statements, SwitchStatement switchStatement, AbstractLocalVariable temporary, Expression string) {
+    /**
+     * The temporary of the selector is removed if the bodies of the 'switch' do not use it, else the 'switch' selects its assignment
+     * ('switch (tmp = s)'), which evaluates the string once.
+     */
+    private void keepSelectorTemporaryIfReferenced(SwitchStatement switchStatement, AbstractLocalVariable temporary, Expression assignment) {
         if (temporary == null) {
             return;
         }
@@ -625,12 +630,29 @@ public class StatementMaker {
         switchStatement.accept(search);
 
         if (search.containsReference()) {
-            ClassFileLocalVariableReferenceExpression reference = new ClassFileLocalVariableReferenceExpression(UNKNOWN_LINE_NUMBER, 0, temporary);
-
-            statements.add(statements.size() - 1, new ExpressionStatement(new BinaryOperatorExpression(UNKNOWN_LINE_NUMBER, temporary.getType(), reference, "=", string, 16)));
+            switchStatement.setCondition(assignment);
         } else {
             localVariableMaker.removeLocalVariable(temporary);
         }
+    }
+
+    private void keepSelectorTemporaryOfSwitchExpression(AbstractLocalVariable temporary, Expression assignment) {
+        if (temporary == null) {
+            return;
+        }
+
+        SwitchExpression switchExpression = (SwitchExpression) stack.pop();
+        SearchLocalVariableReferenceVisitor search = new SearchLocalVariableReferenceVisitor();
+
+        search.init(temporary);
+        switchExpression.accept(search);
+
+        if (search.containsReference()) {
+            switchExpression = new SwitchExpression(switchExpression.getLineNumber(), assignment, switchExpression.getRules(), switchExpression.getType());
+        } else {
+            localVariableMaker.removeLocalVariable(temporary);
+        }
+        stack.push(switchExpression);
     }
 
     private static Expression makeLabelExpression(Type selectorType, BasicBlock.SwitchCase switchCase) {
@@ -1167,7 +1189,7 @@ public class StatementMaker {
                 return null;
             }
             subStatements.removeFirst();
-            return RecordPatternInstanceOfRewriter.negateBooleanExpression(test, lineNumber);
+            return BooleanReturnRewriter.negate(test);
         }
 
         if (subStatements.size() == 2 && isBreak(subStatements.getLast())

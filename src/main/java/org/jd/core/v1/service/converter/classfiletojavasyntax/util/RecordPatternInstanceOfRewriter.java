@@ -149,7 +149,7 @@ public final class RecordPatternInstanceOfRewriter {
         return null;
     }
 
-    private static Expression unwrapParenthesesExpression(Expression expression) {
+    static Expression unwrapParenthesesExpression(Expression expression) {
         while (expression instanceof ParenthesesExpression parenthesesExpression) {
             expression = parenthesesExpression.getExpression();
         }
@@ -184,7 +184,7 @@ public final class RecordPatternInstanceOfRewriter {
         return negateBooleanExpression(preOperatorExpression.getExpression(), expression.getLineNumber());
     }
 
-    private static Expression negateBooleanExpression(Expression expression, int lineNumber) {
+    static Expression negateBooleanExpression(Expression expression, int lineNumber) {
         expression = unwrapParenthesesExpression(expression);
 
         if (expression instanceof PreOperatorExpression preOperatorExpression && "!".equals(preOperatorExpression.getOperator())) {
@@ -240,7 +240,7 @@ public final class RecordPatternInstanceOfRewriter {
         operands.add(expression);
     }
 
-    private static boolean isFalseExpression(Expression expression) {
+    static boolean isFalseExpression(Expression expression) {
         if (expression instanceof BooleanExpression booleanExpression) {
             return booleanExpression.isFalse();
         }
@@ -250,7 +250,7 @@ public final class RecordPatternInstanceOfRewriter {
         return false;
     }
 
-    private static boolean isTrueExpression(Expression expression) {
+    static boolean isTrueExpression(Expression expression) {
         if (expression instanceof BooleanExpression booleanExpression) {
             return booleanExpression.isTrue();
         }

@@ -24,6 +24,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.parser.util.ASTUtilities;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.BooleanReturnRewriter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ByteCodeWriter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ControlFlowGraphReducer;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil;
@@ -41,6 +42,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
     private final FixHoistedCatchThrowVisitor fixHoistedCatchThrowVisitor = new FixHoistedCatchThrowVisitor();
     private final FixMissingNullGuardVisitor fixMissingNullGuardVisitor = new FixMissingNullGuardVisitor();
+    private final BooleanReturnRewriter booleanReturnRewriter = new BooleanReturnRewriter();
 
     public CreateInstructionsVisitor(TypeMaker typeMaker) {
         this.typeMaker = typeMaker;
@@ -119,6 +121,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                         }
 
                         reduced = true;
+
                         break;
                     }
                 } catch (Exception | StackOverflowError e) {
@@ -135,6 +138,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
             if (comd.getStatements() instanceof Statements methodStatements) {
                 methodStatements.accept(fixHoistedCatchThrowVisitor);
                 methodStatements.accept(fixMissingNullGuardVisitor);
+                methodStatements.accept(booleanReturnRewriter);
             }
         }
 

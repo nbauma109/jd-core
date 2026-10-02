@@ -102,6 +102,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -136,6 +137,11 @@ public class ByteCodeParser {
     private final EraseTypeArgumentVisitor eraseTypeArgumentVisitor = new EraseTypeArgumentVisitor();
     private final LambdaParameterNamesVisitor lambdaParameterNamesVisitor = new LambdaParameterNamesVisitor();
     private final RenameLocalVariablesVisitor renameLocalVariablesVisitor = new RenameLocalVariablesVisitor();
+
+    /** First instruction offset of the loads of local variables and fields. Only used to check for explicit line numbers. */
+    private final Map<Expression, Integer> loadStartOffsets = new IdentityHashMap<>();
+    /** Offset of the end of the creation of the anonymous classes. Only used to check for explicit line numbers. */
+    private final Map<Expression, Integer> anonymousClassEndOffsets = new IdentityHashMap<>();
 
     private final TypeMaker typeMaker;
     private final LocalVariableMaker localVariableMaker;
@@ -209,6 +215,7 @@ public class ByteCodeParser {
         int opcode;
         int lineNumber;
         for (int offset=fromOffset; offset<toOffset; offset++) {
+            int startOffset = offset;
             opcode = code[offset] & 255;
             lineNumber = cfg.getLineNumber(offset);
 
@@ -820,6 +827,8 @@ public class ByteCodeParser {
 
                     BaseExpression parameters = extractParametersFromStack(statements, stack, methodTypes.getParameterTypes());
 
+                    withoutInheritedLineNumbersAfterAnonymousClass(cfg, parameters, startOffset);
+
                     if (opcode == INVOKESTATIC) {
                         expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, new ObjectTypeReferenceExpression(lineNumber, ot), ot, name, descriptor, methodTypes, parameters);
                         if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
@@ -831,6 +840,7 @@ public class ByteCodeParser {
                         }
                     } else {
                         expression1 = stack.pop();
+                        expression1 = withExplicitLineNumberOnly(cfg, expression1, lineNumber);
                         if (expression1 instanceof NewExpression newExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
                             newExpression.setQualifier(enclosingInstances.pop());
                         }
@@ -845,6 +855,9 @@ public class ByteCodeParser {
                                 StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
                                 if (expression1.isNewExpression()) {
                                     typeParametersToTypeArgumentsBinder.updateNewExpression((ClassFileNewExpression)expression1, descriptor, methodTypes, parameters);
+                                    if (((ClassFileNewExpression)expression1).getBodyDeclaration() != null) {
+                                        anonymousClassEndOffsets.put(expression1, offset);
+                                    }
                                 } else if (ot.getDescriptor().equals(expression1.getType().getDescriptor())) {
                                     statements.add(new ExpressionStatement(typeParametersToTypeArgumentsBinder.newConstructorInvocationExpression(lineNumber, ot, descriptor, methodTypes, parameters)));
                                 } else {
@@ -971,12 +984,14 @@ public class ByteCodeParser {
 
                     if (opcode == IINC) {
                         count = (short)( (code[++offset] & 255) << 8 | code[++offset] & 255 );
-                        parseIINC(statements, stack, lineNumber, offset, localVariableMaker.getLocalVariable(i, offset), count);
+                        // The reference points to the byte following the 'wide' opcode, as for a plain 'iinc'
+                        parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count);
                     } else {
                         switch (opcode) {
                             case ILOAD:
                                 localVariable = localVariableMaker.getLocalVariable(i, offset + 4);
-                                parseILOAD(statements, stack, lineNumber, offset, localVariable);
+                                // The reference points to the byte following the 'wide' opcode, as for a plain 'iload'
+                                parseILOAD(statements, stack, lineNumber, offset - 2, localVariable);
                                 break;
                             case LLOAD, FLOAD, DLOAD, ALOAD:
                                 stack.push(new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariableMaker.getLocalVariable(i, offset)));
@@ -1046,7 +1061,80 @@ public class ByteCodeParser {
                     offset += 4; // Skip branch offset
                     break;
             }
+
+            recordLoadStartOffset(opcode, startOffset, stack);
         }
+    }
+
+    /**
+     * Remembers the offset of the first instruction of the loads of a local variable or of a field, to tell later
+     * whether their line number is explicitly recorded (see {@link #withExplicitLineNumberOnly}).
+     */
+    private void recordLoadStartOffset(int opcode, int startOffset, DefaultStack<Expression> stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        boolean load = opcode == ALOAD || opcode >= ALOAD_0 && opcode <= ALOAD_3 || opcode == GETSTATIC || opcode == GETFIELD;
+        if (!load) {
+            return;
+        }
+        Expression expression = stack.peek();
+        Integer start = startOffset;
+        if (opcode == GETFIELD && expression.isFieldReferenceExpression() && expression.getExpression() != null) {
+            start = loadStartOffsets.getOrDefault(expression.getExpression(), startOffset);
+        }
+        loadStartOffsets.put(expression, start);
+    }
+
+    /**
+     * The arguments which follow an anonymous class are after its body, which has several lines. javac records no line number for them (they
+     * inherit the one of the call, which is before the body) as long as no line number starts between the end of the anonymous class and the
+     * call: such a line cannot be the one of these arguments. ECJ records the lines of the arguments, they are kept.
+     */
+    private void withoutInheritedLineNumbersAfterAnonymousClass(ControlFlowGraph cfg, BaseExpression parameters, int invocationOffset) {
+        if (!(parameters instanceof Expressions list) || list.size() < 2) {
+            return;
+        }
+
+        for (int i = 0; i < list.size() - 1; i++) {
+            Integer end = anonymousClassEndOffsets.get(list.get(i));
+
+            if (end != null && !hasLineNumberStart(cfg, end + 1, invocationOffset)) {
+                // The arguments up to the next anonymous class
+                for (int j = i + 1; j < list.size() && !anonymousClassEndOffsets.containsKey(list.get(j)); j++) {
+                    list.set(j, list.get(j).copyTo(Expression.UNKNOWN_LINE_NUMBER));
+                }
+            }
+        }
+    }
+
+    private static boolean hasLineNumberStart(ControlFlowGraph cfg, int fromOffset, int toOffset) {
+        for (int offset = fromOffset; offset < toOffset; offset++) {
+            if (cfg.isLineNumberStart(offset)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * javac only records a line number for statements and calls: a field or local variable load in the middle of
+     * an expression merely inherits the line of the previous entry. Such an inherited line must not be mistaken for
+     * the line on which the receiver of a call is written, so it is replaced by the line of the call. A receiver
+     * whose first instruction starts a line number entry (ECJ style) keeps its own line.
+     */
+    private Expression withExplicitLineNumberOnly(ControlFlowGraph cfg, Expression receiver, int invocationLineNumber) {
+        int receiverLineNumber = receiver.getLineNumber();
+
+        if (receiverLineNumber > 0 && receiverLineNumber < invocationLineNumber
+         && (receiver.isFieldReferenceExpression() || receiver.isLocalVariableReferenceExpression())) {
+            Integer start = loadStartOffsets.get(receiver);
+
+            if (start == null || !cfg.isLineNumberStart(start)) {
+                return receiver.copyTo(invocationLineNumber);
+            }
+        }
+        return receiver;
     }
 
     private static BaseExpression extractParametersFromStack(Statements statements, DefaultStack<Expression> stack, BaseType parameterTypes) {

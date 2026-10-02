@@ -58,6 +58,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.s
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchLocalVariableReferenceVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.MergeTryWithResourcesStatementVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RemoveBinaryOpReturnStatementsVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RemoveFinallyStatementsVisitor;
@@ -149,6 +150,9 @@ public class StatementMaker {
     private final TypeMaker typeMaker;
     private final Map<String, BaseType> typeBounds;
     private final LocalVariableMaker localVariableMaker;
+    /** The temporary of the selector of the last 'switch' on a string compiled by ECJ */
+    private AbstractLocalVariable selectedStringTemporary;
+    private Expression selectedStringAssignment;
     private final ByteCodeParser byteCodeParser;
     private final int majorVersion;
     private final String internalTypeName;
@@ -503,9 +507,7 @@ public class StatementMaker {
                 labels.add(SwitchExpression.DEFAULT_LABEL);
             } else {
                 for (int k = group.fromIndexInclusive(); k < group.toIndexExclusive(); k++) {
-                    labels.add(new SwitchExpression.ExpressionLabel(
-                            new IntegerConstantExpression(selectorType, switchCases.get(k).getValue())
-                    ));
+                    labels.add(new SwitchExpression.ExpressionLabel(makeLabelExpression(selectorType, switchCases.get(k))));
                 }
             }
 
@@ -551,6 +553,17 @@ public class StatementMaker {
 
         List<BasicBlock.SwitchCase> switchCases = basicBlock.getSwitchCases();
         SwitchStatement switchStatement = (SwitchStatement) statements.getLast();
+        boolean stringSwitch = isSwitchOnString(switchCases);
+
+        AbstractLocalVariable selectorTemporary = null;
+        Expression selectorAssignment = null;
+
+        if (stringSwitch) {
+            selectString(switchStatement);
+            selectorTemporary = selectedStringTemporary;
+            selectorAssignment = selectedStringAssignment;
+        }
+
         Expression selector = switchStatement.getCondition();
         Type selectorType = selector.getType();
         BasicBlock join = basicBlock.getNext();
@@ -561,20 +574,92 @@ public class StatementMaker {
 
         if (ByteCodeUtil.isSwitchExpressionJoin(join)
                 && tryMakeSwitchExpression(watchdog, switchCases, selector, selectorType, entryStack, statements, jumps)) {
+            keepSelectorTemporaryOfSwitchExpression(selectorTemporary, selectorAssignment);
             // The join block is processed by parseSwitch, outside the switch-depth scope
             return;
         }
 
         makeSwitchBlocks(watchdog, switchCases, switchStatement, selectorType, entryStack, jumps);
+        keepSelectorTemporaryIfReferenced(switchStatement, selectorTemporary, selectorAssignment);
 
         int size = statements.size();
 
-        if (size > 3 && selector.isLocalVariableReferenceExpression() && statements.get(size - 2).isSwitchStatement()) {
+        if (!stringSwitch && size > 3 && selector.isLocalVariableReferenceExpression() && statements.get(size - 2).isSwitchStatement()) {
             SwitchStatementMaker.makeSwitchString(localVariableMaker, statements, switchStatement);
         } else if (selector.isArrayExpression()) {
             SwitchStatementMaker.makeSwitchEnum(bodyDeclaration, switchStatement, typeMaker);
         }
         // The join block is processed by parseSwitch, outside the switch-depth scope
+    }
+
+    private static boolean isSwitchOnString(List<BasicBlock.SwitchCase> switchCases) {
+        return switchCases.stream().anyMatch(switchCase -> switchCase.getStringValue() != null);
+    }
+
+    /** The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch (s)'. */
+    private void selectString(SwitchStatement switchStatement) {
+        Expression selector = switchStatement.getCondition();
+
+        selectedStringTemporary = null;
+        selectedStringAssignment = null;
+        if (selector.isMethodInvocationExpression() && "hashCode".equals(selector.getName())) {
+            Expression string = selector.getExpression();
+
+            if (string.isBinaryOperatorExpression() && "=".equals(string.getOperator()) && string.getLeftExpression().isLocalVariableReferenceExpression()) {
+                selectedStringTemporary = ((ClassFileLocalVariableReferenceExpression) string.getLeftExpression()).getLocalVariable();
+                selectedStringAssignment = string;
+                string = string.getRightExpression();
+            }
+
+            switchStatement.setCondition(string);
+        }
+    }
+
+    /**
+     * The temporary of the selector is removed if the bodies of the 'switch' do not use it, else the 'switch' selects its assignment
+     * ('switch (tmp = s)'), which evaluates the string once.
+     */
+    private void keepSelectorTemporaryIfReferenced(SwitchStatement switchStatement, AbstractLocalVariable temporary, Expression assignment) {
+        if (temporary == null) {
+            return;
+        }
+
+        SearchLocalVariableReferenceVisitor search = new SearchLocalVariableReferenceVisitor();
+
+        search.init(temporary);
+        switchStatement.accept(search);
+
+        if (search.containsReference()) {
+            switchStatement.setCondition(assignment);
+        } else {
+            localVariableMaker.removeLocalVariable(temporary);
+        }
+    }
+
+    private void keepSelectorTemporaryOfSwitchExpression(AbstractLocalVariable temporary, Expression assignment) {
+        if (temporary == null) {
+            return;
+        }
+
+        SwitchExpression switchExpression = (SwitchExpression) stack.pop();
+        SearchLocalVariableReferenceVisitor search = new SearchLocalVariableReferenceVisitor();
+
+        search.init(temporary);
+        switchExpression.accept(search);
+
+        if (search.containsReference()) {
+            switchExpression = new SwitchExpression(switchExpression.getLineNumber(), assignment, switchExpression.getRules(), switchExpression.getType());
+        } else {
+            localVariableMaker.removeLocalVariable(temporary);
+        }
+        stack.push(switchExpression);
+    }
+
+    private static Expression makeLabelExpression(Type selectorType, BasicBlock.SwitchCase switchCase) {
+        if (switchCase.getStringValue() != null) {
+            return new StringConstantExpression(UNKNOWN_LINE_NUMBER, switchCase.getStringValue());
+        }
+        return new IntegerConstantExpression(selectorType, switchCase.getValue());
     }
 
     private boolean tryMakeSwitchExpression(WatchDog watchdog, List<BasicBlock.SwitchCase> switchCases, Expression selector,
@@ -652,16 +737,14 @@ public class StatementMaker {
         }
         if (j == i + 1) {
             SwitchStatement.Label label =
-                    new SwitchStatement.ExpressionLabel(new IntegerConstantExpression(selectorType, sc.getValue()));
+                    new SwitchStatement.ExpressionLabel(makeLabelExpression(selectorType, sc));
             return new SwitchStatement.LabelBlock(label, subStatements);
         }
 
         DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
 
         for (int k = i; k < j; k++) {
-            labels.add(new SwitchStatement.ExpressionLabel(
-                    new IntegerConstantExpression(selectorType, switchCases.get(k).getValue())
-            ));
+            labels.add(new SwitchStatement.ExpressionLabel(makeLabelExpression(selectorType, switchCases.get(k))));
         }
 
         return new SwitchStatement.MultiLabelsBlock(labels, subStatements);
@@ -1063,9 +1146,81 @@ public class StatementMaker {
             parseDoWhileLoop(watchdog, basicBlock, sub1, last, updateBasicBlock, statements, jumps);
         } else {
             // Infinite loop
-            statements.add(LoopStatementMaker.makeLoop(
-                localVariableMaker, basicBlock, statements, makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock), jumps));
+            Statements subStatements = makeSubStatements(watchdog, sub1, statements, jumps, updateBasicBlock);
+            Statements[] body = {subStatements};
+            Expression condition = extractConditionOfTheHeader(statements, body);
+
+            if (condition == null) {
+                statements.add(LoopStatementMaker.makeLoop(localVariableMaker, basicBlock, statements, subStatements, jumps));
+            } else {
+                statements.add(LoopStatementMaker.makeLoop(
+                    majorVersion, typeBounds, localVariableMaker, basicBlock, statements, condition, body[0], jumps));
+            }
         }
+    }
+
+    /**
+     * The condition of a loop which contains a ternary operator is not recognized from the jumps: the loop is an infinite one which starts
+     * with 'if (!condition) break;' (ECJ) or which is 'if (condition) { ...; continue; } break;' (javac). It is the condition of a 'for' or of
+     * a 'while' if it is on the line of the initialization or of the update.
+     *
+     * @return the condition, after the removal of its test from 'subStatements', or null
+     */
+    private static Expression extractConditionOfTheHeader(Statements statements, Statements[] body) {
+        Statements subStatements = body[0];
+
+        if (subStatements.isEmpty() || !subStatements.getFirst().isIfStatement() || subStatements.getFirst().isIfElseStatement()) {
+            return null;
+        }
+
+        IfStatement ifStatement = (IfStatement)subStatements.getFirst();
+        Expression test = ifStatement.getCondition();
+        int lineNumber = test.getLineNumber();
+
+        if (lineNumber <= 0) {
+            return null;
+        }
+
+        BaseStatement thenBody = ifStatement.getStatements();
+
+        if (isBreak(thenBody) && subStatements.size() > 1) {
+            // The body starts with the test which leaves the loop: it is the negation of the condition
+            if (!isOnTheLineOf(lineNumber, statements, subStatements.getLast())) {
+                return null;
+            }
+            subStatements.removeFirst();
+            return BooleanReturnRewriter.negate(test);
+        }
+
+        if (subStatements.size() == 2 && isBreak(subStatements.getLast())
+         && thenBody instanceof Statements thenStatements && thenStatements.size() > 1 && thenStatements.getLast() == ContinueStatement.CONTINUE) {
+            // The body is the test of the condition, which continues the loop with its statements, then the exit
+            if (!isOnTheLineOf(lineNumber, statements, thenStatements.get(thenStatements.size() - 2))) {
+                return null;
+            }
+            // The local variables of the body are declared in its list of statements
+            thenStatements.removeLast();
+            body[0] = thenStatements;
+            return test;
+        }
+
+        return null;
+    }
+
+    private static boolean isBreak(BaseStatement statement) {
+        if (statement instanceof Statements list && list.size() == 1) {
+            statement = list.getFirst();
+        }
+        return statement instanceof BreakStatement breakStatement && breakStatement.getLabel() == null;
+    }
+
+    /** @return true if the update or the initialization is on the line of the condition */
+    private static boolean isOnTheLineOf(int lineNumber, Statements statements, Statement update) {
+        return lineNumberOf(update) == lineNumber || !statements.isEmpty() && lineNumberOf(statements.getLast()) == lineNumber;
+    }
+
+    private static int lineNumberOf(Statement statement) {
+        return statement.isExpressionStatement() ? statement.getExpression().getLineNumber() : Expression.UNKNOWN_LINE_NUMBER;
     }
 
     /** Handles loops whose body starts with the loop condition; returns false when the shape doesn't match. */

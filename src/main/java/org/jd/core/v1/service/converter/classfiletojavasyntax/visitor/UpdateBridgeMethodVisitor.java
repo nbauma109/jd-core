@@ -111,7 +111,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         if (exp.isFieldReferenceExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp);
 
-            expression = parameterTypesCount == 0 ? fre.getExpression() : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
 
             return new FieldReferenceExpression(mie1.getLineNumber(), fre.getType(), expression, fre.getInternalTypeName(), fre.getName(), fre.getDescriptor());
         }
@@ -122,7 +122,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
             if (methodTypes != null) {
                 if (mie2.getExpression().isObjectTypeReferenceExpression()) {
                     // Static method invocation
-                    return new ClassFileMethodInvocationExpression(mie1.getLineNumber(), methodTypes.getReturnedType(), mie2.getExpression(), mie2.getInternalTypeName(), mie2.getName(), mie2.getDescriptor(), mie1.getParameters(), methodTypes);
+                    return new ClassFileMethodInvocationExpression(mie1.getLineNumber(), methodTypes.getReturnedType(), atCallSite(mie2.getExpression(), mie1), mie2.getInternalTypeName(), mie2.getName(), mie2.getDescriptor(), mie1.getParameters(), methodTypes);
                 }
                 BaseExpression mie1Parameters = mie1.getParameters();
                 BaseExpression newParameters = null;
@@ -145,7 +145,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
             if (parameterTypesCount == 1) {
                 return new BinaryOperatorExpression(
                         mie1.getLineNumber(), mie1.getType(),
-                        new FieldReferenceExpression(fre.getType(), fre.getExpression(), fre.getInternalTypeName(), fre.getName(), fre.getDescriptor()),
+                        new FieldReferenceExpression(fre.getType(), atCallSite(fre.getExpression(), mie1), fre.getInternalTypeName(), fre.getName(), fre.getDescriptor()),
                         exp.getOperator(),
                         mie1.getParameters().getFirst(),
                         exp.getPriority());
@@ -163,7 +163,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         } else if (exp.isPostOperatorExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? fre.getExpression() : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
 
             return new PostOperatorExpression(
                     mie1.getLineNumber(),
@@ -172,7 +172,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         } else if (exp.isPreOperatorExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? fre.getExpression() : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
 
             return new PreOperatorExpression(
                     mie1.getLineNumber(),
@@ -183,6 +183,14 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         }
 
         return expression;
+    }
+
+    /**
+     * The static receiver of the field or method reached through an accessor comes from the body of the accessor:
+     * its line number is the one of the accessor, not the one of the call.
+     */
+    private static Expression atCallSite(Expression receiver, Expression call) {
+        return receiver != null && receiver.isObjectTypeReferenceExpression() ? receiver.copyTo(call.getLineNumber()) : receiver;
     }
 
     protected static FieldReferenceExpression getFieldReferenceExpression(Expression expression) {

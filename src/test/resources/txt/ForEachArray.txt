@@ -19,10 +19,9 @@
 /* 19:  0 */   void falsePositive2(String[] args) {
 /* 20:  0 */     String[] arr$;
 /* 21:  0 */     int j, i$;
-/* 22: 25 */     for (arr$ = args, j = arr$.length, i$ = 0; i$ < j; ) {
+/* 22: 25 */     for (arr$ = args, j = arr$.length, i$ = 0; i$ < j; i$ *= 1) {
 /* 23: 25 */       String s = arr$[i$];
 /* 24: 26 */       System.out.println(s);
-/* 25:  0 */       i$ *= 1;
-/* 26:  0 */     } 
-/* 27:  0 */   }
-/* 28:  0 */ }
+/* 25:  0 */     } 
+/* 26:  0 */   }
+/* 27:  0 */ }

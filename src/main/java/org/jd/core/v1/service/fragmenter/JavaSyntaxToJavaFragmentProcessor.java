@@ -40,6 +40,7 @@ public class JavaSyntaxToJavaFragmentProcessor {
 
         CompilationUnitVisitor visitor = new ParenthesizingCompilationUnitVisitor(
                 loader, mainInternalTypeName, majorVersion, importsFragment);
+        visitor.setRealignLineNumbers(decompileContext.isRealignLineNumbers());
         visitor.visit(compilationUnit);
         decompileContext.setBody(visitor.getFragments());
     }

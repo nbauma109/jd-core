@@ -20,6 +20,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlo
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.ControlFlowGraph;
 import org.jd.core.v1.util.DefaultList;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -162,6 +163,7 @@ public class ControlFlowGraphMaker {
         int[] branchOffsets = new int[length];             // Branch offsets
         int[][] switchValues = new int[length][];          // Default-value and switch-values
         int[][] switchOffsets = new int[length][];         // Default-case offset and switch-case offsets
+        int[] switchStarts = new int[length];              // Offset of the first byte of the switch instruction, indexed by the offset of its last byte
 
         // --- Search leaders --- //
         // The first instruction is a leader
@@ -340,6 +342,7 @@ public class ControlFlowGraphMaker {
                         map[branchOffset] = MARK;
                     }
 
+                    switchStarts[i - 1] = offset;
                     offset = i - 1;
                     types[offset] = 's';
                     switchValues[offset] = values;
@@ -366,6 +369,7 @@ public class ControlFlowGraphMaker {
                         map[branchOffset] = MARK;
                     }
 
+                    switchStarts[i - 1] = offset;
                     offset = i - 1;
                     types[offset] = 's';
                     switchValues[offset] = values;
@@ -472,6 +476,12 @@ public class ControlFlowGraphMaker {
             LineNumber[] lineNumberTable = attributeLineNumberTable.getLineNumberTable();
 
             int[] offsetToLineNumbers = new int[length];
+            boolean[] lineNumberStarts = new boolean[length];
+            for (LineNumber entry : lineNumberTable) {
+                if (entry.getStartPC() < length) {
+                    lineNumberStarts[entry.getStartPC()] = true;
+                }
+            }
             int offset = 0;
             int lineNumber = lineNumberTable[0].getLineNumber();
 
@@ -507,6 +517,7 @@ public class ControlFlowGraphMaker {
             }
 
             cfg.setOffsetToLineNumbers(offsetToLineNumbers);
+            cfg.setLineNumberStarts(lineNumberStarts);
         }
         // --- Create basic blocks --- //
         lastOffset = 0;
@@ -522,6 +533,7 @@ public class ControlFlowGraphMaker {
         // --- Set type, successors and predecessors --- //
         List<BasicBlock> list = cfg.getBasicBlocks();
         List<BasicBlock> basicBlocks = new DefaultList<>(list.size());
+        List<EcjStringSwitchDetector.Result> stringSwitchChains = new ArrayList<>();
         BasicBlock successor = list.get(1);
         startBasicBlock.setNext(successor);
         successor.getPredecessors().add(startBasicBlock);
@@ -565,6 +577,16 @@ public class ControlFlowGraphMaker {
                     basicBlock.setType(TYPE_SWITCH_DECLARATION);
                     int[] values = switchValues[lastInstructionOffset];
                     int[] offsets = switchOffsets[lastInstructionOffset];
+                    String[] strings = null;
+                    EcjStringSwitchDetector.Result ecjStringSwitch = EcjStringSwitchDetector.detect(constants, code, switchStarts[lastInstructionOffset], values, offsets);
+
+                    if (ecjStringSwitch != null) {
+                        values = ecjStringSwitch.values();
+                        offsets = ecjStringSwitch.offsets();
+                        strings = ecjStringSwitch.strings();
+                        stringSwitchChains.add(ecjStringSwitch);
+                    }
+
                     DefaultList<SwitchCase> switchCases = new DefaultList<>(offsets.length);
 
                     int defaultOffset = offsets[0];
@@ -576,7 +598,7 @@ public class ControlFlowGraphMaker {
                         int offset = offsets[j];
                         if (offset != defaultOffset) {
                             bb = map[offset];
-                            switchCases.add(new SwitchCase(values[j], bb));
+                            switchCases.add(strings == null ? new SwitchCase(values[j], bb) : new SwitchCase(values[j], strings[j], bb));
                             bb.getPredecessors().add(basicBlock);
                         }
                     }
@@ -607,6 +629,18 @@ public class ControlFlowGraphMaker {
                     successor.getPredecessors().add(basicBlock);
                     basicBlocks.add(basicBlock);
                     break;
+            }
+        }
+        // --- Remove the blocks which compare the strings of the 'switch' on a string compiled by ECJ --- //
+        for (EcjStringSwitchDetector.Result chain : stringSwitchChains) {
+            for (BasicBlock bb : list) {
+                if (chain.chainFrom() <= bb.getFromOffset() && bb.getFromOffset() < chain.chainTo() && bb.getType() != TYPE_DELETED) {
+                    bb.getNext().getPredecessors().remove(bb);
+                    if (bb.getType() == TYPE_CONDITIONAL_BRANCH) {
+                        bb.getBranch().getPredecessors().remove(bb);
+                    }
+                    bb.setType(TYPE_DELETED);
+                }
             }
         }
         // --- Create try-catch-finally basic blocks --- //

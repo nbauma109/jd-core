@@ -100,19 +100,7 @@ final class EcjStringSwitchDetector {
             chainTo = Math.max(chainTo, end + 3);
         }
 
-        if (defaultOffset >= chainFrom && defaultOffset < chainTo) {
-            return null;
-        }
-
-        for (int target : targets) {
-            if (target >= chainFrom && target < chainTo) {
-                // The comparisons are deleted
-                return null;
-            }
-        }
-
-        if (new HashSet<>(strings).size() != strings.size()) {
-            // A duplicate 'case' label does not compile
+        if (!isRewritable(strings, targets, defaultOffset, chainFrom, chainTo)) {
             return null;
         }
 
@@ -130,6 +118,21 @@ final class EcjStringSwitchDetector {
         }
 
         return new Result(newValues, newOffsets, newStrings, chainFrom, chainTo);
+    }
+
+    /** @return false if a target is in the comparisons, which are deleted, or if a string is compared twice (a duplicate 'case' label does not compile) */
+    private static boolean isRewritable(List<String> strings, List<Integer> targets, int defaultOffset, int chainFrom, int chainTo) {
+        if (defaultOffset >= chainFrom && defaultOffset < chainTo) {
+            return false;
+        }
+
+        for (int target : targets) {
+            if (target >= chainFrom && target < chainTo) {
+                return false;
+            }
+        }
+
+        return new HashSet<>(strings).size() == strings.size();
     }
 
     /**

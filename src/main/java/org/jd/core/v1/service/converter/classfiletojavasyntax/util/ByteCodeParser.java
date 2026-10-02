@@ -69,6 +69,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.InnerObjectType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
@@ -98,6 +99,7 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -150,6 +152,9 @@ public class ByteCodeParser {
     private final boolean genericTypesSupported;
     private final int majorVersion;
     private final String internalTypeName;
+    private final Set<String> fieldNamesInScope = new HashSet<>();
+    private final Set<String> enclosingTypeNames = new HashSet<>();
+    private final ClassFile classFile;
     private final AbstractTypeParametersToTypeArgumentsBinder typeParametersToTypeArgumentsBinder;
     private final BootstrapMethods attributeBootstrapMethods;
     private final ClassFileBodyDeclaration bodyDeclaration;
@@ -166,6 +171,13 @@ public class ByteCodeParser {
         this.diamondSupported = majorVersion >= MAJOR_1_7;
         this.genericTypesSupported = majorVersion >= MAJOR_1_5;
         this.internalTypeName = classFile.getInternalTypeName();
+        this.classFile = classFile;
+        for (ClassFile cf = classFile; cf != null; cf = cf.getOuterClassFile()) {
+            enclosingTypeNames.add(cf.getInternalTypeName());
+            for (org.apache.bcel.classfile.Field field : cf.getFields()) {
+                fieldNamesInScope.add(field.getName());
+            }
+        }
         this.attributeBootstrapMethods = classFile.getAttribute(ATTR_BOOTSTRAP_METHODS);
         this.bodyDeclaration = bodyDeclaration;
         this.returnedType = comd.getReturnedType();
@@ -210,6 +222,7 @@ public class ByteCodeParser {
         ObjectType ot;
         int i;
         int count;
+        int extraLength;
         int value;
         AbstractLocalVariable localVariable;
 
@@ -658,7 +671,9 @@ public class ByteCodeParser {
                     break;
                 case IINC:
                     localVariable = localVariableMaker.getLocalVariable(code[++offset] & 255, offset);
-                    parseIINC(statements, stack, lineNumber, offset, localVariable, (byte)(code[++offset] & 255));
+                    count = (byte)(code[++offset] & 255);
+                    extraLength = parseIINC(statements, stack, lineNumber, offset, localVariable, count, code, toOffset);
+                    offset += extraLength;
                     break;
                 case I2L:
                     stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
@@ -835,7 +850,7 @@ public class ByteCodeParser {
                         // that anonymous class, which has no name to print: leave the call unqualified
                         Expression receiver = ot.getName() == null && ot.getInternalName().equals(internalTypeName)
                                 ? NoExpression.NO_EXPRESSION
-                                : new ObjectTypeReferenceExpression(lineNumber, ot);
+                                : new ObjectTypeReferenceExpression(lineNumber, unshadowedType(ot));
                         expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, receiver, ot, name, descriptor, methodTypes, parameters);
                         if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
                             typeParametersToTypeArgumentsBinder.setExceptionTypes(exceptionTypes);
@@ -976,7 +991,7 @@ public class ByteCodeParser {
                     if (type1 == null) {
                         type1 = PrimitiveTypeUtil.getPrimitiveTypeFromDescriptor(typeName);
                     }
-                    stack.push(new InstanceOfExpression(lineNumber, stack.pop(), type1));
+                    stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
                     break;
                 case MONITORENTER:
                     statements.add(new ClassFileMonitorEnterStatement(stack.pop()));
@@ -991,7 +1006,8 @@ public class ByteCodeParser {
                     if (opcode == IINC) {
                         count = (short)( (code[++offset] & 255) << 8 | code[++offset] & 255 );
                         // The reference points to the byte following the 'wide' opcode, as for a plain 'iinc'
-                        parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count);
+                        extraLength = parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count, code, toOffset);
+                        offset += extraLength;
                     } else {
                         switch (opcode) {
                             case ILOAD:
@@ -1614,6 +1630,7 @@ public class ByteCodeParser {
                     // Create lambda expression
                     ClassFileMethodDeclaration cfmd = (ClassFileMethodDeclaration)methodDeclaration;
                     if (cfmd.getStatements() == null) {
+                        cfmd.setCapturedParameterTypes(capturedParameterTypes(indyParameters, (cfmd.getFlags() & ACC_STATIC) == 0));
                         CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
                         createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
                     }
@@ -2172,45 +2189,66 @@ public class ByteCodeParser {
         return false;
     }
 
-    private void parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {
-        Expression expression;
-
+    /** @return the number of bytes of the following instructions which were consumed too */
+    private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, byte[] code, int toOffset) {
         if (!stack.isEmpty()) {
-            expression = stack.peek();
+            Expression expression = stack.peek();
 
-            if (expression.getLineNumber() == lineNumber && expression.isLocalVariableReferenceExpression()) {
-                ClassFileLocalVariableReferenceExpression exp = (ClassFileLocalVariableReferenceExpression)expression;
+            if ((count == 1 || count == -1) && expression.getLineNumber() == lineNumber && expression.isLocalVariableReferenceExpression()
+                    && ((ClassFileLocalVariableReferenceExpression)expression).getLocalVariable() == localVariable) {
+                // ILOAD found -> Create a post-incrementation
+                stack.pop();
+                stack.push(newPostArithmeticOperatorExpression(lineNumber, expression, count == 1 ? "++" : "--"));
+                return 0;
+            }
 
-                if (exp.getLocalVariable() == localVariable) {
-                    // ILOAD found -> Create a post-incrementation
-                    stack.pop();
+            if (count != 1 && count != -1) {
+                // 'foo(i, i += 4)': the value of the compound assignment is loaded again by the instruction which follows. As
+                // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
+                int loadLength = lengthOfILoad(code, offset + 1, toOffset, localVariable.getIndex());
 
-                    if (count == 1) {
-                        stack.push(newPostArithmeticOperatorExpression(lineNumber, expression, "++"));
-                    } else if (count == -1) {
-                        stack.push(newPostArithmeticOperatorExpression(lineNumber, expression, "--"));
-                    } else {
-                        throw new IllegalStateException();
-                    }
-
-                    return;
+                if (loadLength > 0) {
+                    stack.push(newCompoundAssignmentExpression(lineNumber, offset, localVariable, count));
+                    return loadLength;
                 }
             }
         }
 
-        expression = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
+        statements.add(new ExpressionStatement(newIncrementExpression(lineNumber, offset, localVariable, count)));
+        return 0;
+    }
 
-        if (count == 1) {
-            expression = newPreArithmeticOperatorExpression(lineNumber, "++", expression);
-        } else if (count == -1) {
-            expression = newPreArithmeticOperatorExpression(lineNumber, "--", expression);
-        } else if (count >= 0) {
-            expression = new BinaryOperatorExpression(lineNumber, expression.getType(), expression, "+=", new IntegerConstantExpression(lineNumber, expression.getType(), count), 16);
-        } else {
-            expression = new BinaryOperatorExpression(lineNumber, expression.getType(), expression, "-=", new IntegerConstantExpression(lineNumber, expression.getType(), -count), 16);
+    /** @return the length of the 'iload' of a given local variable found at the offset, or 0 if there is no such instruction */
+    private static int lengthOfILoad(byte[] code, int offset, int toOffset, int variableIndex) {
+        if (offset >= toOffset) {
+            return 0;
         }
 
-        statements.add(new ExpressionStatement(expression));
+        int opcode = code[offset] & 255;
+
+        if (opcode == ILOAD) {
+            return offset + 1 < toOffset && (code[offset + 1] & 255) == variableIndex ? 2 : 0;
+        }
+        return opcode >= ILOAD_0 && opcode <= ILOAD_3 && opcode - ILOAD_0 == variableIndex ? 1 : 0;
+    }
+
+    private Expression newCompoundAssignmentExpression(int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {
+        Expression expression = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
+        String operator = count >= 0 ? "+=" : "-=";
+
+        return new BinaryOperatorExpression(lineNumber, expression.getType(), expression, operator, new IntegerConstantExpression(lineNumber, expression.getType(), Math.abs(count)), 16);
+    }
+
+    private Expression newIncrementExpression(int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {
+        Expression expression = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
+
+        if (count == 1) {
+            return newPreArithmeticOperatorExpression(lineNumber, "++", expression);
+        }
+        if (count == -1) {
+            return newPreArithmeticOperatorExpression(lineNumber, "--", expression);
+        }
+        return newCompoundAssignmentExpression(lineNumber, offset, localVariable, count);
     }
 
     private void parseIF(DefaultStack<Expression> stack, int lineNumber, BasicBlock basicBlock, String operator1, String operator2, int priority) {
@@ -2366,7 +2404,7 @@ public class ByteCodeParser {
         ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
         Type type = makeFieldType(ot.getInternalName(), name, descriptor);
-        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, ot, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
+        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, unshadowedType(ot), !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
         stack.push(typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, ot, name, descriptor));
     }
 
@@ -2379,7 +2417,7 @@ public class ByteCodeParser {
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
         Type type = makeFieldType(ot.getInternalName(), name, descriptor);
         Expression valueRef = stack.pop();
-        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, ot, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
+        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, unshadowedType(ot), !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
         FieldReferenceExpression fieldRef = typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, ot, name, descriptor);
         parsePUT(statements, stack, lineNumber, fieldRef, valueRef);
     }
@@ -2812,6 +2850,66 @@ public class ByteCodeParser {
         }
 
         return type;
+    }
+
+    /**
+     * A field in scope hides a type of the same simple name when the type is used as a qualifier (JLS 6.4.2),
+     * e.g. 'UUID.fromString(s)' inside 'TypeAdapter<UUID> UUID = ...': print the qualified name instead.
+     */
+    private ObjectType unshadowedType(ObjectType ot) {
+        if (ot.getClass() == ObjectType.class && ot.getDimension() == 0 && ot.getName() != null
+                && !ot.getName().equals(ot.getQualifiedName()) && fieldNamesInScope.contains(ot.getName())) {
+            return new ObjectType(ot.getInternalName(), ot.getQualifiedName(), ot.getQualifiedName());
+        }
+        return ot;
+    }
+
+    /** The types of the expressions a lambda captures, in the order of the leading parameters of its synthetic method */
+    private static List<Type> capturedParameterTypes(BaseExpression indyParameters, boolean capturesThis) {
+        if (indyParameters == null) {
+            return null;
+        }
+        List<Type> types = new ArrayList<>();
+        for (Expression expression : indyParameters) {
+            types.add(expression.getType());
+        }
+        if (capturesThis && !types.isEmpty()) {
+            types.remove(0);
+        }
+        return types;
+    }
+
+    /**
+     * Before Java 16 'instanceof' only accepts reifiable types: an inner class of a generic class must then be spelled out
+     * with its (raw) outer class, which is what the fully qualified name does ('TypeAdapter.NullSafeTypeAdapter').
+     */
+    private Type rawQualifiedInstanceOfType(Type type) {
+        // (only where the outer class is the one being decompiled, or encloses it: the name of the outer class is then left out)
+        if (type instanceof InnerObjectType innerObjectType && innerObjectType.getDimension() == 0 && innerObjectType.getOuterType() != null
+                && enclosingTypeNames.contains(innerObjectType.getOuterType().getInternalName())
+                && !isStaticNestedClass(innerObjectType.getInternalName())) {
+            TypeMaker.TypeTypes outerTypeTypes = typeMaker.makeTypeTypes(innerObjectType.getOuterType().getInternalName());
+
+            if (outerTypeTypes != null && outerTypeTypes.getTypeParameters() != null) {
+                String qualifiedName = innerObjectType.getQualifiedName();
+                int lastSlash = innerObjectType.getInternalName().lastIndexOf('/');
+                String nameInPackage = lastSlash < 0 ? qualifiedName : qualifiedName.substring(lastSlash + 1);
+
+                return new ObjectType(innerObjectType.getInternalName(), qualifiedName, nameInPackage);
+            }
+        }
+        return type;
+    }
+
+    private boolean isStaticNestedClass(String internalTypeName) {
+        for (ClassFile outer = classFile; outer != null; outer = outer.getOuterClassFile()) {
+            for (ClassFile inner : outer.getInnerClassFiles() == null ? List.<ClassFile>of() : outer.getInnerClassFiles()) {
+                if (internalTypeName.equals(inner.getInternalTypeName())) {
+                    return inner.isStatic();
+                }
+            }
+        }
+        return false;
     }
 
     private TypeMaker.MethodTypes makeMethodTypes(String internalTypeName, String methodName, String descriptor) {

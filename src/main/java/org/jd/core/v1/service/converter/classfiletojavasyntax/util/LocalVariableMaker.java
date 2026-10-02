@@ -27,8 +27,12 @@ import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.model.javasyntax.type.TypeArgument;
+import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFormalParameter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.Frame;
@@ -46,6 +50,7 @@ import org.jd.core.v1.util.DefaultList;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -141,6 +146,10 @@ public class LocalVariableMaker {
             boolean varargs = (method.getAccessFlags() & Const.ACC_VARARGS) != 0;
 
             initLocalVariablesFromParameterTypes(classFile, parameterTypes, varargs, firstVariableIndex, lastParameterIndex);
+
+            if (comd instanceof ClassFileMethodDeclaration cfmd && cfmd.getCapturedParameterTypes() != null) {
+                applyCapturedParameterTypes(parameterTypes, firstVariableIndex, cfmd.getCapturedParameterTypes());
+            }
 
             // Create list of parameterTypes
             fp = new FormalParameters();
@@ -244,6 +253,51 @@ public class LocalVariableMaker {
                     typeMaker.makeFromSignature(lv.getSignature()).accept(updateTypeVisitor);
                 }
             }
+        }
+    }
+
+    private static boolean containsWildcardTypeArgument(BaseTypeArgument typeArguments) {
+        if (typeArguments == null) {
+            return false;
+        }
+        if (typeArguments.isTypeArgumentList()) {
+            for (TypeArgument typeArgument : typeArguments.getTypeArgumentList()) {
+                if (containsWildcardTypeArgument(typeArgument)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return typeArguments instanceof WildcardExtendsTypeArgument || typeArguments instanceof WildcardSuperTypeArgument
+                || typeArguments == WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT;
+    }
+
+    /**
+     * The parameters of the synthetic method of a lambda that stand for captured variables only have the erased types of
+     * those variables: restore their types in the enclosing method, which matter when they are wildcard parameterized (a
+     * capture conversion is then involved whenever they are used).
+     */
+    private void applyCapturedParameterTypes(BaseType parameterTypes, int firstVariableIndex, List<Type> capturedTypes) {
+        int variableIndex = firstVariableIndex;
+        int capturedIndex = 0;
+
+        for (Type parameterType : parameterTypes) {
+            if (capturedIndex >= capturedTypes.size()) {
+                break;
+            }
+
+            Type capturedType = capturedTypes.get(capturedIndex++);
+
+            if (localVariableSet.root(variableIndex) instanceof ObjectLocalVariable objectLocalVariable
+                    && parameterType instanceof ObjectType objectParameterType && capturedType != null
+                    && capturedType.getDimension() == objectParameterType.getDimension()
+                    && capturedType instanceof ObjectType capturedObjectType
+                    && containsWildcardTypeArgument(capturedObjectType.getTypeArguments()) && objectParameterType.getTypeArguments() == null
+                    && capturedObjectType.getInternalName().equals(objectParameterType.getInternalName())) {
+                objectLocalVariable.setType(typeBounds, capturedType);
+            }
+
+            variableIndex += PrimitiveType.TYPE_LONG.equals(parameterType) || PrimitiveType.TYPE_DOUBLE.equals(parameterType) ? 2 : 1;
         }
     }
 

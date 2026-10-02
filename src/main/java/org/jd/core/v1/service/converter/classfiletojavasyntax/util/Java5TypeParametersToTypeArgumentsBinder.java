@@ -79,9 +79,11 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchInTy
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.TypeArgumentToTypeVisitor;
 import org.jd.core.v1.util.StringConstants;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -262,6 +264,13 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
+    private void populateBindingsFromReturnType(Map<String, TypeArgument> bindings, Type returnType, Type returnExpressionType, Map<String, BaseType> typeBounds) {
+        if (!TYPE_OBJECT.equals(returnType) && returnExpressionType != null) {
+            populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, returnType);
+            returnExpressionType.accept(populateBindingsWithTypeArgumentVisitor);
+        }
+    }
+
     private boolean populateBindings(
             Map<String, TypeArgument> bindings, Expression expression, BaseType mieExceptionTypes,
             BaseTypeParameter typeParameters, BaseTypeArgument typeArguments, BaseTypeParameter methodTypeParameters,
@@ -295,10 +304,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             methodTypeParameters.accept(populateBindingsWithTypeParameterVisitor);
         }
 
-        if (!TYPE_OBJECT.equals(returnType) && returnExpressionType != null) {
-            populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, returnType);
-            returnExpressionType.accept(populateBindingsWithTypeArgumentVisitor);
-        }
+        populateBindingsFromReturnType(bindings, returnType, returnExpressionType, typeBounds);
 
         if (parameterTypes != null) {
             if (parameterTypes.isList() && parameters.isList()) {
@@ -453,6 +459,125 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, typeWithArguments);
             typeWithParameters.accept(populateBindingsWithTypeArgumentVisitor);
         }
+    }
+
+    /**
+     * Unlike a parameter, which a '? super X' accepts an X for, a value returned through a '? super X' binding is only known
+     * to be an Object (e.g. 'T t = (T)constructor.newInstance()' for a 'Constructor<? super T>').
+     */
+    private Type bindReturnedType(Map<String, TypeArgument> bindings, Type returnedType, BaseType unboundParameterTypes, BaseExpression parameters) {
+        if (returnedType instanceof GenericType genericType && bindings.get(genericType.getName()) instanceof WildcardSuperTypeArgument) {
+            return TYPE_OBJECT.createType(genericType.getDimension());
+        }
+        if (returnedType instanceof ObjectType objectType && objectType.getTypeArguments() != null) {
+            // The type variables which got bound through a wildcard parameterized argument stay unknown ('?') in the returned type
+            ObjectType withWildcards = withCapturedTypeVariablesAsWildcards(objectType, typeVariablesCapturedByArguments(unboundParameterTypes, parameters));
+
+            if (withWildcards != null) {
+                return withWildcards;
+            }
+        }
+        return (Type) bind(bindings, returnedType);
+    }
+
+    /** @return the object type with the captured type variables replaced by '?', or null if it has none of them as type arguments */
+    private static ObjectType withCapturedTypeVariablesAsWildcards(ObjectType objectType, Set<String> captured) {
+        if (captured.isEmpty() || objectType.getTypeArguments() == null) {
+            return null;
+        }
+
+        BaseTypeArgument typeArguments = objectType.getTypeArguments();
+
+        if (typeArguments instanceof GenericType genericType && genericType.getDimension() == 0 && captured.contains(genericType.getName())) {
+            return objectType.createType(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
+        }
+        if (typeArguments.isTypeArgumentList()) {
+            TypeArguments newTypeArguments = new TypeArguments();
+            boolean changed = false;
+
+            for (TypeArgument typeArgument : typeArguments.getTypeArgumentList()) {
+                if (typeArgument instanceof GenericType genericType && genericType.getDimension() == 0 && captured.contains(genericType.getName())) {
+                    newTypeArguments.add(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
+                    changed = true;
+                } else {
+                    newTypeArguments.add(typeArgument);
+                }
+            }
+            if (changed) {
+                return objectType.createType(newTypeArguments);
+            }
+        }
+        return null;
+    }
+
+    /** The type variables of the parameter types which face a wildcard in the type of the corresponding argument (capture conversion) */
+    private static Set<String> typeVariablesCapturedByArguments(BaseType parameterTypes, BaseExpression parameters) {
+        Set<String> captured = new HashSet<>();
+
+        if (parameterTypes != null && parameters != null && parameterTypes.size() == parameters.size()) {
+            Iterator<Type> parameterTypeIterator = parameterTypes.iterator();
+            Iterator<Expression> parameterIterator = parameters.iterator();
+
+            while (parameterTypeIterator.hasNext() && parameterIterator.hasNext()) {
+                Type parameterType = parameterTypeIterator.next();
+                Expression parameter = parameterIterator.next();
+
+                // A class literal is typed Class<?> here, but it really is a Class<Foo>
+                if (!(parameter instanceof TypeReferenceDotClassExpression) && parameterType instanceof ObjectType parameterObjectType
+                        && parameter.getType() instanceof ObjectType argumentType
+                        && parameterObjectType.getDimension() == 0 && argumentType.getDimension() == 0
+                        && parameterObjectType.getTypeArguments() != null && argumentType.getTypeArguments() != null) {
+                    List<TypeArgument> parameterArguments = toList(parameterObjectType.getTypeArguments());
+                    List<TypeArgument> argumentArguments = toList(argumentType.getTypeArguments());
+
+                    for (int i = 0; i < Math.min(parameterArguments.size(), argumentArguments.size()); i++) {
+                        if (parameterArguments.get(i) instanceof GenericType genericType && genericType.getDimension() == 0
+                                && isWildcard(argumentArguments.get(i))) {
+                            captured.add(genericType.getName());
+                        }
+                    }
+                }
+            }
+
+            // A type variable which is also the type of a parameter (T value) is fixed by the argument, not captured
+            for (Type parameterType : parameterTypes) {
+                if (parameterType instanceof GenericType genericType && genericType.getDimension() == 0) {
+                    captured.remove(genericType.getName());
+                }
+            }
+        }
+        return captured;
+    }
+
+    private static List<TypeArgument> toList(BaseTypeArgument typeArguments) {
+        return typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : Collections.singletonList((TypeArgument) typeArguments);
+    }
+
+    private static boolean isWildcard(TypeArgument typeArgument) {
+        return typeArgument instanceof WildcardExtendsTypeArgument || typeArgument instanceof WildcardSuperTypeArgument
+                || typeArgument == WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT;
+    }
+
+    private static boolean isClassTypeVariableOfRawReceiver(Expression receiver, Type receiverType, BaseTypeParameter classTypeParameters,
+            BaseTypeParameter methodTypeParameters, Type returnedType) {
+        if (classTypeParameters == null || !(returnedType instanceof GenericType genericType)
+                || !(receiverType instanceof ObjectType receiverObjectType) || receiverObjectType.getTypeArguments() != null
+                || receiverObjectType.getDimension() != 0 || !(receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression())) {
+            return false;
+        }
+        for (TypeParameter typeParameter : classTypeParameters) {
+            if (typeParameter.getIdentifier().equals(genericType.getName())) {
+                if (methodTypeParameters != null) {
+                    for (TypeParameter methodTypeParameter : methodTypeParameters) {
+                        if (methodTypeParameter.getIdentifier().equals(genericType.getName())) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
     }
 
     private BaseType bind(Map<String, TypeArgument> bindings, BaseType parameterTypes) {
@@ -614,11 +739,16 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     Map<String, BaseType> typeBounds = new HashMap<>();
                     boolean partialBinding = populateBindings(bindings, exp, mie.getExceptionTypes(), typeParameters, typeArguments, methodTypeParameters, type, t, parameterTypes, parameters, typeBounds);
 
+                    BaseType parameterTypesBeforeBinding = parameterTypes;
                     mie.setUnboundParameterTypes(parameterTypes);
                     parameterTypes = bind(bindings, parameterTypes);
                     mie.setParameterTypes(parameterTypes);
                     mie.setUnboundType(mie.getType());
-                    mie.setType((Type) bind(bindings, mie.getType()));
+                    mie.setType(bindReturnedType(bindings, mie.getType(), parameterTypesBeforeBinding, parameters));
+                    if (isClassTypeVariableOfRawReceiver(exp, expressionType, typeParameters, methodTypeParameters, mie.getType())) {
+                        // The members of a raw type are erased: this is what the type variable of its class becomes
+                        mie.setType(TYPE_OBJECT.createType(mie.getType().getDimension()));
+                    }
                     mie.setTypeBounds(typeBounds);
                     mie.setTypeBindings(bindings);
 
@@ -868,6 +998,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     Map<String, BaseType> typeBounds = new HashMap<>();
                     boolean partialBinding = populateBindings(bindings, null, null, typeParameters, typeArguments, null, type, t, parameterTypes, parameters, typeBounds);
 
+                    BaseType unboundParameterTypes = parameterTypes;
                     parameterTypes = bind(bindings, parameterTypes);
                     ne.setParameterTypes(parameterTypes);
 
@@ -879,7 +1010,9 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     }
 
                     if (!partialBinding) {
-                        ne.setType((ObjectType) bind(bindings, neObjectType));
+                        ObjectType capturing = withCapturedTypeVariablesAsWildcards(neObjectType, typeVariablesCapturedByArguments(unboundParameterTypes, parameters));
+
+                        ne.setType(capturing != null ? capturing : (ObjectType) bind(bindings, neObjectType));
                     }
                 }
             }

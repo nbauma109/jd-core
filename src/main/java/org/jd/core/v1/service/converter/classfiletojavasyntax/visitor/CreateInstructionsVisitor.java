@@ -34,6 +34,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import java.util.List;
 import static org.apache.bcel.Const.ACC_ABSTRACT;
 import static org.apache.bcel.Const.ACC_BRIDGE;
+import static org.apache.bcel.Const.ACC_PRIVATE;
 import static org.apache.bcel.Const.ACC_PUBLIC;
 import static org.apache.bcel.Const.ACC_STATIC;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
@@ -61,6 +62,10 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
         List<ClassFileConstructorOrMethodDeclaration> methods = bodyDeclaration.getMethodDeclarations();
 
         for (ClassFileConstructorOrMethodDeclaration method : methods) {
+            if (isLambdaBody(method)) {
+                // Created when the call site is reached, which knows the types of the captured variables
+                continue;
+            }
             if ((method.getFlags() & (ACC_SYNTHETIC|ACC_BRIDGE)) != 0) {
                 method.accept(this);
             } else if (((method.getFlags() & (ACC_STATIC|ACC_BRIDGE)) == ACC_STATIC) && method.getMethod().getName().startsWith("access$")) {
@@ -74,6 +79,16 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                 method.accept(this);
             }
         }
+        for (ClassFileConstructorOrMethodDeclaration method : methods) {
+            if (isLambdaBody(method) && method.getStatements() == null) {
+                method.accept(this);
+            }
+        }
+    }
+
+    private static boolean isLambdaBody(ClassFileConstructorOrMethodDeclaration method) {
+        return (method.getFlags() & (ACC_SYNTHETIC|ACC_PRIVATE|ACC_BRIDGE)) == (ACC_SYNTHETIC|ACC_PRIVATE)
+                && method.getMethod().getName().startsWith("lambda$");
     }
 
     @Override

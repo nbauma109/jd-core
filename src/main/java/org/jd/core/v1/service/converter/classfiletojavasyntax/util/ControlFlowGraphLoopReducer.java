@@ -376,6 +376,12 @@ public final class ControlFlowGraphLoopReducer {
             }
         }
 
+        // The code which is also reached from outside the loop (e.g. the tail which follows a 'break', or a 'return' shared with
+        // the code which follows the loop) is not part of it, nor is what only follows that code
+        while (members.removeIf(member -> member != start && !members.containsAll(member.getPredecessors()))) {
+            // Until nothing is left to remove
+        }
+
         return new Loop(start, members, end);
     }
 

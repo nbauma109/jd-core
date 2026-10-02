@@ -7,6 +7,7 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.processor;
 
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.CompilationUnit;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.UpdateJavaSyntaxTreeStep0Visitor;
@@ -22,8 +23,12 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.UpdateJava
 public class UpdateJavaSyntaxTreeProcessor {
 
     public void process(CompilationUnit compilationUnit, TypeMaker typeMaker) {
+        process(compilationUnit, typeMaker, null);
+    }
+
+    public void process(CompilationUnit compilationUnit, TypeMaker typeMaker, Loader loader) {
         new UpdateJavaSyntaxTreeStep0Visitor(typeMaker).visit(compilationUnit);
         new UpdateJavaSyntaxTreeStep1Visitor(typeMaker).visit(compilationUnit);
-        new UpdateJavaSyntaxTreeStep2Visitor(typeMaker).visit(compilationUnit);
+        new UpdateJavaSyntaxTreeStep2Visitor(typeMaker, loader).visit(compilationUnit);
     }
 }

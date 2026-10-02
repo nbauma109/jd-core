@@ -1,0 +1,223 @@
+package org.jd.core.v1.stub;
+
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Supplier;
+
+/**
+ * The shapes which made Gson 2.14.0 decompile to code which did not recompile or did not behave: each method below was
+ * decompiled to something wrong (an unchecked cast lost, a try/catch dropped, statements reordered, ...).
+ */
+@SuppressWarnings({"unchecked", "rawtypes"})
+public class GsonPatterns {
+
+    public interface Adapter<T> {
+        T get();
+    }
+
+    public interface Factory {
+        <T> Adapter<T> create(Class<T> type);
+    }
+
+    static class ObjectAdapter implements Adapter<Object> {
+        @Override
+        public Object get() {
+            return null;
+        }
+    }
+
+    static class TextAdapter implements Adapter<String> {
+        private final Adapter<Integer> delegate;
+
+        TextAdapter(Adapter<Integer> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String get() {
+            return String.valueOf(delegate.get());
+        }
+    }
+
+    static class BoundedAdapter<T extends Number> implements Adapter<T> {
+        BoundedAdapter(Class<T> type) {
+        }
+
+        @Override
+        public T get() {
+            return null;
+        }
+    }
+
+    static class ReflectiveAdapter<T> implements Adapter<T> {
+        ReflectiveAdapter(Class<T> type, boolean flag) {
+        }
+
+        @Override
+        public T get() {
+            return null;
+        }
+    }
+
+    /** A 'new' of a class which is not generic is never an Adapter<T> */
+    public static Factory nonGenericClassesAreNotAdaptersOfT() {
+        return new Factory() {
+            @Override
+            public <T> Adapter<T> create(Class<T> type) {
+                if (type == Object.class) {
+                    return (Adapter<T>) new ObjectAdapter();
+                }
+                return (Adapter<T>) new TextAdapter(null);
+            }
+        };
+    }
+
+    /** A captured variable has an erased type in the anonymous class: it is an Adapter<TT> there, not a raw Adapter */
+    public static <TT> Factory capturedVariable(Class<TT> type, Adapter<TT> adapter) {
+        return new Factory() {
+            @Override
+            public <T> Adapter<T> create(Class<T> requested) {
+                return requested == type ? (Adapter<T>) adapter : null;
+            }
+        };
+    }
+
+    /** The anonymous class itself needs the cast: it is an Adapter<T1> */
+    public static <T1, T2> Adapter<T2> anonymousClass(Adapter<T1> adapter) {
+        return (Adapter<T2>) new Adapter<T1>() {
+            @Override
+            public T1 get() {
+                return adapter.get();
+            }
+        };
+    }
+
+    /** A diamond cannot infer a type argument out of the bounds of a type parameter: the raw type is used */
+    public static <T> Adapter<T> rawConstructor(Class<T> raw) {
+        return (Adapter<T>) new BoundedAdapter(raw);
+    }
+
+    /** A wildcard parameterized argument makes it a constructor call with a captured type argument */
+    public static <T> Adapter<T> capturedConstructor(Class<? super T> raw) {
+        return (Adapter<T>) new ReflectiveAdapter<>(raw, true);
+    }
+
+    static <T> Adapter<T> adapterOf(Class<T> type) {
+        return null;
+    }
+
+    /** A call with a wildcard parameterized argument returns a capture: assigning it to an Adapter<Object> needs a cast */
+    public static Object capturedMethodCall(Object value) {
+        Adapter<Object> adapter = (Adapter<Object>) adapterOf(value.getClass());
+        Adapter<Object> other = (Adapter<Object>) adapterOf(value.getClass());
+        return adapter.get() == other.get();
+    }
+
+    /** What a constructor of a wildcard super parameterized class returns is not a T, and this is also true in a lambda */
+    public static <T> Supplier<T> capturedInLambda(Class<? super T> raw) throws NoSuchMethodException {
+        Constructor<? super T> constructor = raw.getDeclaredConstructor();
+        return () -> {
+            try {
+                T instance = (T) constructor.newInstance();
+                return instance;
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        };
+    }
+
+    /** A field hides the type of the same name used for a static call */
+    public static final Adapter<UUID> UUID = new Adapter<UUID>() {
+        @Override
+        public UUID get() {
+            return java.util.UUID.fromString("00000000-0000-0000-0000-000000000000");
+        }
+    };
+
+    public static class Outer<T> {
+        public class Inner extends Outer<T> {
+        }
+
+        public boolean isInner(Object o) {
+            return o instanceof Outer.Inner;
+        }
+    }
+
+    /** A 'break' goes over the code which follows the chain of 'if': it is not an arm of one of them */
+    public static Object breakOverContinuation(Object[] lower, Object[] upper, Object original, Object resolved, Map<Object, Object> resolutions, Object resolving) {
+        while (true) {
+            if (resolved == null) {
+                if (lower.length == 1) {
+                    Object bound = lower[0];
+                    if (bound != lower[0]) {
+                        resolved = bound;
+                        break;
+                    }
+                } else if (upper.length == 1) {
+                    Object bound = upper[0];
+                    if (bound != upper[0]) {
+                        resolved = bound;
+                        break;
+                    }
+                }
+                resolved = original;
+                break;
+            } else {
+                break;
+            }
+        }
+        if (resolving != null) {
+            resolutions.put(resolving, resolved);
+        }
+        return resolved;
+    }
+
+    /** A 'return' which also follows the loop is not part of the loop */
+    public static Object returnSharedWithTheCodeAfterTheLoop(Object value) {
+        while (true) {
+            if (value instanceof String) {
+                value = value.toString();
+                if (value == null) {
+                    break;
+                }
+            } else if (value instanceof Class) {
+                value = ((Class<?>) value).getName();
+                break;
+            } else {
+                break;
+            }
+        }
+        return value;
+    }
+
+    private final Object lock = new Object();
+
+    static int read() throws IOException {
+        return 1;
+    }
+
+    /** The catch of a try which returns, inside a synchronized block, must not be dropped */
+    public int tryCatchInSynchronized() {
+        synchronized (lock) {
+            try {
+                return read();
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
+    static int parse(String text, int from, int to) {
+        return to - from;
+    }
+
+    /** The compound assignment is evaluated after the first argument: it has to stay an expression */
+    public static int compoundAssignmentInArguments(String text) {
+        int offset = 0;
+        int year = parse(text, offset, offset += 4);
+        int hour = parse(text, ++offset, offset += 2);
+        return year * 100 + hour + offset;
+    }
+}

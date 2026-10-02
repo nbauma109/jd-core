@@ -474,7 +474,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             ObjectType withWildcards = withCapturedTypeVariablesAsWildcards(objectType, typeVariablesCapturedByArguments(unboundParameterTypes, parameters));
 
             if (withWildcards != null) {
-                return withWildcards;
+                // the other type arguments are bound as usual
+                return (Type) bind(bindings, withWildcards);
             }
         }
         return (Type) bind(bindings, returnedType);
@@ -1012,7 +1013,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     if (!partialBinding) {
                         ObjectType capturing = withCapturedTypeVariablesAsWildcards(neObjectType, typeVariablesCapturedByArguments(unboundParameterTypes, parameters));
 
-                        ne.setType(capturing != null ? capturing : (ObjectType) bind(bindings, neObjectType));
+                        ne.setType((ObjectType) bind(bindings, capturing != null ? capturing : neObjectType));
                     }
                 }
             }

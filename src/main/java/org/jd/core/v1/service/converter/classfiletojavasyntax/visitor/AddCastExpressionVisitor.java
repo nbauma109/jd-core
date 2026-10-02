@@ -945,7 +945,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
             boolean satisfied = false;
             for (Type declaredBound : declaredBounds) {
-                if (!(declaredBound instanceof ObjectType declaredObjectBound) || typeMaker.isRawTypeAssignable(requiredObjectBound, declaredObjectBound)) {
+                // A bound which is itself a type variable is not resolved: the raw type is always valid, so do not trust it
+                if (declaredBound instanceof ObjectType declaredObjectBound && typeMaker.isRawTypeAssignable(requiredObjectBound, declaredObjectBound)) {
                     satisfied = true;
                     break;
                 }

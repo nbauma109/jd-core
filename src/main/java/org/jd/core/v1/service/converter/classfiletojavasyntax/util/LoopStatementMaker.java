@@ -79,7 +79,7 @@ public final class LoopStatementMaker {
             BasicBlock loopBasicBlock, Statements statements, Expression condition, Statements subStatements,
             Statements jumps) {
         boolean[] labelRequested = new boolean[1];
-        Statement loop = makeLoop(majorVersion, typeBounds, localVariableMaker, loopBasicBlock, statements, condition, subStatements, labelRequested);
+        Statement loop = makeLoop(new LoopContext(majorVersion, typeBounds, localVariableMaker), loopBasicBlock, statements, condition, subStatements, labelRequested);
         int continueOffset = loopBasicBlock.getSub1().getFromOffset();
         preserveNestedContinueTargets(subStatements, continueOffset);
         int breakOffset = loopBasicBlock.getNext().getFromOffset();
@@ -90,13 +90,18 @@ public final class LoopStatementMaker {
 
         int updateOffset = loop instanceof ClassFileForEachStatement forEach ? forEach.getUpdateOffset() : -1;
 
-        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, updateOffset, lowestOffset(loopBasicBlock, continueOffset), labelRequested[0], loop, jumps);
+        return makeLabels(loopBasicBlock.getIndex(), new LoopOffsets(continueOffset, breakOffset, updateOffset, lowestOffset(loopBasicBlock, continueOffset)), labelRequested[0], loop, jumps);
+    }
+
+    private record LoopContext(int majorVersion, Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker) {
     }
 
     private static Statement makeLoop(
-            int majorVersion, Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker,
-            BasicBlock loopBasicBlock, Statements statements, Expression condition, Statements subStatements,
+            LoopContext context, BasicBlock loopBasicBlock, Statements statements, Expression condition, Statements subStatements,
             boolean[] labelRequested) {
+        int majorVersion = context.majorVersion();
+        Map<String, BaseType> typeBounds = context.typeBounds();
+        LocalVariableMaker localVariableMaker = context.localVariableMaker();
         boolean forEachSupported = majorVersion >= MAJOR_1_5;
 
         subStatements.accept(REMOVE_LAST_CONTINUE_STATEMENT_VISITOR);
@@ -179,8 +184,8 @@ public final class LoopStatementMaker {
                 Expressions update = extractUpdate(subStatements, firstLineNumber, lineNumber);
 
                 if (update.isEmpty()) {
-                    // A body which is entirely on the line of the header (e.g. 'for (; a < b; a++, b--) { if (...) break; }'
-                    // whose 'if' was merged into the condition) is the update of the 'for'
+                    // A body which is entirely on the line of the header (its test was merged into the condition) is the
+                    // update of the 'for'
                     update = extractUpdateOnLine(subStatements, lineNumber);
                 }
 
@@ -222,17 +227,6 @@ public final class LoopStatementMaker {
         return update.getExpression() instanceof ClassFileLocalVariableReferenceExpression variable ? variable.getOffset() - 1 : -1;
     }
 
-    private static boolean isUpdateOf(Statement statement, AbstractLocalVariable index) {
-        if (!statement.isExpressionStatement() || !statement.getExpression().isPostOperatorExpression()) {
-            return false;
-        }
-
-        Expression variable = statement.getExpression().getExpression();
-
-        return variable.isLocalVariableReferenceExpression()
-            && ((ClassFileLocalVariableReferenceExpression)variable).getLocalVariable() == index;
-    }
-
     private static final class UpdateBeforeContinueVisitor extends AbstractJavaSyntaxVisitor {
         private final AbstractLocalVariable index;
         private final boolean remove;
@@ -247,27 +241,51 @@ public final class LoopStatementMaker {
 
         @Override
         public void visit(Statements statements) {
-            for (int i = 0; i < statements.size(); i++) {
+            int i = 0;
+
+            while (i < statements.size()) {
                 Statement statement = statements.get(i);
+                int next = i + 1;
 
                 if (statement.isContinueStatement() && ((ContinueStatement)statement).getLabel() == null) {
-                    continues++;
-
-                    if (i > 0 && isUpdateOf(statements.get(i - 1), index)) {
-                        if (remove) {
-                            if (updateOffset == -1) {
-                                updateOffset = offsetOfUpdate(statements.get(i - 1).getExpression());
-                            }
-                            statements.remove(i - 1);
-                            i--;
-                        }
-                    } else {
-                        valid = false;
+                    if (visitContinue(statements, i)) {
+                        // The update before the 'continue' has been removed
+                        next = i;
                     }
                 } else {
                     statement.accept(this);
                 }
+                i = next;
             }
+        }
+
+        /** @return true if the update before the 'continue' of the statements has been removed */
+        private boolean visitContinue(Statements statements, int continueIndex) {
+            continues++;
+
+            if (continueIndex == 0 || !isUpdateOf(statements.get(continueIndex - 1), index)) {
+                valid = false;
+                return false;
+            }
+            if (!remove) {
+                return false;
+            }
+            if (updateOffset == -1) {
+                updateOffset = offsetOfUpdate(statements.get(continueIndex - 1).getExpression());
+            }
+            statements.remove(continueIndex - 1);
+            return true;
+        }
+
+        private static boolean isUpdateOf(Statement statement, AbstractLocalVariable index) {
+            if (!statement.isExpressionStatement() || !statement.getExpression().isPostOperatorExpression()) {
+                return false;
+            }
+
+            Expression variable = statement.getExpression().getExpression();
+
+            return variable.isLocalVariableReferenceExpression()
+                && ((ClassFileLocalVariableReferenceExpression)variable).getLocalVariable() == index;
         }
 
         @Override
@@ -366,18 +384,18 @@ public final class LoopStatementMaker {
 
         @Override
         public void visit(Statements statements) {
-            for (int i = 0; i < statements.size(); i++) {
+            int i = 0;
+
+            while (i < statements.size()) {
                 Statement statement = statements.get(i);
+                int next = i + 1;
 
                 if (statement.isContinueStatement() && ((ContinueStatement)statement).getLabel() == null) {
                     if (i > 0 && isUpdate(statements.get(i - 1))) {
                         if (apply) {
-                            statements.remove(i - 1);
-                            i--;
-                            if (depth > 0) {
-                                statements.set(i, new ContinueStatement(label));
-                                labelUsed = true;
-                            }
+                            removeUpdateBefore(statements, i);
+                            // The 'continue' is now before the index
+                            next = i;
                         } else {
                             continues++;
                         }
@@ -387,6 +405,16 @@ public final class LoopStatementMaker {
                 } else {
                     statement.accept(this);
                 }
+                i = next;
+            }
+        }
+
+        private void removeUpdateBefore(Statements statements, int continueIndex) {
+            statements.remove(continueIndex - 1);
+            if (depth > 0) {
+                // The 'continue' of a nested loop is the one of this loop
+                statements.set(continueIndex - 1, new ContinueStatement(label));
+                labelUsed = true;
             }
         }
 
@@ -531,7 +559,7 @@ public final class LoopStatementMaker {
             breakOffset = loopBasicBlock.getToOffset();
         }
 
-        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, -1, lowestOffset(loopBasicBlock, continueOffset), false, loop, jumps);
+        return makeLabels(loopBasicBlock.getIndex(), new LoopOffsets(continueOffset, breakOffset, -1, lowestOffset(loopBasicBlock, continueOffset)), false, loop, jumps);
     }
 
     private static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements) {
@@ -620,7 +648,7 @@ public final class LoopStatementMaker {
             breakOffset = loopBasicBlock.getToOffset();
         }
 
-        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, -1, lowestOffset(loopBasicBlock, continueOffset), false, loop, jumps);
+        return makeLabels(loopBasicBlock.getIndex(), new LoopOffsets(continueOffset, breakOffset, -1, lowestOffset(loopBasicBlock, continueOffset)), false, loop, jumps);
     }
 
     private static BaseExpression extractInit(Statements statements, int lineNumber) {
@@ -690,9 +718,7 @@ public final class LoopStatementMaker {
 
         Expressions update = new Expressions();
 
-        for (Statement statement : statements) {
-            update.add(statement.getExpression());
-        }
+        statements.stream().map(Statement::getExpression).forEach(update::add);
         statements.clear();
         return update;
     }
@@ -1146,47 +1172,55 @@ public final class LoopStatementMaker {
      * @param lowOffset    the lowest offset of the loop: its condition, which is at the end of the loop when the compiler lays it out after
      *                     the body (e.g. ECJ), is not the lowest one
      */
-    private static Statement makeLabels(int loopIndex, int continueOffset, int breakOffset, int updateOffset, int lowOffset, boolean labelRequested, Statement loop, Statements jumps) {
+    private record LoopOffsets(int continueOffset, int breakOffset, int updateOffset, int lowOffset) {
+    }
+
+    private enum Resolution { UNRESOLVED, RESOLVED, RESOLVED_WITH_LABEL }
+
+    private static Statement makeLabels(int loopIndex, LoopOffsets offsets, boolean labelRequested, Statement loop, Statements jumps) {
         String label = labelOf(loopIndex);
         boolean createLabel = labelRequested;
+        Iterator<Statement> iterator = jumps.iterator();
 
-        if (!jumps.isEmpty()) {
-            Iterator<Statement> iterator = jumps.iterator();
+        while (iterator.hasNext()) {
+            Resolution resolution = resolveJump((ClassFileBreakContinueStatement)iterator.next(), label, offsets);
 
-            while (iterator.hasNext()) {
-                ClassFileBreakContinueStatement statement = (ClassFileBreakContinueStatement)iterator.next();
-                int offset = statement.getOffset();
-                int targetOffset = statement.getTargetOffset();
-
-                if (statement.isLoopExitFromSwitch() || targetOffset == breakOffset && targetOffset != continueOffset) {
-                    // Either a loop exit generated inside one of this loop's 'switch' statements (where a bare
-                    // 'break' would only exit the switch) or a jump to this loop's break target: name this loop
-                    // and break out of it explicitly.
-                    statement.setStatement(new BreakStatement(label));
-                    createLabel = true;
-                    iterator.remove();
-                } else if (targetOffset == continueOffset || targetOffset == updateOffset) {
-                    statement.setStatement(new ContinueStatement(label));
-                    createLabel = true;
-                    iterator.remove();
-                } else if (lowOffset <= offset && offset < breakOffset) {
-                    if (lowOffset <= targetOffset && targetOffset < breakOffset) {
-                        if (statement.isContinueLabel()) {
-                            statement.setStatement(new ContinueStatement(label));
-                            createLabel = true;
-                        } else {
-                            statement.setStatement(CONTINUE);
-                        }
-                        iterator.remove();
-                    } else {
-                        statement.setContinueLabel(true);
-                    }
-                }
+            if (resolution != Resolution.UNRESOLVED) {
+                iterator.remove();
+                createLabel |= resolution == Resolution.RESOLVED_WITH_LABEL;
             }
-
         }
 
         return createLabel ? new LabelStatement(label, loop) : loop;
+    }
+
+    private static Resolution resolveJump(ClassFileBreakContinueStatement statement, String label, LoopOffsets offsets) {
+        int offset = statement.getOffset();
+        int targetOffset = statement.getTargetOffset();
+
+        if (statement.isLoopExitFromSwitch() || targetOffset == offsets.breakOffset() && targetOffset != offsets.continueOffset()) {
+            // Either a loop exit generated inside one of this loop's 'switch' statements (where a bare
+            // 'break' would only exit the switch) or a jump to this loop's break target: name this loop
+            // and break out of it explicitly.
+            statement.setStatement(new BreakStatement(label));
+            return Resolution.RESOLVED_WITH_LABEL;
+        }
+        if (targetOffset == offsets.continueOffset() || targetOffset == offsets.updateOffset()) {
+            statement.setStatement(new ContinueStatement(label));
+            return Resolution.RESOLVED_WITH_LABEL;
+        }
+        if (offsets.lowOffset() <= offset && offset < offsets.breakOffset()) {
+            if (offsets.lowOffset() <= targetOffset && targetOffset < offsets.breakOffset()) {
+                if (statement.isContinueLabel()) {
+                    statement.setStatement(new ContinueStatement(label));
+                    return Resolution.RESOLVED_WITH_LABEL;
+                }
+                statement.setStatement(CONTINUE);
+                return Resolution.RESOLVED;
+            }
+            statement.setContinueLabel(true);
+        }
+        return Resolution.UNRESOLVED;
     }
 
     private static String labelOf(int loopIndex) {

@@ -696,6 +696,31 @@ public final class ControlFlowGraphLoopReducer {
             || next.getType() == TYPE_CONDITIONAL_BRANCH && next.getBranch().getFromOffset() < startOffset;
     }
 
+    /** @return a successor of the members, other than 'end', which is not a member, or null */
+    private static BasicBlock searchOtherExit(Set<BasicBlock> members, BasicBlock end) {
+        for (BasicBlock member : members) {
+            BasicBlock exit = null;
+
+            if (member.matchType(GROUP_SINGLE_SUCCESSOR)) {
+                exit = otherExit(members, end, member.getNext());
+            } else if (member.getType() == TYPE_CONDITIONAL_BRANCH) {
+                exit = otherExit(members, end, member.getNext());
+                if (exit == null) {
+                    exit = otherExit(members, end, member.getBranch());
+                }
+            }
+            if (exit != null) {
+                return exit;
+            }
+        }
+
+        return null;
+    }
+
+    private static BasicBlock otherExit(Set<BasicBlock> members, BasicBlock end, BasicBlock successor) {
+        return successor != end && !members.contains(successor) ? successor : null;
+    }
+
     private static BasicBlock recheckEndBlock(BasicBlock start, Set<BasicBlock> members, BasicBlock end) {
         boolean flag;
         BasicBlock newEnd;
@@ -707,28 +732,7 @@ public final class ControlFlowGraphLoopReducer {
             }
 
             // Search new 'end' block
-            newEnd = null;
-
-            for (BasicBlock member : members) {
-                if (member.matchType(GROUP_SINGLE_SUCCESSOR)) {
-                    BasicBlock bb = member.getNext();
-                    if (bb != end && !members.contains(bb)) {
-                        newEnd = bb;
-                        break;
-                    }
-                } else if (member.getType() == TYPE_CONDITIONAL_BRANCH) {
-                    BasicBlock bb = member.getNext();
-                    if (bb != end && !members.contains(bb)) {
-                        newEnd = bb;
-                        break;
-                    }
-                    bb = member.getBranch();
-                    if (bb != end && !members.contains(bb)) {
-                        newEnd = bb;
-                        break;
-                    }
-                }
-            }
+            newEnd = searchOtherExit(members, end);
 
             if (newEnd == null || end.getFromOffset() >= newEnd.getFromOffset()) {
                 break;

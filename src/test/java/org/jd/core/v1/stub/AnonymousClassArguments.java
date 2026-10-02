@@ -5,7 +5,7 @@ import java.util.concurrent.Callable;
 /** The arguments which follow the anonymous class of a call, after its body. */
 public class AnonymousClassArguments {
     static <T> T call(Callable<T> task, Object extra, Object last) throws Exception {
-        return task.call();
+        return extra == last ? null : task.call();
     }
 
     public static String run(final String text) throws Exception {

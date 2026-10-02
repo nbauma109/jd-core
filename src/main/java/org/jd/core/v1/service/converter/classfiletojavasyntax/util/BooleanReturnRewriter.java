@@ -222,34 +222,37 @@ public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
 
     private static Tree simplify(Tree tree) {
         if (tree instanceof Test test) {
-            Tree whenTrue = simplify(test.whenTrue());
-            Tree whenFalse = simplify(test.whenFalse());
-            Leaf condition = new Leaf(test.condition());
-
-            if (whenTrue == TRUE && whenFalse == FALSE) {
-                return condition;
-            }
-            if (whenTrue == FALSE && whenFalse == TRUE) {
-                return new Leaf(RecordPatternInstanceOfRewriter.negateBooleanExpression(test.condition(), test.condition().getLineNumber()));
-            }
-            if (whenFalse == FALSE) {
-                return new Operation("&&", condition, whenTrue);
-            }
-            if (whenFalse == TRUE) {
-                return new Operation("||", new Leaf(RecordPatternInstanceOfRewriter.negateBooleanExpression(test.condition(), test.condition().getLineNumber())), whenTrue);
-            }
-            if (whenTrue == TRUE) {
-                return new Operation("||", condition, whenFalse);
-            }
-            if (whenTrue == FALSE) {
-                return new Operation("&&", new Leaf(RecordPatternInstanceOfRewriter.negateBooleanExpression(test.condition(), test.condition().getLineNumber())), whenFalse);
-            }
-            return new Test(test.condition(), whenTrue, whenFalse);
+            return simplifyTest(test.condition(), simplify(test.whenTrue()), simplify(test.whenFalse()));
         }
         if (tree instanceof Operation operation) {
             return new Operation(operation.operator(), simplify(operation.left()), simplify(operation.right()));
         }
         return tree;
+    }
+
+    private static Tree simplifyTest(Expression test, Tree whenTrue, Tree whenFalse) {
+        Leaf condition = new Leaf(test);
+        Leaf negation = new Leaf(RecordPatternInstanceOfRewriter.negateBooleanExpression(test, test.getLineNumber()));
+
+        if (whenTrue == TRUE && whenFalse == FALSE) {
+            return condition;
+        }
+        if (whenTrue == FALSE && whenFalse == TRUE) {
+            return negation;
+        }
+        if (whenFalse == FALSE) {
+            return new Operation("&&", condition, whenTrue);
+        }
+        if (whenFalse == TRUE) {
+            return new Operation("||", negation, whenTrue);
+        }
+        if (whenTrue == TRUE) {
+            return new Operation("||", condition, whenFalse);
+        }
+        if (whenTrue == FALSE) {
+            return new Operation("&&", negation, whenFalse);
+        }
+        return new Test(test, whenTrue, whenFalse);
     }
 
     private static Expression expression(Tree tree) {

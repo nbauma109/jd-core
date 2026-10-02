@@ -124,9 +124,7 @@ public class MultiLineRealignTest extends AbstractJdTest {
 
     @Test
     public void testTryWithResourcesChainOfCallsOnSeveralLines() throws Exception {
-        // try (StringReader reader = new StringReader(text.trim()
-        //         .toLowerCase()
-        //         .concat("x"))) {
+        // The resource of the try is created with a chain of calls over three lines
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), "org/jd/core/v1/stub/TryWithResourcesChain", REALIGN);
 
         assertLine(source, 8, "try (StringReader reader = new StringReader(text.trim()");

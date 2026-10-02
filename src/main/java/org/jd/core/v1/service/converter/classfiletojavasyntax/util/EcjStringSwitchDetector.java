@@ -12,7 +12,9 @@ import org.apache.bcel.classfile.ConstantNameAndType;
 import org.apache.bcel.classfile.ConstantPool;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Recognizes the 'switch' on a string compiled by ECJ: a single 'switch' on the hash code, whose cases only compare the
@@ -34,6 +36,23 @@ final class EcjStringSwitchDetector {
      *  @param chainFrom the offset of the first instruction which only compares strings
      *  @param chainTo the offset after the last instruction which only compares strings */
     record Result(int[] values, int[] offsets, String[] strings, int chainFrom, int chainTo) {
+        @Override
+        public boolean equals(Object object) {
+            return object instanceof Result other
+                && Arrays.equals(values, other.values) && Arrays.equals(offsets, other.offsets) && Arrays.equals(strings, other.strings)
+                && chainFrom == other.chainFrom && chainTo == other.chainTo;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(values), Arrays.hashCode(offsets), Arrays.hashCode(strings), chainFrom, chainTo);
+        }
+
+        @Override
+        public String toString() {
+            return "Result[values=" + Arrays.toString(values) + ", offsets=" + Arrays.toString(offsets) + ", strings=" + Arrays.toString(strings)
+                + ", chainFrom=" + chainFrom + ", chainTo=" + chainTo + "]";
+        }
     }
 
     private EcjStringSwitchDetector() {
@@ -66,41 +85,14 @@ final class EcjStringSwitchDetector {
 
             chainFrom = Math.min(chainFrom, offset);
 
-            // The comparisons of the strings which have the hash code
-            int count = 0;
-            while (isLoadOf(code, offset, local)) {
-                int next = offset + (code[offset] == Const.ALOAD ? 2 : 1);
-                int ldc = code[next] & 255;
-                int constantIndex;
+            // The comparisons of the strings which have the hash code, then the jump to the default case
+            int end = readComparisons(constants, code, offset, local, strings, targets);
 
-                if (ldc == Const.LDC) {
-                    constantIndex = code[next + 1] & 255;
-                    next += 2;
-                } else if (ldc == Const.LDC_W) {
-                    constantIndex = (code[next + 1] & 255) << 8 | code[next + 2] & 255;
-                    next += 3;
-                } else {
-                    return null;
-                }
-
-                if ((code[next] & 255) != Const.INVOKEVIRTUAL
-                 || !isMethod(constants, (code[next + 1] & 255) << 8 | code[next + 2] & 255, "java/lang/String", "equals", "(Ljava/lang/Object;)Z")
-                 || (code[next + 3] & 255) != Const.IFNE) {
-                    return null;
-                }
-
-                strings.add(constants.getConstantString(constantIndex, Const.CONSTANT_String));
-                targets.add(next + 3 + (short) ((code[next + 4] & 255) << 8 | code[next + 5] & 255));
-                offset = next + 6;
-                count++;
-            }
-
-            // Nothing compared, or not followed by the jump to the default case
-            if (count == 0 || (code[offset] & 255) != Const.GOTO || offset + (short) ((code[offset + 1] & 255) << 8 | code[offset + 2] & 255) != defaultOffset) {
+            if (end < 0 || (code[end] & 255) != Const.GOTO || end + (short) ((code[end + 1] & 255) << 8 | code[end + 2] & 255) != defaultOffset) {
                 return null;
             }
 
-            chainTo = Math.max(chainTo, offset + 3);
+            chainTo = Math.max(chainTo, end + 3);
         }
 
         int size = strings.size();
@@ -117,6 +109,54 @@ final class EcjStringSwitchDetector {
         }
 
         return new Result(newValues, newOffsets, newStrings, chainFrom, chainTo);
+    }
+
+    /**
+     * Reads 'aload T; ldc "s"; invokevirtual String.equals(Object); ifne B' as many times as there are.
+     *
+     * @return the offset after the last comparison, or -1 if there is none or if one is not made of these instructions
+     */
+    private static int readComparisons(ConstantPool constants, byte[] code, int offset, int local, List<String> strings, List<Integer> targets) {
+        int count = 0;
+
+        while (isLoadOf(code, offset, local)) {
+            int next = readComparison(constants, code, offset + (code[offset] == Const.ALOAD ? 2 : 1), strings, targets);
+
+            if (next < 0) {
+                return -1;
+            }
+            offset = next;
+            count++;
+        }
+
+        return count == 0 ? -1 : offset;
+    }
+
+    /** @return the offset after the comparison which starts with the constant, or -1 */
+    private static int readComparison(ConstantPool constants, byte[] code, int offset, List<String> strings, List<Integer> targets) {
+        int ldc = code[offset] & 255;
+        int constantIndex;
+        int next;
+
+        if (ldc == Const.LDC) {
+            constantIndex = code[offset + 1] & 255;
+            next = offset + 2;
+        } else if (ldc == Const.LDC_W) {
+            constantIndex = (code[offset + 1] & 255) << 8 | code[offset + 2] & 255;
+            next = offset + 3;
+        } else {
+            return -1;
+        }
+
+        if ((code[next] & 255) != Const.INVOKEVIRTUAL
+         || !isMethod(constants, (code[next + 1] & 255) << 8 | code[next + 2] & 255, "java/lang/String", "equals", "(Ljava/lang/Object;)Z")
+         || (code[next + 3] & 255) != Const.IFNE) {
+            return -1;
+        }
+
+        strings.add(constants.getConstantString(constantIndex, Const.CONSTANT_String));
+        targets.add(next + 3 + (short) ((code[next + 4] & 255) << 8 | code[next + 5] & 255));
+        return next + 6;
     }
 
     /** @return the index of the local variable which receives the string before 'hashCode()', or -1 */

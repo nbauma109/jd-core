@@ -40,9 +40,9 @@ public class LoopHeaders {
     public static int count(char[] descriptor, int parameters) {
         int index = 0;
         int end = 0;
-        for (int i = 0; i < parameters; i++) { while (descriptor[++end] == '[') { }
+        for (int i = 0; i < parameters; i++) { while (descriptor[++end] == '[') { /* nothing to do: the loop moves the index */ }
             if (descriptor[end] == 'L') {
-                while (descriptor[++end] != ';') { }
+                while (descriptor[++end] != ';') { /* nothing to do: the loop moves the index */ }
             }
             index = end + 1;
         }

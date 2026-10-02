@@ -1130,7 +1130,7 @@ public class StatementMaker {
         BaseStatement thenBody = ifStatement.getStatements();
 
         if (isBreak(thenBody) && subStatements.size() > 1) {
-            // 'if (!condition) break;'
+            // The body starts with the test which leaves the loop: it is the negation of the condition
             if (!isOnTheLineOf(lineNumber, statements, subStatements.getLast())) {
                 return null;
             }
@@ -1140,7 +1140,7 @@ public class StatementMaker {
 
         if (subStatements.size() == 2 && isBreak(subStatements.getLast())
          && thenBody instanceof Statements thenStatements && thenStatements.size() > 1 && thenStatements.getLast() == ContinueStatement.CONTINUE) {
-            // 'if (condition) { ...; continue; } break;'
+            // The body is the test of the condition, which continues the loop with its statements, then the exit
             if (!isOnTheLineOf(lineNumber, statements, thenStatements.get(thenStatements.size() - 2))) {
                 return null;
             }

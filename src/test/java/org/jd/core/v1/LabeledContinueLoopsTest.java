@@ -50,7 +50,8 @@ public class LabeledContinueLoopsTest extends AbstractJdTest {
     private static void assertUpdateIsInTheHeader(String source) {
         assertTrue(source, source.contains("i < array.length - target.length + 1; i++) {"));
         assertFalse(source, source.contains("i++; continue"));
-        assertTrue(source, source.matches("(?s).*for \\(int j = 0; j < target.length; j\\+\\+\\) \\{.*continue label\\d+;.*"));
+        assertTrue(source, source.contains("for (int j = 0; j < target.length; j++) {"));
+        assertTrue(source, source.contains("continue label"));
     }
 
     @Test

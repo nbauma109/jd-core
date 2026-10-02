@@ -60,7 +60,7 @@ public class SharedExitsTest extends AbstractJdTest {
         String source = decompileWithEcj();
         String method = source.substring(source.indexOf("boolean sameKind("), source.indexOf("boolean separateLines("));
 
-        // ECJ compiles 'return a && b && (c ? d : e) && f;' into jumps to a few 'return true' and 'return false'
+        // ECJ compiles the returned expression into jumps to a few returns of 'true' and 'false'
         assertTrue(method, method.contains("return a.length() == b.length() &&"));
         assertTrue(method, method.contains("a.hashCode() == b.hashCode();"));
         assertFalse(method, method.contains("return true"));

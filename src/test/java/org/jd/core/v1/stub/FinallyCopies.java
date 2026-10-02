@@ -1,5 +1,6 @@
 package org.jd.core.v1.stub;
 
+@SuppressWarnings({"java:S128", "java:S131", "java:S1481"}) // the shapes of the bytecode of a real class are reproduced
 public class FinallyCopies {
     private boolean flag;
     private int count;

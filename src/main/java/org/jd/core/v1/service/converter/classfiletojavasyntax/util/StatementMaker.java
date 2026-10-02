@@ -58,6 +58,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.s
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchLocalVariableReferenceVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.MergeTryWithResourcesStatementVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RemoveBinaryOpReturnStatementsVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RemoveFinallyStatementsVisitor;
@@ -149,6 +150,8 @@ public class StatementMaker {
     private final TypeMaker typeMaker;
     private final Map<String, BaseType> typeBounds;
     private final LocalVariableMaker localVariableMaker;
+    /** The temporary of the selector of the last 'switch' on a string compiled by ECJ */
+    private AbstractLocalVariable selectedStringTemporary;
     private final ByteCodeParser byteCodeParser;
     private final int majorVersion;
     private final String internalTypeName;
@@ -551,8 +554,12 @@ public class StatementMaker {
         SwitchStatement switchStatement = (SwitchStatement) statements.getLast();
         boolean stringSwitch = isSwitchOnString(switchCases);
 
+        AbstractLocalVariable selectorTemporary = null;
+        Expression selectedString = null;
+
         if (stringSwitch) {
-            selectString(switchStatement);
+            selectedString = selectString(switchStatement);
+            selectorTemporary = this.selectedStringTemporary;
         }
 
         Expression selector = switchStatement.getCondition();
@@ -565,11 +572,13 @@ public class StatementMaker {
 
         if (ByteCodeUtil.isSwitchExpressionJoin(join)
                 && tryMakeSwitchExpression(watchdog, switchCases, selector, selectorType, entryStack, statements, jumps)) {
+            localVariableMaker.removeLocalVariable(selectorTemporary);
             // The join block is processed by parseSwitch, outside the switch-depth scope
             return;
         }
 
         makeSwitchBlocks(watchdog, switchCases, switchStatement, selectorType, entryStack, jumps);
+        keepSelectorTemporaryIfReferenced(statements, switchStatement, selectorTemporary, selectedString);
 
         int size = statements.size();
 
@@ -586,18 +595,41 @@ public class StatementMaker {
     }
 
     /** The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch (s)'. */
-    private void selectString(SwitchStatement switchStatement) {
+    private Expression selectString(SwitchStatement switchStatement) {
         Expression selector = switchStatement.getCondition();
 
+        selectedStringTemporary = null;
         if (selector.isMethodInvocationExpression() && "hashCode".equals(selector.getName())) {
             Expression string = selector.getExpression();
 
             if (string.isBinaryOperatorExpression() && "=".equals(string.getOperator()) && string.getLeftExpression().isLocalVariableReferenceExpression()) {
-                localVariableMaker.removeLocalVariable(((ClassFileLocalVariableReferenceExpression) string.getLeftExpression()).getLocalVariable());
+                selectedStringTemporary = ((ClassFileLocalVariableReferenceExpression) string.getLeftExpression()).getLocalVariable();
                 string = string.getRightExpression();
             }
 
             switchStatement.setCondition(string);
+            return string;
+        }
+        return null;
+    }
+
+    /** The temporary of the selector is only removed if the bodies of the 'switch' do not use it, else it is assigned before the 'switch'. */
+    private void keepSelectorTemporaryIfReferenced(Statements statements, SwitchStatement switchStatement, AbstractLocalVariable temporary, Expression string) {
+        if (temporary == null) {
+            return;
+        }
+
+        SearchLocalVariableReferenceVisitor search = new SearchLocalVariableReferenceVisitor();
+
+        search.init(temporary);
+        switchStatement.accept(search);
+
+        if (search.containsReference()) {
+            ClassFileLocalVariableReferenceExpression reference = new ClassFileLocalVariableReferenceExpression(UNKNOWN_LINE_NUMBER, 0, temporary);
+
+            statements.add(statements.size() - 1, new ExpressionStatement(new BinaryOperatorExpression(UNKNOWN_LINE_NUMBER, temporary.getType(), reference, "=", string, 16)));
+        } else {
+            localVariableMaker.removeLocalVariable(temporary);
         }
     }
 

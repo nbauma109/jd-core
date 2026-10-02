@@ -181,7 +181,9 @@ public final class LoopStatementMaker {
                 int firstLineNumber = visitor.getLineNumber();
 
                 // Populates 'update'
-                Expressions update = extractUpdate(subStatements, firstLineNumber, lineNumber);
+                // A 'continue' of a 'while' jumps to its condition, not to an update: the line of the header is no evidence that a trailing
+                // expression on this line is an update when the body has some
+                Expressions update = extractUpdate(subStatements, firstLineNumber, containsContinue(subStatements) ? Expression.UNKNOWN_LINE_NUMBER : lineNumber);
 
                 if (update.isEmpty()) {
                     // A body which is entirely on the line of the header (its test was merged into the condition) is the
@@ -621,6 +623,18 @@ public final class LoopStatementMaker {
      * @param headerLineNumber the line of the condition of the loop: the updates which are on this line are the ones of the 'for', even if
      *                         the first statement of the body is on this line too
      */
+    private static boolean containsContinue(Statements statements) {
+        boolean[] found = new boolean[1];
+
+        statements.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(ContinueStatement statement) {
+                found[0] = true;
+            }
+        });
+        return found[0];
+    }
+
     private static Expressions extractUpdate(Statements statements, int firstLineNumber, int headerLineNumber) {
         Expressions update = new Expressions();
         ListIterator<Statement> iterator = statements.listIterator(statements.size());

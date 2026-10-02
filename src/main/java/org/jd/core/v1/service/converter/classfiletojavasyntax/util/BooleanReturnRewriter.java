@@ -10,6 +10,8 @@ import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.ParenthesesExpression;
+import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
@@ -21,9 +23,12 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFirs
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.jd.core.v1.api.printer.Printer.UNKNOWN_LINE_NUMBER;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_DOUBLE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_FLOAT;
 
 /**
  * The tests of 'return a &amp;&amp; b || c ? d : e;' are compiled into jumps to a few 'return true' and 'return false' (e.g. by ECJ), and
@@ -32,6 +37,7 @@ import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
  * <p>Statements which are on their own lines ('if (a) return true;' ... 'return false;') are not touched.</p>
  */
 public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
+    private static final Set<String> FLOATING_POINT_COMPARISONS = Set.of("<", ">", "<=", ">=");
     private static final int AND_PRIORITY = 13;
     private static final int OR_PRIORITY = 14;
 
@@ -232,7 +238,7 @@ public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
 
     private static Tree simplifyTest(Expression test, Tree whenTrue, Tree whenFalse) {
         Leaf condition = new Leaf(test);
-        Leaf negation = new Leaf(RecordPatternInstanceOfRewriter.negateBooleanExpression(test, test.getLineNumber()));
+        Leaf negation = new Leaf(negate(test));
 
         if (whenTrue == TRUE && whenFalse == FALSE) {
             return condition;
@@ -253,6 +259,36 @@ public final class BooleanReturnRewriter extends AbstractJavaSyntaxVisitor {
             return new Operation("&&", negation, whenFalse);
         }
         return new Test(test, whenTrue, whenFalse);
+    }
+
+    /** The inverse of a comparison of floating point numbers is not the inverse comparison: 'a < b' is false and 'a >= b' is false too if one is NaN */
+    private static Expression negate(Expression test) {
+        if (containsFloatingPointComparison(test)) {
+            int lineNumber = test.getLineNumber();
+            Expression operand = RecordPatternInstanceOfRewriter.unwrapParenthesesExpression(test);
+
+            return new PreOperatorExpression(lineNumber, "!", operand.isBinaryOperatorExpression() ? new ParenthesesExpression(lineNumber, operand) : operand);
+        }
+        return RecordPatternInstanceOfRewriter.negateBooleanExpression(test, test.getLineNumber());
+    }
+
+    private static boolean containsFloatingPointComparison(Expression expression) {
+        Expression unwrapped = RecordPatternInstanceOfRewriter.unwrapParenthesesExpression(expression);
+
+        if (unwrapped instanceof PreOperatorExpression pre) {
+            return containsFloatingPointComparison(pre.getExpression());
+        }
+        if (unwrapped instanceof BinaryOperatorExpression binary) {
+            if (FLOATING_POINT_COMPARISONS.contains(binary.getOperator())) {
+                return isFloatingPoint(binary.getLeftExpression()) || isFloatingPoint(binary.getRightExpression());
+            }
+            return containsFloatingPointComparison(binary.getLeftExpression()) || containsFloatingPointComparison(binary.getRightExpression());
+        }
+        return false;
+    }
+
+    private static boolean isFloatingPoint(Expression expression) {
+        return TYPE_FLOAT.equals(expression.getType()) || TYPE_DOUBLE.equals(expression.getType());
     }
 
     private static Expression expression(Tree tree) {

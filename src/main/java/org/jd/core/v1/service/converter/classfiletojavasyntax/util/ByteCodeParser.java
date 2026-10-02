@@ -1095,27 +1095,25 @@ public class ByteCodeParser {
             return;
         }
 
-        int last = -1;
+        for (int i = 0; i < list.size() - 1; i++) {
+            Integer end = anonymousClassEndOffsets.get(list.get(i));
 
-        for (int i = list.size() - 1; i >= 0 && last < 0; i--) {
-            if (anonymousClassEndOffsets.containsKey(list.get(i))) {
-                last = i;
+            if (end != null && !hasLineNumberStart(cfg, end + 1, invocationOffset)) {
+                // The arguments up to the next anonymous class
+                for (int j = i + 1; j < list.size() && !anonymousClassEndOffsets.containsKey(list.get(j)); j++) {
+                    list.set(j, list.get(j).copyTo(Expression.UNKNOWN_LINE_NUMBER));
+                }
             }
         }
+    }
 
-        if (last < 0 || last == list.size() - 1) {
-            return;
-        }
-
-        for (int offset = anonymousClassEndOffsets.get(list.get(last)) + 1; offset < invocationOffset; offset++) {
+    private static boolean hasLineNumberStart(ControlFlowGraph cfg, int fromOffset, int toOffset) {
+        for (int offset = fromOffset; offset < toOffset; offset++) {
             if (cfg.isLineNumberStart(offset)) {
-                return;
+                return true;
             }
         }
-
-        for (int i = last + 1; i < list.size(); i++) {
-            list.set(i, list.get(i).copyTo(Expression.UNKNOWN_LINE_NUMBER));
-        }
+        return false;
     }
 
     /**

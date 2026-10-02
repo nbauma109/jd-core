@@ -8,10 +8,12 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
+import org.jd.core.v1.model.javasyntax.expression.DoubleConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
+import org.jd.core.v1.model.javasyntax.expression.ParenthesesExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
@@ -71,6 +73,12 @@ public class BooleanReturnRewriterTest {
         if (expression instanceof PreOperatorExpression preOperator) {
             return preOperator.getOperator() + render(preOperator.getExpression());
         }
+        if (expression instanceof ParenthesesExpression parentheses) {
+            return render(parentheses.getExpression());
+        }
+        if (expression instanceof DoubleConstantExpression constant) {
+            return String.valueOf(constant.getDoubleValue());
+        }
         if (expression instanceof BooleanExpression bool) {
             return String.valueOf(bool.isTrue());
         }
@@ -107,6 +115,13 @@ public class BooleanReturnRewriterTest {
         Expression comparison = new BinaryOperatorExpression(LINE, PrimitiveType.TYPE_BOOLEAN, new IntegerConstantExpression(LINE, 1), "==", new IntegerConstantExpression(LINE, 2));
 
         assertEquals("(1 != 2)", rewrite(ifThen(comparison, returns(false)), returns(true)));
+    }
+
+    @Test
+    public void testTheNegationOfAFloatingPointComparisonKeepsTheNot() {
+        Expression comparison = new BinaryOperatorExpression(LINE, PrimitiveType.TYPE_BOOLEAN, new DoubleConstantExpression(LINE, 1.0), "<", new DoubleConstantExpression(LINE, 2.0));
+
+        assertEquals("!(1.0 < 2.0)", rewrite(ifThen(comparison, returns(false)), returns(true)));
     }
 
     @Test

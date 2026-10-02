@@ -15,6 +15,8 @@ public class EcjStringSwitch {
         }
     }
 
+    @SuppressWarnings("java:S6208") // The classic form of the labels is the one under test
+    @SuppressWarnings("java:S6208") // The classic form of the labels is the one under test (stubs are compiled for older releases)
     public static String describe(String key, StringBuilder out) {
         String result = null;
         switch (key) {

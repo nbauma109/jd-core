@@ -464,6 +464,7 @@ public class BasicBlock {
         private final int offset;
         private BasicBlock basicBlock;
         private final boolean defaultCase;
+        private final String stringValue;
 
         public SwitchCase(BasicBlock basicBlock) {
             this(0, basicBlock, true);
@@ -473,7 +474,17 @@ public class BasicBlock {
             this(value, basicBlock, false);
         }
 
+        /** A case of a 'switch' on a string compiled as a single 'switch' on the hash code (e.g. by ECJ). */
+        public SwitchCase(int value, String stringValue, BasicBlock basicBlock) {
+            this(value, basicBlock, false, stringValue);
+        }
+
         public SwitchCase(int value, BasicBlock basicBlock, boolean defaultCase) {
+            this(value, basicBlock, defaultCase, null);
+        }
+
+        private SwitchCase(int value, BasicBlock basicBlock, boolean defaultCase, String stringValue) {
+            this.stringValue = stringValue;
             this.value = value;
             this.offset = basicBlock.getFromOffset();
             this.basicBlock = basicBlock;
@@ -482,6 +493,11 @@ public class BasicBlock {
 
         public int getValue() {
             return value;
+        }
+
+        /** @return the string of the case if the 'switch' is on a string, null otherwise */
+        public String getStringValue() {
+            return stringValue;
         }
 
         public int getOffset() {

@@ -16,14 +16,17 @@ import org.jd.core.v1.model.javasyntax.declaration.EnumDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.InterfaceDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
-import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
+import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
@@ -43,11 +46,11 @@ import static org.jd.core.v1.api.printer.Printer.UNKNOWN_LINE_NUMBER;
 
 public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
+    private final SearchLocalVariableReferenceVisitor searchLocalVariableReferenceVisitor = new SearchLocalVariableReferenceVisitor();
     private final Map<String, FieldDeclarator> fieldDeclarators = new HashMap<>();
     private final DefaultList<Data> data = new DefaultList<>();
     private final DefaultList<Expression> putFields = new DefaultList<>();
     private int lineNumber = UNKNOWN_LINE_NUMBER;
-    private boolean containsLocalVariableReference;
 
     @Override
     public void visit(AnnotationDeclaration declaration) {
@@ -104,6 +107,7 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
             if (superConstructorCall != null) {
                 String internalTypeName = cfcd.getClassFile().getInternalTypeName();
 
+                skipUninitializedDeclarations(iterator);
                 data.add(new Data(cfcd, statements, iterator.nextIndex()));
 
                 if (data.size() == 1) {
@@ -153,11 +157,6 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
         fieldDeclarators.put(declaration.getName(), declaration);
     }
 
-    @Override
-    public void visit(LocalVariableReferenceExpression expression) {
-        containsLocalVariableReference = true;
-    }
-
     protected SuperConstructorInvocationExpression searchSuperConstructorCall(ListIterator<Statement> iterator) {
         Expression expression;
         while (iterator.hasNext()) {
@@ -173,6 +172,29 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return null;
+    }
+
+    /**
+     * The declarations of the local variables assigned later in the constructor (e.g. 'Class&lt;?&gt; cl;') are generated before
+     * the initializers of the fields, which are right after the call to 'super(...)': they stay in the constructor.
+     */
+    protected static void skipUninitializedDeclarations(ListIterator<Statement> iterator) {
+        while (iterator.hasNext()) {
+            Statement statement = iterator.next();
+
+            if (!statement.isLocalVariableDeclarationStatement()
+                    || hasInitializer(((LocalVariableDeclarationStatement) statement).getLocalVariableDeclarators())) {
+                iterator.previous();
+                return;
+            }
+        }
+    }
+
+    private static boolean hasInitializer(BaseLocalVariableDeclarator declarators) {
+        if (declarators instanceof LocalVariableDeclarators list) {
+            return list.stream().anyMatch(declarator -> declarator.getVariableInitializer() != null);
+        }
+        return ((LocalVariableDeclarator) declarators).getVariableInitializer() != null;
     }
 
     protected void initPutFields(String internalTypeName, int firstLineNumber, ListIterator<Statement> iterator) {
@@ -207,10 +229,8 @@ public class InitInstanceFieldVisitor extends AbstractJavaSyntaxVisitor {
                 break;
             }
 
-            containsLocalVariableReference = false;
-            expression.getRightExpression().accept(this);
-
-            if (containsLocalVariableReference) {
+            // The parameters of a lambda are not the local variables of the constructor
+            if (searchLocalVariableReferenceVisitor.containsExternalReference(expression.getRightExpression())) {
                 break;
             }
 

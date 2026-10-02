@@ -28,6 +28,7 @@ public class ControlFlowGraph {
         }
     };
     private int[] offsetToLineNumbers;
+    private boolean[] lineNumberStarts;
 
     public ControlFlowGraph(Method method) {
         this.method = method;
@@ -85,6 +86,18 @@ public class ControlFlowGraph {
 
     public void setOffsetToLineNumbers(int[] offsetToLineNumbers) {
         this.offsetToLineNumbers = offsetToLineNumbers;
+    }
+
+    public void setLineNumberStarts(boolean[] lineNumberStarts) {
+        this.lineNumberStarts = lineNumberStarts;
+    }
+
+    /**
+     * @return true if a line number entry starts exactly at this offset, false if the line number of the
+     *         instruction is only inherited from a previous entry (javac only records statements and calls)
+     */
+    public boolean isLineNumberStart(int offset) {
+        return lineNumberStarts != null && offset >= 0 && offset < lineNumberStarts.length && lineNumberStarts[offset];
     }
 
     public int getLineNumber(int offset) {

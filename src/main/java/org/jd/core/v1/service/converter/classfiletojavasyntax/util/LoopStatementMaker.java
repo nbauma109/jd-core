@@ -55,11 +55,14 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchLoca
 import org.jd.core.v1.util.StringConstants;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.bcel.Const.MAJOR_1_5;
+import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_END;
 import static org.jd.core.v1.model.javasyntax.statement.ContinueStatement.CONTINUE;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_ITERABLE;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_OBJECT;
@@ -75,7 +78,8 @@ public final class LoopStatementMaker {
             int majorVersion, Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker,
             BasicBlock loopBasicBlock, Statements statements, Expression condition, Statements subStatements,
             Statements jumps) {
-        Statement loop = makeLoop(majorVersion, typeBounds, localVariableMaker, loopBasicBlock, statements, condition, subStatements);
+        boolean[] labelRequested = new boolean[1];
+        Statement loop = makeLoop(majorVersion, typeBounds, localVariableMaker, loopBasicBlock, statements, condition, subStatements, labelRequested);
         int continueOffset = loopBasicBlock.getSub1().getFromOffset();
         preserveNestedContinueTargets(subStatements, continueOffset);
         int breakOffset = loopBasicBlock.getNext().getFromOffset();
@@ -84,12 +88,15 @@ public final class LoopStatementMaker {
             breakOffset = loopBasicBlock.getToOffset();
         }
 
-        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, loop, jumps);
+        int updateOffset = loop instanceof ClassFileForEachStatement forEach ? forEach.getUpdateOffset() : -1;
+
+        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, updateOffset, lowestOffset(loopBasicBlock, continueOffset), labelRequested[0], loop, jumps);
     }
 
     private static Statement makeLoop(
             int majorVersion, Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker,
-            BasicBlock loopBasicBlock, Statements statements, Expression condition, Statements subStatements) {
+            BasicBlock loopBasicBlock, Statements statements, Expression condition, Statements subStatements,
+            boolean[] labelRequested) {
         boolean forEachSupported = majorVersion >= MAJOR_1_5;
 
         subStatements.accept(REMOVE_LAST_CONTINUE_STATEMENT_VISITOR);
@@ -108,6 +115,12 @@ public final class LoopStatementMaker {
                 restoreProvenForEachBreaks(statement.getStatements());
                 return statement;
             }
+        }
+
+        Statement forStatement = makeForWithUpdateBeforeContinues(localVariableMaker, loopBasicBlock, statements, condition, subStatements, labelRequested);
+
+        if (forStatement != null) {
+            return forStatement;
         }
 
         int lineNumber = condition == null ? Expression.UNKNOWN_LINE_NUMBER : condition.getLineNumber();
@@ -163,7 +176,14 @@ public final class LoopStatementMaker {
                 int firstLineNumber = visitor.getLineNumber();
 
                 // Populates 'update'
-                Expressions update = extractUpdate(subStatements, firstLineNumber);
+                Expressions update = extractUpdate(subStatements, firstLineNumber, lineNumber);
+
+                if (update.isEmpty()) {
+                    // A body which is entirely on the line of the header (e.g. 'for (; a < b; a++, b--) { if (...) break; }'
+                    // whose 'if' was merged into the condition) is the update of the 'for'
+                    update = extractUpdateOnLine(subStatements, lineNumber);
+                }
+
                 BaseExpression init = extractInit(statements, lineNumber);
 
                 if (init != null || !update.isEmpty()) {
@@ -174,6 +194,294 @@ public final class LoopStatementMaker {
         }
 
         return new WhileStatement(condition, subStatements);
+    }
+
+    /**
+     * The body of a loop which never falls through (e.g. it ends with a 'return') has no update at its end: the compiler
+     * only copied the update 'i$++' before each 'continue'.
+     *
+     * @return true if there is at least one 'continue' of the loop and each one follows the update of the index
+     */
+    private static boolean isUpdateBeforeEveryContinue(BaseStatement body, AbstractLocalVariable index) {
+        UpdateBeforeContinueVisitor visitor = new UpdateBeforeContinueVisitor(index, false);
+
+        body.accept(visitor);
+        return visitor.continues > 0 && visitor.valid;
+    }
+
+    /** @return the offset of the removed updates (they are copies of the same instruction), or -1 */
+    private static int removeUpdatesBeforeContinues(BaseStatement body, AbstractLocalVariable index) {
+        UpdateBeforeContinueVisitor visitor = new UpdateBeforeContinueVisitor(index, true);
+
+        body.accept(visitor);
+        return visitor.updateOffset;
+    }
+
+    /** @return the offset of the 'iinc' instruction of an update 'i$++' (the variable is the offset of its first operand), or -1 */
+    private static int offsetOfUpdate(Expression update) {
+        return update.getExpression() instanceof ClassFileLocalVariableReferenceExpression variable ? variable.getOffset() - 1 : -1;
+    }
+
+    private static boolean isUpdateOf(Statement statement, AbstractLocalVariable index) {
+        if (!statement.isExpressionStatement() || !statement.getExpression().isPostOperatorExpression()) {
+            return false;
+        }
+
+        Expression variable = statement.getExpression().getExpression();
+
+        return variable.isLocalVariableReferenceExpression()
+            && ((ClassFileLocalVariableReferenceExpression)variable).getLocalVariable() == index;
+    }
+
+    private static final class UpdateBeforeContinueVisitor extends AbstractJavaSyntaxVisitor {
+        private final AbstractLocalVariable index;
+        private final boolean remove;
+        private int continues;
+        private int updateOffset = -1;
+        private boolean valid = true;
+
+        private UpdateBeforeContinueVisitor(AbstractLocalVariable index, boolean remove) {
+            this.index = index;
+            this.remove = remove;
+        }
+
+        @Override
+        public void visit(Statements statements) {
+            for (int i = 0; i < statements.size(); i++) {
+                Statement statement = statements.get(i);
+
+                if (statement.isContinueStatement() && ((ContinueStatement)statement).getLabel() == null) {
+                    continues++;
+
+                    if (i > 0 && isUpdateOf(statements.get(i - 1), index)) {
+                        if (remove) {
+                            if (updateOffset == -1) {
+                                updateOffset = offsetOfUpdate(statements.get(i - 1).getExpression());
+                            }
+                            statements.remove(i - 1);
+                            i--;
+                        }
+                    } else {
+                        valid = false;
+                    }
+                } else {
+                    statement.accept(this);
+                }
+            }
+        }
+
+        @Override
+        public void visit(ContinueStatement statement) {
+            // A 'continue' which is not in a list of statements cannot follow the update
+            if (statement.getLabel() == null) {
+                continues++;
+                valid = false;
+            }
+        }
+
+        @Override
+        public void visit(DoWhileStatement statement) {
+            // The 'continue' of a nested loop is not the one of this loop
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            // The 'continue' of a nested loop is not the one of this loop
+        }
+
+        @Override
+        public void visit(ForStatement statement) {
+            // The 'continue' of a nested loop is not the one of this loop
+        }
+
+        @Override
+        public void visit(WhileStatement statement) {
+            // The 'continue' of a nested loop is not the one of this loop
+        }
+    }
+
+
+    /**
+     * The body of a loop which never falls through (e.g. it ends with a 'return') has no update at its end: the compiler
+     * only copied the update 'i++' before each 'continue' of the loop, including the ones of its nested loops
+     * ('continue outer'). The update is the one of the 'for', and the 'continue' of the nested loops are labeled.
+     *
+     * @return null if the loop is not such a loop
+     */
+    private static Statement makeForWithUpdateBeforeContinues(
+            LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Expression condition,
+            Statements subStatements, boolean[] labelRequested) {
+        int lineNumber = condition == null ? Expression.UNKNOWN_LINE_NUMBER : condition.getLineNumber();
+
+        if (lineNumber <= 0 || subStatements.isEmpty() || !neverFallsThrough(subStatements.getLast())) {
+            return null;
+        }
+
+        ContinueUpdatesVisitor visitor = new ContinueUpdatesVisitor(condition, labelOf(loopBasicBlock.getIndex()));
+
+        subStatements.accept(visitor);
+
+        if (!visitor.isValid()) {
+            return null;
+        }
+
+        visitor.apply = true;
+        subStatements.accept(visitor);
+        labelRequested[0] = visitor.labelUsed;
+
+        BaseExpression init = extractInit(statements, lineNumber);
+        Expressions update = new Expressions();
+
+        update.add(visitor.update);
+        return newClassFileForStatement(localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, update, subStatements);
+    }
+
+    private static boolean neverFallsThrough(Statement statement) {
+        return statement.isReturnStatement() || statement.isReturnExpressionStatement() || statement.isThrowStatement() || statement.isBreakStatement();
+    }
+
+    /**
+     * Searches the 'continue' of a loop which follow the same update of a variable of its condition ('i++'), at any depth. The
+     * 'continue' of a nested loop which do not follow it are the ones of this nested loop.
+     */
+    private static final class ContinueUpdatesVisitor extends AbstractJavaSyntaxVisitor {
+        private final SearchLocalVariableReferenceVisitor searchVariable = new SearchLocalVariableReferenceVisitor();
+        private final Expression condition;
+        private final String label;
+        private Expression update;
+        private int depth;
+        private int continues;
+        private boolean valid = true;
+        private boolean apply;
+        private boolean labelUsed;
+
+        private ContinueUpdatesVisitor(Expression condition, String label) {
+            this.condition = condition;
+            this.label = label;
+        }
+
+        private boolean isValid() {
+            return valid && continues > 0;
+        }
+
+        @Override
+        public void visit(Statements statements) {
+            for (int i = 0; i < statements.size(); i++) {
+                Statement statement = statements.get(i);
+
+                if (statement.isContinueStatement() && ((ContinueStatement)statement).getLabel() == null) {
+                    if (i > 0 && isUpdate(statements.get(i - 1))) {
+                        if (apply) {
+                            statements.remove(i - 1);
+                            i--;
+                            if (depth > 0) {
+                                statements.set(i, new ContinueStatement(label));
+                                labelUsed = true;
+                            }
+                        } else {
+                            continues++;
+                        }
+                    } else if (depth == 0) {
+                        valid = false;
+                    }
+                } else {
+                    statement.accept(this);
+                }
+            }
+        }
+
+        @Override
+        public void visit(ContinueStatement statement) {
+            // A 'continue' which is not in a list of statements cannot follow the update
+            if (depth == 0 && statement.getLabel() == null) {
+                valid = false;
+            }
+        }
+
+        private boolean isUpdate(Statement statement) {
+            if (!statement.isExpressionStatement()) {
+                return false;
+            }
+
+            Expression expression = statement.getExpression();
+            Expression variable;
+
+            if (expression.isPostOperatorExpression()) {
+                variable = expression.getExpression();
+            } else if (expression.isBinaryOperatorExpression() && expression.getOperator().length() == 2 && expression.getOperator().endsWith("=")
+                    && "+-*/".contains(expression.getOperator().substring(0, 1)) && expression.getRightExpression().isIntegerConstantExpression()) {
+                variable = expression.getLeftExpression();
+            } else {
+                return false;
+            }
+
+            if (!variable.isLocalVariableReferenceExpression()) {
+                return false;
+            }
+
+            if (update == null) {
+                AbstractLocalVariable localVariable = ((ClassFileLocalVariableReferenceExpression)variable).getLocalVariable();
+
+                searchVariable.init(localVariable);
+                condition.accept(searchVariable);
+
+                // The update of a 'for' is on the line of its condition: another line is the one of a statement of the body
+                if (!searchVariable.containsReference() || expression.getLineNumber() != condition.getLineNumber()) {
+                    return false;
+                }
+                update = expression;
+                return true;
+            }
+
+            return sameUpdate(update, expression);
+        }
+
+        private static boolean sameUpdate(Expression expression1, Expression expression2) {
+            if (expression1.isPostOperatorExpression()) {
+                return expression2.isPostOperatorExpression()
+                    && expression1.getOperator().equals(expression2.getOperator())
+                    && sameVariable(expression1.getExpression(), expression2.getExpression());
+            }
+
+            return expression2.isBinaryOperatorExpression()
+                && expression1.getOperator().equals(expression2.getOperator())
+                && sameVariable(expression1.getLeftExpression(), expression2.getLeftExpression())
+                && expression1.getRightExpression().isIntegerConstantExpression() && expression2.getRightExpression().isIntegerConstantExpression()
+                && expression1.getRightExpression().getIntegerValue() == expression2.getRightExpression().getIntegerValue();
+        }
+
+        private static boolean sameVariable(Expression expression1, Expression expression2) {
+            return expression2.isLocalVariableReferenceExpression()
+                && ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable() == ((ClassFileLocalVariableReferenceExpression)expression2).getLocalVariable();
+        }
+
+        @Override
+        public void visit(DoWhileStatement statement) {
+            depth++;
+            safeAccept(statement.getStatements());
+            depth--;
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            depth++;
+            safeAccept(statement.getStatements());
+            depth--;
+        }
+
+        @Override
+        public void visit(ForStatement statement) {
+            depth++;
+            safeAccept(statement.getStatements());
+            depth--;
+        }
+
+        @Override
+        public void visit(WhileStatement statement) {
+            depth++;
+            safeAccept(statement.getStatements());
+            depth--;
+        }
     }
 
     static void restoreProvenForEachBreaks(BaseStatement statement) {
@@ -223,7 +531,7 @@ public final class LoopStatementMaker {
             breakOffset = loopBasicBlock.getToOffset();
         }
 
-        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, loop, jumps);
+        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, -1, lowestOffset(loopBasicBlock, continueOffset), false, loop, jumps);
     }
 
     private static Statement makeLoop(LocalVariableMaker localVariableMaker, BasicBlock loopBasicBlock, Statements statements, Statements subStatements) {
@@ -266,7 +574,7 @@ public final class LoopStatementMaker {
                     return createForStatementWithoutLineNumber(localVariableMaker, loopBasicBlock, statements, BooleanExpression.TRUE, subStatements);
                 }
             // Populates 'update'
-            Expressions update = extractUpdate(subStatements, firstLineNumber);
+            Expressions update = extractUpdate(subStatements, firstLineNumber, Expression.UNKNOWN_LINE_NUMBER);
 
             if (!update.isEmpty()) {
                 // Populates 'init'
@@ -276,7 +584,29 @@ public final class LoopStatementMaker {
             }
         }
 
-        return new WhileStatement(BooleanExpression.TRUE, subStatements);
+        return new WhileStatement(infiniteLoopCondition(loopBasicBlock, subStatements), subStatements);
+    }
+
+    /**
+     * ECJ attributes the back jump of a loop to the line where the loop starts ('do', 'while (true)', 'for (;;)'),
+     * which is before the first statement of its body. Keep that line on the loop condition, so that the loop
+     * header can be aligned on it instead of being stacked right before the first statement of the body.
+     */
+    private static Expression infiniteLoopCondition(BasicBlock loopBasicBlock, Statements subStatements) {
+        int headerLineNumber = loopBasicBlock.getLastLineNumber();
+
+        if (headerLineNumber > 0) {
+            SearchFirstLineNumberVisitor visitor = new SearchFirstLineNumberVisitor();
+
+            subStatements.accept(visitor);
+
+            int firstLineNumber = visitor.getLineNumber();
+
+            if (firstLineNumber > headerLineNumber) {
+                return new BooleanExpression(headerLineNumber, true);
+            }
+        }
+        return BooleanExpression.TRUE;
     }
 
     public static Statement makeDoWhileLoop(BasicBlock loopBasicBlock, Expression condition, Statements subStatements, Statements jumps) {
@@ -290,7 +620,7 @@ public final class LoopStatementMaker {
             breakOffset = loopBasicBlock.getToOffset();
         }
 
-        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, loop, jumps);
+        return makeLabels(loopBasicBlock.getIndex(), continueOffset, breakOffset, -1, lowestOffset(loopBasicBlock, continueOffset), false, loop, jumps);
     }
 
     private static BaseExpression extractInit(Statements statements, int lineNumber) {
@@ -351,7 +681,27 @@ public final class LoopStatementMaker {
         return null;
     }
 
-    private static Expressions extractUpdate(Statements statements, int firstLineNumber) {
+    private static Expressions extractUpdateOnLine(Statements statements, int lineNumber) {
+        for (Statement statement : statements) {
+            if (!statement.isExpressionStatement() || statement.getExpression().getLineNumber() != lineNumber) {
+                return new Expressions();
+            }
+        }
+
+        Expressions update = new Expressions();
+
+        for (Statement statement : statements) {
+            update.add(statement.getExpression());
+        }
+        statements.clear();
+        return update;
+    }
+
+    /**
+     * @param headerLineNumber the line of the condition of the loop: the updates which are on this line are the ones of the 'for', even if
+     *                         the first statement of the body is on this line too
+     */
+    private static Expressions extractUpdate(Statements statements, int firstLineNumber, int headerLineNumber) {
         Expressions update = new Expressions();
         ListIterator<Statement> iterator = statements.listIterator(statements.size());
 
@@ -362,7 +712,9 @@ public final class LoopStatementMaker {
                 break;
             }
             Expression expression = statement.getExpression();
-            if (expression.getLineNumber() >= firstLineNumber) {
+            int lineNumber = expression.getLineNumber();
+
+            if (lineNumber >= firstLineNumber && (headerLineNumber <= 0 || lineNumber != headerLineNumber)) {
                 break;
             }
             iterator.remove();
@@ -425,7 +777,7 @@ public final class LoopStatementMaker {
 
         int statementsSize = statements.size();
 
-        if (statementsSize < 3 || subStatements.size() < 2) {
+        if (statementsSize < 2 || subStatements.size() < 2) {
             return null;
         }
 
@@ -450,6 +802,15 @@ public final class LoopStatementMaker {
         Expression boe = expression;
 
         expression = boe.getRightExpression().getExpression();
+
+        // ECJ: len$ = (arr$ = array).length;
+        Expression arrayAssignment = null;
+
+        if (expression.isBinaryOperatorExpression() && "=".equals(expression.getOperator())
+         && expression.getLeftExpression().isLocalVariableReferenceExpression()) {
+            arrayAssignment = expression;
+            expression = expression.getLeftExpression();
+        }
 
         if (!expression.isLocalVariableReferenceExpression()) {
             return null;
@@ -488,7 +849,15 @@ public final class LoopStatementMaker {
         }
 
         // arr$ = array;
-        expression = statements.get(statementsSize-3).getExpression();
+        if (arrayAssignment == null) {
+            if (statementsSize < 3) {
+                return null;
+            }
+
+            expression = statements.get(statementsSize-3).getExpression();
+        } else {
+            expression = arrayAssignment;
+        }
 
         if (!expression.getLeftExpression().isLocalVariableReferenceExpression()) {
             return null;
@@ -525,17 +894,30 @@ public final class LoopStatementMaker {
         // ++i$;
         expression = subStatements.getLast().getExpression();
 
-        if (expression.getLineNumber() != lineNumber || !expression.isPostOperatorExpression()) {
+        boolean updateAtTheEnd = expression != null && expression.getLineNumber() == lineNumber && expression.isPostOperatorExpression();
+        int updateOffset = -1;
+
+        if (updateAtTheEnd) {
+            updateOffset = offsetOfUpdate(expression);
+        }
+
+        if (!updateAtTheEnd && !isUpdateBeforeEveryContinue(subStatements, syntheticIndex)) {
             return null;
         }
 
         // Found
         statements.removeLast();
         statements.removeLast();
-        statements.removeLast();
+        if (arrayAssignment == null) {
+            statements.removeLast();
+        }
 
         subStatements.removeFirst();
-        subStatements.removeLast();
+        if (updateAtTheEnd) {
+            subStatements.removeLast();
+        } else {
+            updateOffset = removeUpdatesBeforeContinues(subStatements, syntheticIndex);
+        }
 
         item.setDeclared(true);
         Type type = arrayType.createType(arrayType.getDimension()-1);
@@ -559,11 +941,18 @@ public final class LoopStatementMaker {
             || (leftArrayType.getDimension() == rightArrayType.getDimension()
              && leftArrayType.isGenericType()
              && StringConstants.JAVA_LANG_OBJECT.equals(rightArrayType.getInternalName()))) {
-                return new ClassFileForEachStatement(item, castExpression.getExpression(), subStatements);
+                return newForEachStatement(item, castExpression.getExpression(), subStatements, updateOffset);
             }
         }
 
-        return new ClassFileForEachStatement(item, array, subStatements);
+        return newForEachStatement(item, array, subStatements, updateOffset);
+    }
+
+    private static ClassFileForEachStatement newForEachStatement(AbstractLocalVariable item, Expression array, Statements subStatements, int updateOffset) {
+        ClassFileForEachStatement statement = new ClassFileForEachStatement(item, array, subStatements);
+
+        statement.setUpdateOffset(updateOffset);
+        return statement;
     }
 
     private static Statement makeForEachList(
@@ -751,11 +1140,18 @@ public final class LoopStatementMaker {
         };
     }
 
-    private static Statement makeLabels(int loopIndex, int continueOffset, int breakOffset, Statement loop, Statements jumps) {
+    /**
+     * @param updateOffset the offset of the update of the index of a loop on an array whose update has been removed
+     *                     (the loop is laid out with its condition after its body), or -1
+     * @param lowOffset    the lowest offset of the loop: its condition, which is at the end of the loop when the compiler lays it out after
+     *                     the body (e.g. ECJ), is not the lowest one
+     */
+    private static Statement makeLabels(int loopIndex, int continueOffset, int breakOffset, int updateOffset, int lowOffset, boolean labelRequested, Statement loop, Statements jumps) {
+        String label = labelOf(loopIndex);
+        boolean createLabel = labelRequested;
+
         if (!jumps.isEmpty()) {
             Iterator<Statement> iterator = jumps.iterator();
-            String label = "label" + loopIndex;
-            boolean createLabel = false;
 
             while (iterator.hasNext()) {
                 ClassFileBreakContinueStatement statement = (ClassFileBreakContinueStatement)iterator.next();
@@ -769,12 +1165,12 @@ public final class LoopStatementMaker {
                     statement.setStatement(new BreakStatement(label));
                     createLabel = true;
                     iterator.remove();
-                } else if (targetOffset == continueOffset) {
+                } else if (targetOffset == continueOffset || targetOffset == updateOffset) {
                     statement.setStatement(new ContinueStatement(label));
                     createLabel = true;
                     iterator.remove();
-                } else if (continueOffset <= offset && offset < breakOffset) {
-                    if (continueOffset <= targetOffset && targetOffset < breakOffset) {
+                } else if (lowOffset <= offset && offset < breakOffset) {
+                    if (lowOffset <= targetOffset && targetOffset < breakOffset) {
                         if (statement.isContinueLabel()) {
                             statement.setStatement(new ContinueStatement(label));
                             createLabel = true;
@@ -788,12 +1184,33 @@ public final class LoopStatementMaker {
                 }
             }
 
-            if (createLabel) {
-                return new LabelStatement(label, loop);
-            }
         }
 
-        return loop;
+        return createLabel ? new LabelStatement(label, loop) : loop;
+    }
+
+    private static String labelOf(int loopIndex) {
+        return "label" + loopIndex;
+    }
+
+    private static int lowestOffset(BasicBlock loopBasicBlock, int continueOffset) {
+        int[] lowest = {continueOffset};
+
+        lowestOffset(new HashSet<>(), loopBasicBlock.getSub1(), lowest);
+        return lowest[0];
+    }
+
+    private static void lowestOffset(Set<BasicBlock> visited, BasicBlock basicBlock, int[] lowest) {
+        if (basicBlock == null || basicBlock.matchType(GROUP_END) || !visited.add(basicBlock)) {
+            return;
+        }
+        if (basicBlock.getFromOffset() > 0 && basicBlock.getFromOffset() < lowest[0]) {
+            lowest[0] = basicBlock.getFromOffset();
+        }
+        lowestOffset(visited, basicBlock.getNext(), lowest);
+        lowestOffset(visited, basicBlock.getBranch(), lowest);
+        lowestOffset(visited, basicBlock.getSub1(), lowest);
+        lowestOffset(visited, basicBlock.getSub2(), lowest);
     }
 
     static void preserveNestedContinueTargets(Statements statements, int targetOffset) {

@@ -14,10 +14,23 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariabl
 
 public class ClassFileForEachStatement extends ForEachStatement {
     private final AbstractLocalVariable localVariable;
+    private int updateOffset = -1;
 
     public ClassFileForEachStatement(AbstractLocalVariable localVariable, Expression expression, BaseStatement statements) {
         super(localVariable.getType(), null, expression, statements);
         this.localVariable = localVariable;
+    }
+
+    /**
+     * @return the offset of the update of the index of an array loop ('i$++'), which is the target of the jumps
+     *         ('continue') which were not resolved when the update was removed, or -1
+     */
+    public int getUpdateOffset() {
+        return updateOffset;
+    }
+
+    public void setUpdateOffset(int updateOffset) {
+        this.updateOffset = updateOffset;
     }
 
     @Override

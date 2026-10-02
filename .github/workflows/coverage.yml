@@ -68,6 +68,7 @@ jobs:
           - testCommonsLang3
           - testCommonsMath3
           - testDiskLruCache
+          - testGson
           - testJavaPoet
           - testJavaWriter
           - testJSoup

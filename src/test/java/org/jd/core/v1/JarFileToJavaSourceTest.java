@@ -102,6 +102,13 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testGson() throws Exception {
+        // Multi-module repository: the gson module lives in the gson/ sub-directory
+        testAtTag("https://github.com/google/gson", "gson", "gson-parent-2.14.0",
+                "com.google.code.gson", "gson", "2.14.0", true, null, "gson");
+    }
+
+    @Test
     public void testJodaTime() throws Exception {
         test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.3");
 
@@ -178,6 +185,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
             String version, boolean runUnitTests, Path testJavaHome) throws Exception {
+        testAtTag(repo, repoName, tag, groupId, artifactId, version, runUnitTests, testJavaHome, null);
+    }
+
+    /**
+     * @param moduleDir sub-directory of the extracted repository holding the module to rebuild (for multi-module
+     *                  repositories whose parent pom is at the root); {@code null} when the module is the root
+     */
+    protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
+            String version, boolean runUnitTests, Path testJavaHome, String moduleDir) throws Exception {
     	if (runUnitTests) {
     		System.out.println("====== Decompiling, recompiling and running unit tests for " + repoName + " tag " + tag + " ======");
     	} else {
@@ -226,6 +242,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         }
                     }
                 }
+            }
+
+            if (moduleDir != null) {
+                // Maven resolves the parent pom through the default relativePath (../pom.xml)
+                projectDir = new File(projectDir, moduleDir);
             }
 
             // Delete all .java files in src/main/java

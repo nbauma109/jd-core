@@ -984,7 +984,8 @@ public class ByteCodeParser {
 
                     if (opcode == IINC) {
                         count = (short)( (code[++offset] & 255) << 8 | code[++offset] & 255 );
-                        parseIINC(statements, stack, lineNumber, offset, localVariableMaker.getLocalVariable(i, offset), count);
+                        // The reference points to the byte following the 'wide' opcode, as for a plain 'iinc'
+                        parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count);
                     } else {
                         switch (opcode) {
                             case ILOAD:

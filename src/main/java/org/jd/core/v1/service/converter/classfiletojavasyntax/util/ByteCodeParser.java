@@ -989,7 +989,8 @@ public class ByteCodeParser {
                         switch (opcode) {
                             case ILOAD:
                                 localVariable = localVariableMaker.getLocalVariable(i, offset + 4);
-                                parseILOAD(statements, stack, lineNumber, offset, localVariable);
+                                // The reference points to the byte following the 'wide' opcode, as for a plain 'iload'
+                                parseILOAD(statements, stack, lineNumber, offset - 2, localVariable);
                                 break;
                             case LLOAD, FLOAD, DLOAD, ALOAD:
                                 stack.push(new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariableMaker.getLocalVariable(i, offset)));

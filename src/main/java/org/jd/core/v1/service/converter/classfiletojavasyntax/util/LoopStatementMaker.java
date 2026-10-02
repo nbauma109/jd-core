@@ -827,7 +827,8 @@ public final class LoopStatementMaker {
         if (!updateAtTheEnd) {
             subStatements.accept(continueUpdates);
 
-            if (!continueUpdates.isValid() || !isUpdateOf(continueUpdates.update, syntheticIndex)) {
+            // Every path which does not 'continue' must leave the loop, else it would advance without updating the index
+            if (!neverFallsThrough(subStatements.getLast()) || !continueUpdates.isValid() || !isUpdateOf(continueUpdates.update, syntheticIndex)) {
                 return null;
             }
             updateOffset = offsetOfUpdate(continueUpdates.update);

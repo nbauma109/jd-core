@@ -27,7 +27,6 @@ public class SharedExits {
         return false;
     }
 
-    @SuppressWarnings("java:S6208") // The classic form of the labels is the one under test
     public static int parse(String text) {
         int sign = 1;
         loop:
@@ -54,6 +53,7 @@ public class SharedExits {
 
     private int flags;
 
+    @SuppressWarnings("java:S6208") // The classic form of the labels is the one under test
     public void flags(String text) {
         int sign = 1;
         boolean sawFlag = false;
@@ -76,7 +76,7 @@ public class SharedExits {
                     sawFlag = false;
                     continue;
                 case ':':
-                case ')': // NOSONAR the classic labels are the shape under test
+                case ')':
                     break;
             }
             if (sign < 0) {

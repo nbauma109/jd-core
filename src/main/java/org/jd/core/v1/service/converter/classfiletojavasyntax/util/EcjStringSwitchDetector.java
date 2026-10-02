@@ -100,6 +100,13 @@ final class EcjStringSwitchDetector {
             chainTo = Math.max(chainTo, end + 3);
         }
 
+        for (int target : targets) {
+            if (target >= chainFrom && target < chainTo) {
+                // The comparisons are deleted
+                return null;
+            }
+        }
+
         if (new HashSet<>(strings).size() != strings.size()) {
             // A duplicate 'case' label does not compile
             return null;

@@ -28,7 +28,6 @@ public class SharedExits {
     }
 
     @SuppressWarnings("java:S6208") // The classic form of the labels is the one under test
-    @SuppressWarnings("java:S6208") // The classic form of the labels is the one under test (stubs are compiled for older releases)
     public static int parse(String text) {
         int sign = 1;
         loop:

@@ -208,9 +208,9 @@ public final class LoopStatementMaker {
         return update.getExpression() instanceof ClassFileLocalVariableReferenceExpression variable ? variable.getOffset() - 1 : -1;
     }
 
-    /** @return true if the update is 'i++' or 'i--' of the variable */
+    /** @return true if the update is 'i++' of the variable */
     private static boolean isUpdateOf(Expression update, AbstractLocalVariable index) {
-        return update.isPostOperatorExpression()
+        return update.isPostOperatorExpression() && "++".equals(update.getOperator())
             && update.getExpression() instanceof ClassFileLocalVariableReferenceExpression variable
             && variable.getLocalVariable() == index;
     }

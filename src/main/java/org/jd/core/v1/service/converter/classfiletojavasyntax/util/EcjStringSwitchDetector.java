@@ -100,6 +100,10 @@ final class EcjStringSwitchDetector {
             chainTo = Math.max(chainTo, end + 3);
         }
 
+        if (defaultOffset >= chainFrom && defaultOffset < chainTo) {
+            return null;
+        }
+
         for (int target : targets) {
             if (target >= chainFrom && target < chainTo) {
                 // The comparisons are deleted

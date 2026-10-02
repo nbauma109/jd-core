@@ -178,6 +178,18 @@ public class EcjStringSwitchDetectorTest {
     }
 
     @Test
+    public void testADefaultCaseInTheComparisonsIsNotAStringSwitch() {
+        Code code = new Code();
+        int switchStart = prelude(code, 1, hashCodeMethod);
+        int chain = code.offset();
+
+        compare(code, 1, aString, false, equalsMethod, FIRST_CODE);
+        code.jump(Const.GOTO, DEFAULT_CODE);
+
+        assertNull(EcjStringSwitchDetector.detect(constants(), code.toByteArray(), switchStart, new int[] {0, "Aa".hashCode()}, new int[] {chain + 1, chain}));
+    }
+
+    @Test
     public void testTheSameStringTwiceIsNotAStringSwitch() {
         Code code = new Code();
         int switchStart = prelude(code, 1, hashCodeMethod);

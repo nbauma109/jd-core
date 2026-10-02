@@ -76,7 +76,7 @@ public class SharedExits {
                     sawFlag = false;
                     continue;
                 case ':':
-                case ')':
+                case ')': // NOSONAR the classic labels are the shape under test
                     break;
             }
             if (sign < 0) {

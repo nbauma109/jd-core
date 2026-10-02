@@ -671,8 +671,10 @@ public class ByteCodeParser {
                     break;
                 case IINC:
                     localVariable = localVariableMaker.getLocalVariable(code[++offset] & 255, offset);
+                    // The offset of the expressions is the one of the index of the variable, as it always was
+                    int variableIndexOffset = offset;
                     count = (byte)(code[++offset] & 255);
-                    extraLength = parseIINC(statements, stack, lineNumber, offset, localVariable, count, code, toOffset);
+                    extraLength = parseIINC(statements, stack, lineNumber, variableIndexOffset, localVariable, count, code, offset + 1, toOffset);
                     offset += extraLength;
                     break;
                 case I2L:
@@ -1006,7 +1008,7 @@ public class ByteCodeParser {
                     if (opcode == IINC) {
                         count = (short)( (code[++offset] & 255) << 8 | code[++offset] & 255 );
                         // The reference points to the byte following the 'wide' opcode, as for a plain 'iinc'
-                        extraLength = parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count, code, toOffset);
+                        extraLength = parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count, code, offset + 1, toOffset);
                         offset += extraLength;
                     } else {
                         switch (opcode) {
@@ -2190,7 +2192,7 @@ public class ByteCodeParser {
     }
 
     /** @return the number of bytes of the following instructions which were consumed too */
-    private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, byte[] code, int toOffset) {
+    private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, byte[] code, int nextInstructionOffset, int toOffset) {
         if (!stack.isEmpty()) {
             Expression expression = stack.peek();
 
@@ -2205,7 +2207,7 @@ public class ByteCodeParser {
             if (count != 1 && count != -1) {
                 // 'foo(i, i += 4)': the value of the compound assignment is loaded again by the instruction which follows. As
                 // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
-                int loadLength = lengthOfILoad(code, offset + 1, toOffset, localVariable.getIndex());
+                int loadLength = lengthOfILoad(code, nextInstructionOffset, toOffset, localVariable.getIndex());
 
                 if (loadLength > 0) {
                     stack.push(newCompoundAssignmentExpression(lineNumber, offset, localVariable, count));

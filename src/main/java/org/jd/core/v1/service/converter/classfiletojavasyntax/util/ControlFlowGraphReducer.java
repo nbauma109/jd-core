@@ -146,6 +146,11 @@ public abstract class ControlFlowGraphReducer {
         return structuredMerges;
     }
 
+    /** @return true if the code which is also reached from outside a loop must not be part of it: only for the methods which cannot be reduced otherwise */
+    protected boolean pruneSharedLoopCode() {
+        return false;
+    }
+
     protected void afterPreReduce() {
         // No-op by default. Overridden by DuplicateMergeCFGReducer to pre-split merge points
         // shared by more than one predecessor, before any construction heuristic runs.
@@ -155,7 +160,7 @@ public abstract class ControlFlowGraphReducer {
     private void reduceGotoLoop(Method method, boolean splitReturns) {
         controlFlowGraph = new ControlFlowGraphMaker().make(method);
         ControlFlowGraphGotoReducer.reduce(controlFlowGraph, splitReturns);
-        ControlFlowGraphLoopReducer.reduce(controlFlowGraph);
+        ControlFlowGraphLoopReducer.reduce(controlFlowGraph, pruneSharedLoopCode());
     }
 
 

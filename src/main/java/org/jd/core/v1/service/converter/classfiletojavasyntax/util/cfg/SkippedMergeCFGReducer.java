@@ -10,6 +10,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ControlFlowGr
  * {@link ControlFlowGraphReducer#turnJumpsOverMergesIntoStubs}), the usual construction builds the chain with the
  * continuation as its successor, and the jumps are rendered as 'break' to a label.
  *
+ * <p>The same goes for loops: the code which is also reached from outside a loop is not a member of it (see
+ * {@link ControlFlowGraphReducer#pruneSharedLoopCode}).</p>
+ *
  * <p>This is not done for every method, as a continuation reached by several conditions is usually just the arm of a
  * boolean expression ('a && b && c') which the usual construction aggregates.</p>
  */
@@ -17,6 +20,11 @@ public class SkippedMergeCFGReducer extends MinDepthCFGReducer {
 
     public SkippedMergeCFGReducer(boolean preReduce) {
         super(preReduce);
+    }
+
+    @Override
+    protected boolean pruneSharedLoopCode() {
+        return true;
     }
 
     @Override

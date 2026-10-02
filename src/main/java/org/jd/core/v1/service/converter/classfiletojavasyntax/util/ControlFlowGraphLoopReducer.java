@@ -13,8 +13,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.ControlF
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.Loop;
 import org.jd.core.v1.util.DefaultList;
 
-import java.util.BitSet;
-import java.util.Comparator;
+import java.util.BitSet;import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -101,6 +100,10 @@ public final class ControlFlowGraphLoopReducer {
     }
 
     public static List<Loop> identifyNaturalLoops(ControlFlowGraph cfg, BitSet[] arrayOfDominatorIndexes) {
+        return identifyNaturalLoops(cfg, arrayOfDominatorIndexes, false);
+    }
+
+    public static List<Loop> identifyNaturalLoops(ControlFlowGraph cfg, BitSet[] arrayOfDominatorIndexes, boolean pruneSharedCode) {
         List<BasicBlock> list = cfg.getBasicBlocks();
         int length = list.size();
         BitSet[] arrayOfMemberIndexes = new BitSet[length];
@@ -223,21 +226,21 @@ public final class ControlFlowGraphLoopReducer {
 
                         if (commonMemberIndexes.equals(onlyLoopHeaderIndex)) {
                             // Only 'start' is the common basic block -> Split loop
-                            loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes));
+                            loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes, pruneSharedCode));
 
                             branchIndexes.flip(0, length);
                             searchZoneIndexes.and(branchIndexes);
                             searchZoneIndexes.set(start.getIndex());
 
-                            loops.add(makeLoop(list, start, searchZoneIndexes, nextIndexes));
+                            loops.add(makeLoop(list, start, searchZoneIndexes, nextIndexes, pruneSharedCode));
                         } else {
-                            loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes));
+                            loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes, pruneSharedCode));
                         }
                     } else {
-                        loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes));
+                        loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes, pruneSharedCode));
                     }
                 } else {
-                    loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes));
+                    loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes, pruneSharedCode));
                 }
             }
         }
@@ -271,7 +274,7 @@ public final class ControlFlowGraphLoopReducer {
         }
     }
 
-    private static Loop makeLoop(List<BasicBlock> list, BasicBlock start, BitSet searchZoneIndexes, BitSet memberIndexes) {
+    private static Loop makeLoop(List<BasicBlock> list, BasicBlock start, BitSet searchZoneIndexes, BitSet memberIndexes, boolean pruneSharedCode) {
         int length = list.size();
         int maxOffset = -1;
 
@@ -376,10 +379,12 @@ public final class ControlFlowGraphLoopReducer {
             }
         }
 
-        // The code which is also reached from outside the loop (e.g. the tail which follows a 'break', or a 'return' shared with
-        // the code which follows the loop) is not part of it, nor is what only follows that code
-        while (members.removeIf(member -> member != start && !members.containsAll(member.getPredecessors()))) {
-            // Until nothing is left to remove
+        if (pruneSharedCode) {
+            // The code which is also reached from outside the loop (e.g. the tail which follows a 'break', or a 'return' shared
+            // with the code which follows the loop) is not part of it, nor is what only follows that code
+            while (members.removeIf(member -> member != start && !members.containsAll(member.getPredecessors()))) {
+                // Until nothing is left to remove
+            }
         }
 
         return new Loop(start, members, end);
@@ -855,8 +860,13 @@ public final class ControlFlowGraphLoopReducer {
     }
 
     public static void reduce(ControlFlowGraph cfg) {
+        reduce(cfg, false);
+    }
+
+    /** @param pruneSharedCode the code which is also reached from outside a loop is not a member of the loop: this is a fallback, as it is not right for every loop */
+    public static void reduce(ControlFlowGraph cfg, boolean pruneSharedCode) {
         BitSet[] arrayOfDominatorIndexes = buildDominatorIndexes(cfg);
-        List<Loop> loops = identifyNaturalLoops(cfg, arrayOfDominatorIndexes);
+        List<Loop> loops = identifyNaturalLoops(cfg, arrayOfDominatorIndexes, pruneSharedCode);
 
         Loop loop;
         BasicBlock startBB;

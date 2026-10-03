@@ -1117,15 +1117,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return;
         }
         org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = classTypeParameters.getFirst();
-        if (!(typeParameter instanceof TypeParameterWithTypeBounds parameterWithBounds)
-                || !(parameterWithBounds.getTypeBounds().getFirst() instanceof ObjectType parameterBound)) {
-            return;
-        }
-
-        // A type argument which is already known is kept, unless it only is the bound of the type variable (what the erasure gives)
-        BaseTypeArgument knownTypeArguments = expression.getObjectType().getTypeArguments();
-        if (knownTypeArguments != null && !(knownTypeArguments instanceof ObjectType knownType
-                && knownType.getInternalName().equals(parameterBound.getInternalName()))) {
+        ObjectType parameterBound = firstBoundOf(typeParameter);
+        if (parameterBound == null || hasKnownTypeArguments(expression.getObjectType(), parameterBound)) {
             return;
         }
 
@@ -1151,6 +1144,17 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 return;
             }
         }
+    }
+
+    private static ObjectType firstBoundOf(org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        return typeParameter instanceof TypeParameterWithTypeBounds withBounds && withBounds.getTypeBounds().getFirst() instanceof ObjectType bound ? bound : null;
+    }
+
+    /** @return true if the type has type arguments which are not just the bound of the type variable (what the erasure gives): they are kept */
+    private static boolean hasKnownTypeArguments(ObjectType objectType, ObjectType bound) {
+        BaseTypeArgument typeArguments = objectType.getTypeArguments();
+
+        return typeArguments != null && !(typeArguments instanceof ObjectType argument && argument.getInternalName().equals(bound.getInternalName()));
     }
 
     private static boolean isTypeVariable(Type type, org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {

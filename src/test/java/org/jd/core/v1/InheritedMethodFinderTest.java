@@ -39,4 +39,9 @@ public class InheritedMethodFinderTest {
     public void testClassWhichCannotBeRead() {
         assertNull(finder.parameterDescriptors("does/not/Exist", "add", "other/pkg"));
     }
+
+    @Test
+    public void testStaticMethodsAreNotOverridden() {
+        assertEquals(Set.of(), finder.parameterDescriptors(OUTER, "shared", "other/pkg"));
+    }
 }

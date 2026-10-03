@@ -6,6 +6,9 @@ import java.util.Iterator;
 public abstract class GuavaOuter<K, V> {
     protected abstract V delegate();
 
+    public static void shared(String text) {
+    }
+
     int hidden(String text) {
         return text.length();
     }

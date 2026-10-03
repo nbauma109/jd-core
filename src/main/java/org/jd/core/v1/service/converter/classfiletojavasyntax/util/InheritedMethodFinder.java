@@ -50,8 +50,8 @@ public class InheritedMethodFinder {
             JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
 
             for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                // (a method which is not public nor protected is only inherited within its package)
-                if (method.getName().equals(methodName) && !method.isPrivate()
+                // (a method which is not public nor protected is only inherited within its package, a static method is hidden, not overridden)
+                if (method.getName().equals(methodName) && !method.isPrivate() && !method.isStatic()
                         && (method.isPublic() || method.isProtected() || packageOf(internalName).equals(inheritingPackage))) {
                     String signature = method.getSignature();
 

@@ -380,14 +380,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         int index = 0;
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
             if (typeParameter.getIdentifier().equals(genericReturned.getName())) {
-                TypeArgument argument = index < typeArguments.size() ? typeArguments.get(index) : null;
-
-                // A lambda of a 'Supplier<? extends T>' is typed by its upper bound
-                return argument instanceof WildcardExtendsTypeArgument wildcard ? wildcard.type() : argument instanceof Type type ? type : null;
+                return index < typeArguments.size() ? upperBound(typeArguments.get(index)) : null;
             }
             index++;
         }
         return null;
+    }
+
+    /** A lambda of a 'Supplier<? extends T>' is typed by its upper bound */
+    private static Type upperBound(TypeArgument argument) {
+        if (argument instanceof WildcardExtendsTypeArgument wildcard) {
+            return wildcard.type();
+        }
+        return argument instanceof Type argumentType ? argumentType : null;
     }
 
     @Override

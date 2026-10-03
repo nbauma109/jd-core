@@ -100,6 +100,7 @@ import java.util.Set;
 import org.jd.core.v1.api.loader.Loader;
 
 import static org.apache.bcel.Const.ACC_BRIDGE;
+import static org.apache.bcel.Const.ACC_PRIVATE;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BYTE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
@@ -883,6 +884,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             visitingAnonymousClass = true;
             visitBodyDeclaration(expression.getBodyDeclaration());
             visitingAnonymousClass = false;
+            if (expression.getBodyDeclaration() instanceof ClassFileBodyDeclaration anonymousBody && declaresNewMethod(anonymousBody, expression.getObjectType())) {
+                // With a diamond, every method of an anonymous class must override one of its supertype
+                expression.setDiamondPossible(false);
+            }
         }
 
         if ((visitingLambda || containsFunctionalExpression(parameters))
@@ -1403,6 +1408,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             Type t = type;
 
                             if (ta1 != null && ta2 != null && !ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2)) {
+                                if (objectType.rawEquals(expressionObjectType) && isInferredFromTarget(expression)) {
+                                    // The type arguments of the invoked method are only fixed by the target type: javac infers them
+                                    acceptWithExpectedType(expression, type);
+                                    return expression;
+                                }
                                 if (objectType.rawEquals(expressionObjectType) && isWildcardOnTypeVariableMismatch(ta1, ta2, unboundType, expressionObjectType)) {
                                     // Wildcard type arguments bind to the method's type variables through capture conversion: no cast needed
                                     acceptWithExpectedType(expression, type);
@@ -1959,6 +1969,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return getMethodTypeParameterNames(expression).contains(type.getName());
     }
 
+    /** @return true for the invocation of a generic method whose type variables, used by the returned type, no argument fixes */
+    private static boolean isInferredFromTarget(Expression expression) {
+        return expression instanceof ClassFileMethodInvocationExpression methodInvocation
+                && methodInvocation.getTypeParameters() != null
+                && methodInvocation.getUnboundType() instanceof ObjectType unboundObjectType
+                && unboundObjectType.getTypeArguments() != null
+                && !Collections.disjoint(unboundObjectType.findTypeParametersInType(), getMethodTypeParameterNames(methodInvocation))
+                && !hasProperMethodArgumentConstraint(methodInvocation);
+    }
+
     private static boolean isTargetDependentGenericInvocation(Expression expression) {
         return expression instanceof ClassFileMethodInvocationExpression methodInvocation
                 && methodInvocation.getTypeParameters() != null
@@ -2030,6 +2050,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (Expression parameter : parameters) {
             if (isFunctionalExpression(parameter)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean declaresNewMethod(ClassFileBodyDeclaration body, ObjectType superType) {
+        if (body.getMethodDeclarations() == null) {
+            return false;
+        }
+        for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
+            org.apache.bcel.classfile.Method method = declaration.getMethod();
+
+            if ((declaration.getFlags() & (ACC_PRIVATE | ACC_SYNTHETIC | ACC_BRIDGE)) == 0 && method.getName().charAt(0) != '<'
+                    && typeMaker.matchCount(superType.getInternalName(), method.getName(), method.getArgumentTypes().length, false) == 0) {
                 return true;
             }
         }

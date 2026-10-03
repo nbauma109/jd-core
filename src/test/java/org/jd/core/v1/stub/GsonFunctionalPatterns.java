@@ -207,12 +207,19 @@ public class GsonFunctionalPatterns {
     public interface RunnableOf<T> extends Runnable {
     }
 
+    public interface SupplierOf<T> extends ObjectGet {
+    }
+
     public static <T> MixedReverse<T> mixedReverse(Object value) {
         return () -> (T) value;
     }
 
     public static <T> BothTyped<T> bothTyped(Object value) {
         return () -> (T) value;
+    }
+
+    public static <T> SupplierOf<T> supplierOf(Object value) {
+        return () -> value;
     }
 
     public static <T> RunnableOf<T> runnableOf() {

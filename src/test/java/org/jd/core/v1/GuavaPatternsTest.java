@@ -27,5 +27,6 @@ public class GuavaPatternsTest extends AbstractJdTest {
 
         assertEquals(-1, source.indexOf("(this,"));
         assertTrue(source.contains("new GuavaOuter.Wrapped(key, value)"));
+        assertTrue(source.contains("new GuavaOuter.Marker()"));
     }
 }

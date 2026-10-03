@@ -155,4 +155,38 @@ public class GsonFunctionalPatterns {
     public static <T extends Number> Source<T> bounded(Number value) {
         return () -> (T) value;
     }
+
+    public interface ObjectGetToo {
+        Object get();
+    }
+
+    /** The same method seen through two paths */
+    public interface Left<T> extends TypedGet<T> {
+    }
+
+    public interface Right<T> extends TypedGet<T> {
+    }
+
+    public interface Diamond<T> extends Left<T>, Right<T> {
+    }
+
+    /** The declaration which returns the type variable comes first, then the one which returns Object */
+    public interface ReverseCovariant<T> extends TypedGet<T>, ObjectGet {
+    }
+
+    /** Override-equivalent declarations, none of which returns a type variable */
+    public interface Unrelated extends ObjectGet, ObjectGetToo {
+    }
+
+    public static <T> Diamond<T> diamond(Object value) {
+        return () -> (T) value;
+    }
+
+    public static <T> ReverseCovariant<T> reverseCovariant(Object value) {
+        return () -> (T) value;
+    }
+
+    public static Unrelated unrelated(Object value) {
+        return () -> value;
+    }
 }

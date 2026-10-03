@@ -8,6 +8,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileClassDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.processor.UpdateJavaSyntaxTreeProcessor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.InitInnerClassVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.UpdateJavaSyntaxTreeStep2Visitor;
 import org.junit.Test;
 
@@ -44,6 +45,14 @@ public class UpdateJavaSyntaxTreeCompatibilityTest {
         CompilationUnit compilationUnit = emptyClass();
 
         new UpdateJavaSyntaxTreeStep2Visitor(new TypeMaker(new ClassPathLoader())).visit(compilationUnit);
+        assertNotNull(compilationUnit.typeDeclarations());
+    }
+
+    @Test
+    public void testUpdateNewExpressionVisitorWithoutLoader() throws Exception {
+        CompilationUnit compilationUnit = emptyClass();
+
+        new InitInnerClassVisitor.UpdateNewExpressionVisitor(new TypeMaker(new ClassPathLoader())).visit(compilationUnit);
         assertNotNull(compilationUnit.typeDeclarations());
     }
 }

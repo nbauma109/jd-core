@@ -16,4 +16,8 @@ public class GuavaSub<K, V> extends GuavaOuter<K, V> {
     Iterator<V> walk(K key, V value) {
         return new Special(key, value).walk();
     }
+
+    Object marker() {
+        return new Marker();
+    }
 }

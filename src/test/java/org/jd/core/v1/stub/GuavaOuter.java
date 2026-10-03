@@ -32,6 +32,9 @@ public abstract class GuavaOuter<K, V> {
         }
     }
 
+    class Marker {
+    }
+
     class Special extends Wrapped {
         Special(K key, V value) {
             super(key, value);

@@ -116,4 +116,19 @@ public class SingleAbstractMethodFinderTest {
     public void testCovariantDeclarationIsPreferred() {
         assertArrayEquals(new String[] {PATTERNS + "$TypedGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Covariant"));
     }
+
+    @Test
+    public void testSameDeclarationThroughTwoPaths() {
+        assertArrayEquals(new String[] {PATTERNS + "$TypedGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Diamond"));
+    }
+
+    @Test
+    public void testCovariantDeclarationFirst() {
+        assertArrayEquals(new String[] {PATTERNS + "$TypedGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$ReverseCovariant"));
+    }
+
+    @Test
+    public void testUnrelatedDeclarationsKeepTheFirstOne() {
+        assertArrayEquals(new String[] {PATTERNS + "$ObjectGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Unrelated"));
+    }
 }

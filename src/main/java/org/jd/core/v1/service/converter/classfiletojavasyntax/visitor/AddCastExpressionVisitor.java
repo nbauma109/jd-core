@@ -1015,7 +1015,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean satisfied = false;
             for (Type declaredBound : declaredBounds) {
                 // A bound which is itself a type variable is not resolved: the raw type is always valid, so do not trust it
-                if (declaredBound instanceof ObjectType declaredObjectBound && typeMaker.isRawTypeAssignable(requiredObjectBound, declaredObjectBound)) {
+                if (declaredBound instanceof ObjectType declaredObjectBound && typeMaker.isRawTypeAssignable(requiredObjectBound, declaredObjectBound)
+                        && haveCompatibleTypeArguments(requiredObjectBound, declaredObjectBound)) {
                     satisfied = true;
                     break;
                 }
@@ -1025,6 +1026,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return true;
+    }
+
+    /** The bounds Comparable&lt;String&gt; and Comparable&lt;Integer&gt; have the same raw type, but nothing is a member of both: compare their concrete type arguments */
+    private static boolean haveCompatibleTypeArguments(ObjectType required, ObjectType declared) {
+        BaseTypeArgument requiredArguments = required.getTypeArguments();
+        BaseTypeArgument declaredArguments = declared.getTypeArguments();
+
+        return requiredArguments == null || declaredArguments == null
+                || !required.findTypeParametersInType().isEmpty() || !declared.findTypeParametersInType().isEmpty()
+                || requiredArguments.equals(declaredArguments);
     }
 
     private void updateNewExpressionParameters(ClassFileNewExpression expression, BaseExpression parameters) {

@@ -489,7 +489,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
         BaseTypeArgument typeArguments = objectType.getTypeArguments();
         List<TypeArgument> arguments = toList(typeArguments);
-        List<TypeArgument> replaced = arguments.stream().map(argument -> isCaptured(argument, captured) ? WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT : argument).toList();
+        List<TypeArgument> replaced = arguments.stream().map(argument -> withoutCapturedTypeVariables(argument, captured)).toList();
 
         if (replaced.equals(arguments)) {
             return null;
@@ -502,6 +502,17 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
         newTypeArguments.addAll(replaced);
         return objectType.createType(newTypeArguments);
+    }
+
+    /** A captured type variable becomes '?', at any depth of the type arguments (Box&lt;List&lt;T&gt;&gt; becomes Box&lt;List&lt;?&gt;&gt;) */
+    private static TypeArgument withoutCapturedTypeVariables(TypeArgument argument, Set<String> captured) {
+        if (isCaptured(argument, captured)) {
+            return WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT;
+        }
+
+        ObjectType nested = argument instanceof ObjectType objectType ? withCapturedTypeVariablesAsWildcards(objectType, captured) : null;
+
+        return nested != null ? nested : argument;
     }
 
     private static boolean isCaptured(TypeArgument typeArgument, Set<String> captured) {

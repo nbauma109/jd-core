@@ -302,4 +302,35 @@ public class GuavaPatterns {
             }
         };
     }
+
+    static class Box<T> {
+    }
+
+    static <T> Box<List<T>> wrap(List<T> values) {
+        return new Box<List<T>>();
+    }
+
+    /** The type variable which is captured is nested in the returned type */
+    public static Box<List<String>> wrapped(List<?> values) {
+        return (Box<List<String>>) (Box<?>) wrap(values);
+    }
+
+    interface Adapter2<T> {
+        T get();
+    }
+
+    static class Comparing<X extends Comparable<String>> implements Adapter2<X> {
+        Comparing(X value) {
+        }
+
+        @Override
+        public X get() {
+            return null;
+        }
+    }
+
+    /** The bounds Comparable<Integer> and Comparable<String> have the same raw type */
+    public static <U extends Comparable<Integer>> Adapter2<U> comparing(U value) {
+        return (Adapter2<U>) (Adapter2) new Comparing(value);
+    }
 }

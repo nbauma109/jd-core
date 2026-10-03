@@ -278,4 +278,42 @@ public class GsonFunctionalPatterns {
     public static <T> Combined<T> combined(Object value) {
         return first -> (T) value;
     }
+
+    public interface BridgedBase<T> {
+        void a(T value);
+    }
+
+    /** The default method has a bridge a(Object), which implements the abstract method of the super interface */
+    public interface BridgedDefault extends BridgedBase<String> {
+        @Override
+        default void a(String value) {
+        }
+    }
+
+    public interface Producer<T> {
+        T d();
+    }
+
+    public interface Bridged<T> extends BridgedDefault, Producer<T> {
+    }
+
+    public static <T> Bridged<T> bridged(Object value) {
+        return () -> (T) value;
+    }
+
+    public interface ArrayA<T> {
+        Object[] get();
+    }
+
+    public interface ArrayB<T> {
+        T[] get();
+    }
+
+    /** The covariant declaration returns an array of the type variable */
+    public interface ArrayC<T> extends ArrayA<T>, ArrayB<T> {
+    }
+
+    public static <T> ArrayC<T> arrayC(Object[] value) {
+        return () -> (T[]) value;
+    }
 }

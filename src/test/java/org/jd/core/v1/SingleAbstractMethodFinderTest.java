@@ -156,4 +156,14 @@ public class SingleAbstractMethodFinderTest {
     public void testParametersWhichAreTheSameOnceTheTypeArgumentsAreSubstituted() {
         assertArrayEquals(new String[] {PATTERNS + "$Merging", "apply", "(Ljava/lang/Object;)Ljava/lang/Object;"}, finder().find(PATTERNS + "$Combined"));
     }
+
+    @Test
+    public void testBridgeOfADefaultMethodRemovesTheAbstractMethodItImplements() {
+        assertArrayEquals(new String[] {PATTERNS + "$Producer", "d", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Bridged"));
+    }
+
+    @Test
+    public void testArrayOfTheTypeVariableIsPreferred() {
+        assertArrayEquals(new String[] {PATTERNS + "$ArrayB", "get", "()[Ljava/lang/Object;"}, finder().find(PATTERNS + "$ArrayC"));
+    }
 }

@@ -123,15 +123,29 @@ public class SingleAbstractMethodFinder {
                 ancestors.addAll(ancestorsOf.get(superInterface.replace('.', '/')));
                 inherited.get().forEach((signature, member) -> members.merge(signature, member, SingleAbstractMethodFinder::moreSpecific));
             }
-            for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                String declaration = method.getName() + method.getSignature();
-                // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
-                String signature = declaration.substring(0, declaration.indexOf(')') + 1);
+            // The methods which are declared come first: the bridge methods (the compiler's copies of the declarations whose returned type
+            // is covariant, or whose parameter types are generic) only take the place of the ones which are inherited
+            Set<String> declared = new HashSet<>();
 
-                // (a bridge method is the compiler's copy of a declaration whose returned type is covariant)
-                if (!method.isStatic() && !method.isPrivate() && (method.getAccessFlags() & Const.ACC_BRIDGE) == 0 && !method.isSynthetic() && !OBJECT_METHODS.contains(declaration)) {
-                    members.put(signature, new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
-                            returnsTypeVariable(method), ancestors));
+            for (boolean bridges : new boolean[] {false, true}) {
+                for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
+                    String declaration = method.getName() + method.getSignature();
+                    // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
+                    String signature = declaration.substring(0, declaration.indexOf(')') + 1);
+                    boolean bridge = (method.getAccessFlags() & Const.ACC_BRIDGE) != 0 || method.isSynthetic();
+
+                    if (bridge == bridges && !method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(declaration)) {
+                        Member member = new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
+                                returnsTypeVariable(method), ancestors);
+
+                        // (a bridge never replaces a method which this interface declares itself)
+                        if (!bridges || !declared.contains(signature)) {
+                            members.put(signature, member);
+                        }
+                        if (!bridges) {
+                            declared.add(signature);
+                        }
+                    }
                 }
             }
             ancestorsOf.put(internalName, ancestors);
@@ -144,7 +158,30 @@ public class SingleAbstractMethodFinder {
     private static boolean returnsTypeVariable(org.apache.bcel.classfile.Method method) {
         String genericSignature = method.getGenericSignature();
 
-        return genericSignature != null && genericSignature.startsWith("T", genericSignature.indexOf(')') + 1);
+        return genericSignature != null && containsTypeVariable(genericSignature, genericSignature.indexOf(')') + 1);
+    }
+
+    /** @return true if a type variable (T...;) is used anywhere in the type signature which starts at the index (T[], List&lt;T&gt;, ...) */
+    private static boolean containsTypeVariable(String signature, int start) {
+        int index = start;
+
+        while (index < signature.length()) {
+            char c = signature.charAt(index);
+
+            if (c == 'T') {
+                return true;
+            }
+            if (c == 'L' || c == '.') {
+                // a class name: it stops at the type arguments, at the end of the type, or at the name of an inner class
+                index++;
+                while (index < signature.length() && "<;.".indexOf(signature.charAt(index)) < 0) {
+                    index++;
+                }
+            } else {
+                index++;
+            }
+        }
+        return false;
     }
 
     /** The declaration of a sub interface overrides the one of its super interface; unrelated ones are override-equivalent: the generic return type is the most specific */

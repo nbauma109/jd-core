@@ -312,8 +312,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean lrft = lambdaReturnFromTarget;
             Type lambdaReturnedType = expression.getReturnedType();
             // The synthetic method of a lambda has the erased return type: the target functional interface knows better
-            Type functionalReturnedType = lambdaReturnedType == null || ObjectType.TYPE_OBJECT.equals(lambdaReturnedType)
-                    ? functionalReturnedType(expectedType) : null;
+            Type functionalReturnedType = lambdaReturnedTypeFromTarget(lambdaReturnedType);
             if (functionalReturnedType != null) {
                 returnedType = functionalReturnedType;
             } else {
@@ -325,6 +324,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             returnedType = rt;
         }
         visitingLambda = outerVisitingLambda;
+    }
+
+    /**
+     * The erased return type of a lambda is Object, or the bound of the type variable (Number for 'T extends Number'):
+     * the type argument of the target is then what the lambda returns, when it is a type variable.
+     */
+    private Type lambdaReturnedTypeFromTarget(Type erasedReturnedType) {
+        if (erasedReturnedType != null && !(erasedReturnedType instanceof ObjectType)) {
+            return null;
+        }
+
+        Type fromTarget = functionalReturnedType(expectedType);
+        boolean erasedToObject = erasedReturnedType == null || ObjectType.TYPE_OBJECT.equals(erasedReturnedType);
+
+        return fromTarget != null && (erasedToObject || fromTarget.isGenericType()) ? fromTarget : null;
     }
 
     @Override

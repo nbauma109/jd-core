@@ -118,4 +118,41 @@ public class GsonFunctionalPatterns {
     public static <T> Supplier<? extends T> wildcard(Object value) {
         return () -> (T) value;
     }
+
+    public interface DefaultGet<T> {
+        default T get() {
+            return null;
+        }
+    }
+
+    /** An abstract method which re-declares an inherited default method */
+    public interface Reabstracted<T> extends DefaultGet<T> {
+        @Override
+        T get();
+    }
+
+    public interface ObjectGet {
+        Object get();
+    }
+
+    public interface TypedGet<T> {
+        T get();
+    }
+
+    /** Both inherited methods have the same erasure: the one which returns the type variable is the most specific */
+    public interface Covariant<T> extends ObjectGet, TypedGet<T> {
+    }
+
+    public static <T> Reabstracted<T> reabstracted(Object value) {
+        return () -> (T) value;
+    }
+
+    public static <T> Covariant<T> covariant(Object value) {
+        return () -> (T) value;
+    }
+
+    /** The erased return type of the lambda is the bound of the type variable */
+    public static <T extends Number> Source<T> bounded(Number value) {
+        return () -> (T) value;
+    }
 }

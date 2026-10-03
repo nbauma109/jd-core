@@ -106,4 +106,14 @@ public class SingleAbstractMethodFinderTest {
 
         assertArrayEquals(finder.find("java/util/function/Supplier"), finder.find("java/util/function/Supplier"));
     }
+
+    @Test
+    public void testAbstractMethodWhichRedeclaresADefaultMethod() {
+        assertArrayEquals(new String[] {PATTERNS + "$Reabstracted", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Reabstracted"));
+    }
+
+    @Test
+    public void testCovariantDeclarationIsPreferred() {
+        assertArrayEquals(new String[] {PATTERNS + "$TypedGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Covariant"));
+    }
 }

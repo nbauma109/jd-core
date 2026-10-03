@@ -304,10 +304,15 @@ public class GuavaPatterns {
     }
 
     static class Box<T> {
+        final T content;
+
+        Box(T content) {
+            this.content = content;
+        }
     }
 
     static <T> Box<List<T>> wrap(List<T> values) {
-        return new Box<List<T>>();
+        return new Box<List<T>>(values);
     }
 
     /** The type variable which is captured is nested in the returned type */

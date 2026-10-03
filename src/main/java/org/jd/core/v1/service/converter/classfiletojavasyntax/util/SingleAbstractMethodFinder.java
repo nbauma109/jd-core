@@ -123,36 +123,39 @@ public class SingleAbstractMethodFinder {
                 ancestors.addAll(ancestorsOf.get(superInterface.replace('.', '/')));
                 inherited.get().forEach((signature, member) -> members.merge(signature, member, SingleAbstractMethodFinder::moreSpecific));
             }
-            // The methods which are declared come first: the bridge methods (the compiler's copies of the declarations whose returned type
-            // is covariant, or whose parameter types are generic) only take the place of the ones which are inherited
-            Set<String> declared = new HashSet<>();
-
-            for (boolean bridges : new boolean[] {false, true}) {
-                for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                    String declaration = method.getName() + method.getSignature();
-                    // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
-                    String signature = declaration.substring(0, declaration.indexOf(')') + 1);
-                    boolean bridge = (method.getAccessFlags() & Const.ACC_BRIDGE) != 0 || method.isSynthetic();
-
-                    if (bridge == bridges && !method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(declaration)) {
-                        Member member = new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
-                                returnsTypeVariable(method), ancestors);
-
-                        // (a bridge never replaces a method which this interface declares itself)
-                        if (!bridges || !declared.contains(signature)) {
-                            members.put(signature, member);
-                        }
-                        if (!bridges) {
-                            declared.add(signature);
-                        }
-                    }
-                }
-            }
+            addDeclaredMembers(javaClass, internalName, members, ancestors);
             ancestorsOf.put(internalName, ancestors);
             return Optional.of(members);
         } catch (IOException | ClassFormatException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * The methods which are declared come first: the bridge methods (the compiler's copies of the declarations whose returned type
+     * is covariant, or whose parameter types are generic) only take the place of the ones which are inherited
+     */
+    private static void addDeclaredMembers(JavaClass javaClass, String internalName, Map<String, Member> members, Set<String> ancestors) {
+        Set<String> declared = new HashSet<>();
+
+        for (boolean bridges : new boolean[] {false, true}) {
+            for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
+                String declaration = method.getName() + method.getSignature();
+                // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
+                String signature = declaration.substring(0, declaration.indexOf(')') + 1);
+
+                if (isBridge(method) == bridges && !method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(declaration)
+                        && (!bridges || !declared.contains(signature))) {
+                    members.put(signature, new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
+                            returnsTypeVariable(method), ancestors));
+                    declared.add(signature);
+                }
+            }
+        }
+    }
+
+    private static boolean isBridge(org.apache.bcel.classfile.Method method) {
+        return (method.getAccessFlags() & Const.ACC_BRIDGE) != 0 || method.isSynthetic();
     }
 
     private static boolean returnsTypeVariable(org.apache.bcel.classfile.Method method) {

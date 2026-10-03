@@ -289,4 +289,15 @@ public class GsonPatterns {
     public static <T> Child<T> inheritedFunctionalMethod(Object value) {
         return () -> (T) value;
     }
+
+    /** The compound assignment is on a local variable which has no short form of 'iload' */
+    public static int compoundAssignmentOnHigherSlot(int a, int b, int c, int d, String text) {
+        int offset = a + b + c + d;
+        return parse(text, offset, offset += 4);
+    }
+
+    /** The abstract method of Comparator which is not equals returns an int, not a type variable */
+    public static <T> java.util.Comparator<T> nonGenericFunctionalResult() {
+        return (first, second) -> first == second ? 0 : 1;
+    }
 }

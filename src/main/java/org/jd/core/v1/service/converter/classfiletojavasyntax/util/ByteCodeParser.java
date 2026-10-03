@@ -2191,7 +2191,17 @@ public class ByteCodeParser {
     }
 
     /** The instructions which follow the one being parsed: the code, the offset of the next instruction and the end of the block */
-    private record FollowingCode(byte[] code, int offset, int end) {}
+    private static final class FollowingCode {
+        private final byte[] code;
+        private final int offset;
+        private final int end;
+
+        private FollowingCode(byte[] code, int offset, int end) {
+            this.code = code;
+            this.offset = offset;
+            this.end = end;
+        }
+    }
 
     /** @return the number of bytes of the following instructions which were consumed too */
     private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, FollowingCode following) {
@@ -2209,7 +2219,7 @@ public class ByteCodeParser {
             if (count != 1 && count != -1) {
                 // 'foo(i, i += 4)': the value of the compound assignment is loaded again by the instruction which follows. As
                 // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
-                int loadLength = lengthOfILoad(following.code(), following.offset(), following.end(), localVariable.getIndex());
+                int loadLength = lengthOfILoad(following.code, following.offset, following.end, localVariable.getIndex());
 
                 if (loadLength > 0) {
                     stack.push(newCompoundAssignmentExpression(lineNumber, offset, localVariable, count));

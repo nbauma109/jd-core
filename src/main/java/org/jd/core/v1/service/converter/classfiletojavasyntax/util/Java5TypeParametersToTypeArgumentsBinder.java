@@ -566,16 +566,15 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 || receiverObjectType.getDimension() != 0 || !(receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression())) {
             return false;
         }
-        for (TypeParameter typeParameter : classTypeParameters) {
-            if (typeParameter.getIdentifier().equals(genericType.getName())) {
-                if (methodTypeParameters != null) {
-                    for (TypeParameter methodTypeParameter : methodTypeParameters) {
-                        if (methodTypeParameter.getIdentifier().equals(genericType.getName())) {
-                            return false;
-                        }
-                    }
+        return declares(classTypeParameters, genericType.getName()) && !declares(methodTypeParameters, genericType.getName());
+    }
+
+    private static boolean declares(BaseTypeParameter typeParameters, String identifier) {
+        if (typeParameters != null) {
+            for (TypeParameter typeParameter : typeParameters) {
+                if (typeParameter.getIdentifier().equals(identifier)) {
+                    return true;
                 }
-                return true;
             }
         }
         return false;

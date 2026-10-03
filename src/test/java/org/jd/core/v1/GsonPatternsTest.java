@@ -5,7 +5,9 @@ import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.stub.GsonFunctionalPatterns;
 import org.jd.core.v1.stub.GsonPatterns;
+import org.jd.core.v1.stub.GsonWidePatterns;
 import org.junit.Test;
 
 public class GsonPatternsTest extends AbstractJdTest {
@@ -27,6 +29,27 @@ public class GsonPatternsTest extends AbstractJdTest {
         assertTrue(source.contains("parse(text, ++offset, offset += 2)"));
 
         // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testFunctionalInterfaces() throws Exception {
+        String internalClassName = GsonFunctionalPatterns.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertEquals(-1, source.indexOf("Decompilation failed"));
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
+    }
+
+    @Test
+    public void testWideLocalVariables() throws Exception {
+        String internalClassName = GsonWidePatterns.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertEquals(-1, source.indexOf("Decompilation failed"));
+        assertEquals(-1, source.indexOf("throw null"));
+        assertTrue(source.contains("catch (IOException e)"));
+        assertTrue(java.util.regex.Pattern.compile("parse\\(text, (\\w+), \\1 \\+= 4\\)").matcher(source).find());
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 }

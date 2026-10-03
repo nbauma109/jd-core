@@ -79,14 +79,13 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.SingleAbstractMethodFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,9 +97,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.bcel.classfile.ClassFormatException;
-import org.apache.bcel.classfile.ClassParser;
-import org.apache.bcel.classfile.JavaClass;
 import org.jd.core.v1.api.loader.Loader;
 
 import static org.apache.bcel.Const.ACC_BRIDGE;
@@ -116,7 +112,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private final TypeMaker typeMaker;
     private final Loader loader;
-    private final Map<String, String[]> singleAbstractMethods = new HashMap<>();
+    private final SingleAbstractMethodFinder singleAbstractMethodFinder;
     private boolean lambdaReturnFromTarget;
     private boolean castToGenericInLambda;
     private Map<String, BaseType> typeBounds;
@@ -147,6 +143,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     public AddCastExpressionVisitor(TypeMaker typeMaker, Loader loader) {
         this.typeMaker = typeMaker;
         this.loader = loader;
+        this.singleAbstractMethodFinder = loader == null ? null : new SingleAbstractMethodFinder(loader);
     }
 
     @Override
@@ -362,7 +359,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return null;
         }
         String targetInternalName = targetType.getInternalName();
-        String[] method = singleAbstractMethods.computeIfAbsent(targetInternalName, this::findSingleAbstractMethod);
+        String[] method = singleAbstractMethodFinder.find(targetInternalName);
         if (method.length == 0) {
             return null;
         }
@@ -383,63 +380,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         int index = 0;
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
             if (typeParameter.getIdentifier().equals(genericReturned.getName())) {
-                return index < typeArguments.size() && typeArguments.get(index) instanceof Type argument ? argument : null;
+                TypeArgument argument = index < typeArguments.size() ? typeArguments.get(index) : null;
+
+                // A lambda of a 'Supplier<? extends T>' is typed by its upper bound
+                return argument instanceof WildcardExtendsTypeArgument wildcard ? wildcard.type() : argument instanceof Type type ? type : null;
             }
             index++;
         }
         return null;
-    }
-
-    /** @return the declaring interface, name and descriptor of the only abstract method of an interface (inherited ones included), or an empty array */
-    private String[] findSingleAbstractMethod(String internalName) {
-        Map<String, String[]> abstractMethods = new HashMap<>();
-
-        Set<String> overridden = new HashSet<>();
-        if (!collectAbstractMethods(internalName, abstractMethods, overridden, new HashSet<>())) {
-            return new String[0];
-        }
-        // A default method may be met after the abstract method it overrides
-        abstractMethods.keySet().removeAll(overridden);
-        if (abstractMethods.size() != 1) {
-            return new String[0];
-        }
-        return abstractMethods.values().iterator().next();
-    }
-
-    /** @return false if an interface could not be read */
-    private boolean collectAbstractMethods(String internalName, Map<String, String[]> abstractMethods, Set<String> overridden, Set<String> visited) {
-        if (!visited.add(internalName)) {
-            return true;
-        }
-        try {
-            if (!loader.canLoad(internalName)) {
-                return false;
-            }
-            JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
-            if (!javaClass.isInterface()) {
-                return false;
-            }
-            for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                String signature = method.getName() + method.getSignature();
-                if (method.isStatic() || method.isPrivate()) {
-                    continue;
-                }
-                if (!method.isAbstract()) {
-                    overridden.add(signature);
-                } else if (!"equals(Ljava/lang/Object;)Z".equals(signature)
-                        && !"hashCode()I".equals(signature) && !"toString()Ljava/lang/String;".equals(signature)) {
-                    abstractMethods.putIfAbsent(signature, new String[] {internalName, method.getName(), method.getSignature()});
-                }
-            }
-            for (String superInterface : javaClass.getInterfaceNames()) {
-                if (!collectAbstractMethods(superInterface.replace('.', '/'), abstractMethods, overridden, visited)) {
-                    return false;
-                }
-            }
-            return true;
-        } catch (IOException | ClassFormatException e) {
-            return false;
-        }
     }
 
     @Override

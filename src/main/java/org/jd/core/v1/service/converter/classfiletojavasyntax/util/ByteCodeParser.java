@@ -2777,6 +2777,16 @@ public class ByteCodeParser {
         return internalTypeName.equals(typeName);
     }
 
+    /** @return the length of the instruction which stores the exception at the beginning of a handler, or which pops it */
+    public static int lengthOfExceptionStore(byte[] code, int offset) {
+        int opcode = code[offset] & 255;
+
+        if (opcode == WIDE) {
+            return 4;
+        }
+        return opcode == ASTORE ? 2 : 1;
+    }
+
     public static int getExceptionLocalVariableIndex(BasicBlock basicBlock) {
         ControlFlowGraph cfg = basicBlock.getControlFlowGraph();
         int offset = basicBlock.getFromOffset();
@@ -2792,6 +2802,7 @@ public class ByteCodeParser {
 
         return switch (opcode) {
             case ASTORE -> code[++offset] & 255;
+            case WIDE -> code[offset + 1] == (byte)ASTORE ? (code[offset + 2] & 255) << 8 | code[offset + 3] & 255 : -1;
             case ASTORE_0, ASTORE_1, ASTORE_2, ASTORE_3 -> opcode - ASTORE_0;
             case POP, POP2 -> -1;
             default -> -1;

@@ -47,7 +47,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
 
     public UpdateJavaSyntaxTreeStep2Visitor(TypeMaker typeMaker, Loader loader) {
         this.replaceBridgeMethodVisitor = new UpdateBridgeMethodVisitor(typeMaker);
-        this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker);
+        this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker, loader);
         this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker, loader);
         this.autoboxingVisitor = new AutoboxingVisitor(typeMaker);
     }

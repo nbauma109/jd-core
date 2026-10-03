@@ -40,6 +40,7 @@ import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpressi
 import org.jd.core.v1.model.javasyntax.expression.LongConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
@@ -670,6 +671,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             memberReceiver = expression.getExpression();
             expression.getExpression().accept(this);
             memberReceiver = oldMemberReceiver;
+        }
+        removeEmptyVarArgsArray(expression);
+    }
+
+    /**
+     * javac passes an empty array for a varargs method called without any: the call is spelled without it. The printer
+     * hides that array too, but loses track of the comma after the block body of a lambda.
+     */
+    private static void removeEmptyVarArgsArray(MethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (expression.isVarArgs() && parameters != null && parameters.isList() && parameters.size() > 1
+                && parameters.getList().get(parameters.size() - 2) instanceof LambdaIdentifiersExpression lambda
+                && lambda.getStatements() != null && !lambda.getStatements().isLambdaExpressionStatement()
+                && parameters.getLast() instanceof NewArray newArray && newArray.isEmptyNewArray()
+                && expression instanceof ClassFileMethodInvocationExpression invocation && invocation.getParameterTypes() != null
+                && invocation.getParameterTypes().isList()) {
+            parameters.getList().removeLast();
+            invocation.getParameterTypes().getList().removeLast();
         }
     }
 

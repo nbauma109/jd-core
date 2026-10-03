@@ -1,7 +1,12 @@
 package org.jd.core.v1.stub;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collector;
 
 /** Shapes which made Guava 33.7.2 decompile to code which did not print or did not recompile. */
 @SuppressWarnings({"unchecked", "rawtypes"})
@@ -120,5 +125,70 @@ public class GuavaPatterns {
             }
         }
         return new Local(false).trySplit();
+    }
+
+    /** The empty varargs array of the characteristics follows a lambda with a block body */
+    public static <T> Collector<T, ?, List<T>> blockLambdaThenEmptyVarargs(Supplier<List<T>> supplier) {
+        return Collector.of(supplier, (list, item) -> list.add(item), (first, second) -> {
+            first.addAll(second);
+            return first;
+        });
+    }
+
+    public static <T> Collector<T, ?, List<T>> expressionLambdaThenEmptyVarargs(Supplier<List<T>> supplier) {
+        return Collector.of(supplier, (list, item) -> list.add(item), (first, second) -> first);
+    }
+
+    static <T, K> void merge(Map<K, T> map, K key, T value, BinaryOperator<T> mergeFunction) {
+        map.merge(key, value, mergeFunction);
+    }
+
+    /** Both lambdas capture variables of the method */
+    public static <T, K, M extends Map<K, T>> Collector<T, ?, M> capturingLambdas(Function<? super T, ? extends K> keyFunction,
+            BinaryOperator<T> mergeFunction, Supplier<M> supplier) {
+        return Collector.of(
+                supplier,
+                (map, input) ->
+                        merge(
+                                map,
+                                keyFunction.apply(input),
+                                input,
+                                mergeFunction),
+                (first, second) -> {
+                    for (Map.Entry<K, T> entry : second.entrySet()) {
+                        merge(first, entry.getKey(), entry.getValue(), mergeFunction);
+                    }
+                    return first;
+                });
+    }
+
+    abstract static class Indexed<T> implements Iterator<T> {
+        final Iterator<T> from;
+        long index;
+
+        Indexed(Iterator<T> from, long index) {
+            this.from = from;
+            this.index = index;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return from.hasNext();
+        }
+    }
+
+    /** A local class which captures a variable and whose constructor takes a long */
+    public static Iterator<String> localClassWithLongParameter(Iterator<String> source, Function<String, String> function) {
+        class Splitr extends Indexed<String> {
+            Splitr(Iterator<String> from, long index) {
+                super(from, index);
+            }
+
+            @Override
+            public String next() {
+                return function.apply(from.next()) + index++;
+            }
+        }
+        return new Splitr(source, 0L);
     }
 }

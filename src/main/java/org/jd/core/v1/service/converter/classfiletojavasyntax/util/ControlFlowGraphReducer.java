@@ -40,6 +40,7 @@ import static org.apache.bcel.Const.ICONST_0;
 import static org.apache.bcel.Const.JSR;
 import static org.apache.bcel.Const.JSR_W;
 import static org.apache.bcel.Const.MONITOREXIT;
+import static org.apache.bcel.Const.WIDE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_CONDITION;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_END;
@@ -125,25 +126,38 @@ public abstract class ControlFlowGraphReducer {
         Set<Integer> structuredMerges = new HashSet<>();
 
         for (BasicBlock merge : new ArrayList<>(cfg.getBasicBlocks())) {
-            if (!merge.matchType(TYPE_STATEMENTS) || merge.getPredecessors().size() < 2) {
-                continue;
-            }
+            BasicBlock tail = continuationOfSharedMerge(merge);
 
-            BasicBlock tail = merge.getNext();
-
-            if (tail.getIndex() < 0 || tail.matchType(GROUP_END) || !tail.getPredecessors().contains(merge)) {
-                continue;
-            }
-
-            for (BasicBlock skipping : new ArrayList<>(tail.getPredecessors())) {
-                if (skipping != merge && skipping.matchType(TYPE_STATEMENTS) && skipping.getNext() == tail
-                        && skipping.getFromOffset() < merge.getFromOffset() && !merge.getPredecessors().contains(skipping)) {
-                    skipping.setNext(cfg.newJumpBasicBlock(skipping, tail));
-                    structuredMerges.add(merge.getFromOffset());
-                }
+            if (tail != null && stubJumpsOver(cfg, merge, tail)) {
+                structuredMerges.add(merge.getFromOffset());
             }
         }
         return structuredMerges;
+    }
+
+    /** @return the block which follows a statement merge reached by several blocks, or null */
+    private static BasicBlock continuationOfSharedMerge(BasicBlock merge) {
+        if (!merge.matchType(TYPE_STATEMENTS) || merge.getPredecessors().size() < 2) {
+            return null;
+        }
+
+        BasicBlock tail = merge.getNext();
+
+        return tail.getIndex() < 0 || tail.matchType(GROUP_END) || !tail.getPredecessors().contains(merge) ? null : tail;
+    }
+
+    /** @return true if a block which goes over the merge to its continuation was made a jump stub */
+    private static boolean stubJumpsOver(ControlFlowGraph cfg, BasicBlock merge, BasicBlock tail) {
+        boolean stubbed = false;
+
+        for (BasicBlock skipping : new ArrayList<>(tail.getPredecessors())) {
+            if (skipping != merge && skipping.matchType(TYPE_STATEMENTS) && skipping.getNext() == tail
+                    && skipping.getFromOffset() < merge.getFromOffset() && !merge.getPredecessors().contains(skipping)) {
+                skipping.setNext(cfg.newJumpBasicBlock(skipping, tail));
+                stubbed = true;
+            }
+        }
+        return stubbed;
     }
 
     /** @return true if the code which is also reached from outside a loop must not be part of it: only for the methods which cannot be reduced otherwise */
@@ -1065,6 +1079,10 @@ public abstract class ControlFlowGraphReducer {
 
         if (actual == opcode) {
             return offset + 2;
+        }
+        if (actual == WIDE && offset + 1 < code.length && (code[offset + 1] & 255) == opcode) {
+            // the variable index takes two bytes
+            return offset + 4;
         }
         return actual >= firstShortcut && actual <= lastShortcut ? offset + 1 : -1;
     }

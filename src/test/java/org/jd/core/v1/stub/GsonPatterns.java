@@ -3,6 +3,7 @@ package org.jd.core.v1.stub;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -74,8 +75,8 @@ public class GsonPatterns {
         };
     }
 
-    /** A captured variable has an erased type in the anonymous class: it is an Adapter<TT> there, not a raw Adapter */
-    public static <TT> Factory capturedVariable(Class<TT> type, Adapter<TT> adapter) {
+    /** A captured variable has an erased type in the anonymous class: it is an Adapter<X> there, not a raw Adapter */
+    public static <X> Factory capturedVariable(Class<X> type, Adapter<X> adapter) {
         return new Factory() {
             @Override
             public <T> Adapter<T> create(Class<T> requested) {
@@ -105,7 +106,7 @@ public class GsonPatterns {
     }
 
     static <T> Adapter<T> adapterOf(Class<T> type) {
-        return null;
+        return type == null ? null : new ReflectiveAdapter<>(type, false);
     }
 
     /** A call with a wildcard parameterized argument returns a capture: assigning it to an Adapter<Object> needs a cast */
@@ -121,7 +122,7 @@ public class GsonPatterns {
         return () -> {
             try {
                 T instance = (T) constructor.newInstance();
-                return instance;
+                return Objects.requireNonNull(instance);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }
@@ -210,7 +211,7 @@ public class GsonPatterns {
     }
 
     static int parse(String text, int from, int to) {
-        return to - from;
+        return text.isEmpty() ? 0 : to - from;
     }
 
     /** The compound assignment is evaluated after the first argument: it has to stay an expression */
@@ -241,7 +242,7 @@ public class GsonPatterns {
     /** A raw receiver returns the erasure of the type variable of its class */
     public static <T> T rawReceiver(Constructor constructor) throws ReflectiveOperationException {
         T instance = (T) constructor.newInstance();
-        return instance;
+        return Objects.requireNonNull(instance);
     }
 
     /** 'iinc' by more than a byte, and a decrement whose value is used */
@@ -263,5 +264,29 @@ public class GsonPatterns {
                 throw new IllegalStateException(ex);
             }
         }
+    }
+
+    static final class StringAdapter implements Adapter<String> {
+        @Override
+        public String get() {
+            return null;
+        }
+    }
+
+    /** The fixed type arguments may be disjoint from the bound of the type variable: the cast goes through the raw type */
+    public static <T extends Number> Adapter<T> boundedTarget() {
+        return (Adapter<T>) (Adapter) new StringAdapter();
+    }
+
+    public interface Parent<T> {
+        T take();
+    }
+
+    public interface Child<T> extends Parent<T> {
+    }
+
+    /** The single abstract method is inherited from the parent of the functional interface */
+    public static <T> Child<T> inheritedFunctionalMethod(Object value) {
+        return () -> (T) value;
     }
 }

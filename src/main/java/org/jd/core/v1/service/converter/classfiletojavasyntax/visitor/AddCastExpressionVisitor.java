@@ -316,8 +316,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             // The synthetic method of a lambda has the erased return type: the target functional interface knows better
             Type functionalReturnedType = lambdaReturnedType == null || ObjectType.TYPE_OBJECT.equals(lambdaReturnedType)
                     ? functionalReturnedType(expectedType) : null;
-            returnedType = functionalReturnedType != null ? functionalReturnedType
-                    : lambdaReturnedType != null ? lambdaReturnedType : ObjectType.TYPE_OBJECT;
+            if (functionalReturnedType != null) {
+                returnedType = functionalReturnedType;
+            } else {
+                returnedType = lambdaReturnedType != null ? lambdaReturnedType : ObjectType.TYPE_OBJECT;
+            }
             lambdaReturnFromTarget = functionalReturnedType != null;
             statements.accept(this);
             lambdaReturnFromTarget = lrft;
@@ -357,18 +360,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || targetType.getTypeArguments() == null) {
             return null;
         }
-        String internalName = targetType.getInternalName();
-        String[] method = singleAbstractMethods.computeIfAbsent(internalName, this::findSingleAbstractMethod);
+        String targetInternalName = targetType.getInternalName();
+        String[] method = singleAbstractMethods.computeIfAbsent(targetInternalName, this::findSingleAbstractMethod);
         if (method.length == 0) {
             return null;
         }
-        Type returned = typeMaker.makeMethodTypes(internalName, method[0], method[1]).getReturnedType();
+        // The method may be inherited: it is then seen through the parameterization of the interface which declares it
+        String internalName = method[0];
+        ObjectType declaring = internalName.equals(targetInternalName) ? targetType
+                : typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(internalName), targetType);
+        if (declaring == null || declaring.getTypeArguments() == null) {
+            return null;
+        }
+        Type returned = typeMaker.makeMethodTypes(internalName, method[1], method[2]).getReturnedType();
         TypeTypes typeTypes = typeMaker.makeTypeTypes(internalName);
         if (!(returned instanceof GenericType genericReturned) || genericReturned.getDimension() != 0
                 || typeTypes == null || typeTypes.getTypeParameters() == null) {
             return null;
         }
-        List<TypeArgument> typeArguments = toTypeArgumentList(targetType.getTypeArguments());
+        List<TypeArgument> typeArguments = toTypeArgumentList(declaring.getTypeArguments());
         int index = 0;
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
             if (typeParameter.getIdentifier().equals(genericReturned.getName())) {
@@ -379,31 +389,49 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return null;
     }
 
-    /** @return the name and descriptor of the only abstract method declared by an interface, or an empty array */
+    /** @return the declaring interface, name and descriptor of the only abstract method of an interface (inherited ones included), or an empty array */
     private String[] findSingleAbstractMethod(String internalName) {
-        String[] none = new String[0];
+        Map<String, String[]> abstractMethods = new HashMap<>();
+
+        if (!collectAbstractMethods(internalName, abstractMethods, new HashSet<>(), new HashSet<>()) || abstractMethods.size() != 1) {
+            return new String[0];
+        }
+        return abstractMethods.values().iterator().next();
+    }
+
+    /** @return false if an interface could not be read */
+    private boolean collectAbstractMethods(String internalName, Map<String, String[]> abstractMethods, Set<String> overridden, Set<String> visited) {
+        if (!visited.add(internalName)) {
+            return true;
+        }
         try {
             if (!loader.canLoad(internalName)) {
-                return none;
+                return false;
             }
             JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
             if (!javaClass.isInterface()) {
-                return none;
+                return false;
             }
-            String[] found = none;
             for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
                 String signature = method.getName() + method.getSignature();
-                if (method.isAbstract() && !method.isStatic() && !"equals(Ljava/lang/Object;)Z".equals(signature)
+                if (method.isStatic() || method.isPrivate()) {
+                    continue;
+                }
+                if (!method.isAbstract()) {
+                    overridden.add(signature);
+                } else if (!overridden.contains(signature) && !"equals(Ljava/lang/Object;)Z".equals(signature)
                         && !"hashCode()I".equals(signature) && !"toString()Ljava/lang/String;".equals(signature)) {
-                    if (found.length != 0) {
-                        return none;
-                    }
-                    found = new String[] {method.getName(), method.getSignature()};
+                    abstractMethods.putIfAbsent(signature, new String[] {internalName, method.getName(), method.getSignature()});
                 }
             }
-            return found;
+            for (String superInterface : javaClass.getInterfaceNames()) {
+                if (!collectAbstractMethods(superInterface.replace('.', '/'), abstractMethods, overridden, visited)) {
+                    return false;
+                }
+            }
+            return true;
         } catch (IOException | ClassFormatException e) {
-            return none;
+            return false;
         }
     }
 
@@ -983,6 +1011,35 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
     }
 
+    /**
+     * The fixed type arguments of the class which is instantiated may be disjoint from the bounds of a type variable of the
+     * target ('final class C implements I<String>' is no I<T> for T extends Number): the cast then goes through the raw type.
+     */
+    private Expression castThroughRawTypeIfBounded(Type target, Expression expression) {
+        if (expression instanceof ClassFileNewExpression && target instanceof ObjectType targetType && targetType.getTypeArguments() != null
+                && hasBoundedTypeVariable(targetType)) {
+            Expression raw = addCastExpression(targetType.createType(null), expression);
+
+            return new CastExpression(raw.getLineNumber(), target, raw);
+        }
+        return addCastExpression(target, expression);
+    }
+
+    private boolean hasBoundedTypeVariable(ObjectType type) {
+        for (String name : type.findTypeParametersInType()) {
+            BaseType bounds = declaredBoundsOf(name);
+
+            if (bounds != null) {
+                for (Type bound : bounds) {
+                    if (!isJavaLangObject(bound)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     private boolean isGenericClass(ObjectType objectType) {
         TypeTypes typeTypes = typeMaker.makeTypeTypes(objectType.getInternalName());
 
@@ -1409,12 +1466,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                         && typeMaker.isRawTypeAssignable(targetType, expressionObjectType)) {
                                     t = targetType.createType(null);
                                 }
-                                expression = addCastExpression(t, expression);
+                                expression = castThroughRawTypeIfBounded(t, expression);
                             }
                         } else if (isNewOfNonGenericClassToTypeVariableTarget(objectType, expression, expressionObjectType)) {
                             // TypeMaker reports 'class C implements TA<Object>' as having the raw supertype TA, so the assignment
                             // to TA<T> looks fine; it is not ('new C()' is never a TA<T>): an unchecked cast is always valid
-                            expression = addCastExpression(objectType, expression);
+                            expression = castThroughRawTypeIfBounded(objectType, expression);
                         }
                     } else if (type.getDimension() == 0 && expressionType.isGenericType() && (!isJavaLangObject(type) || forceCast)) {
                         boolean cast = true;
@@ -1456,24 +1513,24 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     /** @return true if one of the type variables of the type is declared by a method (class type variables are shared with the inner classes) */
     private boolean hasMethodLevelTypeVariable(ObjectType type) {
         for (String name : type.findTypeParametersInType()) {
-            for (TypeParameter scope : typeParameters) {
-                boolean declared = false;
+            TypeParameter declaringScope = innermostScopeDeclaring(name);
 
-                for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : scope.type()) {
-                    if (typeParameter.getIdentifier().equals(name)) {
-                        declared = true;
-                        break;
-                    }
-                }
-                if (declared) {
-                    if (scope.methodLevel()) {
-                        return true;
-                    }
-                    break;
-                }
+            if (declaringScope != null && declaringScope.methodLevel()) {
+                return true;
             }
         }
         return false;
+    }
+
+    private TypeParameter innermostScopeDeclaring(String typeVariableName) {
+        for (TypeParameter scope : typeParameters) {
+            for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : scope.type()) {
+                if (typeParameter.getIdentifier().equals(typeVariableName)) {
+                    return scope;
+                }
+            }
+        }
+        return null;
     }
 
     private boolean isNewOfNonGenericClassToTypeVariableTarget(ObjectType targetType, Expression expression, ObjectType expressionObjectType) {

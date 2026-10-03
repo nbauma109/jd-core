@@ -488,27 +488,24 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
 
         BaseTypeArgument typeArguments = objectType.getTypeArguments();
+        List<TypeArgument> arguments = toList(typeArguments);
+        List<TypeArgument> replaced = arguments.stream().map(argument -> isCaptured(argument, captured) ? WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT : argument).toList();
 
-        if (typeArguments instanceof GenericType genericType && genericType.getDimension() == 0 && captured.contains(genericType.getName())) {
-            return objectType.createType(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
+        if (replaced.equals(arguments)) {
+            return null;
         }
-        if (typeArguments.isTypeArgumentList()) {
-            TypeArguments newTypeArguments = new TypeArguments();
-            boolean changed = false;
+        if (!typeArguments.isTypeArgumentList()) {
+            return objectType.createType(replaced.get(0));
+        }
 
-            for (TypeArgument typeArgument : typeArguments.getTypeArgumentList()) {
-                if (typeArgument instanceof GenericType genericType && genericType.getDimension() == 0 && captured.contains(genericType.getName())) {
-                    newTypeArguments.add(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT);
-                    changed = true;
-                } else {
-                    newTypeArguments.add(typeArgument);
-                }
-            }
-            if (changed) {
-                return objectType.createType(newTypeArguments);
-            }
-        }
-        return null;
+        TypeArguments newTypeArguments = new TypeArguments(replaced.size());
+
+        newTypeArguments.addAll(replaced);
+        return objectType.createType(newTypeArguments);
+    }
+
+    private static boolean isCaptured(TypeArgument typeArgument, Set<String> captured) {
+        return typeArgument instanceof GenericType genericType && genericType.getDimension() == 0 && captured.contains(genericType.getName());
     }
 
     /** The type variables of the parameter types which face a wildcard in the type of the corresponding argument (capture conversion) */
@@ -520,24 +517,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             Iterator<Expression> parameterIterator = parameters.iterator();
 
             while (parameterTypeIterator.hasNext() && parameterIterator.hasNext()) {
-                Type parameterType = parameterTypeIterator.next();
-                Expression parameter = parameterIterator.next();
-
-                // A class literal is typed Class<?> here, but it really is a Class<Foo>
-                if (!(parameter instanceof TypeReferenceDotClassExpression) && parameterType instanceof ObjectType parameterObjectType
-                        && parameter.getType() instanceof ObjectType argumentType
-                        && parameterObjectType.getDimension() == 0 && argumentType.getDimension() == 0
-                        && parameterObjectType.getTypeArguments() != null && argumentType.getTypeArguments() != null) {
-                    List<TypeArgument> parameterArguments = toList(parameterObjectType.getTypeArguments());
-                    List<TypeArgument> argumentArguments = toList(argumentType.getTypeArguments());
-
-                    for (int i = 0; i < Math.min(parameterArguments.size(), argumentArguments.size()); i++) {
-                        if (parameterArguments.get(i) instanceof GenericType genericType && genericType.getDimension() == 0
-                                && isWildcard(argumentArguments.get(i))) {
-                            captured.add(genericType.getName());
-                        }
-                    }
-                }
+                addTypeVariablesFacingWildcards(parameterTypeIterator.next(), parameterIterator.next(), captured);
             }
 
             // A type variable which is also the type of a parameter (T value) is fixed by the argument, not captured
@@ -548,6 +528,26 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             }
         }
         return captured;
+    }
+
+    private static void addTypeVariablesFacingWildcards(Type parameterType, Expression parameter, Set<String> captured) {
+        // A class literal is typed Class<?> here, but it really is a Class<Foo>
+        if (parameter instanceof TypeReferenceDotClassExpression || !(parameterType instanceof ObjectType parameterObjectType)
+                || !(parameter.getType() instanceof ObjectType argumentType)
+                || parameterObjectType.getDimension() != 0 || argumentType.getDimension() != 0
+                || parameterObjectType.getTypeArguments() == null || argumentType.getTypeArguments() == null) {
+            return;
+        }
+
+        List<TypeArgument> parameterArguments = toList(parameterObjectType.getTypeArguments());
+        List<TypeArgument> argumentArguments = toList(argumentType.getTypeArguments());
+
+        for (int i = 0; i < Math.min(parameterArguments.size(), argumentArguments.size()); i++) {
+            if (parameterArguments.get(i) instanceof GenericType genericType && genericType.getDimension() == 0
+                    && isWildcard(argumentArguments.get(i))) {
+                captured.add(genericType.getName());
+            }
+        }
     }
 
     private static List<TypeArgument> toList(BaseTypeArgument typeArguments) {

@@ -99,7 +99,6 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -109,6 +108,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.apache.bcel.Const.*;
 import static org.jd.core.v1.model.javasyntax.statement.ReturnStatement.RETURN;
@@ -222,13 +222,13 @@ public class ByteCodeParser {
         ObjectType ot;
         int i;
         int count;
-        int extraLength;
         int value;
         AbstractLocalVariable localVariable;
 
         int opcode;
         int lineNumber;
-        for (int offset=fromOffset; offset<toOffset; offset++) {
+        int offset = fromOffset;
+        while (offset < toOffset) {
             int startOffset = offset;
             opcode = code[offset] & 255;
             lineNumber = cfg.getLineNumber(offset);
@@ -674,8 +674,7 @@ public class ByteCodeParser {
                     // The offset of the expressions is the one of the index of the variable, as it always was
                     int variableIndexOffset = offset;
                     count = (byte)(code[++offset] & 255);
-                    extraLength = parseIINC(statements, stack, lineNumber, variableIndexOffset, localVariable, count, code, offset + 1, toOffset);
-                    offset += extraLength;
+                    offset += parseIINC(statements, stack, lineNumber, variableIndexOffset, localVariable, count, new FollowingCode(code, offset + 1, toOffset));
                     break;
                 case I2L:
                     stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
@@ -1008,8 +1007,7 @@ public class ByteCodeParser {
                     if (opcode == IINC) {
                         count = (short)( (code[++offset] & 255) << 8 | code[++offset] & 255 );
                         // The reference points to the byte following the 'wide' opcode, as for a plain 'iinc'
-                        extraLength = parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count, code, offset + 1, toOffset);
-                        offset += extraLength;
+                        offset += parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count, new FollowingCode(code, offset + 1, toOffset));
                     } else {
                         switch (opcode) {
                             case ILOAD:
@@ -1087,6 +1085,7 @@ public class ByteCodeParser {
             }
 
             recordLoadStartOffset(opcode, startOffset, stack);
+            offset++;
         }
     }
 
@@ -2191,8 +2190,11 @@ public class ByteCodeParser {
         return false;
     }
 
+    /** The instructions which follow the one being parsed: the code, the offset of the next instruction and the end of the block */
+    private record FollowingCode(byte[] code, int offset, int end) {}
+
     /** @return the number of bytes of the following instructions which were consumed too */
-    private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, byte[] code, int nextInstructionOffset, int toOffset) {
+    private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, FollowingCode following) {
         if (!stack.isEmpty()) {
             Expression expression = stack.peek();
 
@@ -2207,7 +2209,7 @@ public class ByteCodeParser {
             if (count != 1 && count != -1) {
                 // 'foo(i, i += 4)': the value of the compound assignment is loaded again by the instruction which follows. As
                 // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
-                int loadLength = lengthOfILoad(code, nextInstructionOffset, toOffset, localVariable.getIndex());
+                int loadLength = lengthOfILoad(following.code(), following.offset(), following.end(), localVariable.getIndex());
 
                 if (loadLength > 0) {
                     stack.push(newCompoundAssignmentExpression(lineNumber, offset, localVariable, count));
@@ -2230,6 +2232,11 @@ public class ByteCodeParser {
 
         if (opcode == ILOAD) {
             return offset + 1 < toOffset && (code[offset + 1] & 255) == variableIndex ? 2 : 0;
+        }
+        if (opcode == WIDE) {
+            // wide iload: the variable index takes two bytes
+            return offset + 3 < toOffset && (code[offset + 1] & 255) == ILOAD
+                    && ((code[offset + 2] & 255) << 8 | code[offset + 3] & 255) == variableIndex ? 4 : 0;
         }
         return opcode >= ILOAD_0 && opcode <= ILOAD_3 && opcode - ILOAD_0 == variableIndex ? 1 : 0;
     }
@@ -2869,16 +2876,9 @@ public class ByteCodeParser {
     /** The types of the expressions a lambda captures, in the order of the leading parameters of its synthetic method */
     private static List<Type> capturedParameterTypes(BaseExpression indyParameters, boolean capturesThis) {
         if (indyParameters == null) {
-            return null;
+            return Collections.emptyList();
         }
-        List<Type> types = new ArrayList<>();
-        for (Expression expression : indyParameters) {
-            types.add(expression.getType());
-        }
-        if (capturesThis && !types.isEmpty()) {
-            types.remove(0);
-        }
-        return types;
+        return StreamSupport.stream(indyParameters.spliterator(), false).skip(capturesThis ? 1 : 0).map(Expression::getType).toList();
     }
 
     /**

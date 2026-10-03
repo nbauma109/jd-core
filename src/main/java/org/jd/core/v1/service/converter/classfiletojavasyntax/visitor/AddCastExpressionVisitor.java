@@ -344,7 +344,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Type fromTarget = functionalReturnedType(expectedType);
         boolean erasedToObject = erasedReturnedType == null || ObjectType.TYPE_OBJECT.equals(erasedReturnedType);
 
-        return fromTarget != null && (erasedToObject || fromTarget.isGenericType()) ? fromTarget : null;
+        return fromTarget != null && (erasedToObject || fromTarget.isGenericType() || isParameterizedErasedType(fromTarget, erasedReturnedType)) ? fromTarget : null;
+    }
+
+    /** @return true if the type is the parameterization of the (raw) type which the synthetic method of the lambda returns */
+    private static boolean isParameterizedErasedType(Type parameterized, Type erased) {
+        return parameterized instanceof ObjectType parameterizedType && erased instanceof ObjectType erasedType
+                && parameterizedType.getTypeArguments() != null && erasedType.getTypeArguments() == null
+                && parameterizedType.getInternalName().equals(erasedType.getInternalName());
     }
 
     @Override
@@ -392,11 +399,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         Type returned = typeMaker.makeMethodTypes(internalName, method[1], method[2]).getReturnedType();
         TypeTypes typeTypes = typeMaker.makeTypeTypes(internalName);
-        if (!(returned instanceof GenericType genericReturned) || genericReturned.getDimension() != 0
-                || typeTypes == null || typeTypes.getTypeParameters() == null) {
+        if (typeTypes == null || typeTypes.getTypeParameters() == null || returned.findTypeParametersInType().isEmpty()) {
             return null;
         }
         List<TypeArgument> typeArguments = toTypeArgumentList(declaring.getTypeArguments());
+        if (!(returned instanceof GenericType genericReturned) || genericReturned.getDimension() != 0) {
+            return bindTypeVariables(returned, typeTypes.getTypeParameters(), typeArguments);
+        }
         int index = 0;
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
             if (typeParameter.getIdentifier().equals(genericReturned.getName())) {
@@ -405,6 +414,26 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             index++;
         }
         return null;
+    }
+
+    /** @return the type which contains type variables of an interface (List&lt;T&gt;), seen through the type arguments of its parameterization */
+    private static Type bindTypeVariables(Type returned, BaseTypeParameter typeParameters, List<TypeArgument> typeArguments) {
+        Map<String, TypeArgument> bindings = new HashMap<>();
+        int index = 0;
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (index < typeArguments.size()) {
+                bindings.put(typeParameter.getIdentifier(), typeArguments.get(index));
+            }
+            index++;
+        }
+
+        BindTypesToTypesVisitor visitor = new BindTypesToTypesVisitor();
+
+        visitor.setBindings(bindings);
+        visitor.init();
+        returned.accept(visitor);
+        return visitor.getType() instanceof Type bound ? bound : null;
     }
 
     /** A lambda of a 'Supplier<? extends T>' is typed by its upper bound */
@@ -683,10 +712,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * javac passes an empty array for a varargs method called without any: the call is spelled without it. The printer
      * hides that array too, but loses track of the comma after the block body of a lambda.
      */
-    private static void removeEmptyVarArgsArray(MethodInvocationExpression expression) {
+    private void removeEmptyVarArgsArray(MethodInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
 
         if (expression.isVarArgs() && parameters != null && parameters.isList() && parameters.size() > 1
+                && typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size() - 1, false) == 0
                 && parameters.getList().get(parameters.size() - 2) instanceof LambdaIdentifiersExpression lambda
                 && lambda.getStatements() != null && !lambda.getStatements().isLambdaExpressionStatement()
                 && parameters.getLast() instanceof NewArray newArray && newArray.isEmptyNewArray()
@@ -2130,6 +2160,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
+    private static String packageOf(String internalName) {
+        int index = internalName.lastIndexOf('/');
+
+        return index < 0 ? "" : internalName.substring(0, index);
+    }
+
     private boolean declaresNewMethod(ClassFileBodyDeclaration body, ObjectType superType) {
         if (body.getMethodDeclarations() == null) {
             return false;
@@ -2144,14 +2180,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             org.apache.bcel.classfile.Method method = declaration.getMethod();
 
             if ((declaration.getFlags() & (ACC_PRIVATE | ACC_SYNTHETIC | ACC_BRIDGE)) == 0 && method.getName().charAt(0) != '<'
-                    && !overridesInheritedMethod(method, superType, bridgeNames)) {
+                    && !overridesInheritedMethod(method, superType, bridgeNames, packageOf(body.getInternalTypeName()))) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean overridesInheritedMethod(org.apache.bcel.classfile.Method method, ObjectType superType, Set<String> bridgeNames) {
+    private boolean overridesInheritedMethod(org.apache.bcel.classfile.Method method, ObjectType superType, Set<String> bridgeNames, String inheritingPackage) {
         if (typeMaker.matchCount(superType.getInternalName(), method.getName(), method.getArgumentTypes().length, false) == 0) {
             return false;
         }
@@ -2160,7 +2196,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
 
-        Set<String> inherited = inheritedMethodFinder.parameterDescriptors(superType.getInternalName(), method.getName());
+        Set<String> inherited = inheritedMethodFinder.parameterDescriptors(superType.getInternalName(), method.getName(), inheritingPackage);
         String signature = method.getSignature();
 
         // Unknown inherited methods: the name and the number of parameters decide

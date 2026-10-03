@@ -6,6 +6,10 @@ import java.util.Iterator;
 public abstract class GuavaOuter<K, V> {
     protected abstract V delegate();
 
+    int hidden(String text) {
+        return text.length();
+    }
+
     class Wrapped {
         final K key;
         final V value;

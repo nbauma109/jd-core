@@ -146,4 +146,9 @@ public class SingleAbstractMethodFinderTest {
     public void testCovariantReturnedTypesWithDifferentDescriptors() {
         assertArrayEquals(new String[] {PATTERNS + "$CovariantA", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$CovariantC"));
     }
+
+    @Test
+    public void testBridgeMethodOfTheInterfaceIsNotTheAbstractMethod() {
+        assertArrayEquals(new String[] {PATTERNS + "$BridgedGet", "get", "()Ljava/lang/CharSequence;"}, finder().find(PATTERNS + "$BridgedGet"));
+    }
 }

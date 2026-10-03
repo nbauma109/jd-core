@@ -26,13 +26,19 @@ public class InheritedMethodFinder {
     }
 
     /** @return the descriptors of the parameters, like '(Ljava/lang/Object;)', or null if a class could not be read */
-    public Set<String> parameterDescriptors(String internalName, String methodName) {
+    public Set<String> parameterDescriptors(String internalName, String methodName, String inheritingPackage) {
         Set<String> descriptors = new HashSet<>();
 
-        return collect(internalName, methodName, descriptors, new HashSet<>()) ? descriptors : null;
+        return collect(internalName, methodName, inheritingPackage, descriptors, new HashSet<>()) ? descriptors : null;
     }
 
-    private boolean collect(String internalName, String methodName, Set<String> descriptors, Set<String> visited) {
+    static String packageOf(String internalName) {
+        int index = internalName.lastIndexOf('/');
+
+        return index < 0 ? "" : internalName.substring(0, index);
+    }
+
+    private boolean collect(String internalName, String methodName, String inheritingPackage, Set<String> descriptors, Set<String> visited) {
         if (!visited.add(internalName)) {
             return true;
         }
@@ -44,18 +50,20 @@ public class InheritedMethodFinder {
             JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
 
             for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                if (method.getName().equals(methodName) && !method.isPrivate()) {
+                // (a method which is not public nor protected is only inherited within its package)
+                if (method.getName().equals(methodName) && !method.isPrivate()
+                        && (method.isPublic() || method.isProtected() || packageOf(internalName).equals(inheritingPackage))) {
                     String signature = method.getSignature();
 
                     descriptors.add(signature.substring(0, signature.indexOf(')') + 1));
                 }
             }
             if (javaClass.getSuperclassName() != null && !"java.lang.Object".equals(javaClass.getSuperclassName())
-                    && !collect(javaClass.getSuperclassName().replace('.', '/'), methodName, descriptors, visited)) {
+                    && !collect(javaClass.getSuperclassName().replace('.', '/'), methodName, inheritingPackage, descriptors, visited)) {
                 return false;
             }
             for (String superInterface : javaClass.getInterfaceNames()) {
-                if (!collect(superInterface.replace('.', '/'), methodName, descriptors, visited)) {
+                if (!collect(superInterface.replace('.', '/'), methodName, inheritingPackage, descriptors, visited)) {
                     return false;
                 }
             }

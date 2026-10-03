@@ -1,5 +1,6 @@
 package org.jd.core.v1.stub;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -241,5 +242,24 @@ public class GsonFunctionalPatterns {
 
     public static <T extends Number> CovariantC<T> covariantC(Number value) {
         return () -> (T) value;
+    }
+
+    /** The compiler adds a bridge method to the interface: it must not replace the abstract method */
+    public interface BridgedGet<T extends CharSequence> extends ObjectGet {
+        @Override
+        T get();
+    }
+
+    public static <T extends CharSequence> BridgedGet<T> bridgedGet(CharSequence value) {
+        return () -> (T) value;
+    }
+
+    /** The returned type contains the type variable of the interface */
+    public interface NestedGet<T> {
+        List<T> get();
+    }
+
+    public static <T> NestedGet<T> nestedGet(List<?> unknown) {
+        return () -> (List<T>) unknown;
     }
 }

@@ -258,4 +258,30 @@ public class GuavaPatterns {
     public static <T extends Element<T>> Decomposition<T> decompose(T[][] data) {
         return new Decomposition<T>(new Matrix<T>(data, false));
     }
+
+    static <T> T first(List<? extends List<? extends T>> values) {
+        return values.get(0).get(0);
+    }
+
+    /** The wildcard which faces the type variable is nested: the cast is needed to get a String */
+    public static String firstOfWildcards(List<List<?>> values) {
+        return (String) first(values);
+    }
+
+    static class RawBox<T> {
+        T content;
+
+        T get() {
+            return content;
+        }
+    }
+
+    static RawBox rawBox() {
+        return new RawBox();
+    }
+
+    /** What a raw receiver which is a method call returns is erased */
+    public static String fromRawFactory() {
+        return (String) rawBox().get();
+    }
 }

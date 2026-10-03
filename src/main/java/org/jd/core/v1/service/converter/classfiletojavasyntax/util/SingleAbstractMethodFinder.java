@@ -7,6 +7,7 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
 import org.apache.bcel.classfile.ClassFormatException;
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.JavaClass;
@@ -110,7 +111,8 @@ public class SingleAbstractMethodFinder {
                 // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
                 String signature = declaration.substring(0, declaration.indexOf(')') + 1);
 
-                if (!method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(declaration)) {
+                // (a bridge method is the compiler's copy of a declaration whose returned type is covariant)
+                if (!method.isStatic() && !method.isPrivate() && (method.getAccessFlags() & Const.ACC_BRIDGE) == 0 && !method.isSynthetic() && !OBJECT_METHODS.contains(declaration)) {
                     members.put(signature, new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
                             returnsTypeVariable(method), ancestors));
                 }

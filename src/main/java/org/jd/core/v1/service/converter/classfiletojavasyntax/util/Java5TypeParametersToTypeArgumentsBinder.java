@@ -535,22 +535,43 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
     private static void addTypeVariablesFacingWildcards(Type parameterType, Expression parameter, Set<String> captured) {
         // A class literal is typed Class<?> here, but it really is a Class<Foo>
-        if (parameter instanceof TypeReferenceDotClassExpression || !(parameterType instanceof ObjectType parameterObjectType)
-                || !(parameter.getType() instanceof ObjectType argumentType)
-                || parameterObjectType.getDimension() != 0 || argumentType.getDimension() != 0
-                || parameterObjectType.getTypeArguments() == null || argumentType.getTypeArguments() == null) {
+        if (parameter instanceof TypeReferenceDotClassExpression) {
+            return;
+        }
+        addTypeVariablesFacingWildcards(parameterType, parameter.getType(), captured);
+    }
+
+    /** The type variables of the parameter type which face a wildcard of the argument type, at any depth of the type arguments */
+    private static void addTypeVariablesFacingWildcards(Type parameterType, Type argumentType, Set<String> captured) {
+        if (!(parameterType instanceof ObjectType parameterObjectType) || !(argumentType instanceof ObjectType argumentObjectType)
+                || parameterObjectType.getDimension() != 0 || argumentObjectType.getDimension() != 0
+                || parameterObjectType.getTypeArguments() == null || argumentObjectType.getTypeArguments() == null) {
             return;
         }
 
         List<TypeArgument> parameterArguments = toList(parameterObjectType.getTypeArguments());
-        List<TypeArgument> argumentArguments = toList(argumentType.getTypeArguments());
+        List<TypeArgument> argumentArguments = toList(argumentObjectType.getTypeArguments());
 
         for (int i = 0; i < Math.min(parameterArguments.size(), argumentArguments.size()); i++) {
-            if (parameterArguments.get(i) instanceof GenericType genericType && genericType.getDimension() == 0
-                    && isWildcard(argumentArguments.get(i))) {
+            TypeArgument parameterArgument = parameterArguments.get(i);
+            TypeArgument argumentArgument = argumentArguments.get(i);
+
+            if (parameterArgument instanceof GenericType genericType && genericType.getDimension() == 0 && isWildcard(argumentArgument)) {
                 captured.add(genericType.getName());
+            } else {
+                addTypeVariablesFacingWildcards(withoutWildcard(parameterArgument), withoutWildcard(argumentArgument), captured);
             }
         }
+    }
+
+    private static Type withoutWildcard(TypeArgument typeArgument) {
+        if (typeArgument instanceof WildcardExtendsTypeArgument extendsArgument) {
+            return extendsArgument.type();
+        }
+        if (typeArgument instanceof WildcardSuperTypeArgument superArgument) {
+            return superArgument.type();
+        }
+        return typeArgument instanceof Type type ? type : null;
     }
 
     private static List<TypeArgument> toList(BaseTypeArgument typeArguments) {
@@ -566,10 +587,22 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             BaseTypeParameter methodTypeParameters, Type returnedType) {
         if (classTypeParameters == null || !(returnedType instanceof GenericType genericType)
                 || !(receiverType instanceof ObjectType receiverObjectType) || receiverObjectType.getTypeArguments() != null
-                || receiverObjectType.getDimension() != 0 || !(receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression())) {
+                || receiverObjectType.getDimension() != 0 || !isRawReceiver(receiver)) {
             return false;
         }
         return declares(classTypeParameters, genericType.getName()) && !declares(methodTypeParameters, genericType.getName());
+    }
+
+    /** @return true for the expressions whose raw type is the one the code declares (a variable, a method which returns a raw type) */
+    private static boolean isRawReceiver(Expression receiver) {
+        if (receiver instanceof ClassFileMethodInvocationExpression invocation) {
+            // (the receiver may not have been bound yet: its type is then the one it is declared with)
+            Type declared = invocation.getUnboundType() != null ? invocation.getUnboundType() : invocation.getType();
+
+            return declared instanceof ObjectType declaredObjectType && declaredObjectType.getTypeArguments() == null;
+        }
+        // (the type of a cast or of a creation is not final yet: it may still be parameterized by the casts that are added later)
+        return receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression();
     }
 
     private static boolean declares(BaseTypeParameter typeParameters, String identifier) {

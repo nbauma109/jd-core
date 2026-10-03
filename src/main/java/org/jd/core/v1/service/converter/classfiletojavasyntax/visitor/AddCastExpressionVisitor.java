@@ -80,6 +80,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InheritedMethodFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.SingleAbstractMethodFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
@@ -115,6 +116,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
     private final Loader loader;
     private final SingleAbstractMethodFinder singleAbstractMethodFinder;
+    private final InheritedMethodFinder inheritedMethodFinder;
     private boolean lambdaReturnFromTarget;
     private boolean castToGenericInLambda;
     private Map<String, BaseType> typeBounds;
@@ -146,6 +148,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         this.typeMaker = typeMaker;
         this.loader = loader;
         this.singleAbstractMethodFinder = loader == null ? null : new SingleAbstractMethodFinder(loader);
+        this.inheritedMethodFinder = loader == null ? null : new InheritedMethodFinder(loader);
     }
 
     @Override
@@ -1070,8 +1073,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         BaseTypeParameter classTypeParameters = typeTypes == null ? null : typeTypes.getTypeParameters();
         BaseType parameterTypes = expression.getParameterTypes();
 
+        // (the type arguments which are already known are never replaced)
         if (classTypeParameters == null || classTypeParameters.size() != 1 || parameterTypes == null
-                || parameterTypes.size() != parameters.size()) {
+                || parameterTypes.size() != parameters.size() || expression.getObjectType().getTypeArguments() != null) {
             return;
         }
         org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = classTypeParameters.getFirst();
@@ -1084,9 +1088,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 ? parameterTypes.getList() : Collections.singletonList(parameterTypes.getFirst());
         List<Expression> parameterList = parameters.isList()
                 ? parameters.getList() : Collections.singletonList(parameters.getFirst());
+        List<Type> declaredParameterTypeList = declaredConstructorParameterTypes(expression, parameters.size());
         for (int index = 0; index < parameters.size(); index++) {
             Type parameterType = parameterTypeList.get(index);
             Type argumentType = parameterList.get(index).getType();
+            // Only a parameter which is declared with the type variable of the class says what the type argument is
+            if (declaredParameterTypeList != null && !(declaredParameterTypeList.get(index) instanceof GenericType declared
+                    && declared.getName().equals(typeParameter.getIdentifier()))) {
+                continue;
+            }
             if (parameterType instanceof ObjectType erasedParameterType
                     && argumentType instanceof GenericType genericArgumentType
                     && erasedParameterType.getDimension() == genericArgumentType.getDimension()
@@ -1100,6 +1110,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 return;
             }
         }
+    }
+
+    /** @return the parameter types the constructor is declared with (generic ones), null if the class has no such constructor */
+    private List<Type> declaredConstructorParameterTypes(ClassFileNewExpression expression, int parameterCount) {
+        TypeMaker.MethodTypes constructor = typeMaker.makeMethodTypes(expression.getObjectType().getInternalName(),
+                StringConstants.INSTANCE_CONSTRUCTOR, expression.getDescriptor());
+        BaseType declared = constructor == null ? null : constructor.getParameterTypes();
+
+        if (declared == null || declared.size() != parameterCount) {
+            return null;
+        }
+        return declared.isList() ? declared.getList() : Collections.singletonList(declared.getFirst());
     }
 
     private static boolean containsWildcardSuper(BaseTypeArgument typeArguments) {
@@ -1428,7 +1450,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             Type t = type;
 
                             if (ta1 != null && ta2 != null && !ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2)) {
-                                if (objectType.rawEquals(expressionObjectType) && isInferredFromTarget(expression)) {
+                                if (objectType.rawEquals(expressionObjectType) && isInferredFromTarget(expression, ta1, ta2)) {
                                     // The type arguments of the invoked method are only fixed by the target type: javac infers them
                                     acceptWithExpectedType(expression, type);
                                     return expression;
@@ -1989,14 +2011,39 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return getMethodTypeParameterNames(expression).contains(type.getName());
     }
 
-    /** @return true for the invocation of a generic method whose type variables, used by the returned type, no argument fixes */
-    private static boolean isInferredFromTarget(Expression expression) {
-        return expression instanceof ClassFileMethodInvocationExpression methodInvocation
-                && methodInvocation.getTypeParameters() != null
-                && methodInvocation.getUnboundType() instanceof ObjectType unboundObjectType
-                && unboundObjectType.getTypeArguments() != null
-                && !Collections.disjoint(unboundObjectType.findTypeParametersInType(), getMethodTypeParameterNames(methodInvocation))
-                && !hasProperMethodArgumentConstraint(methodInvocation);
+    /**
+     * @return true for the invocation of a generic method whose type variables, used by the returned type, no argument fixes,
+     * when the type arguments which differ from the ones of the target are only those type variables
+     */
+    private static boolean isInferredFromTarget(Expression expression, BaseTypeArgument targetArguments, BaseTypeArgument expressionArguments) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression methodInvocation)
+                || methodInvocation.getTypeParameters() == null
+                || !(methodInvocation.getUnboundType() instanceof ObjectType unboundObjectType)
+                || unboundObjectType.getTypeArguments() == null
+                || Collections.disjoint(unboundObjectType.findTypeParametersInType(), getMethodTypeParameterNames(methodInvocation))
+                || hasProperMethodArgumentConstraint(methodInvocation)) {
+            return false;
+        }
+
+        List<TypeArgument> target = toTypeArgumentList(targetArguments);
+        List<TypeArgument> actual = toTypeArgumentList(expressionArguments);
+        List<TypeArgument> unbound = toTypeArgumentList(unboundObjectType.getTypeArguments());
+
+        if (target.size() != actual.size() || target.size() != unbound.size()) {
+            return false;
+        }
+        Set<String> methodTypeParameterNames = getMethodTypeParameterNames(methodInvocation);
+
+        for (int i = 0; i < target.size(); i++) {
+            boolean free = unbound.get(i) instanceof GenericType genericType && genericType.getDimension() == 0
+                    && methodTypeParameterNames.contains(genericType.getName());
+
+            if (!free && !target.get(i).equals(actual.get(i))) {
+                // (a fixed type argument is not changed by the inference)
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean isTargetDependentGenericInvocation(Expression expression) {
@@ -2080,15 +2127,39 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (body.getMethodDeclarations() == null) {
             return false;
         }
+
+        Set<String> bridgeNames = new HashSet<>();
+
+        for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
+            if ((declaration.getFlags() & ACC_BRIDGE) != 0) {
+                bridgeNames.add(declaration.getMethod().getName() + declaration.getMethod().getArgumentTypes().length);
+            }
+        }
         for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
             org.apache.bcel.classfile.Method method = declaration.getMethod();
 
             if ((declaration.getFlags() & (ACC_PRIVATE | ACC_SYNTHETIC | ACC_BRIDGE)) == 0 && method.getName().charAt(0) != '<'
-                    && typeMaker.matchCount(superType.getInternalName(), method.getName(), method.getArgumentTypes().length, false) == 0) {
+                    && !overridesInheritedMethod(method, superType, bridgeNames)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean overridesInheritedMethod(org.apache.bcel.classfile.Method method, ObjectType superType, Set<String> bridgeNames) {
+        if (typeMaker.matchCount(superType.getInternalName(), method.getName(), method.getArgumentTypes().length, false) == 0) {
+            return false;
+        }
+        if (inheritedMethodFinder == null || bridgeNames.contains(method.getName() + method.getArgumentTypes().length)) {
+            // (a bridge method is the proof that a method overrides one whose parameter types are generic)
+            return true;
+        }
+
+        Set<String> inherited = inheritedMethodFinder.parameterDescriptors(superType.getInternalName(), method.getName());
+        String signature = method.getSignature();
+
+        // Unknown inherited methods: the name and the number of parameters decide
+        return inherited == null || inherited.contains(signature.substring(0, signature.indexOf(')') + 1));
     }
 
     private boolean prepareDiamondTypeArgumentsIfPossible(NewExpression expression) {

@@ -141,4 +141,9 @@ public class SingleAbstractMethodFinderTest {
     public void testBothDeclarationsReturnATypeVariable() {
         assertArrayEquals(new String[] {PATTERNS + "$TypedGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$BothTyped"));
     }
+
+    @Test
+    public void testCovariantReturnedTypesWithDifferentDescriptors() {
+        assertArrayEquals(new String[] {PATTERNS + "$CovariantA", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$CovariantC"));
+    }
 }

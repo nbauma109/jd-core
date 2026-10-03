@@ -226,4 +226,20 @@ public class GsonFunctionalPatterns {
         return () -> {
         };
     }
+
+    public interface CovariantA<T> {
+        T get();
+    }
+
+    public interface CovariantB {
+        Number get();
+    }
+
+    /** The inherited methods only differ by their (covariant) returned type: Object for the first one, Number for the second one */
+    public interface CovariantC<T extends Number> extends CovariantA<T>, CovariantB {
+    }
+
+    public static <T extends Number> CovariantC<T> covariantC(Number value) {
+        return () -> (T) value;
+    }
 }

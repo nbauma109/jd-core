@@ -219,4 +219,24 @@ public class GuavaPatterns {
         items.add(first);
         return new GenericInner<>(items).size();
     }
+
+    static class NumberBounded<X extends Number> {
+        NumberBounded(Number number) {
+        }
+    }
+
+    /** The type argument of the created class is known: the constructor parameter is a Number, not a X */
+    public static <U extends Number> NumberBounded<Integer> knownTypeArgument(U number) {
+        return new NumberBounded<Integer>(number) {
+        };
+    }
+
+    /** An anonymous class with a method which only looks like an override: no diamond */
+    public static ArrayList<String> overloadInAnonymousClass() {
+        return new ArrayList<String>() {
+            public boolean add(Integer number) {
+                return add(String.valueOf(number));
+            }
+        };
+    }
 }

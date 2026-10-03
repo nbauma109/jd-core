@@ -106,9 +106,11 @@ public class SingleAbstractMethodFinder {
                 inherited.get().forEach((signature, member) -> members.merge(signature, member, SingleAbstractMethodFinder::moreSpecific));
             }
             for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                String signature = method.getName() + method.getSignature();
+                String declaration = method.getName() + method.getSignature();
+                // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
+                String signature = declaration.substring(0, declaration.indexOf(')') + 1);
 
-                if (!method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(signature)) {
+                if (!method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(declaration)) {
                     members.put(signature, new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
                             returnsTypeVariable(method), ancestors));
                 }

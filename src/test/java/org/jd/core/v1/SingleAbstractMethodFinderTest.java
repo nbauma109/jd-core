@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.util.Set;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class SingleAbstractMethodFinderTest {
     private static final String PATTERNS = GsonFunctionalPatterns.class.getName().replace('.', '/');
@@ -165,5 +166,15 @@ public class SingleAbstractMethodFinderTest {
     @Test
     public void testArrayOfTheTypeVariableIsPreferred() {
         assertArrayEquals(new String[] {PATTERNS + "$ArrayB", "get", "()[Ljava/lang/Object;"}, finder().find(PATTERNS + "$ArrayC"));
+    }
+
+    @Test
+    public void testParametersWhichAreArraysAndPrimitives() {
+        assertEquals(PATTERNS + "$PutA", finder().find(PATTERNS + "$PutC")[0]);
+    }
+
+    @Test
+    public void testReturnedTypeOfAnInnerClassOfAParameterizedClass() {
+        assertArrayEquals(new String[] {PATTERNS + "$InnerGet", "get", "()Lorg/jd/core/v1/stub/GuavaOuter$Wrapped;"}, finder().find(PATTERNS + "$InnerGet"));
     }
 }

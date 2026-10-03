@@ -316,4 +316,20 @@ public class GsonFunctionalPatterns {
     public static <T> ArrayC<T> arrayC(Object[] value) {
         return () -> (T[]) value;
     }
+
+    public interface PutA<T> {
+        void put(T[] first, int second, long[][] third);
+    }
+
+    public interface PutB {
+        void put(String[] first, int second, long[][] third);
+    }
+
+    /** Override-equivalent once T is String: the parameters are arrays and primitives */
+    public interface PutC extends PutA<String>, PutB {
+    }
+
+    public interface InnerGet<T> {
+        GuavaOuter<T, T>.Wrapped get();
+    }
 }

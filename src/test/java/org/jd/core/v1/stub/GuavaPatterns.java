@@ -68,12 +68,20 @@ public class GuavaPatterns {
     }
 
     abstract static class Cut<C extends Comparable> implements Comparable<Cut<C>> {
+        final C endpoint;
+
+        Cut(C endpoint) {
+            this.endpoint = endpoint;
+        }
+
         static <C extends Comparable> Cut<C> belowAll() {
-            return null;
+            return new Cut<C>(null) {
+            };
         }
 
         static <C extends Comparable> Cut<C> belowValue(C endpoint) {
-            return null;
+            return new Cut<C>(endpoint) {
+            };
         }
 
         @Override

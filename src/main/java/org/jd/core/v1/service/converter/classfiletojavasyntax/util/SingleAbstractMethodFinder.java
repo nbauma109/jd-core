@@ -48,17 +48,34 @@ public class SingleAbstractMethodFinder {
 
         Map<String, Member> members = readMembers.get();
 
-        String[] found = NONE;
+        // A lambda is only created for a functional interface: the abstract methods which remain are override-equivalent once the type
+        // arguments of the super interfaces are substituted (A<String, T> and B<T>: apply(Object) and apply(String)); they all are
+        // the same method, which is seen with the most specific returned type
+        Member found = null;
 
         for (Member member : members.values()) {
             if (member.isAbstract) {
-                if (found != NONE) {
+                if (found != null && !(found.method.name().equals(member.method.name()) && arity(found.method.descriptor()) == arity(member.method.descriptor()))) {
                     return NONE;
                 }
-                found = member.method.toArray();
+                found = found == null ? member : moreSpecific(found, member);
             }
         }
-        return found;
+        return found == null ? NONE : found.method.toArray();
+    }
+
+    private static int arity(String descriptor) {
+        int count = 0;
+        int index = 1;
+
+        while (descriptor.charAt(index) != ')') {
+            while (descriptor.charAt(index) == '[') {
+                index++;
+            }
+            index = descriptor.charAt(index) == 'L' ? descriptor.indexOf(';', index) + 1 : index + 1;
+            count++;
+        }
+        return count;
     }
 
     /** The interface which declares a method, its name and descriptor */

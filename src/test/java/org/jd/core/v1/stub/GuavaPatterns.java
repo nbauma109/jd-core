@@ -284,4 +284,22 @@ public class GuavaPatterns {
     public static String fromRawFactory() {
         return (String) rawBox().get();
     }
+
+    abstract static class Getter<T> {
+        abstract T get(T value);
+    }
+
+    /** The bridge method get(Object) belongs to get(String): the other get is a new method, there is no diamond */
+    public static Getter<String> getterWithAnotherOverload() {
+        return new Getter<String>() {
+            @Override
+            String get(String value) {
+                return value;
+            }
+
+            String get(Integer value) {
+                return String.valueOf(value);
+            }
+        };
+    }
 }

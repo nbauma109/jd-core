@@ -96,10 +96,15 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.bcel.generic.ConstantPoolGen;
+import org.apache.bcel.generic.InstructionHandle;
+import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.InvokeInstruction;
 import org.jd.core.v1.api.loader.Loader;
 
 import static org.apache.bcel.Const.ACC_BRIDGE;
@@ -2160,6 +2165,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
+    /** @return the name and the descriptor of the method which a bridge method calls, null if it cannot be found */
+    private static String bridgedMethod(org.apache.bcel.classfile.Method bridge) {
+        if (bridge.getCode() == null) {
+            return null;
+        }
+
+        ConstantPoolGen constants = new ConstantPoolGen(bridge.getConstantPool());
+
+        for (InstructionHandle handle : new InstructionList(bridge.getCode().getCode()).getInstructionHandles()) {
+            if (handle.getInstruction() instanceof InvokeInstruction invocation) {
+                return invocation.getName(constants) + invocation.getSignature(constants);
+            }
+        }
+        return null;
+    }
+
     private static String packageOf(String internalName) {
         int index = internalName.lastIndexOf('/');
 
@@ -2171,27 +2192,29 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        Set<String> bridgeNames = body.getMethodDeclarations().stream()
+        // The methods which a bridge method of the class delegates to override a generic method
+        Set<String> bridgedMethods = body.getMethodDeclarations().stream()
                 .filter(declaration -> (declaration.getFlags() & ACC_BRIDGE) != 0)
-                .map(declaration -> declaration.getMethod().getName() + declaration.getMethod().getArgumentTypes().length)
+                .map(declaration -> bridgedMethod(declaration.getMethod()))
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
         for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
             org.apache.bcel.classfile.Method method = declaration.getMethod();
 
             if ((declaration.getFlags() & (ACC_PRIVATE | ACC_SYNTHETIC | ACC_BRIDGE)) == 0 && method.getName().charAt(0) != '<'
-                    && !overridesInheritedMethod(method, superType, bridgeNames, packageOf(body.getInternalTypeName()))) {
+                    && !overridesInheritedMethod(method, superType, bridgedMethods, packageOf(body.getInternalTypeName()))) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean overridesInheritedMethod(org.apache.bcel.classfile.Method method, ObjectType superType, Set<String> bridgeNames, String inheritingPackage) {
+    private boolean overridesInheritedMethod(org.apache.bcel.classfile.Method method, ObjectType superType, Set<String> bridgedMethods, String inheritingPackage) {
         if (typeMaker.matchCount(superType.getInternalName(), method.getName(), method.getArgumentTypes().length, false) == 0) {
             return false;
         }
-        if (inheritedMethodFinder == null || bridgeNames.contains(method.getName() + method.getArgumentTypes().length)) {
+        if (inheritedMethodFinder == null || bridgedMethods.contains(method.getName() + method.getSignature())) {
             // (a bridge method is the proof that a method overrides one whose parameter types are generic)
             return true;
         }

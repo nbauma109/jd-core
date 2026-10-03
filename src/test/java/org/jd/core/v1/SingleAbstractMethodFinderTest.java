@@ -151,4 +151,9 @@ public class SingleAbstractMethodFinderTest {
     public void testBridgeMethodOfTheInterfaceIsNotTheAbstractMethod() {
         assertArrayEquals(new String[] {PATTERNS + "$BridgedGet", "get", "()Ljava/lang/CharSequence;"}, finder().find(PATTERNS + "$BridgedGet"));
     }
+
+    @Test
+    public void testParametersWhichAreTheSameOnceTheTypeArgumentsAreSubstituted() {
+        assertArrayEquals(new String[] {PATTERNS + "$Merging", "apply", "(Ljava/lang/Object;)Ljava/lang/Object;"}, finder().find(PATTERNS + "$Combined"));
+    }
 }

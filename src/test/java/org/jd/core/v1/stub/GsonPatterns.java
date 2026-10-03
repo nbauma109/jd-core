@@ -300,4 +300,19 @@ public class GsonPatterns {
     public static <T> java.util.Comparator<T> nonGenericFunctionalResult() {
         return (first, second) -> first == second ? 0 : 1;
     }
+
+    static int sideEffects;
+
+    static int sideEffect() {
+        return ++sideEffects;
+    }
+
+    static int use(int first, int second) {
+        return first * 10 + second;
+    }
+
+    /** The increment is evaluated after the first argument, and its value is loaded again */
+    public static int incrementAfterAPendingArgument(int i) {
+        return use(sideEffect(), ++i) + use(sideEffect(), --i);
+    }
 }

@@ -262,4 +262,20 @@ public class GsonFunctionalPatterns {
     public static <T> NestedGet<T> nestedGet(List<?> unknown) {
         return () -> (List<T>) unknown;
     }
+
+    public interface Merging<X, T> {
+        T apply(X first);
+    }
+
+    public interface Merged<T> {
+        T apply(String first);
+    }
+
+    /** Once the type arguments are substituted, both methods have the same parameters: apply(Object) and apply(String) */
+    public interface Combined<T> extends Merging<String, T>, Merged<T> {
+    }
+
+    public static <T> Combined<T> combined(Object value) {
+        return first -> (T) value;
+    }
 }

@@ -2216,15 +2216,13 @@ public class ByteCodeParser {
                 return 0;
             }
 
-            if (count != 1 && count != -1) {
-                // 'foo(i, i += 4)': the value of the compound assignment is loaded again by the instruction which follows. As
-                // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
-                int loadLength = lengthOfILoad(following.code, following.offset, following.end, localVariable.getIndex());
+            // 'foo(bar(), ++i)' and 'foo(i, i += 4)': the value of the increment is loaded again by the instruction which follows. As
+            // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
+            int loadLength = lengthOfILoad(following.code, following.offset, following.end, localVariable.getIndex());
 
-                if (loadLength > 0) {
-                    stack.push(newCompoundAssignmentExpression(lineNumber, offset, localVariable, count));
-                    return loadLength;
-                }
+            if (loadLength > 0) {
+                stack.push(newIncrementExpression(lineNumber, offset, localVariable, count));
+                return loadLength;
             }
         }
 

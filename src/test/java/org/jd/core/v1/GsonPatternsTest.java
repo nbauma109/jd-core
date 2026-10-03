@@ -27,6 +27,9 @@ public class GsonPatternsTest extends AbstractJdTest {
         // The compound assignment of the second argument is evaluated after the first
         assertTrue(source.contains("parse(text, offset, offset += 4)"));
         assertTrue(source.contains("parse(text, ++offset, offset += 2)"));
+        // The increment is not moved before the first argument
+        assertTrue(source.contains("use(sideEffect(), ++i)"));
+        assertTrue(source.contains("use(sideEffect(), --i)"));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));

@@ -390,15 +390,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || targetType.getTypeArguments() == null) {
             return null;
         }
-        String targetInternalName = targetType.getInternalName();
-        String[] method = singleAbstractMethodFinder.find(targetInternalName);
+        String[] method = singleAbstractMethodFinder.find(targetType.getInternalName());
         if (method.length == 0) {
             return null;
         }
         // The method may be inherited: it is then seen through the parameterization of the interface which declares it
         String internalName = method[0];
-        ObjectType declaring = internalName.equals(targetInternalName) ? targetType
-                : typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(internalName), targetType);
+        ObjectType declaring = parameterizationOfDeclaringInterface(targetType, internalName);
         if (declaring == null || declaring.getTypeArguments() == null) {
             return null;
         }
@@ -419,6 +417,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             index++;
         }
         return null;
+    }
+
+    private ObjectType parameterizationOfDeclaringInterface(ObjectType targetType, String declaringInternalName) {
+        return declaringInternalName.equals(targetType.getInternalName()) ? targetType
+                : typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(declaringInternalName), targetType);
     }
 
     /** @return the type which contains type variables of an interface (List&lt;T&gt;), seen through the type arguments of its parameterization */
@@ -1132,18 +1135,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 ? parameters.getList() : Collections.singletonList(parameters.getFirst());
         List<Type> declaredParameterTypeList = declaredConstructorParameterTypes(expression, parameters.size());
         for (int index = 0; index < parameters.size(); index++) {
-            Type parameterType = parameterTypeList.get(index);
-            Type argumentType = parameterList.get(index).getType();
             // Only a parameter which is declared with the type variable of the class says what the type argument is
-            if (!declaredParameterTypeList.isEmpty() && !(declaredParameterTypeList.get(index) instanceof GenericType declared
-                    && declared.getName().equals(typeParameter.getIdentifier()))) {
+            if (!declaredParameterTypeList.isEmpty() && !isTypeVariable(declaredParameterTypeList.get(index), typeParameter)) {
                 continue;
             }
-            if (parameterType instanceof ObjectType erasedParameterType
-                    && argumentType instanceof GenericType genericArgumentType
+            if (parameterType(parameterTypeList.get(index), parameterBound) instanceof ObjectType erasedParameterType
+                    && parameterList.get(index).getType() instanceof GenericType genericArgumentType
                     && erasedParameterType.getDimension() == genericArgumentType.getDimension()
-                    && hasKnownTypeParameters(genericArgumentType)
-                    && erasedParameterType.getInternalName().equals(parameterBound.getInternalName())) {
+                    && hasKnownTypeParameters(genericArgumentType)) {
                 // The dimensions belong to the constructor parameter occurrence: T[] erases to Bound[]
                 // and an argument U[] therefore infers the class type argument U, not U[].
                 expression.setObjectType(expression.getObjectType().createType(
@@ -1152,6 +1151,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 return;
             }
         }
+    }
+
+    private static boolean isTypeVariable(Type type, org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        return type instanceof GenericType declared && declared.getName().equals(typeParameter.getIdentifier());
+    }
+
+    /** @return the erased parameter type if it is the bound of the type variable, null otherwise */
+    private static Type parameterType(Type erased, ObjectType bound) {
+        return erased instanceof ObjectType erasedObjectType && erasedObjectType.getInternalName().equals(bound.getInternalName()) ? erased : null;
     }
 
     /** @return the parameter types the constructor is declared with (generic ones), empty if the class has no such constructor */

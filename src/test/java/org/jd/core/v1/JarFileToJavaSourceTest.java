@@ -102,6 +102,13 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testGson() throws Exception {
+        // Multi-module repository: the gson module lives in the gson/ sub-directory
+        testAtTag("https://github.com/google/gson", "gson", "gson-parent-2.14.0",
+                "com.google.code.gson", "gson", "2.14.0", true, null, "gson");
+    }
+
+    @Test
     public void testJodaTime() throws Exception {
         test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.3");
 
@@ -178,6 +185,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
             String version, boolean runUnitTests, Path testJavaHome) throws Exception {
+        testAtTag(repo, repoName, tag, groupId, artifactId, version, runUnitTests, testJavaHome, null);
+    }
+
+    /**
+     * @param moduleDir sub-directory of the extracted repository holding the module to rebuild (for multi-module
+     *                  repositories whose parent pom is at the root); {@code null} when the module is the root
+     */
+    protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
+            String version, boolean runUnitTests, Path testJavaHome, String moduleDir) throws Exception {
     	if (runUnitTests) {
     		System.out.println("====== Decompiling, recompiling and running unit tests for " + repoName + " tag " + tag + " ======");
     	} else {
@@ -226,6 +242,18 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         }
                     }
                 }
+            }
+
+            if (moduleDir != null) {
+                // Maven resolves the parent pom through the default relativePath (../pom.xml)
+                projectDir = new File(projectDir, moduleDir);
+            }
+
+            // Some projects generate part of their sources from templates (e.g. gson's GsonBuildConfig): the
+            // decompiled class replaces the generated one, which would otherwise be a duplicate class
+            File templatesDir = new File(projectDir, "src/main/java-templates");
+            if (templatesDir.exists()) {
+                FileUtils.deleteDirectory(templatesDir);
             }
 
             // Delete all .java files in src/main/java
@@ -290,6 +318,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         statistics.merge(msg, 1, Integer::sum);
                         assertFailedCounter++;
                     } catch (Throwable t) {
+                        System.err.println("Decompilation failed for " + internalTypeName);
                         t.printStackTrace();
                         String msg = t.getMessage() == null ? t.getClass().toString() : t.getMessage();
                         statistics.merge(msg, 1, Integer::sum);
@@ -331,6 +360,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // javac refuses outright ("Source option 5 is no longer supported"); bump those up to 8,
                 // which every such library's own pre-8 syntax already compiles under unchanged.
                 raiseObsoleteCompilerLevel(Paths.get(projectDir.getPath(), "pom.xml"));
+                if (moduleDir != null) {
+                    relaxInheritedCompilerChecks(Paths.get(projectDir.getPath(), "pom.xml"));
+                }
 
                 // Compile and run tests
                 String mvnCommand = System.getProperty("os.name").toLowerCase().contains("win") ? "mvn.cmd" : "mvn";
@@ -481,6 +513,39 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         if (!patched.equals(pom)) {
             Files.writeString(pomPath, patched);
         }
+    }
+
+    /**
+     * A module inheriting its compiler configuration from a parent pom may fail the build on warnings and run extra
+     * static analysis (e.g. Error Prone). Decompiled sources lose source-retention annotations such as
+     * {@code @SuppressWarnings}, so those checks would reject them before the unit tests run: keep plain javac
+     * lint, but do not fail on warnings and drop the annotation processors.
+     */
+    private static void relaxInheritedCompilerChecks(Path pomPath) throws IOException {
+        if (!Files.exists(pomPath)) {
+            return;
+        }
+
+        String pom = Files.readString(pomPath);
+        String compilerPlugin = "<artifactId>maven-compiler-plugin</artifactId>";
+        int index = pom.indexOf(compilerPlugin);
+
+        if (index < 0) {
+            return;
+        }
+
+        String configuration = """
+
+                <configuration>
+                  <failOnWarning>false</failOnWarning>
+                  <compilerArgs combine.self="override">
+                    <arg>-Xlint:all,-options</arg>
+                  </compilerArgs>
+                  <annotationProcessorPaths combine.self="override" />
+                </configuration>""";
+        int end = index + compilerPlugin.length();
+
+        Files.writeString(pomPath, pom.substring(0, end) + configuration + pom.substring(end));
     }
 
     private static void disableBundlePlugin(Path pomPath) throws IOException {

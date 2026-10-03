@@ -38,7 +38,7 @@ public class ClassFileToJavaSyntaxProcessor {
         CompilationUnit compilationUnit = CONVERT_CLASS_FILE_PROCESSOR.process(decompileContext.getClassFile(), typeMaker, decompileContext);
         decompileContext.setCompilationUnit(compilationUnit);
 
-        UPDATE_JAVA_SYNTAX_TREE_PROCESSOR.process(compilationUnit, typeMaker);
+        UPDATE_JAVA_SYNTAX_TREE_PROCESSOR.process(compilationUnit, typeMaker, loader);
         return compilationUnit;
     }
 }

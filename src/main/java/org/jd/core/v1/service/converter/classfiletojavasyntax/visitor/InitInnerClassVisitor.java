@@ -15,6 +15,7 @@ import org.apache.bcel.classfile.MethodParameter;
 import org.apache.bcel.classfile.MethodParameters;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
@@ -36,6 +37,7 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
@@ -46,6 +48,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.TypeDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement.CatchClause;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.InnerObjectType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
@@ -62,6 +65,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InstanceMemberClassFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
@@ -203,10 +207,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
                     && !isDeclaredInStaticMethod(classFile, outerClassFile)
                     && isMandatedOuterParameter(classFile, cfcd.getMethod())
-                    && firstParameter instanceof ClassFileFormalParameter outerParameter
-                    && !new ReferenceSearch(outerParameter.getLocalVariable()).isReferencedIn(cfcd.getStatements())) {
+                    && firstParameter instanceof ClassFileFormalParameter outerParameter) {
                 outerInstanceParameter = true;
                 removeFirstParameter = true;
+                if (new ReferenceSearch(outerParameter.getLocalVariable()).isReferencedIn(cfcd.getStatements())) {
+                    // The outer instance is used by the constructor (e.g. passed on to the one of an inner superclass): 'Outer.this'
+                    outerTypeFieldName = outerParameter.getName();
+                }
             }
         }
 
@@ -223,12 +230,19 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             if (parameters.isList()) {
                 List<FormalParameter> list = parameters.getList();
 
+                // The generic signature of a constructor leaves out the synthetic parameters: those are already missing from the list
+                int missing = Math.max(0, cfcd.getMethod().getArgumentTypes().length - list.size());
+
                 if (removeFirstParameter) {
-                    // Remove outer this
-                    list.remove(0);
+                    if (missing > 0) {
+                        missing--;
+                    } else {
+                        // Remove outer this
+                        list.remove(0);
+                    }
                 }
 
-                int count = syntheticInnerFieldNames.size();
+                int count = Math.max(0, syntheticInnerFieldNames.size() - missing);
 
                 if (count > 0) {
                     // Remove outer local variable reference
@@ -390,30 +404,37 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             safeAccept(expression.getBodyDeclaration());
         }
 
+        /** @return the type of the outer instance which a reference to a 'this$N' field stands for, null if it is not one */
+        private ObjectType outerInstanceType(FieldReferenceExpression expression) {
+            if (!expression.getName().startsWith(OUTER_THIS_PREFIX)) {
+                return null;
+            }
+            if (expression.getInternalTypeName().equals(bodyDeclaration.getInternalTypeName())) {
+                return expression.getName().equals(outerTypeFieldName) ? (ObjectType)expression.getType() : null;
+            }
+
+            ClassFileTypeDeclaration typeDeclaration = bodyDeclaration.getInnerTypeDeclaration(expression.getInternalTypeName());
+
+            if (typeDeclaration != null && typeDeclaration.isClassDeclaration()) {
+                ClassFileBodyDeclaration cfbd = (ClassFileBodyDeclaration) typeDeclaration.getBodyDeclaration();
+                ObjectType objectType = (ObjectType)expression.getType();
+
+                if (cfbd.getOuterBodyDeclaration().getInternalTypeName().equals(objectType.getInternalName())) {
+                    return objectType;
+                }
+            }
+            return null;
+        }
+
         @Override
         public void visit(FieldReferenceExpression expression) {
             if (expression.getName().startsWith(OUTER_THIS_PREFIX)) {
-                if (expression.getInternalTypeName().equals(bodyDeclaration.getInternalTypeName())) {
-                    if (expression.getName().equals(outerTypeFieldName)) {
-                        ObjectType objectType = (ObjectType)expression.getType();
-                        Expression exp = expression.getExpression() == null ? expression : expression.getExpression();
-                        expression.setExpression(new ObjectTypeReferenceExpression(exp.getLineNumber(), objectType.createType(null)));
-                        expression.setName("this");
-                    }
-                } else {
-                    ClassFileTypeDeclaration typeDeclaration = bodyDeclaration.getInnerTypeDeclaration(expression.getInternalTypeName());
+                ObjectType objectType = outerInstanceType(expression);
 
-                    if (typeDeclaration != null && typeDeclaration.isClassDeclaration()) {
-                        ClassFileBodyDeclaration cfbd = (ClassFileBodyDeclaration) typeDeclaration.getBodyDeclaration();
-                        String outerInternalTypeName = cfbd.getOuterBodyDeclaration().getInternalTypeName();
-                        ObjectType objectType = (ObjectType)expression.getType();
-
-                        if (outerInternalTypeName.equals(objectType.getInternalName())) {
-                            Expression exp = expression.getExpression() == null ? expression : expression.getExpression();
-                            expression.setExpression(new ObjectTypeReferenceExpression(exp.getLineNumber(), objectType.createType(null)));
-                            expression.setName("this");
-                        }
-                    }
+                if (objectType != null) {
+                    Expression exp = expression.getExpression() == null ? expression : expression.getExpression();
+                    expression.setExpression(new ObjectTypeReferenceExpression(exp.getLineNumber(), objectType.createType(null)));
+                    expression.setName("this");
                 }
             } else if (expression.getName().startsWith("val$")) {
                 expression.setName(expression.getName().substring(4));
@@ -425,6 +446,14 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         protected Expression updateExpression(Expression expression) {
+            if (expression instanceof FieldReferenceExpression fre) {
+                ObjectType outerType = outerInstanceType(fre);
+
+                // An anonymous class has no name to qualify 'this' with: its members are then used unqualified
+                if (outerType != null && outerType.getName() == null) {
+                    return NoExpression.NO_EXPRESSION;
+                }
+            }
             if (expression.isLocalVariableReferenceExpression() && expression.getName() != null && expression.getName().equals(outerTypeFieldName) && expression.getType().isObjectType()) {
                 ObjectType objectType = (ObjectType)expression.getType();
                 if (bodyDeclaration.getOuterBodyDeclaration() != null && bodyDeclaration.getOuterBodyDeclaration().getInternalTypeName().equals(objectType.getInternalName())) {
@@ -438,6 +467,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
     public static class UpdateNewExpressionVisitor extends AbstractJavaSyntaxVisitor {
         private final TypeMaker typeMaker;
+        private final InstanceMemberClassFinder instanceMemberClassFinder;
         private ClassFileBodyDeclaration bodyDeclaration;
         private ClassFile classFile;
         private final Map<String, String> finalLocalVariableNameMap = new HashMap<>();
@@ -446,7 +476,12 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         private int lineNumber;
 
         public UpdateNewExpressionVisitor(TypeMaker typeMaker) {
+            this(typeMaker, null);
+        }
+
+        public UpdateNewExpressionVisitor(TypeMaker typeMaker, Loader loader) {
             this.typeMaker = typeMaker;
+            this.instanceMemberClassFinder = loader == null ? null : new InstanceMemberClassFinder(loader);
         }
 
         @Override
@@ -551,16 +586,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 if (ne.getBodyDeclaration() == null) {
                     ObjectType type = ne.getObjectType();
                     String internalName = type.getInternalName();
-                    ClassFileTypeDeclaration typeDeclaration = bodyDeclaration.getInnerTypeDeclaration(internalName);
+                    // A local class which creates instances of itself (or of an enclosing local class) does not declare itself again
+                    ClassFileBodyDeclaration enclosing = enclosingBodyDeclaration(internalName);
+                    ClassFileTypeDeclaration typeDeclaration = enclosing == null ? bodyDeclaration.getInnerTypeDeclaration(internalName) : null;
 
-                    if (typeDeclaration == null) {
-                        for (ClassFileBodyDeclaration bd = bodyDeclaration; bd != null; bd = bd.getOuterBodyDeclaration()) {
-                            if (bd.getInternalTypeName().equals(internalName)) {
-                                cfbd = bd;
-                                break;
-                            }
-                        }
-                    } else if (typeDeclaration.isClassDeclaration()) {
+                    if (enclosing != null) {
+                        cfbd = enclosing;
+                    } else if (typeDeclaration != null && typeDeclaration.isClassDeclaration()) {
                         ClassFileClassDeclaration cfcd = (ClassFileClassDeclaration) typeDeclaration;
                         cfbd = (ClassFileBodyDeclaration) cfcd.getBodyDeclaration();
 
@@ -575,6 +607,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 } else {
                     // Anonymous class
                     cfbd = (ClassFileBodyDeclaration) ne.getBodyDeclaration();
+                }
+
+                if (cfbd == null && ne.getBodyDeclaration() == null) {
+                    removeImplicitOuterInstance(ne);
                 }
 
                 if (cfbd != null) {
@@ -650,7 +686,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         if (!Utils.isEmpty(parameters) && parameters.getLast().isNullExpression()) {
                             parameterTypes = ne.getParameterTypes();
 
-                            if (parameterTypes.getLast().getName() == null) {
+                            if (parameterTypes.getLast().getName() == null || isSyntheticConstructor(cfbd, ne.getDescriptor())) {
                                 // Yes. Remove it.
                                 if (parameters.isList()) {
                                     parameters.getList().removeLast();
@@ -666,6 +702,52 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             safeAccept(expression.getParameters());
+        }
+
+        /**
+         * 'new Inner(this, ...)' of an inner class which is declared elsewhere: the outer instance is implicit when it is 'this'
+         * (the declaration of the class would tell, but it is not part of the decompiled type).
+         */
+        private void removeImplicitOuterInstance(ClassFileNewExpression ne) {
+            BaseExpression parameters = ne.getParameters();
+            BaseType parameterTypes = ne.getParameterTypes();
+
+            if (instanceMemberClassFinder == null || !(ne.getObjectType() instanceof InnerObjectType innerType) || innerType.getOuterType() == null
+                    || Utils.isEmpty(parameters) || !parameters.getFirst().isThisExpression()
+                    || !(parameterTypes.getFirst() instanceof ObjectType first)
+                    || !first.getInternalName().equals(innerType.getOuterType().getInternalName())
+                    || !instanceMemberClassFinder.isInstanceMemberClass(innerType.getInternalName())) {
+                return;
+            }
+            if (parameters.isList()) {
+                parameters.getList().removeFirst();
+                parameterTypes.getList().removeFirst();
+            } else {
+                ne.setParameters(null);
+                ne.setParameterTypes(null);
+            }
+        }
+
+        /** The access constructor generated for a private constructor takes one more parameter, whose type may be any class */
+        private boolean isSyntheticConstructor(ClassFileBodyDeclaration body, String descriptor) {
+            if (body.getMethodDeclarations() != null) {
+                for (ClassFileConstructorOrMethodDeclaration member : body.getMethodDeclarations()) {
+                    if (member instanceof ClassFileConstructorDeclaration constructor && (constructor.getFlags() & ACC_SYNTHETIC) != 0
+                            && constructor.getMethod().getSignature().equals(descriptor)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private ClassFileBodyDeclaration enclosingBodyDeclaration(String internalName) {
+            for (ClassFileBodyDeclaration bd = bodyDeclaration; bd != null; bd = bd.getOuterBodyDeclaration()) {
+                if (bd.getInternalTypeName().equals(internalName)) {
+                    return bd;
+                }
+            }
+            return null;
         }
 
         @Override

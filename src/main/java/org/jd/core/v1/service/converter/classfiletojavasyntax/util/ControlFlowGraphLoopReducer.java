@@ -271,6 +271,19 @@ public final class ControlFlowGraphLoopReducer {
         }
     }
 
+    /**
+     * The code which is also reached from outside the loop (e.g. the tail which follows a 'break', or a 'return' shared with
+     * the code which follows the loop) is not part of it, nor is what only follows that code.
+     */
+    private static void pruneSharedCode(Loop loop) {
+        Set<BasicBlock> members = loop.getMembers();
+        BasicBlock start = loop.getStart();
+
+        while (members.removeIf(member -> member != start && !members.containsAll(member.getPredecessors()))) {
+            // Until nothing is left to remove
+        }
+    }
+
     private static Loop makeLoop(List<BasicBlock> list, BasicBlock start, BitSet searchZoneIndexes, BitSet memberIndexes) {
         int length = list.size();
         int maxOffset = -1;
@@ -849,8 +862,17 @@ public final class ControlFlowGraphLoopReducer {
     }
 
     public static void reduce(ControlFlowGraph cfg) {
+        reduce(cfg, false);
+    }
+
+    /** @param pruneSharedCode the code which is also reached from outside a loop is not a member of the loop: this is a fallback, as it is not right for every loop */
+    public static void reduce(ControlFlowGraph cfg, boolean pruneSharedCode) {
         BitSet[] arrayOfDominatorIndexes = buildDominatorIndexes(cfg);
         List<Loop> loops = identifyNaturalLoops(cfg, arrayOfDominatorIndexes);
+
+        if (pruneSharedCode) {
+            loops.forEach(ControlFlowGraphLoopReducer::pruneSharedCode);
+        }
 
         Loop loop;
         BasicBlock startBB;

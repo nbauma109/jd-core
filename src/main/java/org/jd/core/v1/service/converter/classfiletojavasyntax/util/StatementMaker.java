@@ -81,7 +81,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Predicate;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
-import static org.apache.bcel.Const.ASTORE;
 import static org.apache.bcel.Const.GOTO;
 import static org.apache.bcel.Const.MAJOR_1_7;
 import static org.apache.bcel.Const.MAJOR_1_8;
@@ -817,11 +816,7 @@ public class StatementMaker {
                 int offset = bb.getFromOffset();
                 byte[] code = bb.getControlFlowGraph().getMethod().getCode().getCode();
 
-                if (code[offset] == ASTORE) {
-                    offset += 2;
-                } else {
-                    offset++;    // POP, ASTORE_1 ... ASTORE_3
-                }
+                offset += ByteCodeParser.lengthOfExceptionStore(code, offset);
 
                 AbstractLocalVariable exception = localVariableMaker.getExceptionLocalVariable(index, offset, ot);
 
@@ -1856,11 +1851,7 @@ public class StatementMaker {
         int offset = bb.getFromOffset();
         byte[] code = bb.getControlFlowGraph().getMethod().getCode().getCode();
 
-        if (code[offset] == ASTORE) {
-            offset += 2;
-        } else {
-            offset++;    // POP, ASTORE_1 ... ASTORE_3
-        }
+        offset += ByteCodeParser.lengthOfExceptionStore(code, offset);
 
         if (bb != null && bb.getNext().getPredecessors().size() > 1) {
             bb.getNext().getPredecessors().remove(bb);

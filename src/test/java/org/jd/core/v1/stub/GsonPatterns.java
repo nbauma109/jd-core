@@ -220,4 +220,48 @@ public class GsonPatterns {
         int hour = parse(text, ++offset, offset += 2);
         return year * 100 + hour + offset;
     }
+
+    /** A long is captured before the wildcard parameterized variable: it takes two slots of the lambda method */
+    public static <T> Supplier<T> capturedAfterALong(long count, Class<? super T> raw) throws NoSuchMethodException {
+        Constructor<? super T> constructor = raw.getDeclaredConstructor();
+        return () -> {
+            try {
+                return (T) constructor.newInstance();
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(count + e.getMessage(), e);
+            }
+        };
+    }
+
+    /** The type returned by the single abstract method of a generic interface is one of its type variables */
+    public static <A, B> java.util.function.Function<A, B> castingFunction() {
+        return a -> (B) a;
+    }
+
+    /** A raw receiver returns the erasure of the type variable of its class */
+    public static <T> T rawReceiver(Constructor constructor) throws ReflectiveOperationException {
+        T instance = (T) constructor.newInstance();
+        return instance;
+    }
+
+    /** 'iinc' by more than a byte, and a decrement whose value is used */
+    public static int wideAndPostDecrement(String text) {
+        int offset = 10;
+        int wide = parse(text, offset, offset += 1000);
+        int before = parse(text, offset--, offset);
+        return wide + before + offset;
+    }
+
+    /** A monitor kept in a high local variable slot */
+    public int tryCatchInSynchronizedWithManyLocals(int a, int b, int c, int d) {
+        long e = a + b;
+        double f = c + d;
+        synchronized (lock) {
+            try {
+                return read() + (int) (e + f);
+            } catch (IOException ex) {
+                throw new IllegalStateException(ex);
+            }
+        }
+    }
 }

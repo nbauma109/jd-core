@@ -11,6 +11,8 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.UpdateJavaSyntaxTreeStep2Visitor;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNotNull;
+
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 
@@ -31,11 +33,17 @@ public class UpdateJavaSyntaxTreeCompatibilityTest {
 
     @Test
     public void testProcessWithoutLoader() throws Exception {
-        new UpdateJavaSyntaxTreeProcessor().process(emptyClass(), new TypeMaker(new ClassPathLoader()));
+        CompilationUnit compilationUnit = emptyClass();
+
+        new UpdateJavaSyntaxTreeProcessor().process(compilationUnit, new TypeMaker(new ClassPathLoader()));
+        assertNotNull(compilationUnit.typeDeclarations());
     }
 
     @Test
     public void testStep2VisitorWithoutLoader() throws Exception {
-        new UpdateJavaSyntaxTreeStep2Visitor(new TypeMaker(new ClassPathLoader())).visit(emptyClass());
+        CompilationUnit compilationUnit = emptyClass();
+
+        new UpdateJavaSyntaxTreeStep2Visitor(new TypeMaker(new ClassPathLoader())).visit(compilationUnit);
+        assertNotNull(compilationUnit.typeDeclarations());
     }
 }

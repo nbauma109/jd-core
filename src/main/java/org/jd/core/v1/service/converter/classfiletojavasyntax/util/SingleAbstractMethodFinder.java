@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** Finds the only abstract method of a functional interface, the inherited ones included. */
@@ -38,11 +39,13 @@ public class SingleAbstractMethodFinder {
     }
 
     private String[] findUncached(String internalName) {
-        Map<String, Member> members = membersOf(internalName, new HashMap<>());
+        Optional<Map<String, Member>> readMembers = membersOf(internalName, new HashMap<>());
 
-        if (members == null) {
+        if (readMembers.isEmpty()) {
             return NONE;
         }
+
+        Map<String, Member> members = readMembers.get();
 
         String[] found = NONE;
 
@@ -51,35 +54,42 @@ public class SingleAbstractMethodFinder {
                 if (found != NONE) {
                     return NONE;
                 }
-                found = member.method;
+                found = member.method.toArray();
             }
         }
         return found;
     }
 
-    /** An inherited member: its declaration, and the interface which declares it with all its super interfaces */
-    private record Member(String[] method, boolean isAbstract, boolean returnsTypeVariable, Set<String> ancestors) {
+    /** The interface which declares a method, its name and descriptor */
+    private record MethodRef(String declaringInterface, String name, String descriptor) {
+        String[] toArray() {
+            return new String[] {declaringInterface, name, descriptor};
+        }
     }
 
-    /** @return the members of an interface by signature, the inherited ones included (the most specific declaration wins), or null if an interface could not be read */
-    private Map<String, Member> membersOf(String internalName, Map<String, Map<String, Member>> known) {
+    /** An inherited member: its declaration, and the interface which declares it with all its super interfaces */
+    private record Member(MethodRef method, boolean isAbstract, boolean returnsTypeVariable, Set<String> ancestors) {
+    }
+
+    /** @return the members of an interface by signature, the inherited ones included (the most specific declaration wins), or empty if an interface could not be read */
+    private Optional<Map<String, Member>> membersOf(String internalName, Map<String, Optional<Map<String, Member>>> known) {
         if (known.containsKey(internalName)) {
             return known.get(internalName);
         }
-        Map<String, Member> members = readMembers(internalName, known);
+        Optional<Map<String, Member>> members = readMembers(internalName, known);
 
         known.put(internalName, members);
         return members;
     }
 
-    private Map<String, Member> readMembers(String internalName, Map<String, Map<String, Member>> known) {
+    private Optional<Map<String, Member>> readMembers(String internalName, Map<String, Optional<Map<String, Member>>> known) {
         try {
             if (!loader.canLoad(internalName)) {
-                return null;
+                return Optional.empty();
             }
             JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
             if (!javaClass.isInterface()) {
-                return null;
+                return Optional.empty();
             }
 
             Map<String, Member> members = new HashMap<>();
@@ -87,44 +97,44 @@ public class SingleAbstractMethodFinder {
 
             ancestors.add(internalName);
             for (String superInterface : javaClass.getInterfaceNames()) {
-                Map<String, Member> inherited = membersOf(superInterface.replace('.', '/'), known);
+                Optional<Map<String, Member>> inherited = membersOf(superInterface.replace('.', '/'), known);
 
-                if (inherited == null) {
-                    return null;
+                if (inherited.isEmpty()) {
+                    return Optional.empty();
                 }
                 ancestors.addAll(ancestorsOf.get(superInterface.replace('.', '/')));
-                inherited.forEach((signature, member) -> members.merge(signature, member, SingleAbstractMethodFinder::moreSpecific));
+                inherited.get().forEach((signature, member) -> members.merge(signature, member, SingleAbstractMethodFinder::moreSpecific));
             }
             for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
                 String signature = method.getName() + method.getSignature();
 
                 if (!method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(signature)) {
-                    members.put(signature, new Member(new String[] {internalName, method.getName(), method.getSignature()}, method.isAbstract(),
+                    members.put(signature, new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
                             returnsTypeVariable(method), ancestors));
                 }
             }
             ancestorsOf.put(internalName, ancestors);
-            return members;
+            return Optional.of(members);
         } catch (IOException | ClassFormatException e) {
-            return null;
+            return Optional.empty();
         }
     }
 
     private static boolean returnsTypeVariable(org.apache.bcel.classfile.Method method) {
         String genericSignature = method.getGenericSignature();
 
-        return genericSignature != null && genericSignature.substring(genericSignature.indexOf(')') + 1).startsWith("T");
+        return genericSignature != null && genericSignature.startsWith("T", genericSignature.indexOf(')') + 1);
     }
 
     /** The declaration of a sub interface overrides the one of its super interface; unrelated ones are override-equivalent: the generic return type is the most specific */
     private static Member moreSpecific(Member first, Member second) {
-        if (first.method[0].equals(second.method[0])) {
+        if (first.method.declaringInterface.equals(second.method.declaringInterface)) {
             return first;
         }
-        if (first.ancestors.contains(second.method[0])) {
+        if (first.ancestors.contains(second.method.declaringInterface)) {
             return first;
         }
-        if (second.ancestors.contains(first.method[0])) {
+        if (second.ancestors.contains(first.method.declaringInterface)) {
             return second;
         }
         return second.returnsTypeVariable && !first.returnsTypeVariable ? second : first;

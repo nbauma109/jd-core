@@ -1070,7 +1070,7 @@ public abstract class ControlFlowGraphReducer {
     }
 
     /** @return the offset of the instruction which follows the load or store found at the offset, or -1 */
-    private static int skipLocalVariableInstruction(byte[] code, int offset, int opcode, int firstShortcut, int lastShortcut) {
+    static int skipLocalVariableInstruction(byte[] code, int offset, int opcode, int firstShortcut, int lastShortcut) {
         if (offset >= code.length) {
             return -1;
         }

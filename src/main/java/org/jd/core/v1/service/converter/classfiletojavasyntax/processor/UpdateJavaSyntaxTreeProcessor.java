@@ -22,6 +22,10 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.UpdateJava
  */
 public class UpdateJavaSyntaxTreeProcessor {
 
+    public void process(CompilationUnit compilationUnit, TypeMaker typeMaker) {
+        process(compilationUnit, typeMaker, null);
+    }
+
     public void process(CompilationUnit compilationUnit, TypeMaker typeMaker, Loader loader) {
         new UpdateJavaSyntaxTreeStep0Visitor(typeMaker).visit(compilationUnit);
         new UpdateJavaSyntaxTreeStep1Visitor(typeMaker).visit(compilationUnit);

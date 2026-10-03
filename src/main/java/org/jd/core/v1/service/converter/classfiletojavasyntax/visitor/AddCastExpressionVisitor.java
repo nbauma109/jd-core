@@ -306,6 +306,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(LambdaIdentifiersExpression expression) {
+        boolean outerVisitingLambda = visitingLambda;
         visitingLambda = true;
         BaseStatement statements = expression.getStatements();
 
@@ -326,7 +327,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             lambdaReturnFromTarget = lrft;
             returnedType = rt;
         }
-        visitingLambda = false;
+        visitingLambda = outerVisitingLambda;
     }
 
     @Override
@@ -393,7 +394,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private String[] findSingleAbstractMethod(String internalName) {
         Map<String, String[]> abstractMethods = new HashMap<>();
 
-        if (!collectAbstractMethods(internalName, abstractMethods, new HashSet<>(), new HashSet<>()) || abstractMethods.size() != 1) {
+        Set<String> overridden = new HashSet<>();
+        if (!collectAbstractMethods(internalName, abstractMethods, overridden, new HashSet<>())) {
+            return new String[0];
+        }
+        // A default method may be met after the abstract method it overrides
+        abstractMethods.keySet().removeAll(overridden);
+        if (abstractMethods.size() != 1) {
             return new String[0];
         }
         return abstractMethods.values().iterator().next();
@@ -419,7 +426,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
                 if (!method.isAbstract()) {
                     overridden.add(signature);
-                } else if (!overridden.contains(signature) && !"equals(Ljava/lang/Object;)Z".equals(signature)
+                } else if (!"equals(Ljava/lang/Object;)Z".equals(signature)
                         && !"hashCode()I".equals(signature) && !"toString()Ljava/lang/String;".equals(signature)) {
                     abstractMethods.putIfAbsent(signature, new String[] {internalName, method.getName(), method.getSignature()});
                 }

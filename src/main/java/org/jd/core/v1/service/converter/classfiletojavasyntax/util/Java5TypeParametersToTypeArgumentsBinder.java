@@ -516,16 +516,19 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             Iterator<Type> parameterTypeIterator = parameterTypes.iterator();
             Iterator<Expression> parameterIterator = parameters.iterator();
 
-            while (parameterTypeIterator.hasNext() && parameterIterator.hasNext()) {
-                addTypeVariablesFacingWildcards(parameterTypeIterator.next(), parameterIterator.next(), captured);
-            }
+            Set<String> fixed = new HashSet<>();
 
-            // A type variable which is also the type of a parameter (T value) is fixed by the argument, not captured
-            for (Type parameterType : parameterTypes) {
-                if (parameterType instanceof GenericType genericType && genericType.getDimension() == 0) {
-                    captured.remove(genericType.getName());
+            while (parameterTypeIterator.hasNext() && parameterIterator.hasNext()) {
+                Type parameterType = parameterTypeIterator.next();
+                Expression parameter = parameterIterator.next();
+
+                addTypeVariablesFacingWildcards(parameterType, parameter, captured);
+                // A type variable which is the type of a parameter (T value) is fixed by its argument, unless null says nothing
+                if (parameterType instanceof GenericType genericType && genericType.getDimension() == 0 && !parameter.isNullExpression()) {
+                    fixed.add(genericType.getName());
                 }
             }
+            captured.removeAll(fixed);
         }
         return captured;
     }
@@ -743,9 +746,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     mie.setUnboundParameterTypes(parameterTypes);
                     parameterTypes = bind(bindings, parameterTypes);
                     mie.setParameterTypes(parameterTypes);
-                    mie.setUnboundType(mie.getType());
-                    mie.setType(bindReturnedType(bindings, mie.getType(), parameterTypesBeforeBinding, parameters));
-                    if (isClassTypeVariableOfRawReceiver(exp, expressionType, typeParameters, methodTypeParameters, mie.getType())) {
+                    Type unboundReturnedType = mie.getType();
+                    mie.setUnboundType(unboundReturnedType);
+                    mie.setType(bindReturnedType(bindings, unboundReturnedType, parameterTypesBeforeBinding, parameters));
+                    if (isClassTypeVariableOfRawReceiver(exp, expressionType, typeParameters, methodTypeParameters, unboundReturnedType)) {
                         // The members of a raw type are erased: this is what the type variable of its class becomes
                         mie.setType(TYPE_OBJECT.createType(mie.getType().getDimension()));
                     }

@@ -131,4 +131,14 @@ public class SingleAbstractMethodFinderTest {
     public void testUnrelatedDeclarationsKeepTheFirstOne() {
         assertArrayEquals(new String[] {PATTERNS + "$ObjectGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$Unrelated"));
     }
+
+    @Test
+    public void testSubInterfaceFirst() {
+        assertArrayEquals(new String[] {PATTERNS + "$MixedReverse", "mixed", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$MixedReverse"));
+    }
+
+    @Test
+    public void testBothDeclarationsReturnATypeVariable() {
+        assertArrayEquals(new String[] {PATTERNS + "$TypedGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$BothTyped"));
+    }
 }

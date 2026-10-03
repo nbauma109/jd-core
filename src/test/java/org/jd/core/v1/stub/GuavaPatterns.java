@@ -1,5 +1,6 @@
 package org.jd.core.v1.stub;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -198,5 +199,24 @@ public class GuavaPatterns {
             }
         }
         return new Splitr(source, 0L);
+    }
+
+    /** The generic signature of the constructor of an inner class leaves out the outer instance */
+    class GenericInner<X> {
+        final List<X> items;
+
+        GenericInner(List<X> items) {
+            this.items = items;
+        }
+
+        int size() {
+            return items.size() + modCount;
+        }
+    }
+
+    public int genericInner(String first) {
+        List<String> items = new ArrayList<>();
+        items.add(first);
+        return new GenericInner<>(items).size();
     }
 }

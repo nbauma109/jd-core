@@ -189,4 +189,34 @@ public class GsonFunctionalPatterns {
     public static Unrelated unrelated(Object value) {
         return () -> value;
     }
+
+    /** The sub interface comes first: it overrides the default method of the interface which comes next */
+    public interface MixedReverse<T> extends Sibling<T>, Base<T> {
+        T mixed();
+    }
+
+    public interface TypedGetToo<T> {
+        T get();
+    }
+
+    /** Both inherited declarations return a type variable */
+    public interface BothTyped<T> extends TypedGet<T>, TypedGetToo<T> {
+    }
+
+    /** The method of the functional interface comes from a super interface which is not generic */
+    public interface RunnableOf<T> extends Runnable {
+    }
+
+    public static <T> MixedReverse<T> mixedReverse(Object value) {
+        return () -> (T) value;
+    }
+
+    public static <T> BothTyped<T> bothTyped(Object value) {
+        return () -> (T) value;
+    }
+
+    public static <T> RunnableOf<T> runnableOf() {
+        return () -> {
+        };
+    }
 }

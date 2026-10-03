@@ -98,6 +98,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.jd.core.v1.api.loader.Loader;
 
@@ -1073,14 +1074,20 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         BaseTypeParameter classTypeParameters = typeTypes == null ? null : typeTypes.getTypeParameters();
         BaseType parameterTypes = expression.getParameterTypes();
 
-        // (the type arguments which are already known are never replaced)
         if (classTypeParameters == null || classTypeParameters.size() != 1 || parameterTypes == null
-                || parameterTypes.size() != parameters.size() || expression.getObjectType().getTypeArguments() != null) {
+                || parameterTypes.size() != parameters.size()) {
             return;
         }
         org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = classTypeParameters.getFirst();
         if (!(typeParameter instanceof TypeParameterWithTypeBounds parameterWithBounds)
                 || !(parameterWithBounds.getTypeBounds().getFirst() instanceof ObjectType parameterBound)) {
+            return;
+        }
+
+        // A type argument which is already known is kept, unless it only is the bound of the type variable (what the erasure gives)
+        BaseTypeArgument knownTypeArguments = expression.getObjectType().getTypeArguments();
+        if (knownTypeArguments != null && !(knownTypeArguments instanceof ObjectType knownType
+                && knownType.getInternalName().equals(parameterBound.getInternalName()))) {
             return;
         }
 
@@ -1093,7 +1100,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Type parameterType = parameterTypeList.get(index);
             Type argumentType = parameterList.get(index).getType();
             // Only a parameter which is declared with the type variable of the class says what the type argument is
-            if (declaredParameterTypeList != null && !(declaredParameterTypeList.get(index) instanceof GenericType declared
+            if (!declaredParameterTypeList.isEmpty() && !(declaredParameterTypeList.get(index) instanceof GenericType declared
                     && declared.getName().equals(typeParameter.getIdentifier()))) {
                 continue;
             }
@@ -1112,14 +1119,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    /** @return the parameter types the constructor is declared with (generic ones), null if the class has no such constructor */
+    /** @return the parameter types the constructor is declared with (generic ones), empty if the class has no such constructor */
     private List<Type> declaredConstructorParameterTypes(ClassFileNewExpression expression, int parameterCount) {
         TypeMaker.MethodTypes constructor = typeMaker.makeMethodTypes(expression.getObjectType().getInternalName(),
                 StringConstants.INSTANCE_CONSTRUCTOR, expression.getDescriptor());
         BaseType declared = constructor == null ? null : constructor.getParameterTypes();
 
         if (declared == null || declared.size() != parameterCount) {
-            return null;
+            return Collections.emptyList();
         }
         return declared.isList() ? declared.getList() : Collections.singletonList(declared.getFirst());
     }
@@ -2128,13 +2135,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        Set<String> bridgeNames = new HashSet<>();
+        Set<String> bridgeNames = body.getMethodDeclarations().stream()
+                .filter(declaration -> (declaration.getFlags() & ACC_BRIDGE) != 0)
+                .map(declaration -> declaration.getMethod().getName() + declaration.getMethod().getArgumentTypes().length)
+                .collect(Collectors.toSet());
 
-        for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
-            if ((declaration.getFlags() & ACC_BRIDGE) != 0) {
-                bridgeNames.add(declaration.getMethod().getName() + declaration.getMethod().getArgumentTypes().length);
-            }
-        }
         for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
             org.apache.bcel.classfile.Method method = declaration.getMethod();
 

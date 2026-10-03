@@ -239,4 +239,23 @@ public class GuavaPatterns {
             }
         };
     }
+
+    interface Element<E> {
+        E self();
+    }
+
+    static class Matrix<T extends Element<T>> {
+        Matrix(T[][] data, boolean copy) {
+        }
+    }
+
+    static class Decomposition<T extends Element<T>> {
+        Decomposition(Matrix<T> matrix) {
+        }
+    }
+
+    /** The type argument of an argument created from an array of the type variable, which is bounded by itself */
+    public static <T extends Element<T>> Decomposition<T> decompose(T[][] data) {
+        return new Decomposition<T>(new Matrix<T>(data, false));
+    }
 }

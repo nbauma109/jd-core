@@ -853,4 +853,16 @@ public class GuavaPatterns {
             super(comparator);
         }
     }
+
+    interface Ranges<K, V> {
+        java.util.Map<java.util.List<K>, V> asMap();
+    }
+
+    /** The elements of the entry set extend the type of the loop variable: the iterable is cast to the wildcard type */
+    public static <K, V> void collectEntries(Ranges<K, ? extends V> ranges, java.util.List<Object> out) {
+        for (java.util.Map.Entry<java.util.List<K>, ? extends V> entry : ranges.asMap().entrySet()) {
+            out.add(entry.getKey());
+            out.add(entry.getValue());
+        }
+    }
 }

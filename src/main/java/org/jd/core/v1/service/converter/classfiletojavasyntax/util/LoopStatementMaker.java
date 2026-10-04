@@ -33,8 +33,11 @@ import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.TypeArguments;
 import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.WildcardTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
@@ -1012,7 +1015,7 @@ public final class LoopStatementMaker {
                     ClassFileNewExpression ne = (ClassFileNewExpression) list;
                     ne.setType(listType.createType(item.getType()));
                 } else {
-                    list = new CastExpression(TYPE_ITERABLE.createType(item.getType()), list);
+                    list = new CastExpression(TYPE_ITERABLE.createType(iterableElementType(item.getType())), list);
                 }
             } else {
                 CreateTypeFromTypeArgumentVisitor visitor2 = new CreateTypeFromTypeArgumentVisitor();
@@ -1060,6 +1063,22 @@ public final class LoopStatementMaker {
         }
 
         return new ClassFileForEachStatement(item, list, subStatements);
+    }
+
+    /** The elements of 'Set&lt;Entry&lt;K, CAP&gt;&gt;' are not the 'Entry&lt;K, ? extends V&gt;' of the loop variable, but extend it */
+    private static BaseTypeArgument iterableElementType(Type itemType) {
+        if (itemType instanceof ObjectType itemObjectType && itemType.getDimension() == 0 && itemObjectType.getTypeArguments() != null) {
+            BaseTypeArgument arguments = itemObjectType.getTypeArguments();
+
+            if (arguments instanceof TypeArguments list ? list.stream().anyMatch(LoopStatementMaker::isWildcard) : isWildcard(arguments)) {
+                return new WildcardExtendsTypeArgument(itemObjectType);
+            }
+        }
+        return itemType;
+    }
+
+    private static boolean isWildcard(BaseTypeArgument argument) {
+        return argument instanceof WildcardExtendsTypeArgument || argument instanceof WildcardSuperTypeArgument || argument instanceof WildcardTypeArgument;
     }
 
     private static Type getGenericFieldType(LocalVariableMaker localVariableMaker, FieldReferenceExpression field) {

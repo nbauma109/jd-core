@@ -71,6 +71,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -907,6 +908,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             protected BaseStatement addLocalClassDeclarations(BaseStatement statements) {
                 if (!localClassDeclarations.isEmpty()) {
                     if (statements.isStatements()) {
+                        placeInNestedStatements((Statements) statements);
                         statements.accept(this);
                     } else {
                         ClassFileClassDeclaration declaration = localClassDeclarations.get(0);
@@ -944,6 +946,71 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
 
                 return statements;
+            }
+
+            /** A local class is declared in the innermost block which holds all its uses (it may capture the variables of that block) */
+            private void placeInNestedStatements(Statements root) {
+                for (ClassFileClassDeclaration declaration : new ArrayList<>(localClassDeclarations)) {
+                    String internalName = declaration.getInternalTypeName();
+                    Statements current = root;
+                    Statements target = null;
+                    Statement user = null;
+
+                    while (true) {
+                        List<Statement> users = current.stream().filter(statement -> countNewExpressions(statement, internalName) > 0).toList();
+
+                        if (users.size() != 1) {
+                            break;
+                        }
+                        user = users.get(0);
+                        List<Statements> nested = nestedStatements(user);
+                        Statements next = nested.stream().filter(list -> countNewExpressions(list, internalName) > 0).findFirst().orElse(null);
+
+                        if (target != null || current != root) {
+                            target = current;
+                        }
+                        if (next == null || countNewExpressions(user, internalName) != countNewExpressions(next, internalName)) {
+                            break;
+                        }
+                        current = next;
+                        target = current;
+                    }
+                    if (target != null && target != root && user != null && target.contains(user)) {
+                        target.add(target.indexOf(user), new TypeDeclarationStatement(declaration));
+                        localClassDeclarations.remove(declaration);
+                    }
+                }
+            }
+
+            private int countNewExpressions(Object syntax, String internalName) {
+                int[] count = new int[1];
+                AbstractJavaSyntaxVisitor counter = new AbstractJavaSyntaxVisitor() {
+                    @Override
+                    public void visit(NewExpression expression) {
+                        if (expression.getObjectType().getInternalName().equals(internalName)) {
+                            count[0]++;
+                        }
+                        super.visit(expression);
+                    }
+                };
+                if (syntax instanceof Statement statement) {
+                    statement.accept(counter);
+                } else if (syntax instanceof Statements list) {
+                    list.accept(counter);
+                }
+                return count[0];
+            }
+
+            private List<Statements> nestedStatements(Statement statement) {
+                List<Statements> lists = new ArrayList<>();
+                AbstractJavaSyntaxVisitor finder = new AbstractJavaSyntaxVisitor() {
+                    @Override
+                    public void visit(Statements list) {
+                        lists.add(list);
+                    }
+                };
+                statement.accept(finder);
+                return lists;
             }
 
             @Override

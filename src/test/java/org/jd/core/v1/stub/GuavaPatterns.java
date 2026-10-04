@@ -623,4 +623,20 @@ public class GuavaPatterns {
         }
         return (java.util.Comparator<E>) result;
     }
+
+    /** The local class captures a variable of the loop: it is declared in the block of its only use */
+    public static Object localClassInLoop(java.util.Iterator<java.util.Map.Entry<String, String>> iterator) {
+        while (iterator.hasNext()) {
+            final java.util.Map.Entry<String, String> entry = iterator.next();
+            if (entry.getValue() != null) {
+                final class EntryView {
+                    String key() {
+                        return entry.getKey();
+                    }
+                }
+                return new EntryView();
+            }
+        }
+        return null;
+    }
 }

@@ -994,6 +994,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             prepareDiamondTypeArgumentsIfPossible(expression);
         }
 
+        if (expression.isDiamondPossible() && expression.getObjectType().getTypeArguments() != null
+                && isGenericCallToWildcardParameter((ClassFileNewExpression) expression, parameters)) {
+            // 'new Foo<>(copyOf(array))': the type arguments cannot be inferred from the target and from a generic call at once
+            expression.setDiamondPossible(false);
+        }
+
         if (!hasKnownTypeParameters(expression.getObjectType())) {
             expression.setType(expression.getObjectType().createType(ObjectType.TYPE_UNDEFINED_OBJECT));
         } else if (expression.getBodyDeclaration() == null && violatesTypeParameterBounds(expression.getObjectType())) {
@@ -1001,6 +1007,30 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             // variable of the caller which is unbounded): the raw type is then assigned with an unchecked conversion
             expression.setType(expression.getObjectType().createType(null));
         }
+    }
+
+    private static boolean isGenericCallToWildcardParameter(ClassFileNewExpression expression, BaseExpression parameters) {
+        if (parameters == null || parameters.size() != 1 || !(parameters.getFirst() instanceof ClassFileMethodInvocationExpression call)
+                || call.getTypeParameters() == null || expression.getParameterTypes() == null) {
+            return false;
+        }
+        return expression.getParameterTypes().getFirst() instanceof ObjectType parameterType && hasWildcardSuperTypeArgument(parameterType);
+    }
+
+    private static boolean hasWildcardSuperTypeArgument(ObjectType type) {
+        BaseTypeArgument arguments = type.getTypeArguments();
+
+        if (arguments == null) {
+            return false;
+        }
+        for (TypeArgument argument : toTypeArgumentList(arguments)) {
+            TypeArgument unwrapped = argument instanceof WildcardExtendsTypeArgument extending ? extending.type() : argument;
+
+            if (unwrapped instanceof WildcardSuperTypeArgument || unwrapped instanceof ObjectType nested && hasWildcardSuperTypeArgument(nested)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean violatesTypeParameterBounds(ObjectType objectType) {

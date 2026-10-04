@@ -911,4 +911,20 @@ public class GuavaPatterns {
         }.getClass();
         return LocalClass.class == subclass.getSuperclass() ? "same" : "other";
     }
+
+    static final class AllOf<T> {
+        AllOf(java.util.List<? extends java.util.function.Predicate<? super T>> components) {
+        }
+    }
+
+    @SafeVarargs
+    static <T> java.util.List<T> copyOf(T... array) {
+        return new java.util.ArrayList<>(java.util.Arrays.asList(array));
+    }
+
+    /** The type arguments of the instance are written: they cannot be inferred from the target and from the generic call at once */
+    @SafeVarargs
+    public static <T> AllOf<T> allOf(java.util.function.Predicate<? super T>... components) {
+        return new AllOf<T>(copyOf(components));
+    }
 }

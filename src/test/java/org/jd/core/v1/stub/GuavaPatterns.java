@@ -927,4 +927,23 @@ public class GuavaPatterns {
     public static <T> AllOf<T> allOf(java.util.function.Predicate<? super T>... components) {
         return new AllOf<T>(copyOf(components));
     }
+
+    static final java.lang.invoke.MethodHandle LENGTH;
+
+    static {
+        try {
+            LENGTH = java.lang.invoke.MethodHandles.lookup().findVirtual(String.class, "length", java.lang.invoke.MethodType.methodType(int.class));
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /** A signature polymorphic call is typed by its call site: the result is cast to the returned type */
+    public static int lengthOf(String value) {
+        try {
+            return (int) LENGTH.invokeExact(value);
+        } catch (Throwable throwable) {
+            throw new IllegalStateException(throwable);
+        }
+    }
 }

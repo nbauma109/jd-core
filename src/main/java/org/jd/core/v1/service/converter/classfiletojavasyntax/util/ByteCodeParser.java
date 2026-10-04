@@ -70,6 +70,7 @@ import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.InnerObjectType;
+import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
@@ -903,8 +904,9 @@ public class ByteCodeParser {
                                     break;
                                 }
                             }
-                            stack.push(typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters));
+                            expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
+                                lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters);
+                            stack.push(isPolymorphicSignature(methodTypes) ? castToDescriptorReturnType(lineNumber, expression1, descriptor) : expression1);
                         }
                     }
                     break;
@@ -1727,6 +1729,17 @@ public class ByteCodeParser {
      * candidate on the stack. A bound method reference receiver ('outer::method') uses the same
      * null-check idiom but has no such pending construction beneath it.
      */
+    private static boolean isPolymorphicSignature(TypeMaker.MethodTypes methodTypes) {
+        return methodTypes.getReturnedType() instanceof GenericType returned && "XXX".equals(returned.getName());
+    }
+
+    /** 'handle.invokeExact(...)' has the type of the call site: the source casts the result to it, the descriptor tells which */
+    private Expression castToDescriptorReturnType(int lineNumber, Expression call, String descriptor) {
+        Type returned = typeMaker.makeFromDescriptor(descriptor.substring(descriptor.indexOf(')') + 1));
+
+        return TYPE_OBJECT.equals(returned) ? call : new CastExpression(lineNumber, returned, call);
+    }
+
     /** The first parameter of the constructor of a (non static) inner class is the outer instance: a static nested class has none */
     private boolean isPassedAsOuterInstance(String constructorDescriptor, Expression outerCandidate) {
         if (!constructorDescriptor.startsWith("(L") || !(outerCandidate.getType() instanceof ObjectType candidateType)) {

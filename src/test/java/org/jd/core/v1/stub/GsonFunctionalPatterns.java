@@ -332,4 +332,16 @@ public class GsonFunctionalPatterns {
     public interface InnerGet<T> {
         GuavaOuter<T, T>.Wrapped get();
     }
+
+    public interface ThrowingGet<E extends Throwable> {
+        Object get() throws E;
+    }
+
+    public interface GenericGet<T> {
+        T get();
+    }
+
+    /** The generic exception of one declaration does not make its return type generic */
+    public interface ThrowingAndGeneric<T, E extends Throwable> extends ThrowingGet<E>, GenericGet<T> {
+    }
 }

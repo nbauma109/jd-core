@@ -989,4 +989,21 @@ public class GuavaPatterns {
             return next == Boundary.<C>belowAll();
         }
     }
+
+    interface Stoppable {
+        void stop();
+    }
+
+    static final class StaticHolder {
+        private final Runnable action;
+
+        StaticHolder(Runnable action) {
+            this.action = action;
+        }
+    }
+
+    /** The receiver of the method reference is no outer instance of the static class which receives the reference */
+    public static StaticHolder holderOf(Thread thread) {
+        return new StaticHolder(thread::start);
+    }
 }

@@ -29,7 +29,7 @@ public class InheritedMethodFinder {
     public Set<String> parameterDescriptors(String internalName, String methodName, String inheritingPackage) {
         Set<String> descriptors = new HashSet<>();
 
-        return collect(internalName, methodName, inheritingPackage, descriptors, new HashSet<>()) ? descriptors : null;
+        return collect(internalName, methodName, inheritingPackage, true, descriptors, new HashSet<>()) ? descriptors : null;
     }
 
     static String packageOf(String internalName) {
@@ -38,7 +38,7 @@ public class InheritedMethodFinder {
         return index < 0 ? "" : internalName.substring(0, index);
     }
 
-    private boolean collect(String internalName, String methodName, String inheritingPackage, Set<String> descriptors, Set<String> visited) {
+    private boolean collect(String internalName, String methodName, String inheritingPackage, boolean samePackageChain, Set<String> descriptors, Set<String> visited) {
         if (!visited.add(internalName)) {
             return true;
         }
@@ -48,22 +48,24 @@ public class InheritedMethodFinder {
             }
 
             JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
+            // (the package of a class in the middle of the superclass chain breaks the inheritance of the package-private methods)
+            boolean packagePrivateInherited = samePackageChain && packageOf(internalName).equals(inheritingPackage);
 
             for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
                 // (a method which is not public nor protected is only inherited within its package, a static method is hidden, not overridden)
                 if (method.getName().equals(methodName) && !method.isPrivate() && !method.isStatic()
-                        && (method.isPublic() || method.isProtected() || packageOf(internalName).equals(inheritingPackage))) {
+                        && (method.isPublic() || method.isProtected() || packagePrivateInherited)) {
                     String signature = method.getSignature();
 
                     descriptors.add(signature.substring(0, signature.indexOf(')') + 1));
                 }
             }
             if (javaClass.getSuperclassName() != null && !"java.lang.Object".equals(javaClass.getSuperclassName())
-                    && !collect(javaClass.getSuperclassName().replace('.', '/'), methodName, inheritingPackage, descriptors, visited)) {
+                    && !collect(javaClass.getSuperclassName().replace('.', '/'), methodName, inheritingPackage, packagePrivateInherited, descriptors, visited)) {
                 return false;
             }
             for (String superInterface : javaClass.getInterfaceNames()) {
-                if (!collect(superInterface.replace('.', '/'), methodName, inheritingPackage, descriptors, visited)) {
+                if (!collect(superInterface.replace('.', '/'), methodName, inheritingPackage, packagePrivateInherited, descriptors, visited)) {
                     return false;
                 }
             }

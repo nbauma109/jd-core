@@ -614,6 +614,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 if (ne.getBodyDeclaration() == null) {
                     ObjectType type = ne.getObjectType();
                     String internalName = type.getInternalName();
+                    if (ne.getQualifier() != null && instanceMemberClassFinder != null && !instanceMemberClassFinder.isInstanceMemberClass(internalName)) {
+                        // The receiver of a bound method reference passed to the constructor of a static class is no outer instance
+                        ne.setQualifier(null);
+                    }
                     // A local class which creates instances of itself (or of an enclosing local class) does not declare itself again
                     ClassFileBodyDeclaration enclosing = enclosingBodyDeclaration(internalName);
                     ClassFileTypeDeclaration typeDeclaration = enclosing == null ? bodyDeclaration.getInnerTypeDeclaration(internalName) : null;

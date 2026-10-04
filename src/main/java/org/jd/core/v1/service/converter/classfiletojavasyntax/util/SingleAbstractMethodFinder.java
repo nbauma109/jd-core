@@ -161,7 +161,14 @@ public class SingleAbstractMethodFinder {
     private static boolean returnsTypeVariable(org.apache.bcel.classfile.Method method) {
         String genericSignature = method.getGenericSignature();
 
-        return genericSignature != null && containsTypeVariable(genericSignature, genericSignature.indexOf(')') + 1);
+        if (genericSignature == null) {
+            return false;
+        }
+        int start = genericSignature.indexOf(')') + 1;
+        int throwsIndex = genericSignature.indexOf('^', start);
+
+        // (the generic exceptions which follow the returned type, '^TE;', are not part of it)
+        return containsTypeVariable(genericSignature.substring(0, throwsIndex < 0 ? genericSignature.length() : throwsIndex), start);
     }
 
     /** @return true if a type variable (T...;) is used anywhere in the type signature which starts at the index (T[], List&lt;T&gt;, ...) */

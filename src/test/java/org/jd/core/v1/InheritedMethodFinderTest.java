@@ -83,4 +83,14 @@ public class InheritedMethodFinderTest {
     public void testClassWhichIsNotAClassFile() {
         assertNull(new InheritedMethodFinder(new FaultyLoader(null, "java/util/ArrayList")).parameterDescriptors("java/util/ArrayList", "add", "other/pkg"));
     }
+
+    @Test
+    public void testPackagePrivateMethodIsNotInheritedAcrossAPackageGap() {
+        InheritedMethodFinder finder = new InheritedMethodFinder(new ClassPathLoader());
+        String back = "org/jd/core/v1/stub/pa/BackInPackage";
+
+        assertEquals(Set.of(), finder.parameterDescriptors(back, "hidden", "org/jd/core/v1/stub/pa"));
+        assertEquals(Set.of("(Ljava/lang/String;)"), finder.parameterDescriptors(back, "visible", "org/jd/core/v1/stub/pa"));
+        assertEquals(Set.of("(Ljava/lang/String;)"), finder.parameterDescriptors("org/jd/core/v1/stub/pa/PackageParent", "hidden", "org/jd/core/v1/stub/pa"));
+    }
 }

@@ -134,6 +134,11 @@ public class SingleAbstractMethodFinderTest {
     }
 
     @Test
+    public void testThrownTypeVariableIsNotTheReturnedType() {
+        assertArrayEquals(new String[] {PATTERNS + "$GenericGet", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$ThrowingAndGeneric"));
+    }
+
+    @Test
     public void testSubInterfaceFirst() {
         assertArrayEquals(new String[] {PATTERNS + "$MixedReverse", "mixed", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$MixedReverse"));
     }

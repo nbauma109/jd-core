@@ -180,6 +180,11 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             objectType.getInternalName(), name, descriptor, parameters, methodTypes);
     }
 
+    /** 'this.inverse.delegate' where 'inverse' is an AbstractBiMap&lt;V, K&gt;: the type variables of the field are those of the other instance */
+    private static boolean isParameterizedInstanceOfThisClass(Expression receiver, ObjectType receiverType) {
+        return !receiver.isThisExpression() && receiverType.getTypeArguments() != null;
+    }
+
     @Override
     public FieldReferenceExpression newFieldReferenceExpression(
             int lineNumber, Type type, Expression expression, ObjectType objectType, String name, String descriptor) {
@@ -188,7 +193,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         if (expressionType.isObjectType()) {
             ObjectType expressionObjectType = (ObjectType) expressionType;
 
-            if ((staticMethod || !expressionObjectType.getInternalName().equals(internalTypeName)) && type.isObjectType()) {
+            if ((staticMethod || !expressionObjectType.getInternalName().equals(internalTypeName) || isParameterizedInstanceOfThisClass(expression, expressionObjectType)) && type.isObjectType()) {
                 ObjectType ot = (ObjectType) type;
 
                 if (ot.getTypeArguments() != null) {

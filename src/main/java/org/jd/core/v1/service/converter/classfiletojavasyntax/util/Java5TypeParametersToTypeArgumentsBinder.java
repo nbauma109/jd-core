@@ -227,6 +227,13 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         expression.accept(removeNonWildcardTypeArgumentsVisitor);
     }
 
+    @Override
+    public void bindOperandTypeWithOtherOperandType(Type type, Expression expression) {
+        this.type = type;
+        this.parametersFirst = false;
+        expression.accept(this);
+    }
+
     private Type checkTypeArguments(Type type, AbstractLocalVariable localVariable) {
         if (type.isObjectType()) {
             ObjectType objectType = (ObjectType)type;

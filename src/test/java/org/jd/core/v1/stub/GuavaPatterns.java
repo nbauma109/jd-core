@@ -972,4 +972,21 @@ public class GuavaPatterns {
         }
         return false;
     }
+
+    @SuppressWarnings("rawtypes")
+    static final class Boundary<T extends Comparable> {
+        @SuppressWarnings("rawtypes")
+        static <T extends Comparable> Boundary<T> belowAll() {
+            return null;
+        }
+    }
+
+    static final class Window<C extends Comparable<?>> {
+        Boundary<C> next;
+
+        /** Nothing infers the type argument of a generic call compared with something: it is written */
+        boolean isBelowAll() {
+            return next == Boundary.<C>belowAll();
+        }
+    }
 }

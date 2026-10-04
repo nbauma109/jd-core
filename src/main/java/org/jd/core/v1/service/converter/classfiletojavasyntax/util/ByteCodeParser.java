@@ -2647,8 +2647,8 @@ public class ByteCodeParser {
             rightVariable.typeOnRight(typeBounds, TYPE_BOOLEAN);
         }
 
-        typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(leftExpression.getType(), rightExpression);
-        typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(rightExpression.getType(), leftExpression);
+        typeParametersToTypeArgumentsBinder.bindOperandTypeWithOtherOperandType(leftExpression.getType(), rightExpression);
+        typeParametersToTypeArgumentsBinder.bindOperandTypeWithOtherOperandType(rightExpression.getType(), leftExpression);
 
         return new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, leftExpression, operator, rightExpression, priority);
     }

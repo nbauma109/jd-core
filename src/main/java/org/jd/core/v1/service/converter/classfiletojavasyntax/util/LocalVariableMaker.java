@@ -268,6 +268,10 @@ public class LocalVariableMaker {
             }
             return false;
         }
+        if (typeArguments instanceof ObjectType objectType) {
+            // Box<List<?>>: the wildcard is nested in the argument
+            return containsWildcardTypeArgument(objectType.getTypeArguments());
+        }
         return typeArguments instanceof WildcardExtendsTypeArgument || typeArguments instanceof WildcardSuperTypeArgument
                 || typeArguments == WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT;
     }

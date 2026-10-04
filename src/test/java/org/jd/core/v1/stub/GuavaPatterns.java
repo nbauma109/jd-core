@@ -1017,4 +1017,18 @@ public class GuavaPatterns {
         }
         return marker;
     }
+
+    static final class NestedBox<T> {
+        T content;
+    }
+
+    static <T> T unboxNested(NestedBox<? extends java.util.List<? extends T>> wrapper) {
+        return wrapper.content.get(0);
+    }
+
+    /** The captured variable has a wildcard nested in its type argument: the lambda keeps its type */
+    public static String firstOf(NestedBox<java.util.List<?>> wrapper) {
+        java.util.function.Supplier<String> supplier = () -> (String) unboxNested(wrapper);
+        return supplier.get();
+    }
 }

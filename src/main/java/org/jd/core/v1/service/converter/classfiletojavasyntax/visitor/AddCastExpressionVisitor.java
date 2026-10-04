@@ -1916,7 +1916,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (Expression parameter : parameters) {
             if (!parameter.getType().isObjectType() || parameter.getType().getDimension() != 0
-                    || ObjectType.TYPE_OBJECT.equals(parameter.getType())
                     || BOX_TYPE_NAMES.contains(((ObjectType) parameter.getType()).getInternalName())) {
                 return false;
             }

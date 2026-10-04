@@ -886,4 +886,9 @@ public class GuavaPatterns {
         }
         return total;
     }
+
+    /** 'tryAdvance(i -> ...)' of an OfInt spliterator is ambiguous between a Consumer and an IntConsumer */
+    public static <T> boolean advanceIndexed(java.util.Spliterator.OfInt delegate, java.util.function.IntFunction<T> function, java.util.function.Consumer<? super T> action) {
+        return delegate.tryAdvance((java.util.function.IntConsumer) i -> action.accept(function.apply(i)));
+    }
 }

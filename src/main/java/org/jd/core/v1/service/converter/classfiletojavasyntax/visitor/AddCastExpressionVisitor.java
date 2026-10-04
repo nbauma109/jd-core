@@ -1571,6 +1571,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
+    private static boolean isLambdaWithImplicitParameters(LambdaIdentifiersExpression lambda) {
+        return lambda.getParameterNames() != null && !lambda.getParameterNames().isEmpty();
+    }
+
     private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
         return left instanceof FieldReferenceExpression field
                 && !field.getExpression().isThisExpression()
@@ -1766,7 +1770,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         } else {
             Type expressionType = expression.getType();
 
-            if (!expressionType.equals(type)) {
+            boolean lambdaCastForced = forceCast && expression instanceof LambdaIdentifiersExpression && type instanceof ObjectType && expressionType.equals(type)
+                    && isLambdaWithImplicitParameters((LambdaIdentifiersExpression) expression);
+
+            if (lambdaCastForced) {
+                // 'spliterator.tryAdvance(i -> ...)' is ambiguous between a Consumer and an IntConsumer: javac needs the target type
+                expression = addCastExpression(type, expression);
+            } else if (!expressionType.equals(type)) {
                 if (type.isObjectType()) {
                     if (expressionType.isObjectType()) {
                         ObjectType objectType = (ObjectType) type;
@@ -1865,7 +1875,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
 
-            if (expression instanceof CastExpression castExpression && isCastToBeRemoved(typeBindings, localTypeBounds, type, castExpression, unique)) {
+            if (!lambdaCastForced && expression instanceof CastExpression castExpression && isCastToBeRemoved(typeBindings, localTypeBounds, type, castExpression, unique)) {
                 // Remove cast expression
                 expression = expression.getExpression();
             }

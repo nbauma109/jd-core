@@ -40,6 +40,7 @@ import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpressi
 import org.jd.core.v1.model.javasyntax.expression.LongConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
@@ -79,6 +80,8 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InheritedMethodFinder;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.SingleAbstractMethodFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
@@ -87,16 +90,27 @@ import org.jd.core.v1.util.StringConstants;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.stream.StreamSupport;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.bcel.generic.ConstantPoolGen;
+import org.apache.bcel.generic.InstructionHandle;
+import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.InvokeInstruction;
+import org.jd.core.v1.api.loader.Loader;
 
 import static org.apache.bcel.Const.ACC_BRIDGE;
+import static org.apache.bcel.Const.ACC_PRIVATE;
+import static org.apache.bcel.Const.ACC_STATIC;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BYTE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
@@ -108,6 +122,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private final SearchFirstLineNumberVisitor searchFirstLineNumberVisitor = new SearchFirstLineNumberVisitor();
 
     private final TypeMaker typeMaker;
+    private final Loader loader;
+    private boolean visitingVarArgsInvocation;
+    private final SingleAbstractMethodFinder singleAbstractMethodFinder;
+    private final InheritedMethodFinder inheritedMethodFinder;
+    private boolean lambdaReturnFromTarget;
+    private boolean castToGenericInLambda;
     private Map<String, BaseType> typeBounds;
     private Type returnedType;
     private BaseType exceptionTypes;
@@ -117,16 +137,30 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean visitingAnonymousClass;
     private boolean visitingLambda;
     private Expression memberReceiver;
+    private static final Set<String> BOX_TYPE_NAMES = Set.of("java/lang/Boolean", "java/lang/Byte", "java/lang/Character", "java/lang/Short", "java/lang/Integer", "java/lang/Long", "java/lang/Float", "java/lang/Double");
     private boolean visitingWitnessedInvocation;
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
     private Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
+    /** The number of scopes of type variables which are outside the static member (or the static class) which is visited: the type variables of classes are not visible from it */
+    private int staticBoundary;
     private Type expectedType;
 
-    private record TypeParameter(boolean staticContext, BaseTypeParameter type) {}
+    private record TypeParameter(BaseTypeParameter type, boolean methodLevel) {
+        TypeParameter(BaseTypeParameter type) {
+            this(type, false);
+        }
+    }
 
     public AddCastExpressionVisitor(TypeMaker typeMaker) {
+        this(typeMaker, null);
+    }
+
+    public AddCastExpressionVisitor(TypeMaker typeMaker, Loader loader) {
         this.typeMaker = typeMaker;
+        this.loader = loader;
+        this.singleAbstractMethodFinder = loader == null ? null : new SingleAbstractMethodFinder(loader);
+        this.inheritedMethodFinder = loader == null ? null : new InheritedMethodFinder(loader);
     }
 
     @Override
@@ -152,9 +186,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(FieldDeclaration declaration) {
         if ((declaration.getFlags() & ACC_SYNTHETIC) == 0) {
             Type t = type;
+            boolean sc = staticContext;
+            int sb = staticBoundary;
 
             type = declaration.getType();
+            if ((declaration.getFlags() & ACC_STATIC) != 0) {
+                // The type variables of the class are not visible to its static fields
+                staticContext = true;
+                staticBoundary = typeParameters.size();
+            }
             declaration.getFieldDeclarators().accept(this);
+            staticContext = sc;
+            staticBoundary = sb;
             type = t;
         }
     }
@@ -180,8 +223,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (statements != null) {
             Map<String, BaseType> tb = typeBounds;
 
+            boolean sc = staticContext;
+            int sb = staticBoundary;
+
             typeBounds = ((ClassFileStaticInitializerDeclaration)declaration).getTypeBounds();
+            staticContext = true;
+            staticBoundary = typeParameters.size();
             statements.accept(this);
+            staticContext = sc;
+            staticBoundary = sb;
             typeBounds = tb;
         }
     }
@@ -214,11 +264,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 Type rt = returnedType;
                 BaseType et = exceptionTypes;
                 boolean sc = staticContext;
+                int sb = staticBoundary;
 
                 typeBounds = ((ClassFileMethodDeclaration) declaration).getTypeBounds();
                 returnedType = declaration.getReturnedType();
                 exceptionTypes = declaration.getExceptionTypes();
-                staticContext = declaration.isStatic();
+                if (declaration.isStatic()) {
+                    staticContext = true;
+                    staticBoundary = typeParameters.size();
+                }
                 pushContext(declaration);
                 safeAccept(declaration.getFormalParameters());
                 statements.accept(this);
@@ -226,6 +280,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 returnedType = rt;
                 exceptionTypes = et;
                 staticContext = sc;
+                staticBoundary = sb;
                 popContext(declaration);
             }
         }
@@ -233,9 +288,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(ClassDeclaration declaration) {
+        int sb = staticBoundary;
+
+        if (declaration.isStatic()) {
+            staticBoundary = typeParameters.size();
+        }
         pushContext(declaration);
         super.visit(declaration);
         popContext(declaration);
+        staticBoundary = sb;
     }
 
     @Override
@@ -247,7 +308,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     public void pushContext(MethodDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
-            typeParameters.push(new TypeParameter(declaration.isStatic(), declaration.getTypeParameters()));
+            typeParameters.push(new TypeParameter(declaration.getTypeParameters(), true));
         }
     }
 
@@ -262,7 +323,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     public void pushContext(InterfaceDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
-            typeParameters.push(new TypeParameter(declaration.isStatic(), declaration.getTypeParameters()));
+            typeParameters.push(new TypeParameter(declaration.getTypeParameters()));
         }
     }
 
@@ -274,7 +335,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     public void pushContext(RecordDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
-            typeParameters.push(new TypeParameter(false, declaration.getTypeParameters()));
+            typeParameters.push(new TypeParameter(declaration.getTypeParameters()));
         }
     }
 
@@ -286,17 +347,49 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(LambdaIdentifiersExpression expression) {
+        boolean outerVisitingLambda = visitingLambda;
         visitingLambda = true;
         BaseStatement statements = expression.getStatements();
 
         if (statements != null) {
             Type rt = returnedType;
+            boolean lrft = lambdaReturnFromTarget;
             Type lambdaReturnedType = expression.getReturnedType();
-            returnedType = lambdaReturnedType != null ? lambdaReturnedType : ObjectType.TYPE_OBJECT;
+            // The synthetic method of a lambda has the erased return type: the target functional interface knows better
+            Type functionalReturnedType = lambdaReturnedTypeFromTarget(lambdaReturnedType);
+            if (functionalReturnedType != null) {
+                returnedType = functionalReturnedType;
+            } else {
+                returnedType = lambdaReturnedType != null ? lambdaReturnedType : ObjectType.TYPE_OBJECT;
+            }
+            lambdaReturnFromTarget = functionalReturnedType != null;
             statements.accept(this);
+            lambdaReturnFromTarget = lrft;
             returnedType = rt;
         }
-        visitingLambda = false;
+        visitingLambda = outerVisitingLambda;
+    }
+
+    /**
+     * The erased return type of a lambda is Object, or the bound of the type variable (Number for 'T extends Number'):
+     * the type argument of the target is then what the lambda returns, when it is a type variable.
+     */
+    private Type lambdaReturnedTypeFromTarget(Type erasedReturnedType) {
+        if (erasedReturnedType != null && !(erasedReturnedType instanceof ObjectType)) {
+            return null;
+        }
+
+        Type fromTarget = functionalReturnedType(expectedType);
+        boolean erasedToObject = erasedReturnedType == null || ObjectType.TYPE_OBJECT.equals(erasedReturnedType);
+
+        return fromTarget != null && (erasedToObject || fromTarget.isGenericType() || isParameterizedErasedType(fromTarget, erasedReturnedType)) ? fromTarget : null;
+    }
+
+    /** @return true if the type is the parameterization of the (raw) type which the synthetic method of the lambda returns */
+    private static boolean isParameterizedErasedType(Type parameterized, Type erased) {
+        return parameterized instanceof ObjectType parameterizedType && erased instanceof ObjectType erasedType
+                && parameterizedType.getTypeArguments() != null && erasedType.getTypeArguments() == null
+                && parameterizedType.getInternalName().equals(erasedType.getInternalName());
     }
 
     @Override
@@ -312,7 +405,84 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Expression updateStatementExpression(Expression expression) {
         Map<String, TypeArgument> typeBindings = getLocalTypeBindings(expression);
         Map<String, BaseType> localTypeBounds = getLocalTypeBounds(expression);
-        return updateExpression(typeBindings, localTypeBounds, returnedType, null, expression, false, true, false);
+        boolean ulr = castToGenericInLambda;
+        castToGenericInLambda = visitingLambda && lambdaReturnFromTarget;
+        try {
+            return updateExpression(typeBindings, localTypeBounds, returnedType, null, expression, false, true, false);
+        } finally {
+            castToGenericInLambda = ulr;
+        }
+    }
+
+    /**
+     * The type returned by the single abstract method of a generic functional interface, when it is one of the interface's
+     * own type variables, bound to the type arguments of the target type; null if it cannot be determined.
+     */
+    private Type functionalReturnedType(Type target) {
+        if (loader == null || !(target instanceof ObjectType targetType) || targetType.getDimension() != 0
+                || targetType.getTypeArguments() == null) {
+            return null;
+        }
+        String[] method = singleAbstractMethodFinder.find(targetType.getInternalName());
+        if (method.length == 0) {
+            return null;
+        }
+        // The method may be inherited: it is then seen through the parameterization of the interface which declares it
+        String internalName = method[0];
+        ObjectType declaring = parameterizationOfDeclaringInterface(targetType, internalName);
+        if (declaring == null || declaring.getTypeArguments() == null) {
+            return null;
+        }
+        Type returned = typeMaker.makeMethodTypes(internalName, method[1], method[2]).getReturnedType();
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(internalName);
+        if (typeTypes == null || typeTypes.getTypeParameters() == null || returned.findTypeParametersInType().isEmpty()) {
+            return null;
+        }
+        List<TypeArgument> typeArguments = toTypeArgumentList(declaring.getTypeArguments());
+        if (!(returned instanceof GenericType genericReturned) || genericReturned.getDimension() != 0) {
+            return bindTypeVariables(returned, typeTypes.getTypeParameters(), typeArguments);
+        }
+        int index = 0;
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
+            if (typeParameter.getIdentifier().equals(genericReturned.getName())) {
+                return index < typeArguments.size() ? upperBound(typeArguments.get(index)) : null;
+            }
+            index++;
+        }
+        return null;
+    }
+
+    private ObjectType parameterizationOfDeclaringInterface(ObjectType targetType, String declaringInternalName) {
+        return declaringInternalName.equals(targetType.getInternalName()) ? targetType
+                : typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(declaringInternalName), targetType);
+    }
+
+    /** @return the type which contains type variables of an interface (List&lt;T&gt;), seen through the type arguments of its parameterization */
+    private static Type bindTypeVariables(Type returned, BaseTypeParameter typeParameters, List<TypeArgument> typeArguments) {
+        Map<String, TypeArgument> bindings = new HashMap<>();
+        int index = 0;
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (index < typeArguments.size()) {
+                bindings.put(typeParameter.getIdentifier(), typeArguments.get(index));
+            }
+            index++;
+        }
+
+        BindTypesToTypesVisitor visitor = new BindTypesToTypesVisitor();
+
+        visitor.setBindings(bindings);
+        visitor.init();
+        returned.accept(visitor);
+        return visitor.getType() instanceof Type bound ? bound : null;
+    }
+
+    /** A lambda of a 'Supplier<? extends T>' is typed by its upper bound */
+    private static Type upperBound(TypeArgument argument) {
+        if (argument instanceof WildcardExtendsTypeArgument wildcard) {
+            return wildcard.type();
+        }
+        return argument instanceof Type argumentType ? argumentType : null;
     }
 
     @Override
@@ -387,7 +557,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             nia.getArrayInitializer().accept(this);
             type = t;
         } else {
-            declaration.setExpression(updateExpression(Collections.emptyMap(), typeBounds, type, null, expression, false, true, false));
+            boolean ctgil = castToGenericInLambda;
+            // The declared type of a local variable is known even inside a lambda body
+            castToGenericInLambda = visitingLambda && type != null && type.isGenericType();
+            try {
+                declaration.setExpression(updateExpression(Collections.emptyMap(), typeBounds, type, null, expression, false, true, false));
+            } finally {
+                castToGenericInLambda = ctgil;
+            }
         }
     }
 
@@ -491,7 +668,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 addImplicitObjectBounds(localTypeBounds, unboundParameterTypes, methodTypeParameterNames);
             }
             boolean unique = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false) <= 1;
-            boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1;
+            boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1
+                    && !isStaticCallWithOnlyTypeVariableParameters(expression, unboundParameterTypes, localTypeBounds, parameters);
             boolean rawCast = false;
             boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
             // The printer only renders <TypeArgs> when a receiver qualifier is also printed: an implicit
@@ -501,7 +679,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && !expression.getExpression().isThisExpression();
             Set<String> oldTypeVariablesSharedAcrossParameters = typeVariablesSharedAcrossParameters;
             typeVariablesSharedAcrossParameters = findTypeVariablesSharedAcrossParameters(unboundParameterTypes);
+            boolean oldVisitingVarArgs = visitingVarArgsInvocation;
+            visitingVarArgsInvocation = expression.isVarArgs();
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, new CastFlags(forceCast, unique, rawCast)));
+            visitingVarArgsInvocation = oldVisitingVarArgs;
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
             typeVariablesSharedAcrossParameters = oldTypeVariablesSharedAcrossParameters;
         }
@@ -516,7 +697,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (expression.getExpression() instanceof CastExpression ce && ce.isByteCodeCheckCast()
                 && ce.getExpression() instanceof ClassFileMethodInvocationExpression mie && ce.getType() instanceof ObjectType ot) {
-            if (isCastToBeRemoved(typeBindings, localTypeBounds, ot, ce, true)) {
+            if (isCastToBeRemoved(typeBindings, localTypeBounds, ot, ce, true) || isCastToTypeArgumentOfReceiver(ot, mie)) {
                 // Remove cast
                 expression.setExpression(ce.getExpression());
             }
@@ -568,6 +749,26 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             memberReceiver = expression.getExpression();
             expression.getExpression().accept(this);
             memberReceiver = oldMemberReceiver;
+        }
+        removeEmptyVarArgsArray(expression);
+    }
+
+    /**
+     * javac passes an empty array for a varargs method called without any: the call is spelled without it. The printer
+     * hides that array too, but loses track of the comma after the block body of a lambda.
+     */
+    private void removeEmptyVarArgsArray(MethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (expression.isVarArgs() && parameters != null && parameters.isList() && parameters.size() > 1
+                && typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size() - 1, false) == 0
+                && parameters.getList().get(parameters.size() - 2) instanceof LambdaIdentifiersExpression lambda
+                && lambda.getStatements() != null && !lambda.getStatements().isLambdaExpressionStatement()
+                && parameters.getLast() instanceof NewArray newArray && newArray.isEmptyNewArray()
+                && expression instanceof ClassFileMethodInvocationExpression invocation && invocation.getParameterTypes() != null
+                && invocation.getParameterTypes().isList()) {
+            parameters.getList().removeLast();
+            invocation.getParameterTypes().getList().removeLast();
         }
     }
 
@@ -782,6 +983,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             visitingAnonymousClass = true;
             visitBodyDeclaration(expression.getBodyDeclaration());
             visitingAnonymousClass = false;
+            if (expression.getBodyDeclaration() instanceof ClassFileBodyDeclaration anonymousBody && declaresNewMethod(anonymousBody, expression.getObjectType())) {
+                // With a diamond, every method of an anonymous class must override one of its supertype
+                expression.setDiamondPossible(false);
+            }
         }
 
         if ((visitingLambda || containsFunctionalExpression(parameters))
@@ -790,9 +995,114 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             prepareDiamondTypeArgumentsIfPossible(expression);
         }
 
+        if (expression.isDiamondPossible() && expression.getObjectType().getTypeArguments() != null
+                && isGenericCallToWildcardParameter((ClassFileNewExpression) expression, parameters)) {
+            // 'new Foo<>(copyOf(array))': the type arguments cannot be inferred from the target and from a generic call at once
+            expression.setDiamondPossible(false);
+        }
+
         if (!hasKnownTypeParameters(expression.getObjectType())) {
             expression.setType(expression.getObjectType().createType(ObjectType.TYPE_UNDEFINED_OBJECT));
+        } else if (expression.getBodyDeclaration() == null && violatesTypeParameterBounds(expression.getObjectType())) {
+            // 'new Foo<>()' cannot infer type arguments out of the bounds of Foo's type parameters (e.g. for a type
+            // variable of the caller which is unbounded): the raw type is then assigned with an unchecked conversion
+            expression.setType(expression.getObjectType().createType(null));
         }
+    }
+
+    private static boolean isGenericCallToWildcardParameter(ClassFileNewExpression expression, BaseExpression parameters) {
+        if (parameters == null || parameters.size() != 1 || !(parameters.getFirst() instanceof ClassFileMethodInvocationExpression call)
+                || call.getTypeParameters() == null || expression.getParameterTypes() == null) {
+            return false;
+        }
+        return expression.getParameterTypes().getFirst() instanceof ObjectType parameterType && hasWildcardSuperTypeArgument(parameterType);
+    }
+
+    private static boolean hasWildcardSuperTypeArgument(ObjectType type) {
+        BaseTypeArgument arguments = type.getTypeArguments();
+
+        if (arguments == null) {
+            return false;
+        }
+        for (TypeArgument argument : toTypeArgumentList(arguments)) {
+            TypeArgument unwrapped = argument instanceof WildcardExtendsTypeArgument extending ? extending.type() : argument;
+
+            if (unwrapped instanceof WildcardSuperTypeArgument || unwrapped instanceof ObjectType nested && hasWildcardSuperTypeArgument(nested)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean violatesTypeParameterBounds(ObjectType objectType) {
+        if (objectType.getTypeArguments() == null) {
+            return false;
+        }
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(objectType.getInternalName());
+        if (typeTypes == null || typeTypes.getTypeParameters() == null) {
+            return false;
+        }
+        List<TypeArgument> typeArguments = toTypeArgumentList(objectType.getTypeArguments());
+        int index = 0;
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
+            if (index >= typeArguments.size()) {
+                break;
+            }
+            TypeArgument typeArgument = typeArguments.get(index++);
+            if (typeParameter instanceof TypeParameterWithTypeBounds parameterWithBounds && typeArgument instanceof GenericType genericType
+                    && genericType.getDimension() == 0 && !satisfiesBounds(genericType, parameterWithBounds.getTypeBounds())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return the bounds of the innermost type parameter of this name (null if it has none), as the map of bounds is ambiguous when names are reused */
+    private BaseType declaredBoundsOf(String typeVariableName) {
+        for (TypeParameter scope : typeParameters) {
+            for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : scope.type()) {
+                if (typeParameter.getIdentifier().equals(typeVariableName)) {
+                    return typeParameter instanceof TypeParameterWithTypeBounds withBounds ? withBounds.getTypeBounds() : null;
+                }
+            }
+        }
+        return typeBounds.get(typeVariableName);
+    }
+
+    /** @return false only if the type variable is known not to be within the (class) bounds of a type parameter */
+    private boolean satisfiesBounds(GenericType typeVariable, BaseType requiredBounds) {
+        BaseType declaredBounds = declaredBoundsOf(typeVariable.getName());
+        for (Type requiredBound : requiredBounds) {
+            if (!(requiredBound instanceof ObjectType requiredObjectBound) || isJavaLangObject(requiredBound)) {
+                continue;
+            }
+            if (declaredBounds == null) {
+                return false;
+            }
+            boolean satisfied = false;
+            for (Type declaredBound : declaredBounds) {
+                // A bound which is itself a type variable is not resolved: the raw type is always valid, so do not trust it
+                if (declaredBound instanceof ObjectType declaredObjectBound && typeMaker.isRawTypeAssignable(requiredObjectBound, declaredObjectBound)
+                        && haveCompatibleTypeArguments(requiredObjectBound, declaredObjectBound)) {
+                    satisfied = true;
+                    break;
+                }
+            }
+            if (!satisfied) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The bounds Comparable&lt;String&gt; and Comparable&lt;Integer&gt; have the same raw type, but nothing is a member of both: compare their concrete type arguments */
+    private static boolean haveCompatibleTypeArguments(ObjectType required, ObjectType declared) {
+        BaseTypeArgument requiredArguments = required.getTypeArguments();
+        BaseTypeArgument declaredArguments = declared.getTypeArguments();
+
+        return requiredArguments == null || declaredArguments == null
+                || !required.findTypeParametersInType().isEmpty() || !declared.findTypeParametersInType().isEmpty()
+                || requiredArguments.equals(declaredArguments);
     }
 
     private void updateNewExpressionParameters(ClassFileNewExpression expression, BaseExpression parameters) {
@@ -805,7 +1115,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         ObjectType currentObjectType = expectedType instanceof ObjectType objectType ? objectType : null;
         copyContextualTypeArguments(expression, currentObjectType);
         boolean rawCast = requiresRawConstructorCast(expression, currentObjectType);
-        if (rawCast && currentObjectType != null
+        if (rawCast && currentObjectType != null && isGenericClass(expression.getObjectType())
                 && !hasUnboundedWildcardTypeArgument(currentObjectType.getTypeArguments())) {
             expression.setObjectType(expression.getObjectType().createType(currentObjectType.getTypeArguments()));
         }
@@ -818,6 +1128,42 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null,
                 parameters, new CastFlags(forceCast, unique, rawCast)));
         visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
+    }
+
+    /**
+     * The fixed type arguments of the class which is instantiated may be disjoint from the bounds of a type variable of the
+     * target ('final class C implements I<String>' is no I<T> for T extends Number): the cast then goes through the raw type.
+     */
+    private Expression castThroughRawTypeIfBounded(Type target, Expression expression) {
+        if ((expression instanceof ClassFileNewExpression || expression instanceof FieldReferenceExpression || expression.isLocalVariableReferenceExpression())
+                && target instanceof ObjectType targetType && targetType.getTypeArguments() != null
+                && hasBoundedTypeVariable(targetType)) {
+            Expression raw = addCastExpression(targetType.createType(null), expression);
+
+            return new CastExpression(raw.getLineNumber(), target, raw);
+        }
+        return addCastExpression(target, expression);
+    }
+
+    private boolean hasBoundedTypeVariable(ObjectType type) {
+        for (String name : type.findTypeParametersInType()) {
+            BaseType bounds = declaredBoundsOf(name);
+
+            if (bounds != null) {
+                for (Type bound : bounds) {
+                    if (!isJavaLangObject(bound)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean isGenericClass(ObjectType objectType) {
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(objectType.getInternalName());
+
+        return typeTypes != null && typeTypes.getTypeParameters() != null;
     }
 
     private static void copyContextualTypeArguments(ClassFileNewExpression expression,
@@ -850,8 +1196,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return;
         }
         org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = classTypeParameters.getFirst();
-        if (!(typeParameter instanceof TypeParameterWithTypeBounds parameterWithBounds)
-                || !(parameterWithBounds.getTypeBounds().getFirst() instanceof ObjectType parameterBound)) {
+        ObjectType parameterBound = firstBoundOf(typeParameter);
+        if (parameterBound == null || hasKnownTypeArguments(expression.getObjectType(), parameterBound)) {
             return;
         }
 
@@ -859,14 +1205,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 ? parameterTypes.getList() : Collections.singletonList(parameterTypes.getFirst());
         List<Expression> parameterList = parameters.isList()
                 ? parameters.getList() : Collections.singletonList(parameters.getFirst());
+        List<Type> declaredParameterTypeList = declaredConstructorParameterTypes(expression, parameters.size());
         for (int index = 0; index < parameters.size(); index++) {
-            Type parameterType = parameterTypeList.get(index);
-            Type argumentType = parameterList.get(index).getType();
-            if (parameterType instanceof ObjectType erasedParameterType
-                    && argumentType instanceof GenericType genericArgumentType
+            // Only a parameter which is declared with the type variable of the class says what the type argument is
+            if (!declaredParameterTypeList.isEmpty() && !isTypeVariable(declaredParameterTypeList.get(index), typeParameter)) {
+                continue;
+            }
+            if (parameterType(parameterTypeList.get(index), parameterBound) instanceof ObjectType erasedParameterType
+                    && parameterList.get(index).getType() instanceof GenericType genericArgumentType
                     && erasedParameterType.getDimension() == genericArgumentType.getDimension()
-                    && hasKnownTypeParameters(genericArgumentType)
-                    && erasedParameterType.getInternalName().equals(parameterBound.getInternalName())) {
+                    && hasKnownTypeParameters(genericArgumentType)) {
                 // The dimensions belong to the constructor parameter occurrence: T[] erases to Bound[]
                 // and an argument U[] therefore infers the class type argument U, not U[].
                 expression.setObjectType(expression.getObjectType().createType(
@@ -875,6 +1223,38 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 return;
             }
         }
+    }
+
+    private static ObjectType firstBoundOf(org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        return typeParameter instanceof TypeParameterWithTypeBounds withBounds && withBounds.getTypeBounds().getFirst() instanceof ObjectType bound ? bound : null;
+    }
+
+    /** @return true if the type has type arguments which are not just the bound of the type variable (what the erasure gives): they are kept */
+    private static boolean hasKnownTypeArguments(ObjectType objectType, ObjectType bound) {
+        BaseTypeArgument typeArguments = objectType.getTypeArguments();
+
+        return typeArguments != null && !(typeArguments instanceof ObjectType argument && argument.getInternalName().equals(bound.getInternalName()));
+    }
+
+    private static boolean isTypeVariable(Type type, org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        return type instanceof GenericType declared && declared.getName().equals(typeParameter.getIdentifier());
+    }
+
+    /** @return the erased parameter type if it is the bound of the type variable, null otherwise */
+    private static Type parameterType(Type erased, ObjectType bound) {
+        return erased instanceof ObjectType erasedObjectType && erasedObjectType.getInternalName().equals(bound.getInternalName()) ? erased : null;
+    }
+
+    /** @return the parameter types the constructor is declared with (generic ones), empty if the class has no such constructor */
+    private List<Type> declaredConstructorParameterTypes(ClassFileNewExpression expression, int parameterCount) {
+        TypeMaker.MethodTypes constructor = typeMaker.makeMethodTypes(expression.getObjectType().getInternalName(),
+                StringConstants.INSTANCE_CONSTRUCTOR, expression.getDescriptor());
+        BaseType declared = constructor == null ? null : constructor.getParameterTypes();
+
+        if (declared == null || declared.size() != parameterCount) {
+            return Collections.emptyList();
+        }
+        return declared.isList() ? declared.getList() : Collections.singletonList(declared.getFirst());
     }
 
     private static boolean containsWildcardSuper(BaseTypeArgument typeArguments) {
@@ -976,11 +1356,27 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (rightExpression.isMethodInvocationExpression()) {
                 ClassFileMethodInvocationExpression mie = (ClassFileMethodInvocationExpression)rightExpression;
 
-                if (mie.getTypeParameters() != null) {
+                if (mie.getTypeParameters() != null && !hasBoundedTypeParameter(mie.getTypeParameters())) {
                     // Do not add cast expression if method contains type parameters
                     rightExpression.accept(this);
                     return;
                 }
+            }
+
+            if (isFieldOfAnotherInstanceWithTypeVariables(expression.getLeftExpression())) {
+                // The field type is declared with the type variables of its class, which the receiver binds differently
+                dropCastToDeclaredFieldType(expression).accept(this);
+                return;
+            }
+
+            // A call of a generic method with a bounded type variable gets what the bound infers, not what the target type does
+            if (rightExpression instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
+                    && hasBoundedTypeParameter(call.getTypeParameters())
+                    && expression.getLeftExpression().getType() instanceof ObjectType leftType && leftType.getTypeArguments() != null
+                    && !leftType.equals(rightExpression.getType())) {
+                rightExpression.accept(this);
+                expression.setRightExpression(addCastExpression(leftType.createType(null), rightExpression));
+                return;
             }
 
             expression.setRightExpression(updateExpression(Collections.emptyMap(), typeBounds, expression.getLeftExpression().getType(), null, rightExpression, false, true, false));
@@ -988,6 +1384,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         rightExpression.accept(this);
+    }
+
+    /** The cast to the declared type, which the bytecode has for the erased result of a generic call, goes with the cast to the field type */
+    private static Expression dropCastToDeclaredFieldType(BinaryOperatorExpression assignment) {
+        Expression right = assignment.getRightExpression();
+
+        if (right instanceof CastExpression cast && cast.getExpression() instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
+                && cast.getType() instanceof ObjectType castType
+                && assignment.getLeftExpression().getType() instanceof ObjectType leftType && castType.rawEquals(leftType)) {
+            right = cast.getExpression();
+            assignment.setRightExpression(right);
+        }
+        return right;
     }
 
     @Override
@@ -998,6 +1407,227 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         normalizeTernaryBooleanConstants(expression, expression.getType());
         expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
         expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
+    }
+
+    /** A type variable with a bound (<C extends Comparable>) cannot be inferred from any target type */
+    private static boolean hasBoundedTypeParameter(BaseTypeParameter typeParameters) {
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (typeParameter instanceof TypeParameterWithTypeBounds) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The result of 'entry.getValue()' was typed before the type arguments of the receiver were known: the bytecode
+     * cast to the erased class is redundant when the receiver's type argument is that very class.
+     */
+    private boolean isCastToTypeArgumentOfReceiver(ObjectType castType, ClassFileMethodInvocationExpression call) {
+        if (!(call.getExpression().getType() instanceof ObjectType receiverType)
+                || !(receiverType.getTypeArguments() instanceof TypeArguments receiverArguments)) {
+            return false;
+        }
+        TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (methodTypes == null || !(methodTypes.getReturnedType() instanceof GenericType returnedVariable) || returnedVariable.getDimension() != 0) {
+            return false;
+        }
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());
+        BaseTypeParameter declared = typeTypes == null ? null : typeTypes.getTypeParameters();
+
+        if (declared == null || !declared.isList() || declared.size() != receiverArguments.size()) {
+            return false;
+        }
+        for (int i = 0; i < receiverArguments.size(); i++) {
+            if (declared.getList().get(i).getIdentifier().equals(returnedVariable.getName())) {
+                return receiverArguments.getList().get(i) instanceof ObjectType argument && argument.rawEquals(castType);
+            }
+        }
+        return false;
+    }
+
+    /** 'Class&lt;? extends T[]&gt;': a cast to it is unchecked but valid, a raw one would erase the type the call returns */
+    private boolean isWildcardExtendingTypeVariable(BaseTypeArgument typeArgument) {
+        return typeArgument instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof GenericType variable
+                && hasKnownTypeParameters(variable);
+    }
+
+    /**
+     * 'return INSTANCE' where INSTANCE is a 'Foo&lt;Object&gt;' and the method returns a 'Foo&lt;T&gt;' (or 'return this' of a class
+     * implementing 'Predicate&lt;Object&gt;'): the source has an unchecked cast, which the bytecode does not
+     */
+    private boolean isUncheckedTypeVariableMismatch(ObjectType target, Expression expression, ObjectType expressionType) {
+        if (!(expression instanceof FieldReferenceExpression || expression.isThisExpression() || expression.isLocalVariableReferenceExpression())
+                || target.getTypeArguments() == null || target.getDimension() != 0 || expressionType.getDimension() != 0) {
+            return false;
+        }
+        List<TypeArgument> viewArguments = typeArgumentsSeenAs(target.getInternalName(), expressionType, 0);
+        List<TypeArgument> targetArguments = toTypeArgumentList(target.getTypeArguments());
+
+        if (viewArguments.isEmpty()) {
+            return false;
+        }
+
+        if (targetArguments.size() != viewArguments.size()) {
+            return false;
+        }
+        for (int i = 0; i < targetArguments.size(); i++) {
+            if (targetArguments.get(i) instanceof GenericType variable && variable.getDimension() == 0 && hasKnownTypeParameters(variable)
+                    && viewArguments.get(i) instanceof ObjectType concrete && concrete.findTypeParametersInType().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static List<ObjectType> supertypesOf(TypeTypes typeTypes) {
+        List<ObjectType> supertypes = new ArrayList<>();
+
+        if (typeTypes.getSuperType() != null) {
+            supertypes.add(typeTypes.getSuperType());
+        }
+        if (typeTypes.getInterfaces() != null) {
+            for (Type interfaceType : typeTypes.getInterfaces()) {
+                if (interfaceType instanceof ObjectType interfaceObjectType) {
+                    supertypes.add(interfaceObjectType);
+                }
+            }
+        }
+        return supertypes;
+    }
+
+    private static ObjectType substituteTypeVariables(ObjectType supertype, BaseTypeParameter typeParameters, List<TypeArgument> typeArguments) {
+        if (typeParameters == null || supertype.getTypeArguments() == null) {
+            return supertype;
+        }
+        Map<String, TypeArgument> bindings = new HashMap<>();
+        int index = 0;
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (index < typeArguments.size()) {
+                bindings.put(typeParameter.getIdentifier(), typeArguments.get(index));
+            }
+            index++;
+        }
+        TypeArguments substituted = new TypeArguments();
+
+        toTypeArgumentList(supertype.getTypeArguments()).forEach(supertypeArgument -> substituted.add(
+                supertypeArgument instanceof GenericType variable && variable.getDimension() == 0 && bindings.containsKey(variable.getName())
+                        ? bindings.get(variable.getName()) : supertypeArgument));
+        return supertype.createType(substituted);
+    }
+
+    /** @return the type arguments of the given type seen as the given (super) class or interface, empty if it is raw or unrelated */
+    private List<TypeArgument> typeArgumentsSeenAs(String internalName, ObjectType type, int depth) {
+        if (type.getInternalName().equals(internalName)) {
+            return type.getTypeArguments() == null ? Collections.emptyList() : toTypeArgumentList(type.getTypeArguments());
+        }
+        TypeTypes typeTypes = depth > 8 ? null : typeMaker.makeTypeTypes(type.getInternalName());
+
+        if (typeTypes == null) {
+            return Collections.emptyList();
+        }
+        List<TypeArgument> typeArguments = type.getTypeArguments() == null ? Collections.emptyList() : toTypeArgumentList(type.getTypeArguments());
+
+        for (ObjectType supertype : supertypesOf(typeTypes)) {
+            List<TypeArgument> found = typeArgumentsSeenAs(internalName, substituteTypeVariables(supertype, typeTypes.getTypeParameters(), typeArguments), depth + 1);
+
+            if (!found.isEmpty()) {
+                return found;
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * @return true if the call returns a type parameterized by a bounded type variable of the called method
+     * (&lt;C extends Comparable&gt; Ordering&lt;C&gt;) and the expected type is parameterized, at that position, by a type
+     * variable which does not have this bound
+     */
+    private boolean hasBoundedTypeVariableTargetedByUnboundedVariable(ClassFileMethodInvocationExpression call, ObjectType expected) {
+        TypeMaker.MethodTypes methodTypes = findMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (methodTypes == null || methodTypes.getTypeParameters() == null || !(methodTypes.getReturnedType() instanceof ObjectType returned)
+                || returned.getTypeArguments() == null) {
+            return false;
+        }
+        List<TypeArgument> seen = typeArgumentsSeenAs(expected.getInternalName(), returned, 0);
+        List<TypeArgument> expectedArguments = toTypeArgumentList(expected.getTypeArguments());
+
+        if (seen.size() != expectedArguments.size()) {
+            return false;
+        }
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : methodTypes.getTypeParameters()) {
+            if (!(typeParameter instanceof TypeParameterWithTypeBounds withBounds) || !(withBounds.getTypeBounds().getFirst() instanceof ObjectType bound)
+                    || isJavaLangObject(bound)) {
+                continue;
+            }
+            for (int i = 0; i < seen.size(); i++) {
+                if (seen.get(i) instanceof GenericType variable && variable.getName().equals(typeParameter.getIdentifier())
+                        && upperBoundOrSelf(expectedArguments.get(i)) instanceof GenericType target && target.getDimension() == 0
+                        && hasKnownTypeParameters(target) && !variableHasBound(target, bound)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** javac names the class of the call, which may inherit the method from one of its superclasses */
+    private TypeMaker.MethodTypes findMethodTypes(String internalTypeName, String name, String descriptor) {
+        String owner = internalTypeName;
+        TypeMaker.MethodTypes first = null;
+
+        for (int depth = 0; owner != null && depth < 16; depth++) {
+            TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(owner, name, descriptor);
+
+            if (methodTypes != null && methodTypes.getTypeParameters() != null) {
+                return methodTypes;
+            }
+            if (first == null) {
+                first = methodTypes;
+            }
+            TypeTypes typeTypes = typeMaker.makeTypeTypes(owner);
+
+            owner = typeTypes == null || typeTypes.getSuperType() == null ? null : typeTypes.getSuperType().getInternalName();
+        }
+        return first;
+    }
+
+    private static TypeArgument upperBoundOrSelf(TypeArgument argument) {
+        if (argument instanceof WildcardExtendsTypeArgument extending) {
+            return extending.type();
+        }
+        return argument instanceof WildcardSuperTypeArgument supering ? supering.type() : argument;
+    }
+
+    private boolean variableHasBound(GenericType variable, ObjectType required) {
+        BaseType bounds = declaredBoundsOf(variable.getName());
+
+        if (bounds != null) {
+            for (Type declared : bounds) {
+                if (declared instanceof ObjectType declaredObjectType && typeMaker.isRawTypeAssignable(required, declaredObjectType)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLambdaWithImplicitParameters(LambdaIdentifiersExpression lambda) {
+        return lambda.getParameterNames() != null && !lambda.getParameterNames().isEmpty();
+    }
+
+    private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
+        return left instanceof FieldReferenceExpression field
+                && !field.getExpression().isThisExpression()
+                && !field.getExpression().isObjectTypeReferenceExpression()
+                && field.getType() instanceof ObjectType fieldType
+                && fieldType.getTypeArguments() != null
+                && !fieldType.findTypeParametersInType().isEmpty()
+                && field.getExpression().getType() instanceof ObjectType receiverType
+                && receiverType.getTypeArguments() != null;
     }
 
     private Type contextualTernaryType(Type ternaryType) {
@@ -1117,14 +1747,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private Expression updateParameter(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {
 
-        if (visitingAnonymousClass && expression instanceof FieldReferenceExpression fieldRef
-                && expression.getType() instanceof ObjectType ot && ot.getTypeArguments() == null) {
-            BaseTypeArgument parameterTypeArgument = parameterTypeArguments.get(expression.getName());
-            if (parameterTypeArgument != null) {
-                fieldRef.setType(ot.createType(parameterTypeArgument));
-            }
-        }
-
         expression = updateExpression(typeBindings, localTypeBounds, type, unboundType, expression, forceCast, unique, rawCast);
 
         if (type == TYPE_BYTE) {
@@ -1160,6 +1782,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private Expression updateExpression(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {
+        // Only the outermost expression of a returned value or of a local variable initializer is concerned
+        boolean genericCastInLambda = castToGenericInLambda;
+        castToGenericInLambda = false;
+
+        // The synthetic field holding a captured variable has an erased type: use the enclosing method parameter's
+        if (visitingAnonymousClass && expression instanceof FieldReferenceExpression fieldRef
+                && expression.getType() instanceof ObjectType ot && ot.getTypeArguments() == null) {
+            BaseTypeArgument parameterTypeArgument = parameterTypeArguments.get(expression.getName());
+            if (parameterTypeArgument != null) {
+                fieldRef.setType(ot.createType(parameterTypeArgument));
+            }
+        }
+
         if (expression.isNullExpression()) {
             if (forceCast) {
                 searchFirstLineNumberVisitor.init();
@@ -1167,6 +1802,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 expression = new CastExpression(searchFirstLineNumberVisitor.getLineNumber(), type, expression);
             }
         } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
+        } else if (expression instanceof ClassFileMethodInvocationExpression call && type instanceof ObjectType expected && type.getDimension() == 0
+                && hasBoundedTypeVariableTargetedByUnboundedVariable(call, expected)) {
+            // 'Ordering.natural()' (natural: <C extends Comparable>) is not an Ordering<E> for any E which is no Comparable
+            expression = addCastExpression(expected.createType(null), expression);
+            expression.getExpression().accept(this);
         } else if (forceCast && !visitingWitnessedInvocation && unboundType instanceof GenericType gt && unboundType.getDimension() == 0
                 && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
             // Casting to the type variable's bound contradicts explicit type arguments: skip when the call has a witness
@@ -1174,7 +1814,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         } else {
             Type expressionType = expression.getType();
 
-            if (!expressionType.equals(type)) {
+            boolean lambdaCastForced = forceCast && expression instanceof LambdaIdentifiersExpression lambda && type instanceof ObjectType && expressionType.equals(type)
+                    && isLambdaWithImplicitParameters(lambda);
+
+            if (lambdaCastForced) {
+                // 'spliterator.tryAdvance(i -> ...)' is ambiguous between a Consumer and an IntConsumer: javac needs the target type
+                expression = addCastExpression(type, expression);
+            } else if (!expressionType.equals(type)) {
                 if (type.isObjectType()) {
                     if (expressionType.isObjectType()) {
                         ObjectType objectType = (ObjectType) type;
@@ -1187,17 +1833,26 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 ClassFileNewExpression ne = (ClassFileNewExpression)expression;
                                 ne.setObjectType(ne.getObjectType().createType(null));
                             }
-                            if (expression instanceof LambdaIdentifiersExpression) {
+                            if (expression instanceof LambdaIdentifiersExpression
+                                    || objectType.getTypeArguments() != null && hasKnownTypeParameters(objectType)
+                                    && (visitingWitnessedInvocation || !objectType.findTypeParametersInType().isEmpty())) {
+                                // (a raw argument would turn the call into an unchecked one, whatever the witness says)
                                 expression = addCastExpression(objectType, expression);
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!isJavaLangObject(type) && !typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)) {
+                        } else if (!isJavaLangObject(type) && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
+                                || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType))) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
                             BaseTypeArgument ta2 = expressionObjectType.getTypeArguments();
                             Type t = type;
 
                             if (ta1 != null && ta2 != null && !ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2)) {
+                                if (objectType.rawEquals(expressionObjectType) && isInferredFromTarget(expression, ta1, ta2)) {
+                                    // The type arguments of the invoked method are only fixed by the target type: javac infers them
+                                    acceptWithExpectedType(expression, type);
+                                    return expression;
+                                }
                                 if (objectType.rawEquals(expressionObjectType) && isWildcardOnTypeVariableMismatch(ta1, ta2, unboundType, expressionObjectType)) {
                                     // Wildcard type arguments bind to the method's type variables through capture conversion: no cast needed
                                     acceptWithExpectedType(expression, type);
@@ -1213,9 +1868,20 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                     return expression;
                                 }
                                 // Incompatible typeArgument arguments => Add cast
-                                t = objectType.createType(ta1.isGenericTypeArgument() ? ta1 :  null);
+                                t = objectType.createType(ta1.isGenericTypeArgument() || isWildcardExtendingTypeVariable(ta1) ? ta1 : null);
                             }
-                            if (!expression.isNew() && hasKnownTypeParameters(t)) {
+                            // A 'new' of a non-generic class has no diamond to infer the type arguments from: its supertypes
+                            // are fixed (e.g. 'new ObjectTypeAdapter()' is a TypeAdapter<Object>, never a TypeAdapter<T>)
+                            boolean fixedSupertypes = expression instanceof ClassFileNewExpression && ta1 != null && expressionObjectType.getTypeArguments() == null
+                                    && typeMaker.isRawTypeAssignable(objectType, expressionObjectType) && hasMethodLevelTypeVariable(objectType);
+                            // An anonymous class creation spells its type arguments out (no diamond to infer them from)
+                            boolean explicitTypeArguments = expression instanceof ClassFileNewExpression newExpression
+                                    && newExpression.getBodyDeclaration() != null && ta1 != null && ta1.isGenericTypeArgument() && ta2 != null;
+                            fixedSupertypes |= explicitTypeArguments;
+                            // 'new Foo<>(wildcardParameterizedArgument)' is a Foo<capture>, which no target type can be inferred for
+                            fixedSupertypes |= expression instanceof ClassFileNewExpression && ta1 != null && ta2 != null
+                                    && ta2.equals(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT) && !hasWildcardTypeArgument(objectType);
+                            if ((!expression.isNew() || fixedSupertypes) && hasKnownTypeParameters(t)) {
                                 if (!(expression instanceof MethodReferenceExpression)
                                         && t instanceof ObjectType targetType
                                         && targetType.getTypeArguments() != null
@@ -1224,8 +1890,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                         && typeMaker.isRawTypeAssignable(targetType, expressionObjectType)) {
                                     t = targetType.createType(null);
                                 }
-                                expression = addCastExpression(t, expression);
+                                expression = castThroughRawTypeIfBounded(t, expression);
                             }
+                        } else if (isNewOfNonGenericClassToTypeVariableTarget(objectType, expression, expressionObjectType)) {
+                            // TypeMaker reports 'class C implements TA<Object>' as having the raw supertype TA, so the assignment
+                            // to TA<T> looks fine; it is not ('new C()' is never a TA<T>): an unchecked cast is always valid
+                            expression = castThroughRawTypeIfBounded(objectType, expression);
                         }
                     } else if (type.getDimension() == 0 && expressionType.isGenericType() && (!isJavaLangObject(type) || forceCast)) {
                         boolean cast = true;
@@ -1240,21 +1910,23 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         }
                     }
                 } else if (type.isGenericType()
-                        && (hasKnownTypeParameters(type) || type.getDimension() > 0)
+                        && (hasKnownTypeParameters(type) || type.getDimension() > 0 && !staticContext)
                         && (expressionType.isObjectType() || expressionType.isGenericType())
-                        && (type.getDimension() != 0 || !visitingLambda)) {
+                        && (type.getDimension() != 0 || !visitingLambda || genericCastInLambda)
+                        && !(visitingVarArgsInvocation && expression.isNewInitializedArray())) {
+                    // (the array of the arguments of a varargs call is printed as its elements: a cast would be printed in front of the first one)
                     expression = addCastExpression(type, expression);
                 }
             }
 
-            if (expression instanceof CastExpression castExpression && isCastToBeRemoved(typeBindings, localTypeBounds, type, castExpression, unique)) {
+            if (!lambdaCastForced && expression instanceof CastExpression castExpression && isCastToBeRemoved(typeBindings, localTypeBounds, type, castExpression, unique)) {
                 // Remove cast expression
                 expression = expression.getExpression();
             }
             if (!unique && isProperMethodReference(expression) && type instanceof ObjectType targetType
                     && expression.getType() instanceof ObjectType expressionObjectType
                     && targetType.rawEquals(expressionObjectType) && hasKnownTypeParameters(type)
-                    && !containsErasedRawGenericType(targetType, unboundType)) {
+                    && !hasWildcardTypeArgument(targetType) && !containsErasedRawGenericType(targetType, unboundType)) {
                 // A method reference may be compatible with several overloads: cast to the target functional interface type
                 expression = addCastExpression(type, expression);
             }
@@ -1262,6 +1934,63 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return expression;
+    }
+
+    /** @return true if one of the type variables of the type is declared by a method (class type variables are shared with the inner classes) */
+    private boolean hasMethodLevelTypeVariable(ObjectType type) {
+        for (String name : type.findTypeParametersInType()) {
+            TypeParameter declaringScope = innermostScopeDeclaring(name);
+
+            if (declaringScope != null && declaringScope.methodLevel()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private TypeParameter innermostScopeDeclaring(String typeVariableName) {
+        for (TypeParameter scope : typeParameters) {
+            for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : scope.type()) {
+                if (typeParameter.getIdentifier().equals(typeVariableName)) {
+                    return scope;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The overloads found by name and parameter count include the static factories of the interfaces implemented by the
+     * class ('Set.of(E)', which are not inherited) and the array parameters of a type variable ('E...') match any bound
+     * type: casting a reference to the bound of a type variable does not tell the overloads apart in this case.
+     */
+    private static boolean isStaticCallWithOnlyTypeVariableParameters(MethodInvocationExpression expression, BaseType unboundParameterTypes, Map<String, BaseType> localTypeBounds, BaseExpression parameters) {
+        if (!expression.getExpression().isObjectTypeReferenceExpression() || unboundParameterTypes == null) {
+            return false;
+        }
+        if (!StreamSupport.stream(parameters.spliterator(), false).allMatch(parameter -> parameter.getType() instanceof ObjectType parameterType
+                && parameterType.getDimension() == 0 && !BOX_TYPE_NAMES.contains(parameterType.getInternalName()))) {
+            return false;
+        }
+        for (Type parameterType : unboundParameterTypes) {
+            if (!(parameterType instanceof GenericType gt) || gt.getDimension() != 0
+                    || localTypeBounds.get(gt.getName()) instanceof ObjectType bound && !isJavaLangObject(bound)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isNewOfNonGenericClassToTypeVariableTarget(ObjectType targetType, Expression expression, ObjectType expressionObjectType) {
+        if (!expression.isNew() || expressionObjectType.getTypeArguments() != null || targetType.getTypeArguments() == null
+                || targetType.getDimension() != 0 || expressionObjectType.getDimension() != 0 || isJavaLangObject(targetType)
+                || targetType.findTypeParametersInType().isEmpty() || !hasKnownTypeParameters(targetType)
+                || !hasMethodLevelTypeVariable(targetType)
+                || !typeMaker.isRawTypeAssignable(targetType, expressionObjectType)) {
+            return false;
+        }
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(expressionObjectType.getInternalName());
+        return typeTypes != null && typeTypes.getTypeParameters() == null;
     }
 
     private void acceptWithExpectedType(Expression expression, Type expectedType) {
@@ -1442,6 +2171,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
         if (expression.isByteCodeCheckCast()
+                && expression.getType() instanceof ObjectType erasedType
+                && expression.getExpression() instanceof ClassFileMethodInvocationExpression call
+                && call.getType() instanceof GenericType resultVariable && resultVariable.getDimension() == 0
+                && declaredBoundsOf(resultVariable.getName()) != null
+                && !declaredBoundsOf(resultVariable.getName()).isList() && declaredBoundsOf(resultVariable.getName()).getFirst() instanceof ObjectType resultBound
+                && erasedType.rawEquals(resultBound)) {
+            // The CHECKCAST after a call whose result is a type variable is to the erasure of that variable: its bound
+            return true;
+        }
+        if (expression.isByteCodeCheckCast()
                 && type instanceof GenericType expectedGenericType
                 && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocationExpression
                 && methodInvocationExpression.getUnboundType() instanceof GenericType returnedGenericType
@@ -1449,8 +2188,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && expectedGenericType.getDimension() == returnedGenericType.getDimension()) {
             return true;
         }
+        if (!expression.isByteCodeCheckCast() && expression.getType() instanceof ObjectType castType
+                && expression.getExpression().getType() instanceof ObjectType nestedType
+                && isUncheckedTypeVariableMismatch(castType, expression.getExpression(), nestedType)) {
+            return false;
+        }
         if (isParameterizedJavaLangObject(expression.getType())) {
             return true;
+        }
+        if (!expression.isByteCodeCheckCast()
+                && expression.getType() instanceof ObjectType castType
+                && expression.getExpression().getType() instanceof ObjectType nestedObjectType
+                && isNewOfNonGenericClassToTypeVariableTarget(castType, expression.getExpression(), nestedObjectType)) {
+            return false;
         }
         if (expression.isByteCodeCheckCast()
                 && expression.getType() instanceof ObjectType castType
@@ -1698,6 +2448,64 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return getMethodTypeParameterNames(expression).contains(type.getName());
     }
 
+    /**
+     * @return true for the invocation of a generic method whose type variables, used by the returned type, no argument fixes,
+     * when the type arguments which differ from the ones of the target are only those type variables
+     */
+    private boolean isInferredFromTarget(Expression expression, BaseTypeArgument targetArguments, BaseTypeArgument expressionArguments) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression methodInvocation)
+                || methodInvocation.getTypeParameters() == null
+                || !(methodInvocation.getUnboundType() instanceof ObjectType unboundObjectType)
+                || unboundObjectType.getTypeArguments() == null
+                || Collections.disjoint(unboundObjectType.findTypeParametersInType(), getMethodTypeParameterNames(methodInvocation))
+                || hasProperMethodArgumentConstraint(methodInvocation)) {
+            return false;
+        }
+
+        List<TypeArgument> target = toTypeArgumentList(targetArguments);
+        List<TypeArgument> actual = toTypeArgumentList(expressionArguments);
+        List<TypeArgument> unbound = toTypeArgumentList(unboundObjectType.getTypeArguments());
+
+        if (target.size() != actual.size() || target.size() != unbound.size()) {
+            return false;
+        }
+        Set<String> methodTypeParameterNames = getMethodTypeParameterNames(methodInvocation);
+
+        for (int i = 0; i < target.size(); i++) {
+            boolean free = unbound.get(i) instanceof GenericType genericType && genericType.getDimension() == 0
+                    && methodTypeParameterNames.contains(genericType.getName());
+
+            if (!free && !target.get(i).equals(actual.get(i))) {
+                // (a fixed type argument is not changed by the inference)
+                return false;
+            }
+            if (free && !withinBoundsOfMethodTypeParameter(methodInvocation, ((GenericType) unbound.get(i)).getName(), target.get(i))) {
+                // 'Ordering<E> o = Ordering.natural()': E is not a Comparable, the inference of the type variable of 'natural' fails
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean withinBoundsOfMethodTypeParameter(ClassFileMethodInvocationExpression methodInvocation, String name, TypeArgument target) {
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : methodInvocation.getTypeParameters()) {
+            if (typeParameter.getIdentifier().equals(name) && typeParameter instanceof TypeParameterWithTypeBounds withBounds) {
+                return target instanceof GenericType targetVariable ? satisfiesBounds(targetVariable, withBounds.getTypeBounds())
+                        : !(target instanceof ObjectType targetType) || satisfiesObjectBounds(targetType, withBounds.getTypeBounds());
+            }
+        }
+        return true;
+    }
+
+    private boolean satisfiesObjectBounds(ObjectType argument, BaseType bounds) {
+        for (Type bound : bounds) {
+            if (bound instanceof ObjectType objectBound && !isJavaLangObject(bound) && !typeMaker.isRawTypeAssignable(objectBound, argument)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static boolean isTargetDependentGenericInvocation(Expression expression) {
         return expression instanceof ClassFileMethodInvocationExpression methodInvocation
                 && methodInvocation.getTypeParameters() != null
@@ -1773,6 +2581,67 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return false;
+    }
+
+    /** @return the name and the descriptor of the method which a bridge method calls, null if it cannot be found */
+    private static String bridgedMethod(org.apache.bcel.classfile.Method bridge) {
+        if (bridge.getCode() == null) {
+            return null;
+        }
+
+        ConstantPoolGen constants = new ConstantPoolGen(bridge.getConstantPool());
+
+        for (InstructionHandle handle : new InstructionList(bridge.getCode().getCode()).getInstructionHandles()) {
+            if (handle.getInstruction() instanceof InvokeInstruction invocation) {
+                return invocation.getName(constants) + invocation.getSignature(constants);
+            }
+        }
+        return null;
+    }
+
+    private static String packageOf(String internalName) {
+        int index = internalName.lastIndexOf('/');
+
+        return index < 0 ? "" : internalName.substring(0, index);
+    }
+
+    private boolean declaresNewMethod(ClassFileBodyDeclaration body, ObjectType superType) {
+        if (body.getMethodDeclarations() == null) {
+            return false;
+        }
+
+        // The methods which a bridge method of the class delegates to override a generic method
+        Set<String> bridgedMethods = body.getMethodDeclarations().stream()
+                .filter(declaration -> (declaration.getFlags() & ACC_BRIDGE) != 0)
+                .map(declaration -> bridgedMethod(declaration.getMethod()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
+            org.apache.bcel.classfile.Method method = declaration.getMethod();
+
+            if ((declaration.getFlags() & (ACC_PRIVATE | ACC_SYNTHETIC | ACC_BRIDGE)) == 0 && method.getName().charAt(0) != '<'
+                    && !overridesInheritedMethod(method, superType, bridgedMethods, packageOf(body.getInternalTypeName()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean overridesInheritedMethod(org.apache.bcel.classfile.Method method, ObjectType superType, Set<String> bridgedMethods, String inheritingPackage) {
+        if (typeMaker.matchCount(superType.getInternalName(), method.getName(), method.getArgumentTypes().length, false) == 0) {
+            return false;
+        }
+        if (inheritedMethodFinder == null || bridgedMethods.contains(method.getName() + method.getSignature())) {
+            // (a bridge method is the proof that a method overrides one whose parameter types are generic)
+            return true;
+        }
+
+        Set<String> inherited = inheritedMethodFinder.parameterDescriptors(superType.getInternalName(), method.getName(), inheritingPackage);
+        String signature = method.getSignature();
+
+        // Unknown inherited methods: the name and the number of parameters decide
+        return inherited == null || inherited.contains(signature.substring(0, signature.indexOf(')') + 1));
     }
 
     private boolean prepareDiamondTypeArgumentsIfPossible(NewExpression expression) {
@@ -1867,8 +2736,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private Set<String> findKnownTypeParameters() {
         Set<String> genericIdentifiers = new HashSet<>();
+        // (the scopes are iterated from the innermost one)
+        int index = typeParameters.size() - 1;
         for (TypeParameter baseTypeParameters : typeParameters) {
-            if (!staticContext || baseTypeParameters.staticContext()) {
+            if (index-- >= staticBoundary || baseTypeParameters.methodLevel()) {
                 baseTypeParameters.type().forEach(typeParameter -> genericIdentifiers.add(typeParameter.getIdentifier()));
             }
         }

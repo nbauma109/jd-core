@@ -44,6 +44,11 @@ public abstract class AbstractTypeParametersToTypeArgumentsBinder {
 
     public abstract void bindParameterTypesWithArgumentTypes(Type type, Expression expression, boolean parametersFirst);
 
+    /** Binds an operand of '==' to the type of the other one: there is no assignment context, the witness of a generic call stays */
+    public void bindOperandTypeWithOtherOperandType(Type type, Expression expression) {
+        bindParameterTypesWithArgumentTypes(type, expression);
+    }
+
     public void setExceptionTypes(BaseType exceptionTypes) {
         this.exceptionTypes = exceptionTypes;
     }

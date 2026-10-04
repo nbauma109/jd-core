@@ -8,6 +8,7 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.apache.bcel.Const;
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.CompilationUnit;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
@@ -41,9 +42,13 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private TypeDeclaration typeDeclaration;
 
     public UpdateJavaSyntaxTreeStep2Visitor(TypeMaker typeMaker) {
+        this(typeMaker, null);
+    }
+
+    public UpdateJavaSyntaxTreeStep2Visitor(TypeMaker typeMaker, Loader loader) {
         this.replaceBridgeMethodVisitor = new UpdateBridgeMethodVisitor(typeMaker);
-        this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker);
-        this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker);
+        this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker, loader);
+        this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker, loader);
         this.autoboxingVisitor = new AutoboxingVisitor(typeMaker);
     }
 

@@ -17,6 +17,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.Loop;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.CmpDepthCFGReducer;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.DuplicateMergeCFGReducer;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.MinDepthCFGReducer;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.cfg.SkippedMergeCFGReducer;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -27,11 +28,19 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.UnaryOperator;
 
+import static org.apache.bcel.Const.ALOAD;
+import static org.apache.bcel.Const.ALOAD_0;
+import static org.apache.bcel.Const.ALOAD_3;
+import static org.apache.bcel.Const.ASTORE;
+import static org.apache.bcel.Const.ASTORE_0;
+import static org.apache.bcel.Const.ASTORE_3;
 import static org.apache.bcel.Const.GOTO;
 import static org.apache.bcel.Const.GOTO_W;
 import static org.apache.bcel.Const.ICONST_0;
 import static org.apache.bcel.Const.JSR;
 import static org.apache.bcel.Const.JSR_W;
+import static org.apache.bcel.Const.MONITOREXIT;
+import static org.apache.bcel.Const.WIDE;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.END;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_CONDITION;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.GROUP_END;
@@ -100,6 +109,113 @@ public abstract class ControlFlowGraphReducer {
         }
     }
 
+    /**
+     * A statement continuation M reached by several branches of an 'if ... else if ...' chain, whose other arms leave
+     * the chain by a 'break' to the code T which follows M (the jump goes over M):
+     *
+     * <pre>if (a) { if (b) { x = 1; break; } } else if (c) { if (d) { x = 2; break; } } M: x = 3; T:</pre>
+     *
+     * M is then not an arm of any of the conditions: it is the continuation of the whole chain, which all its
+     * predecessors reach by falling out of their 'if', while the arms which skip it are the exits. Turning those
+     * exits into jump stubs (rendered as 'break label' to T) lets the usual construction build the chain with M as
+     * its continuation, rather than nesting M in one arm and having to jump to it from the others.
+     *
+     * @return the offsets of such merges, which must not be split any further
+     */
+    protected static Set<Integer> turnJumpsOverMergesIntoStubs(ControlFlowGraph cfg) {
+        Set<Integer> structuredMerges = new HashSet<>();
+
+        for (BasicBlock merge : new ArrayList<>(cfg.getBasicBlocks())) {
+            BasicBlock tail = continuationOfSharedMerge(merge);
+
+            if (tail != null && stubJumpsOver(cfg, merge, tail)) {
+                structuredMerges.add(merge.getFromOffset());
+            }
+        }
+        return structuredMerges;
+    }
+
+    /**
+     * A condition which goes over some code to a statement merge, which the end of that code also reaches:
+     *
+     * <pre>locked: { if (!fair) { if (lock.tryLock()) break locked; } start = now(); lock.lock(); } x = 1;</pre>
+     *
+     * The merge is not an arm of any condition (the code which is skipped does not end with a jump), so the construction
+     * cannot nest it. The skipping edge becomes a jump stub, rendered as 'break label' out of a block around the skipped code.
+     */
+    protected static void turnConditionalSkipsIntoStubs(ControlFlowGraph cfg) {
+        for (BasicBlock merge : new ArrayList<>(cfg.getBasicBlocks())) {
+            if (!merge.matchType(TYPE_STATEMENTS) || merge.getPredecessors().size() < 2) {
+                continue;
+            }
+            for (BasicBlock skipping : new ArrayList<>(merge.getPredecessors())) {
+                if (isConditionalSkip(skipping, merge)) {
+                    BasicBlock stub = cfg.newJumpBasicBlock(skipping, merge);
+
+                    if (skipping.getNext() == merge) {
+                        skipping.setNext(stub);
+                    } else {
+                        skipping.setBranch(stub);
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean isConditionalSkip(BasicBlock skipping, BasicBlock merge) {
+        return skipping.matchType(TYPE_CONDITIONAL_BRANCH) && (skipping.getNext() == merge) != (skipping.getBranch() == merge)
+                && skipsToMerge(skipping, skipping.getNext() == merge ? skipping.getBranch() : skipping.getNext(), merge);
+    }
+
+    /**
+     * @return true if the code which follows the condition is itself a merge (the end of the block which holds the condition) which
+     *         leads to the merge: the condition does not end its own block, it leaves the enclosing one
+     */
+    private static boolean skipsToMerge(BasicBlock condition, BasicBlock follower, BasicBlock merge) {
+        return follower.getPredecessors().size() >= 2 && follower.getFromOffset() > condition.getFromOffset()
+                && follower.getFromOffset() < merge.getFromOffset() && reaches(follower, merge, new HashSet<>());
+    }
+
+    private static boolean reaches(BasicBlock from, BasicBlock target, Set<BasicBlock> visited) {
+        if (from == target) {
+            return true;
+        }
+        if (from == null || from.getIndex() < 0 || !visited.add(from)) {
+            return false;
+        }
+        return reaches(from.getNext(), target, visited) || reaches(from.getBranch(), target, visited);
+    }
+
+    /** @return the block which follows a statement merge reached by several blocks, or null */
+    private static BasicBlock continuationOfSharedMerge(BasicBlock merge) {
+        if (!merge.matchType(TYPE_STATEMENTS) || merge.getPredecessors().size() < 2) {
+            return null;
+        }
+
+        BasicBlock tail = merge.getNext();
+
+        return tail.getIndex() < 0 || tail.matchType(GROUP_END) || !tail.getPredecessors().contains(merge) ? null : tail;
+    }
+
+    /** @return true if a block which goes over the merge to its continuation was made a jump stub */
+    private static boolean stubJumpsOver(ControlFlowGraph cfg, BasicBlock merge, BasicBlock tail) {
+        boolean stubbed = false;
+
+        for (BasicBlock skipping : new ArrayList<>(tail.getPredecessors())) {
+            if (skipping != merge && skipping.matchType(TYPE_STATEMENTS) && skipping.getNext() == tail
+                    && skipping.getFromOffset() < merge.getFromOffset() && !merge.getPredecessors().contains(skipping)) {
+                skipping.setNext(cfg.newJumpBasicBlock(skipping, tail));
+                stubbed = true;
+            }
+        }
+        return stubbed;
+    }
+
+    /** @return true if the code which is also reached from outside a loop must not be part of it: only for the methods which cannot be reduced otherwise */
+    protected boolean pruneSharedLoopCode() {
+        return false;
+    }
+
     protected void afterPreReduce() {
         // No-op by default. Overridden by DuplicateMergeCFGReducer to pre-split merge points
         // shared by more than one predecessor, before any construction heuristic runs.
@@ -109,7 +225,7 @@ public abstract class ControlFlowGraphReducer {
     private void reduceGotoLoop(Method method, boolean splitReturns) {
         controlFlowGraph = new ControlFlowGraphMaker().make(method);
         ControlFlowGraphGotoReducer.reduce(controlFlowGraph, splitReturns);
-        ControlFlowGraphLoopReducer.reduce(controlFlowGraph);
+        ControlFlowGraphLoopReducer.reduce(controlFlowGraph, pruneSharedLoopCode());
     }
 
 
@@ -927,8 +1043,9 @@ public abstract class ControlFlowGraphReducer {
                     && tryBB.getType() == TYPE_TRY
                     && tryBB.getNext() == END
                     && basicBlock.getFromOffset() == tryBB.getFromOffset()
-                    && !containsFinally(tryBB)) {
-                // Merge inner try
+                    && !containsFinally(tryBB)
+                    && !isMonitorExitHandler(finallyBB)) {
+                // Merge inner try (but not into a 'synchronized' block, whose own handler only releases the monitor)
                 basicBlock.getExceptionHandlers().addAll(0, tryBB.getExceptionHandlers());
 
                 for (ExceptionHandler exceptionHandler : tryBB.getExceptionHandlers()) {
@@ -990,6 +1107,35 @@ public abstract class ControlFlowGraphReducer {
         }
 
         return reduced;
+    }
+
+    /** @return true if the handler is the one of a 'synchronized' block: 'astore e; aload monitor; monitorexit; aload e; athrow' */
+    private static boolean isMonitorExitHandler(BasicBlock handler) {
+        byte[] code = handler.getControlFlowGraph().getMethod().getCode().getCode();
+        int offset = handler.getFromOffset();
+
+        offset = skipLocalVariableInstruction(code, offset, ASTORE, ASTORE_0, ASTORE_3);
+        offset = offset < 0 ? offset : skipLocalVariableInstruction(code, offset, ALOAD, ALOAD_0, ALOAD_3);
+
+        return offset >= 0 && offset < code.length && (code[offset] & 255) == MONITOREXIT;
+    }
+
+    /** @return the offset of the instruction which follows the load or store found at the offset, or -1 */
+    static int skipLocalVariableInstruction(byte[] code, int offset, int opcode, int firstShortcut, int lastShortcut) {
+        if (offset >= code.length) {
+            return -1;
+        }
+
+        int actual = code[offset] & 255;
+
+        if (actual == opcode) {
+            return offset + 2;
+        }
+        if (actual == WIDE && offset + 1 < code.length && (code[offset + 1] & 255) == opcode) {
+            // the variable index takes two bytes
+            return offset + 4;
+        }
+        return actual >= firstShortcut && actual <= lastShortcut ? offset + 1 : -1;
     }
 
     private static boolean containsFinally(BasicBlock basicBlock) {
@@ -1636,6 +1782,8 @@ public abstract class ControlFlowGraphReducer {
         preferredReducers.add(new MinDepthCFGReducer(false));
         preferredReducers.add(new MinDepthCFGReducer(true));
         preferredReducers.add(new CmpDepthCFGReducer());
+        preferredReducers.add(new SkippedMergeCFGReducer(false));
+        preferredReducers.add(new SkippedMergeCFGReducer(true));
         preferredReducers.add(new DuplicateMergeCFGReducer());
         return preferredReducers;
     }

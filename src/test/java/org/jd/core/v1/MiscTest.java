@@ -653,7 +653,7 @@ public class MiscTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         // Check decompiled source code
-        assertTrue(source.matches(PatternMaker.make("if (!EnumSet.copyOf((Collection)Collections.synchronizedList(expected)).contains(this.scopes.pop()))")));
+        assertTrue(source.matches(PatternMaker.make("if (!EnumSet.copyOf(Collections.synchronizedList(expected)).contains(this.scopes.pop()))")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

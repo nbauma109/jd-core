@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BinaryOperator;
@@ -454,5 +455,53 @@ public class GuavaPatterns {
     /** The cast is the receiver of a call whose result is the argument of another call: it must not be typed as the parameter (an array) */
     public boolean castReceiverInArgument(Type supertype) {
         return runtimeType.equals(supertype) || of(((TypeVariable<?>) runtimeType).getBounds()).isSubtypeOf(supertype);
+    }
+
+    static class Monitor2 {
+        abstract static class Guard {
+            final Monitor2 monitor;
+
+            Guard(Monitor2 monitor) {
+                this.monitor = monitor;
+            }
+
+            abstract boolean isSatisfied();
+        }
+    }
+
+    final Monitor2 monitor2 = new Monitor2();
+
+    /** The first parameter of the constructor of the static nested class is of the type of its outer class: it is not an outer instance */
+    final class IsGuard extends Monitor2.Guard {
+        IsGuard() {
+            super(monitor2);
+        }
+
+        @Override
+        boolean isSatisfied() {
+            return modCount == 0;
+        }
+    }
+
+    abstract static class Ord<T> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Ord<C> natural() {
+            return null;
+        }
+    }
+
+    /** E is not a Comparable: the type variable of 'natural' cannot be inferred from the type of the variable */
+    public static <E> Ord<E> naturalOrder(Iterable<? extends E> elements) {
+        Ord<E> naturalOrder = (Ord<E>) Ord.natural();
+        return naturalOrder;
+    }
+
+    static <E> List<E> copyOf(java.util.Comparator<? super E> comparator, Iterable<? extends E> elements) {
+        return null;
+    }
+
+    /** The array of the arguments of a varargs call, of a type variable which has a bound, is not cast */
+    public static <E extends Comparable<? super E>> List<E> twoOf(E first, E second) {
+        return copyOf(null, Arrays.asList(first, second));
     }
 }

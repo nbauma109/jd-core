@@ -121,6 +121,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private final TypeMaker typeMaker;
     private final Loader loader;
+    private boolean visitingVarArgsInvocation;
     private final SingleAbstractMethodFinder singleAbstractMethodFinder;
     private final InheritedMethodFinder inheritedMethodFinder;
     private boolean lambdaReturnFromTarget;
@@ -645,7 +646,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && !expression.getExpression().isThisExpression();
             Set<String> oldTypeVariablesSharedAcrossParameters = typeVariablesSharedAcrossParameters;
             typeVariablesSharedAcrossParameters = findTypeVariablesSharedAcrossParameters(unboundParameterTypes);
+            boolean oldVisitingVarArgs = visitingVarArgsInvocation;
+            visitingVarArgsInvocation = expression.isVarArgs();
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, new CastFlags(forceCast, unique, rawCast)));
+            visitingVarArgsInvocation = oldVisitingVarArgs;
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
             typeVariablesSharedAcrossParameters = oldTypeVariablesSharedAcrossParameters;
         }
@@ -1579,7 +1583,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 } else if (type.isGenericType()
                         && (hasKnownTypeParameters(type) || type.getDimension() > 0)
                         && (expressionType.isObjectType() || expressionType.isGenericType())
-                        && (type.getDimension() != 0 || !visitingLambda || genericCastInLambda)) {
+                        && (type.getDimension() != 0 || !visitingLambda || genericCastInLambda)
+                        && !(visitingVarArgsInvocation && expression.isNewInitializedArray())) {
+                    // (the array of the arguments of a varargs call is printed as its elements: a cast would be printed in front of the first one)
                     expression = addCastExpression(type, expression);
                 }
             }
@@ -2080,7 +2086,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * @return true for the invocation of a generic method whose type variables, used by the returned type, no argument fixes,
      * when the type arguments which differ from the ones of the target are only those type variables
      */
-    private static boolean isInferredFromTarget(Expression expression, BaseTypeArgument targetArguments, BaseTypeArgument expressionArguments) {
+    private boolean isInferredFromTarget(Expression expression, BaseTypeArgument targetArguments, BaseTypeArgument expressionArguments) {
         if (!(expression instanceof ClassFileMethodInvocationExpression methodInvocation)
                 || methodInvocation.getTypeParameters() == null
                 || !(methodInvocation.getUnboundType() instanceof ObjectType unboundObjectType)
@@ -2105,6 +2111,29 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
             if (!free && !target.get(i).equals(actual.get(i))) {
                 // (a fixed type argument is not changed by the inference)
+                return false;
+            }
+            if (free && !withinBoundsOfMethodTypeParameter(methodInvocation, ((GenericType) unbound.get(i)).getName(), target.get(i))) {
+                // 'Ordering<E> o = Ordering.natural()': E is not a Comparable, the inference of the type variable of 'natural' fails
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean withinBoundsOfMethodTypeParameter(ClassFileMethodInvocationExpression methodInvocation, String name, TypeArgument target) {
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : methodInvocation.getTypeParameters()) {
+            if (typeParameter.getIdentifier().equals(name) && typeParameter instanceof TypeParameterWithTypeBounds withBounds) {
+                return target instanceof GenericType targetVariable ? satisfiesBounds(targetVariable, withBounds.getTypeBounds())
+                        : !(target instanceof ObjectType targetType) || satisfiesObjectBounds(targetType, withBounds.getTypeBounds());
+            }
+        }
+        return true;
+    }
+
+    private boolean satisfiesObjectBounds(ObjectType argument, BaseType bounds) {
+        for (Type bound : bounds) {
+            if (bound instanceof ObjectType objectBound && !isJavaLangObject(bound) && !typeMaker.isRawTypeAssignable(objectBound, argument)) {
                 return false;
             }
         }

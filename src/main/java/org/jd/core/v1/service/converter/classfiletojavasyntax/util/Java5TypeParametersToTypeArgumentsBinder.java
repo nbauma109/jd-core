@@ -57,6 +57,7 @@ import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeArguments;
 import org.jd.core.v1.model.javasyntax.type.TypeParameter;
+import org.jd.core.v1.model.javasyntax.type.TypeParameterWithTypeBounds;
 import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardTypeArgument;
@@ -271,6 +272,53 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
+    /**
+     * 'Ordering&lt;E&gt; o = Ordering.natural()' (natural: &lt;C extends Comparable&gt;) where E is not a Comparable: what the variable is
+     * declared with is not what javac infers, C is a Comparable and a cast makes the result an Ordering&lt;E&gt;.
+     */
+    private void bindMethodTypeVariablesOutsideTheirBoundsToTheirBounds(Map<String, TypeArgument> bindings, BaseTypeParameter methodTypeParameters) {
+        if (methodTypeParameters == null) {
+            return;
+        }
+        for (TypeParameter typeParameter : methodTypeParameters) {
+            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds && withBounds.getTypeBounds().getFirst() instanceof ObjectType firstBound
+                    && !TYPE_OBJECT.equals(firstBound) && bindings.get(typeParameter.getIdentifier()) instanceof Type bound
+                    && !withinBounds(bound, withBounds.getTypeBounds())) {
+                bindings.put(typeParameter.getIdentifier(), firstBound.createType(null));
+            }
+        }
+    }
+
+    private boolean withinBounds(Type type, BaseType bounds) {
+        for (Type bound : bounds) {
+            if (!(bound instanceof ObjectType objectBound) || TYPE_OBJECT.equals(objectBound)) {
+                continue;
+            }
+            if (type instanceof GenericType variable && variable.getDimension() == 0) {
+                if (!variableHasBound(variable, objectBound)) {
+                    return false;
+                }
+            } else if (type instanceof ObjectType objectType && objectType.getDimension() == 0 && !typeMaker.isRawTypeAssignable(objectBound, objectType)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean variableHasBound(GenericType variable, ObjectType required) {
+        BaseType variableBounds = contextualTypeBounds.get(variable.getName());
+
+        if (variableBounds == null) {
+            return false;
+        }
+        for (Type declared : variableBounds) {
+            if (declared instanceof ObjectType declaredObjectType && typeMaker.isRawTypeAssignable(required, declaredObjectType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean populateBindings(
             Map<String, TypeArgument> bindings, Expression expression, BaseType mieExceptionTypes,
             BaseTypeParameter typeParameters, BaseTypeArgument typeArguments, BaseTypeParameter methodTypeParameters,
@@ -305,6 +353,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
 
         populateBindingsFromReturnType(bindings, returnType, returnExpressionType, typeBounds);
+        bindMethodTypeVariablesOutsideTheirBoundsToTheirBounds(bindings, methodTypeParameters);
 
         if (parameterTypes != null) {
             if (parameterTypes.isList() && parameters.isList()) {

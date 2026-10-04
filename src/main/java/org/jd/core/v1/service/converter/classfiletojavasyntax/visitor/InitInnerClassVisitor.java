@@ -741,6 +741,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
+        /** A static nested class has no outer instance, even if the type of its first parameter is its outer class (Monitor.Guard(Monitor)) */
+        private boolean isInstanceMemberClass(String internalName) {
+            return instanceMemberClassFinder == null || instanceMemberClassFinder.isInstanceMemberClass(internalName);
+        }
+
         private ClassFileBodyDeclaration enclosingBodyDeclaration(String internalName) {
             for (ClassFileBodyDeclaration bd = bodyDeclaration; bd != null; bd = bd.getOuterBodyDeclaration()) {
                 if (bd.getInternalTypeName().equals(internalName)) {
@@ -762,7 +767,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 if (firstParameterType.isObjectType() && !classFile.isStatic() && bodyDeclaration.hasOuterInstanceParameter()) {
                     TypeMaker.TypeTypes superTypeTypes = typeMaker.makeTypeTypes(classFile.getSuperTypeName());
 
-                    if (superTypeTypes != null && superTypeTypes.getThisType().isInnerObjectType() && typeMaker.isRawTypeAssignable(superTypeTypes.getThisType().getOuterType(), (ObjectType)firstParameterType)) {
+                    if (superTypeTypes != null && superTypeTypes.getThisType().isInnerObjectType() && typeMaker.isRawTypeAssignable(superTypeTypes.getThisType().getOuterType(), (ObjectType)firstParameterType)
+                            && isInstanceMemberClass(classFile.getSuperTypeName())) {
                         scie.setParameters(removeFirstItem(parameters));
                         scie.setParameterTypes(removeFirstItem(scie.getParameterTypes()));
                     }

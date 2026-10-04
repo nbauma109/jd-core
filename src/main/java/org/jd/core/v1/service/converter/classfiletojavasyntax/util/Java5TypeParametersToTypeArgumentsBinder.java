@@ -720,6 +720,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
             if (parametersFirst) {
                 Type typeBeforeVisitingExpression = this.type;
+                // The receiver is not what the enclosing call expects (an array for a parameter 'Type[]' of 'foo(((Bar) x).getArray())')
+                this.type = expressionType;
                 exp.accept(this);
                 this.type = typeBeforeVisitingExpression;
 

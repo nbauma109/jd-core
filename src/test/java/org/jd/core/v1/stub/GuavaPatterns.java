@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BinaryOperator;
@@ -437,5 +439,20 @@ public class GuavaPatterns {
                 }
             }
         }
+    }
+
+    static GuavaPatterns of(Type[] bounds) {
+        return new GuavaPatterns();
+    }
+
+    boolean isSubtypeOf(Type type) {
+        return type != null;
+    }
+
+    final Type runtimeType = null;
+
+    /** The cast is the receiver of a call whose result is the argument of another call: it must not be typed as the parameter (an array) */
+    public boolean castReceiverInArgument(Type supertype) {
+        return runtimeType.equals(supertype) || of(((TypeVariable<?>) runtimeType).getBounds()).isSubtypeOf(supertype);
     }
 }

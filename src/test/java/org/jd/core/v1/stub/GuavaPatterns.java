@@ -577,4 +577,19 @@ public class GuavaPatterns {
         }
         return subgraph;
     }
+
+    public abstract static class FactorySet<E> extends java.util.AbstractSet<E> {
+        static <E> FactorySet<E> of(E element) {
+            return null;
+        }
+
+        static <E> FactorySet<E> of(E element1, E element2) {
+            return null;
+        }
+    }
+
+    /** 'Set.of(E)' and 'Set.of(E...)' are not inherited by the static factories of a set */
+    public static FactorySet<String> factoryOfOne(String value) {
+        return FactorySet.of(value);
+    }
 }

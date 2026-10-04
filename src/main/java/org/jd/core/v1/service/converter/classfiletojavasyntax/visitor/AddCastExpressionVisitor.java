@@ -136,6 +136,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean visitingAnonymousClass;
     private boolean visitingLambda;
     private Expression memberReceiver;
+    private static final Set<String> BOX_TYPE_NAMES = Set.of("java/lang/Boolean", "java/lang/Byte", "java/lang/Character", "java/lang/Short", "java/lang/Integer", "java/lang/Long", "java/lang/Float", "java/lang/Double");
     private boolean visitingWitnessedInvocation;
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
     private Set<String> fieldNamesInLambda = new HashSet<>();
@@ -666,7 +667,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 addImplicitObjectBounds(localTypeBounds, unboundParameterTypes, methodTypeParameterNames);
             }
             boolean unique = typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size(), false) <= 1;
-            boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1;
+            boolean forceCast = !unique && typeMaker.matchCount(typeBindings, localTypeBounds, expression.getInternalTypeName(), expression.getName(), parameters, false) > 1
+                    && !isStaticCallWithOnlyTypeVariableParameters(expression, unboundParameterTypes, localTypeBounds, parameters);
             boolean rawCast = false;
             boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
             // The printer only renders <TypeArgs> when a receiver qualifier is also printed: an implicit
@@ -1658,6 +1660,31 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return null;
+    }
+
+    /**
+     * The overloads found by name and parameter count include the static factories of the interfaces implemented by the
+     * class ('Set.of(E)', which are not inherited) and the array parameters of a type variable ('E...') match any bound
+     * type: casting a reference to the bound of a type variable does not tell the overloads apart in this case.
+     */
+    private static boolean isStaticCallWithOnlyTypeVariableParameters(MethodInvocationExpression expression, BaseType unboundParameterTypes, Map<String, BaseType> localTypeBounds, BaseExpression parameters) {
+        if (!expression.getExpression().isObjectTypeReferenceExpression() || unboundParameterTypes == null) {
+            return false;
+        }
+        for (Expression parameter : parameters) {
+            if (!parameter.getType().isObjectType() || parameter.getType().getDimension() != 0
+                    || ObjectType.TYPE_OBJECT.equals(parameter.getType())
+                    || BOX_TYPE_NAMES.contains(((ObjectType) parameter.getType()).getInternalName())) {
+                return false;
+            }
+        }
+        for (Type parameterType : unboundParameterTypes) {
+            if (!(parameterType instanceof GenericType gt) || gt.getDimension() != 0
+                    || localTypeBounds.get(gt.getName()) instanceof ObjectType bound && !isJavaLangObject(bound)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private boolean isNewOfNonGenericClassToTypeVariableTarget(ObjectType targetType, Expression expression, ObjectType expressionObjectType) {

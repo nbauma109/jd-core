@@ -981,34 +981,32 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     Statements current = root;
                     Statements target = null;
                     Statement user = null;
+                    List<Statement> users = usersOf(current, internalName);
 
-                    while (true) {
-                        List<Statement> users = current.stream().filter(statement -> countNewExpressions(statement, internalName) > 0).toList();
-
-                        if (users.size() != 1) {
-                            break;
-                        }
+                    while (users.size() == 1) {
                         user = users.get(0);
-                        List<Statements> nested = nestedStatements(user);
-                        Statements next = nested.stream().filter(list -> countNewExpressions(list, internalName) > 0).findFirst().orElse(null);
+                        Statements next = nestedStatements(user).stream().filter(list -> countUses(list, internalName) > 0).findFirst().orElse(null);
 
-                        if (target != null || current != root) {
+                        if (next == null || countUses(user, internalName) != countUses(next, internalName)) {
                             target = current;
-                        }
-                        if (next == null || countNewExpressions(user, internalName) != countNewExpressions(next, internalName)) {
                             break;
                         }
                         current = next;
                         target = current;
+                        users = usersOf(current, internalName);
                     }
-                    if (target != null && target != root && user != null && target.contains(user)) {
+                    if (target != null && target != root && target.contains(user)) {
                         target.add(target.indexOf(user), new TypeDeclarationStatement(declaration));
                         localClassDeclarations.remove(declaration);
                     }
                 }
             }
 
-            private int countNewExpressions(Object syntax, String internalName) {
+            private List<Statement> usersOf(Statements list, String internalName) {
+                return list.stream().filter(statement -> countUses(statement, internalName) > 0).toList();
+            }
+
+            private int countUses(Object syntax, String internalName) {
                 int[] count = new int[1];
                 AbstractJavaSyntaxVisitor counter = new AbstractJavaSyntaxVisitor() {
                     @Override
@@ -1017,6 +1015,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             count[0]++;
                         }
                         super.visit(expression);
+                    }
+
+                    @Override
+                    public void visit(TypeReferenceDotClassExpression expression) {
+                        if (expression.getTypeDotClass() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
+                            count[0]++;
+                        }
                     }
                 };
                 if (syntax instanceof Statement statement) {

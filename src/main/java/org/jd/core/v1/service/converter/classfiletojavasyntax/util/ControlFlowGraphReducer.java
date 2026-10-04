@@ -149,8 +149,7 @@ public abstract class ControlFlowGraphReducer {
                 continue;
             }
             for (BasicBlock skipping : new ArrayList<>(merge.getPredecessors())) {
-                if (skipping.matchType(TYPE_CONDITIONAL_BRANCH) && (skipping.getNext() == merge) != (skipping.getBranch() == merge)
-                        && skipsToMerge(skipping, skipping.getNext() == merge ? skipping.getBranch() : skipping.getNext(), merge)) {
+                if (isConditionalSkip(skipping, merge)) {
                     BasicBlock stub = cfg.newJumpBasicBlock(skipping, merge);
 
                     if (skipping.getNext() == merge) {
@@ -161,6 +160,11 @@ public abstract class ControlFlowGraphReducer {
                 }
             }
         }
+    }
+
+    private static boolean isConditionalSkip(BasicBlock skipping, BasicBlock merge) {
+        return skipping.matchType(TYPE_CONDITIONAL_BRANCH) && (skipping.getNext() == merge) != (skipping.getBranch() == merge)
+                && skipsToMerge(skipping, skipping.getNext() == merge ? skipping.getBranch() : skipping.getNext(), merge);
     }
 
     /**

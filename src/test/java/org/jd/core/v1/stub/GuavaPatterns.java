@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 
 /** Shapes which made Guava 33.7.2 decompile to code which did not print or did not recompile. */
-@SuppressWarnings({"unchecked", "rawtypes"})
+@SuppressWarnings({"unchecked", "rawtypes", "java:S1172", "java:S119", "java:S1488", "java:S2133", "java:S1130", "java:S1117"})
 public class GuavaPatterns {
     int modCount;
 

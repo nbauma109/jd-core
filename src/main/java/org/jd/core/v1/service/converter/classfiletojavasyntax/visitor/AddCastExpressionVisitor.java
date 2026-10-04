@@ -90,6 +90,7 @@ import org.jd.core.v1.util.StringConstants;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.stream.StreamSupport;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -1364,14 +1365,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
             if (isFieldOfAnotherInstanceWithTypeVariables(expression.getLeftExpression())) {
                 // The field type is declared with the type variables of its class, which the receiver binds differently
-                // (the cast to the declared type, which the bytecode has for the erased result of a generic call, goes with it)
-                if (rightExpression instanceof CastExpression cast && cast.getExpression() instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
-                        && cast.getType() instanceof ObjectType castType
-                        && castType.rawEquals((ObjectType) expression.getLeftExpression().getType())) {
-                    rightExpression = cast.getExpression();
-                    expression.setRightExpression(rightExpression);
-                }
-                rightExpression.accept(this);
+                dropCastToDeclaredFieldType(expression).accept(this);
                 return;
             }
 
@@ -1390,6 +1384,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         rightExpression.accept(this);
+    }
+
+    /** The cast to the declared type, which the bytecode has for the erased result of a generic call, goes with the cast to the field type */
+    private static Expression dropCastToDeclaredFieldType(BinaryOperatorExpression assignment) {
+        Expression right = assignment.getRightExpression();
+
+        if (right instanceof CastExpression cast && cast.getExpression() instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
+                && cast.getType() instanceof ObjectType castType
+                && castType.rawEquals((ObjectType) assignment.getLeftExpression().getType())) {
+            right = cast.getExpression();
+            assignment.setRightExpression(right);
+        }
+        return right;
     }
 
     @Override
@@ -1458,7 +1465,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> viewArguments = typeArgumentsSeenAs(target.getInternalName(), expressionType, 0);
         List<TypeArgument> targetArguments = toTypeArgumentList(target.getTypeArguments());
 
-        if (viewArguments == null) {
+        if (viewArguments.isEmpty()) {
             return false;
         }
 
@@ -1474,17 +1481,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    /** @return the type arguments of the given type seen as the given (super) class or interface, null if it is raw or unrelated */
-    private List<TypeArgument> typeArgumentsSeenAs(String internalName, ObjectType type, int depth) {
-        if (type.getInternalName().equals(internalName)) {
-            return type.getTypeArguments() == null ? null : toTypeArgumentList(type.getTypeArguments());
-        }
-        TypeTypes typeTypes = depth > 8 ? null : typeMaker.makeTypeTypes(type.getInternalName());
-
-        if (typeTypes == null) {
-            return null;
-        }
-        List<TypeArgument> typeArguments = type.getTypeArguments() == null ? List.of() : toTypeArgumentList(type.getTypeArguments());
+    private static List<ObjectType> supertypesOf(TypeTypes typeTypes) {
         List<ObjectType> supertypes = new ArrayList<>();
 
         if (typeTypes.getSuperType() != null) {
@@ -1497,34 +1494,51 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
         }
-        for (ObjectType supertype : supertypes) {
-            ObjectType bound = supertype;
+        return supertypes;
+    }
 
-            if (typeTypes.getTypeParameters() != null && supertype.getTypeArguments() != null) {
-                Map<String, TypeArgument> bindings = new HashMap<>();
-                int index = 0;
+    private static ObjectType substituteTypeVariables(ObjectType supertype, BaseTypeParameter typeParameters, List<TypeArgument> typeArguments) {
+        if (typeParameters == null || supertype.getTypeArguments() == null) {
+            return supertype;
+        }
+        Map<String, TypeArgument> bindings = new HashMap<>();
+        int index = 0;
 
-                for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
-                    if (index < typeArguments.size()) {
-                        bindings.put(typeParameter.getIdentifier(), typeArguments.get(index));
-                    }
-                    index++;
-                }
-                TypeArguments substituted = new TypeArguments();
-
-                for (TypeArgument supertypeArgument : toTypeArgumentList(supertype.getTypeArguments())) {
-                    substituted.add(supertypeArgument instanceof GenericType variable && variable.getDimension() == 0 && bindings.containsKey(variable.getName())
-                            ? bindings.get(variable.getName()) : supertypeArgument);
-                }
-                bound = supertype.createType(substituted);
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (index < typeArguments.size()) {
+                bindings.put(typeParameter.getIdentifier(), typeArguments.get(index));
             }
-            List<TypeArgument> found = typeArgumentsSeenAs(internalName, bound, depth + 1);
+            index++;
+        }
+        TypeArguments substituted = new TypeArguments();
 
-            if (found != null) {
+        for (TypeArgument supertypeArgument : toTypeArgumentList(supertype.getTypeArguments())) {
+            substituted.add(supertypeArgument instanceof GenericType variable && variable.getDimension() == 0 && bindings.containsKey(variable.getName())
+                    ? bindings.get(variable.getName()) : supertypeArgument);
+        }
+        return supertype.createType(substituted);
+    }
+
+    /** @return the type arguments of the given type seen as the given (super) class or interface, empty if it is raw or unrelated */
+    private List<TypeArgument> typeArgumentsSeenAs(String internalName, ObjectType type, int depth) {
+        if (type.getInternalName().equals(internalName)) {
+            return type.getTypeArguments() == null ? Collections.emptyList() : toTypeArgumentList(type.getTypeArguments());
+        }
+        TypeTypes typeTypes = depth > 8 ? null : typeMaker.makeTypeTypes(type.getInternalName());
+
+        if (typeTypes == null) {
+            return Collections.emptyList();
+        }
+        List<TypeArgument> typeArguments = type.getTypeArguments() == null ? Collections.emptyList() : toTypeArgumentList(type.getTypeArguments());
+
+        for (ObjectType supertype : supertypesOf(typeTypes)) {
+            List<TypeArgument> found = typeArgumentsSeenAs(internalName, substituteTypeVariables(supertype, typeTypes.getTypeParameters(), typeArguments), depth + 1);
+
+            if (!found.isEmpty()) {
                 return found;
             }
         }
-        return null;
+        return Collections.emptyList();
     }
 
     /**
@@ -1542,7 +1556,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> seen = typeArgumentsSeenAs(expected.getInternalName(), returned, 0);
         List<TypeArgument> expectedArguments = toTypeArgumentList(expected.getTypeArguments());
 
-        if (seen == null || seen.size() != expectedArguments.size()) {
+        if (seen.size() != expectedArguments.size()) {
             return false;
         }
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : methodTypes.getTypeParameters()) {
@@ -1801,8 +1815,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         } else {
             Type expressionType = expression.getType();
 
-            boolean lambdaCastForced = forceCast && expression instanceof LambdaIdentifiersExpression && type instanceof ObjectType && expressionType.equals(type)
-                    && isLambdaWithImplicitParameters((LambdaIdentifiersExpression) expression);
+            boolean lambdaCastForced = forceCast && expression instanceof LambdaIdentifiersExpression lambda && type instanceof ObjectType && expressionType.equals(type)
+                    && isLambdaWithImplicitParameters(lambda);
 
             if (lambdaCastForced) {
                 // 'spliterator.tryAdvance(i -> ...)' is ambiguous between a Consumer and an IntConsumer: javac needs the target type
@@ -1955,11 +1969,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (!expression.getExpression().isObjectTypeReferenceExpression() || unboundParameterTypes == null) {
             return false;
         }
-        for (Expression parameter : parameters) {
-            if (!parameter.getType().isObjectType() || parameter.getType().getDimension() != 0
-                    || BOX_TYPE_NAMES.contains(((ObjectType) parameter.getType()).getInternalName())) {
-                return false;
-            }
+        if (!StreamSupport.stream(parameters.spliterator(), false).allMatch(parameter -> parameter.getType() instanceof ObjectType parameterType
+                && parameterType.getDimension() == 0 && !BOX_TYPE_NAMES.contains(parameterType.getInternalName()))) {
+            return false;
         }
         for (Type parameterType : unboundParameterTypes) {
             if (!(parameterType instanceof GenericType gt) || gt.getDimension() != 0

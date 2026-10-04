@@ -538,4 +538,18 @@ public class GuavaPatterns {
         }
         return null;
     }
+
+    /** The counter of the first loop is still used by the second one, which does not initialize it */
+    public static int counterSharedByTwoLoops(byte[] input, int off, int len) {
+        int h1 = 1;
+        int i;
+        for (i = 0; i + 4 <= len; i += 4) {
+            h1 = h1 * 31 + input[off + i];
+        }
+        int k1 = 0;
+        for (int shift = 0; i < len; i++, shift += 8) {
+            k1 ^= input[off + i] << shift;
+        }
+        return h1 ^ k1;
+    }
 }

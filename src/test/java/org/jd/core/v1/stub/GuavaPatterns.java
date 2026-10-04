@@ -552,4 +552,29 @@ public class GuavaPatterns {
         }
         return h1 ^ k1;
     }
+
+    public static class GraphBuilder<N, V> {
+        static <N, V> GraphBuilder<N, V> from(java.util.Map<N, V> graph) {
+            return new GraphBuilder<>();
+        }
+
+        GraphBuilder<N, V> expectedNodeCount(int count) {
+            return this;
+        }
+
+        <N1 extends N, V1 extends V> java.util.Map<N1, V1> build() {
+            return new java.util.HashMap<>();
+        }
+    }
+
+    /** The variable is declared with the type of a ternary of generic calls whose own type variables are not bound */
+    public static <N, V> java.util.Map<N, V> inducedSubgraph(java.util.Map<N, V> graph, Iterable<? extends N> nodes) {
+        java.util.Map<N, V> subgraph = (nodes instanceof java.util.Collection)
+                ? GraphBuilder.from(graph).expectedNodeCount(((java.util.Collection<?>) nodes).size()).build()
+                : GraphBuilder.from(graph).build();
+        for (N node : nodes) {
+            subgraph.put(node, null);
+        }
+        return subgraph;
+    }
 }

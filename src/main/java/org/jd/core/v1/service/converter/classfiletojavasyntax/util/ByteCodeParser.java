@@ -1207,6 +1207,13 @@ public class ByteCodeParser {
         return parameter;
     }
 
+    /** The type arguments of the branches of such a ternary are only bound once the assignment is created, like those of a call */
+    private static boolean isTernaryOfMethodInvocations(Expression value) {
+        return value.isTernaryOperatorExpression()
+            && (value.getTrueExpression().isMethodInvocationExpression() || isTernaryOfMethodInvocations(value.getTrueExpression()))
+            && (value.getFalseExpression().isMethodInvocationExpression() || isTernaryOfMethodInvocations(value.getFalseExpression()));
+    }
+
     private AbstractLocalVariable getLocalVariableInAssignment(int index, int offset, Expression value) {
         Type valueType = value.getType();
 
@@ -1219,7 +1226,7 @@ public class ByteCodeParser {
             valueLocalVariable.variableOnLeft(typeBounds, lv);
             return lv;
         }
-        if (value.isMethodInvocationExpression()) {
+        if (value.isMethodInvocationExpression() || isTernaryOfMethodInvocations(value)) {
             if (valueType.isObjectType()) {
                 // Remove type arguments
                 valueType = ((ObjectType)valueType).createType(null);

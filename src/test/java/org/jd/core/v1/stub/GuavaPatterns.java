@@ -7,6 +7,8 @@ import java.util.Map;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BinaryOperator;
@@ -503,5 +505,37 @@ public class GuavaPatterns {
     /** The array of the arguments of a varargs call, of a type variable which has a bound, is not cast */
     public static <E extends Comparable<? super E>> List<E> twoOf(E first, E second) {
         return copyOf(null, Arrays.asList(first, second));
+    }
+
+    /** An anonymous class in a static generic method does not see the type variable of the class: nor does the argument of requireNonNull */
+    public static <K, V> Comparator<K> byValue(final Map<K, V> map, final Comparator<? super V> valueComparator) {
+        return new Comparator<K>() {
+            @Override
+            public int compare(K left, K right) {
+                return valueComparator.compare(Objects.requireNonNull(map.get(left)), Objects.requireNonNull(map.get(right)));
+            }
+        };
+    }
+
+    static final class ArrayItr<E> {
+        /** The type variable of the class is not visible to its static fields */
+        static final ArrayItr<Object> EMPTY = new ArrayItr<>(new Object[0], 0);
+        final E[] array;
+
+        ArrayItr(E[] array, int position) {
+            this.array = array;
+        }
+    }
+
+    /** A primitive cannot be cast to a type variable: its box is */
+    @SuppressWarnings("unchecked")
+    public static <T> T defaultValue(Class<T> type) {
+        if (type == char.class) {
+            return (T) Character.valueOf('\0');
+        }
+        if (type == int.class) {
+            return (T) Integer.valueOf(0);
+        }
+        return null;
     }
 }

@@ -109,6 +109,7 @@ import org.jd.core.v1.api.loader.Loader;
 
 import static org.apache.bcel.Const.ACC_BRIDGE;
 import static org.apache.bcel.Const.ACC_PRIVATE;
+import static org.apache.bcel.Const.ACC_STATIC;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BYTE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
@@ -139,11 +140,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
     private Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
+    /** The number of scopes of type variables which are outside the static member (or the static class) which is visited: the type variables of classes are not visible from it */
+    private int staticBoundary;
     private Type expectedType;
 
-    private record TypeParameter(boolean staticContext, BaseTypeParameter type, boolean methodLevel) {
-        TypeParameter(boolean staticContext, BaseTypeParameter type) {
-            this(staticContext, type, false);
+    private record TypeParameter(BaseTypeParameter type, boolean methodLevel) {
+        TypeParameter(BaseTypeParameter type) {
+            this(type, false);
         }
     }
 
@@ -181,9 +184,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(FieldDeclaration declaration) {
         if ((declaration.getFlags() & ACC_SYNTHETIC) == 0) {
             Type t = type;
+            boolean sc = staticContext;
+            int sb = staticBoundary;
 
             type = declaration.getType();
+            if ((declaration.getFlags() & ACC_STATIC) != 0) {
+                // The type variables of the class are not visible to its static fields
+                staticContext = true;
+                staticBoundary = typeParameters.size();
+            }
             declaration.getFieldDeclarators().accept(this);
+            staticContext = sc;
+            staticBoundary = sb;
             type = t;
         }
     }
@@ -209,8 +221,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (statements != null) {
             Map<String, BaseType> tb = typeBounds;
 
+            boolean sc = staticContext;
+            int sb = staticBoundary;
+
             typeBounds = ((ClassFileStaticInitializerDeclaration)declaration).getTypeBounds();
+            staticContext = true;
+            staticBoundary = typeParameters.size();
             statements.accept(this);
+            staticContext = sc;
+            staticBoundary = sb;
             typeBounds = tb;
         }
     }
@@ -243,11 +262,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 Type rt = returnedType;
                 BaseType et = exceptionTypes;
                 boolean sc = staticContext;
+                int sb = staticBoundary;
 
                 typeBounds = ((ClassFileMethodDeclaration) declaration).getTypeBounds();
                 returnedType = declaration.getReturnedType();
                 exceptionTypes = declaration.getExceptionTypes();
-                staticContext = declaration.isStatic();
+                if (declaration.isStatic()) {
+                    staticContext = true;
+                    staticBoundary = typeParameters.size();
+                }
                 pushContext(declaration);
                 safeAccept(declaration.getFormalParameters());
                 statements.accept(this);
@@ -255,6 +278,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 returnedType = rt;
                 exceptionTypes = et;
                 staticContext = sc;
+                staticBoundary = sb;
                 popContext(declaration);
             }
         }
@@ -262,9 +286,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(ClassDeclaration declaration) {
+        int sb = staticBoundary;
+
+        if (declaration.isStatic()) {
+            staticBoundary = typeParameters.size();
+        }
         pushContext(declaration);
         super.visit(declaration);
         popContext(declaration);
+        staticBoundary = sb;
     }
 
     @Override
@@ -276,7 +306,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     public void pushContext(MethodDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
-            typeParameters.push(new TypeParameter(declaration.isStatic(), declaration.getTypeParameters(), true));
+            typeParameters.push(new TypeParameter(declaration.getTypeParameters(), true));
         }
     }
 
@@ -291,7 +321,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     public void pushContext(InterfaceDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
-            typeParameters.push(new TypeParameter(declaration.isStatic(), declaration.getTypeParameters()));
+            typeParameters.push(new TypeParameter(declaration.getTypeParameters()));
         }
     }
 
@@ -303,7 +333,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     public void pushContext(RecordDeclaration declaration) {
         if (declaration.getTypeParameters() != null) {
-            typeParameters.push(new TypeParameter(false, declaration.getTypeParameters()));
+            typeParameters.push(new TypeParameter(declaration.getTypeParameters()));
         }
     }
 
@@ -1581,7 +1611,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         }
                     }
                 } else if (type.isGenericType()
-                        && (hasKnownTypeParameters(type) || type.getDimension() > 0)
+                        && (hasKnownTypeParameters(type) || type.getDimension() > 0 && !staticContext)
                         && (expressionType.isObjectType() || expressionType.isGenericType())
                         && (type.getDimension() != 0 || !visitingLambda || genericCastInLambda)
                         && !(visitingVarArgsInvocation && expression.isNewInitializedArray())) {
@@ -2370,8 +2400,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private Set<String> findKnownTypeParameters() {
         Set<String> genericIdentifiers = new HashSet<>();
+        // (the scopes are iterated from the innermost one)
+        int index = typeParameters.size() - 1;
         for (TypeParameter baseTypeParameters : typeParameters) {
-            if (!staticContext || baseTypeParameters.staticContext()) {
+            if (index-- >= staticBoundary || baseTypeParameters.methodLevel()) {
                 baseTypeParameters.type().forEach(typeParameter -> genericIdentifiers.add(typeParameter.getIdentifier()));
             }
         }

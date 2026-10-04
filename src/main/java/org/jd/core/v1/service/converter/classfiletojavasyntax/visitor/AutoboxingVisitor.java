@@ -9,6 +9,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.ConstructorInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
@@ -92,6 +93,16 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
 
         currentInternalTypeName = previousInternalTypeName;
         currentMethodName = previousMethodName;
+    }
+
+    @Override
+    public void visit(CastExpression expression) {
+        if (expression.getType().isGenericType() && isBoxingMethod(expression.getExpression())) {
+            // '(T) Integer.valueOf(0)': the primitive cannot be cast to a type variable, only its box can
+            expression.getExpression().accept(this);
+        } else {
+            super.visit(expression);
+        }
     }
 
     @Override

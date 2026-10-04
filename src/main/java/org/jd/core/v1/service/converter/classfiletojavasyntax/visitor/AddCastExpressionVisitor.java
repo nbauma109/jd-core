@@ -1104,7 +1104,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * target ('final class C implements I<String>' is no I<T> for T extends Number): the cast then goes through the raw type.
      */
     private Expression castThroughRawTypeIfBounded(Type target, Expression expression) {
-        if (expression instanceof ClassFileNewExpression && target instanceof ObjectType targetType && targetType.getTypeArguments() != null
+        if ((expression instanceof ClassFileNewExpression || expression instanceof FieldReferenceExpression || expression.isLocalVariableReferenceExpression())
+                && target instanceof ObjectType targetType && targetType.getTypeArguments() != null
                 && hasBoundedTypeVariable(targetType)) {
             Expression raw = addCastExpression(targetType.createType(null), expression);
 

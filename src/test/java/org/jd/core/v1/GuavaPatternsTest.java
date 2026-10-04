@@ -17,6 +17,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertEquals(-1, source.indexOf("null."));
         assertEquals(-1, source.indexOf("throw null"));
         assertEquals(-1, source.indexOf("Decompilation failed"));
+        assertTrue(source.contains("for (GuavaPatterns.OneWayCollection<String> collection : collections)") || source.contains("for (OneWayCollection<String> collection : collections)"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 

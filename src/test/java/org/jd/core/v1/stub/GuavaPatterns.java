@@ -865,4 +865,25 @@ public class GuavaPatterns {
             out.add(entry.getValue());
         }
     }
+
+    abstract static class OneWayIterator<E> implements java.util.Iterator<E> {
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    abstract static class OneWayCollection<E> extends java.util.AbstractCollection<E> {
+        @Override
+        public abstract OneWayIterator<E> iterator();
+    }
+
+    /** The collection returns a subtype of Iterator, which a for-each statement iterates all the same */
+    public static int sizes(OneWayCollection<OneWayCollection<String>> collections) {
+        int total = 0;
+        for (OneWayCollection<String> collection : collections) {
+            total += collection.size();
+        }
+        return total;
+    }
 }

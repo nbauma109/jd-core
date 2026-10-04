@@ -903,6 +903,12 @@ public final class LoopStatementMaker {
         return statement;
     }
 
+    /** The 'iterator()' of a collection may return a subtype of the interface ('UnmodifiableIterator') */
+    private static boolean isIterator(TypeMaker typeMaker, String internalName) {
+        return "java/util/Iterator".equals(internalName)
+            || typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName("java/util/Iterator"), typeMaker.makeFromInternalTypeName(internalName));
+    }
+
     private static Statement makeForEachList(
             Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker, Statements statements,
             Expression condition, Statements subStatements) {
@@ -921,7 +927,9 @@ public final class LoopStatementMaker {
 
         MethodInvocationExpression mie = (MethodInvocationExpression)condition;
 
-        if (!"hasNext".equals(mie.getName()) || !"java/util/Iterator".equals(mie.getInternalTypeName()) ||
+        TypeMaker typeMaker = localVariableMaker.getTypeMaker();
+
+        if (!"hasNext".equals(mie.getName()) || !isIterator(typeMaker, mie.getInternalTypeName()) ||
                 !mie.getExpression().isLocalVariableReferenceExpression()) {
             return null;
         }
@@ -940,7 +948,7 @@ public final class LoopStatementMaker {
 
         mie = (MethodInvocationExpression)boe.getRightExpression();
 
-        if (!"iterator".equals(mie.getName()) || !"()Ljava/util/Iterator;".equals(mie.getDescriptor())) {
+        if (!"iterator".equals(mie.getName()) || !mie.getDescriptor().startsWith("()L") || !isIterator(typeMaker, mie.getDescriptor().substring(3, mie.getDescriptor().length() - 1))) {
             return null;
         }
         if (((ClassFileLocalVariableReferenceExpression)boe.getLeftExpression()).getLocalVariable() != syntheticIterator) {
@@ -972,7 +980,7 @@ public final class LoopStatementMaker {
         mie = (MethodInvocationExpression)expression;
 
         if (!"next".equals(mie.getName()) ||
-                !"java/util/Iterator".equals(mie.getInternalTypeName()) ||
+                !isIterator(typeMaker, mie.getInternalTypeName()) ||
                 !mie.getExpression().isLocalVariableReferenceExpression()) {
             return null;
         }

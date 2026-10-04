@@ -691,4 +691,26 @@ public class GuavaPatterns {
             }
         }
     }
+
+    interface Terminator {
+        void exit(int status);
+    }
+
+    static final class Exiter implements Thread.UncaughtExceptionHandler {
+        private final Terminator terminator;
+
+        Exiter(Terminator terminator) {
+            this.terminator = terminator;
+        }
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable exception) {
+            terminator.exit(1);
+        }
+    }
+
+    /** The receiver of the bound method reference is no outer instance of the static nested class */
+    public static Thread.UncaughtExceptionHandler systemExit() {
+        return new Exiter(Runtime.getRuntime()::exit);
+    }
 }

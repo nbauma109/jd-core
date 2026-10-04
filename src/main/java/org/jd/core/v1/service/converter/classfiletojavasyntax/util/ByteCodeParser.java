@@ -864,7 +864,11 @@ public class ByteCodeParser {
                         expression1 = stack.pop();
                         expression1 = withExplicitLineNumberOnly(cfg, expression1, lineNumber);
                         if (expression1 instanceof NewExpression newExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
-                            newExpression.setQualifier(enclosingInstances.pop());
+                            Expression outerInstance = enclosingInstances.pop();
+
+                            if (isPassedAsOuterInstance(descriptor, outerInstance)) {
+                                newExpression.setQualifier(outerInstance);
+                            }
                         }
                         if (expression1.isLocalVariableReferenceExpression()) {
                             ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable().typeOnLeft(typeBounds, ot);
@@ -1719,6 +1723,16 @@ public class ByteCodeParser {
      * candidate on the stack. A bound method reference receiver ('outer::method') uses the same
      * null-check idiom but has no such pending construction beneath it.
      */
+    /** The first parameter of the constructor of a (non static) inner class is the outer instance: a static nested class has none */
+    private boolean isPassedAsOuterInstance(String constructorDescriptor, Expression outerCandidate) {
+        if (!constructorDescriptor.startsWith("(L") || !(outerCandidate.getType() instanceof ObjectType candidateType)) {
+            return true;
+        }
+        ObjectType firstParameterType = typeMaker.makeFromInternalTypeName(constructorDescriptor.substring(2, constructorDescriptor.indexOf(';')));
+
+        return typeMaker.isRawTypeAssignable(firstParameterType, candidateType);
+    }
+
     private static boolean isPendingInnerClassConstruction(DefaultStack<Expression> stack) {
         Expression outerCandidate = stack.pop();
         boolean pending = !stack.isEmpty() && stack.peek().isNewExpression() && stack.peek().getType().isInnerObjectType();

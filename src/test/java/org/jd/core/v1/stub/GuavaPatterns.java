@@ -713,4 +713,36 @@ public class GuavaPatterns {
     public static Thread.UncaughtExceptionHandler systemExit() {
         return new Exiter(Runtime.getRuntime()::exit);
     }
+
+    static final class Bound<C> {
+    }
+
+    static final class Interval<C> {
+        final Bound<C> lowerBound = null;
+    }
+
+    abstract static class KeyedEntry<A, B> implements java.util.Map.Entry<A, B> {
+        @Override
+        public A getKey() {
+            return null;
+        }
+    }
+
+    static final class IntervalEntry<K, V> extends KeyedEntry<Interval<K>, V> {
+        @Override
+        public V getValue() {
+            return null;
+        }
+
+        @Override
+        public V setValue(V value) {
+            return value;
+        }
+    }
+
+    /** The value of the entry is an IntervalEntry whose key is read through the erased class of the bytecode cast */
+    public static <K> Bound<K> lowerBoundOfFirst(java.util.NavigableMap<Bound<K>, IntervalEntry<K, String>> entries) {
+        java.util.Map.Entry<Bound<K>, IntervalEntry<K, String>> first = entries.firstEntry();
+        return first.getValue().getKey().lowerBound;
+    }
 }

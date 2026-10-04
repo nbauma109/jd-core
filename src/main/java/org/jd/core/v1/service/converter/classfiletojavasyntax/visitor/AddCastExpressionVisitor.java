@@ -696,7 +696,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (expression.getExpression() instanceof CastExpression ce && ce.isByteCodeCheckCast()
                 && ce.getExpression() instanceof ClassFileMethodInvocationExpression mie && ce.getType() instanceof ObjectType ot) {
-            if (isCastToBeRemoved(typeBindings, localTypeBounds, ot, ce, true)) {
+            if (isCastToBeRemoved(typeBindings, localTypeBounds, ot, ce, true) || isCastToTypeArgumentOfReceiver(ot, mie)) {
                 // Remove cast
                 expression.setExpression(ce.getExpression());
             }
@@ -1376,6 +1376,34 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
             if (typeParameter instanceof TypeParameterWithTypeBounds) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The result of 'entry.getValue()' was typed before the type arguments of the receiver were known: the bytecode
+     * cast to the erased class is redundant when the receiver's type argument is that very class.
+     */
+    private boolean isCastToTypeArgumentOfReceiver(ObjectType castType, ClassFileMethodInvocationExpression call) {
+        if (!(call.getExpression().getType() instanceof ObjectType receiverType)
+                || !(receiverType.getTypeArguments() instanceof TypeArguments receiverArguments)) {
+            return false;
+        }
+        TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (methodTypes == null || !(methodTypes.getReturnedType() instanceof GenericType returnedVariable) || returnedVariable.getDimension() != 0) {
+            return false;
+        }
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());
+        BaseTypeParameter declared = typeTypes == null ? null : typeTypes.getTypeParameters();
+
+        if (declared == null || !declared.isList() || declared.size() != receiverArguments.size()) {
+            return false;
+        }
+        for (int i = 0; i < receiverArguments.size(); i++) {
+            if (declared.getList().get(i).getIdentifier().equals(returnedVariable.getName())) {
+                return receiverArguments.getList().get(i) instanceof ObjectType argument && argument.rawEquals(castType);
             }
         }
         return false;

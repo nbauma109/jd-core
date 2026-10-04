@@ -1409,6 +1409,93 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
+    /** 'Class&lt;? extends T[]&gt;': a cast to it is unchecked but valid, a raw one would erase the type the call returns */
+    private boolean isWildcardExtendingTypeVariable(BaseTypeArgument typeArgument) {
+        return typeArgument instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof GenericType variable
+                && hasKnownTypeParameters(variable);
+    }
+
+    /**
+     * 'return INSTANCE' where INSTANCE is a 'Foo&lt;Object&gt;' and the method returns a 'Foo&lt;T&gt;' (or 'return this' of a class
+     * implementing 'Predicate&lt;Object&gt;'): the source has an unchecked cast, which the bytecode does not
+     */
+    private boolean isUncheckedTypeVariableMismatch(ObjectType target, Expression expression, ObjectType expressionType) {
+        if (!(expression instanceof FieldReferenceExpression || expression.isThisExpression() || expression.isLocalVariableReferenceExpression())
+                || target.getTypeArguments() == null || target.getDimension() != 0 || expressionType.getDimension() != 0) {
+            return false;
+        }
+        List<TypeArgument> viewArguments = typeArgumentsSeenAs(target.getInternalName(), expressionType, 0);
+        List<TypeArgument> targetArguments = toTypeArgumentList(target.getTypeArguments());
+
+        if (viewArguments == null) {
+            return false;
+        }
+
+        if (targetArguments.size() != viewArguments.size()) {
+            return false;
+        }
+        for (int i = 0; i < targetArguments.size(); i++) {
+            if (targetArguments.get(i) instanceof GenericType variable && variable.getDimension() == 0 && hasKnownTypeParameters(variable)
+                    && viewArguments.get(i) instanceof ObjectType concrete && concrete.findTypeParametersInType().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return the type arguments of the given type seen as the given (super) class or interface, null if it is raw or unrelated */
+    private List<TypeArgument> typeArgumentsSeenAs(String internalName, ObjectType type, int depth) {
+        if (type.getInternalName().equals(internalName)) {
+            return type.getTypeArguments() == null ? null : toTypeArgumentList(type.getTypeArguments());
+        }
+        TypeTypes typeTypes = depth > 8 ? null : typeMaker.makeTypeTypes(type.getInternalName());
+
+        if (typeTypes == null) {
+            return null;
+        }
+        List<TypeArgument> typeArguments = type.getTypeArguments() == null ? List.of() : toTypeArgumentList(type.getTypeArguments());
+        List<ObjectType> supertypes = new ArrayList<>();
+
+        if (typeTypes.getSuperType() != null) {
+            supertypes.add(typeTypes.getSuperType());
+        }
+        if (typeTypes.getInterfaces() != null) {
+            for (Type interfaceType : typeTypes.getInterfaces()) {
+                if (interfaceType instanceof ObjectType interfaceObjectType) {
+                    supertypes.add(interfaceObjectType);
+                }
+            }
+        }
+        for (ObjectType supertype : supertypes) {
+            ObjectType bound = supertype;
+
+            if (typeTypes.getTypeParameters() != null && supertype.getTypeArguments() != null) {
+                Map<String, TypeArgument> bindings = new HashMap<>();
+                int index = 0;
+
+                for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeTypes.getTypeParameters()) {
+                    if (index < typeArguments.size()) {
+                        bindings.put(typeParameter.getIdentifier(), typeArguments.get(index));
+                    }
+                    index++;
+                }
+                TypeArguments substituted = new TypeArguments();
+
+                for (TypeArgument supertypeArgument : toTypeArgumentList(supertype.getTypeArguments())) {
+                    substituted.add(supertypeArgument instanceof GenericType variable && variable.getDimension() == 0 && bindings.containsKey(variable.getName())
+                            ? bindings.get(variable.getName()) : supertypeArgument);
+                }
+                bound = supertype.createType(substituted);
+            }
+            List<TypeArgument> found = typeArgumentsSeenAs(internalName, bound, depth + 1);
+
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
         return left instanceof FieldReferenceExpression field
                 && !field.getExpression().isThisExpression()
@@ -1613,13 +1700,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 ne.setObjectType(ne.getObjectType().createType(null));
                             }
                             if (expression instanceof LambdaIdentifiersExpression
-                                    || visitingWitnessedInvocation && objectType.getTypeArguments() != null && hasKnownTypeParameters(objectType)) {
+                                    || objectType.getTypeArguments() != null && hasKnownTypeParameters(objectType)
+                                    && (visitingWitnessedInvocation || !objectType.findTypeParametersInType().isEmpty())) {
                                 // (a raw argument would turn the call into an unchecked one, whatever the witness says)
                                 expression = addCastExpression(objectType, expression);
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!isJavaLangObject(type) && !typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)) {
+                        } else if (!isJavaLangObject(type) && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
+                                || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType))) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
                             BaseTypeArgument ta2 = expressionObjectType.getTypeArguments();
                             Type t = type;
@@ -1645,7 +1734,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                     return expression;
                                 }
                                 // Incompatible typeArgument arguments => Add cast
-                                t = objectType.createType(ta1.isGenericTypeArgument() ? ta1 :  null);
+                                t = objectType.createType(ta1.isGenericTypeArgument() || isWildcardExtendingTypeVariable(ta1) ? ta1 : null);
                             }
                             // A 'new' of a non-generic class has no diamond to infer the type arguments from: its supertypes
                             // are fixed (e.g. 'new ObjectTypeAdapter()' is a TypeAdapter<Object>, never a TypeAdapter<T>)
@@ -1957,6 +2046,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && expectedGenericType.getName().equals(returnedGenericType.getName())
                 && expectedGenericType.getDimension() == returnedGenericType.getDimension()) {
             return true;
+        }
+        if (!expression.isByteCodeCheckCast() && expression.getType() instanceof ObjectType castType
+                && expression.getExpression().getType() instanceof ObjectType nestedType
+                && isUncheckedTypeVariableMismatch(castType, expression.getExpression(), nestedType)) {
+            return false;
         }
         if (isParameterizedJavaLangObject(expression.getType())) {
             return true;

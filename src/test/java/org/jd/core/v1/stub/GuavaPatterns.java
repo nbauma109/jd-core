@@ -796,4 +796,31 @@ public class GuavaPatterns {
             return null;
         }
     }
+
+    enum AlwaysTrue implements java.util.function.Predicate<Object> {
+        INSTANCE;
+
+        @Override
+        public boolean test(Object object) {
+            return true;
+        }
+
+        @SuppressWarnings("unchecked")
+        <T> java.util.function.Predicate<T> withNarrowedType() {
+            return (java.util.function.Predicate<T>) this;
+        }
+    }
+
+    abstract static class Base<E> {
+    }
+
+    static final class Regular<E> extends Base<E> {
+        static final Regular<Object> EMPTY = new Regular<>();
+    }
+
+    /** The unchecked cast of a shared instance to the type of the method is in the source, not in the bytecode */
+    @SuppressWarnings("unchecked")
+    public static <E> Base<E> emptyBase() {
+        return (Base<E>) Regular.EMPTY;
+    }
 }

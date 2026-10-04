@@ -1392,7 +1392,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         if (right instanceof CastExpression cast && cast.getExpression() instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
                 && cast.getType() instanceof ObjectType castType
-                && castType.rawEquals((ObjectType) assignment.getLeftExpression().getType())) {
+                && assignment.getLeftExpression().getType() instanceof ObjectType leftType && castType.rawEquals(leftType)) {
             right = cast.getExpression();
             assignment.setRightExpression(right);
         }
@@ -1512,10 +1512,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         TypeArguments substituted = new TypeArguments();
 
-        for (TypeArgument supertypeArgument : toTypeArgumentList(supertype.getTypeArguments())) {
-            substituted.add(supertypeArgument instanceof GenericType variable && variable.getDimension() == 0 && bindings.containsKey(variable.getName())
-                    ? bindings.get(variable.getName()) : supertypeArgument);
-        }
+        toTypeArgumentList(supertype.getTypeArguments()).forEach(supertypeArgument -> substituted.add(
+                supertypeArgument instanceof GenericType variable && variable.getDimension() == 0 && bindings.containsKey(variable.getName())
+                        ? bindings.get(variable.getName()) : supertypeArgument));
         return supertype.createType(substituted);
     }
 

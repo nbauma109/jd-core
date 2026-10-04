@@ -162,10 +162,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("org.apache.logging.log4j", "log4j-core", "2.26.1");
     }
 
-//    @Test
-//    public void testGuava() throws Exception {
-//        test(com.google.common.collect.Collections2.class);
-//    }
+    @Test
+    public void testGuava() throws Exception {
+        // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests
+        testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
+                new ProjectLayout("guava", "src", true, List.of("-pl", "guava-tests", "-am")));
+    }
 
     protected void test(String groupId, String artifactId, String version) throws Exception {
     	test(null, null, null, groupId, artifactId, version, false);
@@ -185,15 +187,42 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
             String version, boolean runUnitTests, Path testJavaHome) throws Exception {
-        testAtTag(repo, repoName, tag, groupId, artifactId, version, runUnitTests, testJavaHome, null);
+        testAtTag(repo, repoName, tag, groupId, artifactId, version, runUnitTests, testJavaHome, ProjectLayout.root());
     }
 
     /**
+     * Where the sources of the library live in its repository, and how its unit tests are run.
+     *
      * @param moduleDir sub-directory of the extracted repository holding the module to rebuild (for multi-module
      *                  repositories whose parent pom is at the root); {@code null} when the module is the root
+     * @param sourceDirectory directory of the sources of the module, relative to the module: Maven's default is
+     *                        {@code src/main/java}, but some projects (Guava) use {@code src}
+     * @param runFromRepositoryRoot whether Maven runs at the root of the repository rather than in the module: the unit
+     *                              tests of some projects (Guava) are in sibling modules of the one which is rebuilt
+     * @param mavenArguments more arguments of the Maven command (e.g. {@code -pl guava-tests -am})
      */
+    protected record ProjectLayout(String moduleDir, String sourceDirectory, boolean runFromRepositoryRoot, List<String> mavenArguments) {
+        static final String DEFAULT_SOURCE_DIRECTORY = "src/main/java";
+
+        /** The module is the repository itself */
+        static ProjectLayout root() {
+            return new ProjectLayout(null, DEFAULT_SOURCE_DIRECTORY, false, List.of());
+        }
+
+        /** A module of a multi-module repository, built and tested on its own */
+        static ProjectLayout module(String moduleDir) {
+            return new ProjectLayout(moduleDir, DEFAULT_SOURCE_DIRECTORY, false, List.of());
+        }
+    }
+
     protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
             String version, boolean runUnitTests, Path testJavaHome, String moduleDir) throws Exception {
+        testAtTag(repo, repoName, tag, groupId, artifactId, version, runUnitTests, testJavaHome,
+                moduleDir == null ? ProjectLayout.root() : ProjectLayout.module(moduleDir));
+    }
+
+    protected void testAtTag(String repo, String repoName, String tag, String groupId, String artifactId,
+            String version, boolean runUnitTests, Path testJavaHome, ProjectLayout layout) throws Exception {
     	if (runUnitTests) {
     		System.out.println("====== Decompiling, recompiling and running unit tests for " + repoName + " tag " + tag + " ======");
     	} else {
@@ -201,6 +230,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     	}
         String license = "";
         File projectDir = null;
+        File repositoryDir = null;
         if (repoName != null && runUnitTests) {
             File repoDir = new File("target/" + repoName);  // Directory for extracted project files
 
@@ -244,9 +274,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 }
             }
 
-            if (moduleDir != null) {
+            repositoryDir = projectDir;
+            if (layout.moduleDir() != null) {
                 // Maven resolves the parent pom through the default relativePath (../pom.xml)
-                projectDir = new File(projectDir, moduleDir);
+                projectDir = new File(projectDir, layout.moduleDir());
             }
 
             // Some projects generate part of their sources from templates (e.g. gson's GsonBuildConfig): the
@@ -256,8 +287,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 FileUtils.deleteDirectory(templatesDir);
             }
 
-            // Delete all .java files in src/main/java
-            Files.walk(Paths.get(projectDir.getPath() + "/src/main/java"))
+            // Delete all .java files of the sources (src/main/java by default)
+            Files.walk(Paths.get(projectDir.getPath(), layout.sourceDirectory()))
                     .filter(path -> path.toString().endsWith(".java"))
                     .forEach(path -> {
                         try {
@@ -341,8 +372,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     }
 
                     if (projectDir != null && runUnitTests) {
-                        // Write source file to source directory src/main/java
-                        Path destinationPath = Paths.get(projectDir.getPath() + "/src/main/java/" + internalTypeName + ".java");
+                        // Write source file to the source directory of the module
+                        Path destinationPath = Paths.get(projectDir.getPath(), layout.sourceDirectory(), internalTypeName + ".java");
                         if (!Files.exists(destinationPath.getParent())) {
                         	destinationPath.getParent().toFile().mkdirs();
                         }
@@ -360,7 +391,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // javac refuses outright ("Source option 5 is no longer supported"); bump those up to 8,
                 // which every such library's own pre-8 syntax already compiles under unchanged.
                 raiseObsoleteCompilerLevel(Paths.get(projectDir.getPath(), "pom.xml"));
-                if (moduleDir != null) {
+                if (layout.moduleDir() != null) {
                     relaxInheritedCompilerChecks(Paths.get(projectDir.getPath(), "pom.xml"));
                 }
 
@@ -380,6 +411,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 }
                 command.add("-Danimal.sniffer.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);
+                command.addAll(layout.mavenArguments());
                 ProcessBuilder pbTest = new ProcessBuilder(command);
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");
                 if (testJavaHome != null) {
@@ -387,7 +419,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     String path = pbTest.environment().getOrDefault("PATH", "");
                     pbTest.environment().put("PATH", testJavaHome.resolve("bin") + File.pathSeparator + path);
                 }
-                pbTest.directory(projectDir);
+                pbTest.directory(layout.runFromRepositoryRoot() ? repositoryDir : projectDir);
                 pbTest.redirectErrorStream(true);
                 Process pTest = pbTest.start();
                 AtomicReference<IOException> outputForwardError = new AtomicReference<>();

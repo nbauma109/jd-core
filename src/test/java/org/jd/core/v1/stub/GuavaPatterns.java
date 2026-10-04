@@ -592,4 +592,20 @@ public class GuavaPatterns {
     public static FactorySet<String> factoryOfOne(String value) {
         return FactorySet.of(value);
     }
+
+    public static class OrderedBuilder<N, E> {
+        java.util.List<N> nodeOrder;
+
+        @SuppressWarnings("unchecked")
+        private <N1 extends N, E1 extends E> OrderedBuilder<N1, E1> cast() {
+            return (OrderedBuilder<N1, E1>) this;
+        }
+
+        /** The field of another builder is declared with the type variables of its class, which that builder binds differently */
+        public <N1 extends N> OrderedBuilder<N1, E> nodeOrder(java.util.List<N1> order) {
+            OrderedBuilder<N1, E> newBuilder = cast();
+            newBuilder.nodeOrder = java.util.Objects.requireNonNull(order);
+            return newBuilder;
+        }
+    }
 }

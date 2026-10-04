@@ -1331,6 +1331,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
 
+            if (isFieldOfAnotherInstanceWithTypeVariables(expression.getLeftExpression())) {
+                // The field type is declared with the type variables of its class, which the receiver binds differently
+                // (the cast to the declared type, which the bytecode has for the erased result of a generic call, goes with it)
+                if (rightExpression instanceof CastExpression cast && cast.getExpression() instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
+                        && cast.getType() instanceof ObjectType castType
+                        && castType.rawEquals((ObjectType) expression.getLeftExpression().getType())) {
+                    rightExpression = cast.getExpression();
+                    expression.setRightExpression(rightExpression);
+                }
+                rightExpression.accept(this);
+                return;
+            }
+
             expression.setRightExpression(updateExpression(Collections.emptyMap(), typeBounds, expression.getLeftExpression().getType(), null, rightExpression, false, true, false));
             return;
         }
@@ -1346,6 +1359,17 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         normalizeTernaryBooleanConstants(expression, expression.getType());
         expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
         expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
+    }
+
+    private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
+        return left instanceof FieldReferenceExpression field
+                && !field.getExpression().isThisExpression()
+                && !field.getExpression().isObjectTypeReferenceExpression()
+                && field.getType() instanceof ObjectType fieldType
+                && fieldType.getTypeArguments() != null
+                && !fieldType.findTypeParametersInType().isEmpty()
+                && field.getExpression().getType() instanceof ObjectType receiverType
+                && receiverType.getTypeArguments() != null;
     }
 
     private Type contextualTernaryType(Type ternaryType) {

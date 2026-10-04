@@ -823,4 +823,34 @@ public class GuavaPatterns {
     public static <E> Base<E> emptyBase() {
         return (Base<E>) Regular.EMPTY;
     }
+
+    abstract static class Order<T> implements java.util.Comparator<T> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Order<C> natural() {
+            return null;
+        }
+
+        Order(java.util.Comparator<? super T> comparator) {
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        static <E> java.util.Comparator<? super E> orNatural(java.util.Comparator<? super E> comparator) {
+            if (comparator != null) {
+                return comparator;
+            }
+            return (java.util.Comparator<E>) natural();
+        }
+    }
+
+    abstract static class SubOrder<E> extends Order<E> {
+        /** A bounded type variable cannot be inferred from the type variable of a wildcard target */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        SubOrder() {
+            this((java.util.Comparator) natural());
+        }
+
+        SubOrder(java.util.Comparator<? super E> comparator) {
+            super(comparator);
+        }
+    }
 }

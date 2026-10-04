@@ -1496,6 +1496,81 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return null;
     }
 
+    /**
+     * @return true if the call returns a type parameterized by a bounded type variable of the called method
+     * (&lt;C extends Comparable&gt; Ordering&lt;C&gt;) and the expected type is parameterized, at that position, by a type
+     * variable which does not have this bound
+     */
+    private boolean hasBoundedTypeVariableTargetedByUnboundedVariable(ClassFileMethodInvocationExpression call, ObjectType expected) {
+        TypeMaker.MethodTypes methodTypes = findMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (methodTypes == null || methodTypes.getTypeParameters() == null || !(methodTypes.getReturnedType() instanceof ObjectType returned)
+                || returned.getTypeArguments() == null) {
+            return false;
+        }
+        List<TypeArgument> seen = typeArgumentsSeenAs(expected.getInternalName(), returned, 0);
+        List<TypeArgument> expectedArguments = toTypeArgumentList(expected.getTypeArguments());
+
+        if (seen == null || seen.size() != expectedArguments.size()) {
+            return false;
+        }
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : methodTypes.getTypeParameters()) {
+            if (!(typeParameter instanceof TypeParameterWithTypeBounds withBounds) || !(withBounds.getTypeBounds().getFirst() instanceof ObjectType bound)
+                    || isJavaLangObject(bound)) {
+                continue;
+            }
+            for (int i = 0; i < seen.size(); i++) {
+                if (seen.get(i) instanceof GenericType variable && variable.getName().equals(typeParameter.getIdentifier())
+                        && upperBoundOrSelf(expectedArguments.get(i)) instanceof GenericType target && target.getDimension() == 0
+                        && hasKnownTypeParameters(target) && !variableHasBound(target, bound)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** javac names the class of the call, which may inherit the method from one of its superclasses */
+    private TypeMaker.MethodTypes findMethodTypes(String internalTypeName, String name, String descriptor) {
+        String owner = internalTypeName;
+        TypeMaker.MethodTypes first = null;
+
+        for (int depth = 0; owner != null && depth < 16; depth++) {
+            TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(owner, name, descriptor);
+
+            if (methodTypes != null && methodTypes.getTypeParameters() != null) {
+                return methodTypes;
+            }
+            if (first == null) {
+                first = methodTypes;
+            }
+            TypeTypes typeTypes = typeMaker.makeTypeTypes(owner);
+
+            owner = typeTypes == null || typeTypes.getSuperType() == null ? null : typeTypes.getSuperType().getInternalName();
+        }
+        return first;
+    }
+
+    private static TypeArgument upperBoundOrSelf(TypeArgument argument) {
+        if (argument instanceof WildcardExtendsTypeArgument extending) {
+            return extending.type();
+        }
+        return argument instanceof WildcardSuperTypeArgument supering ? supering.type() : argument;
+    }
+
+    private boolean variableHasBound(GenericType variable, ObjectType required) {
+        BaseType bounds = declaredBoundsOf(variable.getName());
+
+        if (bounds != null) {
+            for (Type declared : bounds) {
+                if (declared instanceof ObjectType declaredObjectType && typeMaker.isRawTypeAssignable(required, declaredObjectType)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
         return left instanceof FieldReferenceExpression field
                 && !field.getExpression().isThisExpression()
@@ -1679,6 +1754,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 expression = new CastExpression(searchFirstLineNumberVisitor.getLineNumber(), type, expression);
             }
         } else if ("java/util/stream/Collectors".equals(expression.getInternalTypeName()) && "toList".equals(expression.getName())) {
+        } else if (expression instanceof ClassFileMethodInvocationExpression call && type instanceof ObjectType expected && type.getDimension() == 0
+                && hasBoundedTypeVariableTargetedByUnboundedVariable(call, expected)) {
+            // 'Ordering.natural()' (natural: <C extends Comparable>) is not an Ordering<E> for any E which is no Comparable
+            expression = addCastExpression(expected.createType(null), expression);
+            expression.getExpression().accept(this);
         } else if (forceCast && !visitingWitnessedInvocation && unboundType instanceof GenericType gt && unboundType.getDimension() == 0
                 && localTypeBounds.get(gt.getName()) instanceof ObjectType ot) {
             // Casting to the type variable's bound contradicts explicit type arguments: skip when the call has a witness

@@ -946,4 +946,30 @@ public class GuavaPatterns {
             throw new IllegalStateException(throwable);
         }
     }
+
+    static final java.lang.invoke.MethodHandle UPDATE;
+
+    static {
+        java.lang.invoke.MethodHandle handle = null;
+        try {
+            handle = java.lang.invoke.MethodHandles.lookup().findVirtual(java.util.zip.Checksum.class, "update",
+                    java.lang.invoke.MethodType.methodType(void.class, java.nio.ByteBuffer.class));
+        } catch (ReflectiveOperationException e) {
+            // no handle
+        }
+        UPDATE = handle;
+    }
+
+    /** A signature polymorphic call which returns void is a statement */
+    public static boolean updateChecksum(java.util.zip.Checksum checksum, java.nio.ByteBuffer buffer) {
+        if (UPDATE != null) {
+            try {
+                UPDATE.invokeExact(checksum, buffer);
+                return true;
+            } catch (Throwable throwable) {
+                return false;
+            }
+        }
+        return false;
+    }
 }

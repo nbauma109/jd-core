@@ -877,7 +877,7 @@ public class ByteCodeParser {
                         if (opcode == INVOKEINTERFACE) {
                             offset += 2; // Skip 'count' and one byte
                         }
-                        if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
+                        if (TYPE_VOID.equals(methodTypes.getReturnedType()) || isPolymorphicSignature(methodTypes) && descriptor.endsWith(")V")) {
                             if (opcode == INVOKESPECIAL &&
                                 StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
                                 if (expression1.isNewExpression()) {

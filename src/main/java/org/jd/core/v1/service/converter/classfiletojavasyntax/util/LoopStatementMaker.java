@@ -903,6 +903,10 @@ public final class LoopStatementMaker {
         return statement;
     }
 
+    private static boolean isIterable(TypeMaker typeMaker, Type type) {
+        return type instanceof ObjectType objectType && typeMaker.isRawTypeAssignable(ObjectType.TYPE_ITERABLE, objectType);
+    }
+
     /** The 'iterator()' of a collection may return a subtype of the interface ('UnmodifiableIterator') */
     private static boolean isIterator(TypeMaker typeMaker, String internalName) {
         return "java/util/Iterator".equals(internalName)
@@ -959,6 +963,10 @@ public final class LoopStatementMaker {
 
         if (list.isCastExpression()) {
             list = list.getExpression();
+        }
+        if (!"()Ljava/util/Iterator;".equals(mie.getDescriptor()) && !isIterable(typeMaker, list.getType())) {
+            // a custom 'iterator()' of something which is not an Iterable is no enhanced for statement
+            return null;
         }
 
         // String s = (String)i$.next();

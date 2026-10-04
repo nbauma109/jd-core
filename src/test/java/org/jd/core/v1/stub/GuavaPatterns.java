@@ -902,4 +902,13 @@ public class GuavaPatterns {
             return from.tryAdvance(element -> prefix = function.apply(element));
         }
     }
+
+    /** The local class is only used by an anonymous subclass and by a class literal */
+    public static String detectOwner() {
+        class LocalClass<T> {
+        }
+        Class<?> subclass = new LocalClass<String>() {
+        }.getClass();
+        return LocalClass.class == subclass.getSuperclass() ? "same" : "other";
+    }
 }

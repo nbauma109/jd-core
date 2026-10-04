@@ -37,6 +37,7 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
 import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
@@ -583,6 +584,28 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         @Override
+        public void visit(TypeReferenceDotClassExpression expression) {
+            if (expression.getTypeDotClass() instanceof ObjectType type) {
+                declareLocalClassOfType(type);
+            }
+        }
+
+        /** A local class which is only used as the superclass of an anonymous class or as a class literal is still to be declared */
+        private void declareLocalClassOfType(ObjectType type) {
+            if (type.getQualifiedName() == null && type.getName() != null
+                    && bodyDeclaration.getInnerTypeDeclaration(type.getInternalName()) instanceof ClassFileClassDeclaration cfcd
+                    && enclosingBodyDeclaration(type.getInternalName()) == null) {
+                declareLocalClass(cfcd, type.getInternalName());
+            }
+        }
+
+        private void declareLocalClass(ClassFileClassDeclaration cfcd, String internalName) {
+            cfcd.setFlags(cfcd.getFlags() & ~ACC_SYNTHETIC);
+            localClassDeclarations.add(cfcd);
+            bodyDeclaration.removeInnerType(internalName);
+        }
+
+        @Override
         public void visit(NewExpression expression) {
             if (newExpressions.add(expression)) {
                 ClassFileNewExpression ne = (ClassFileNewExpression)expression;
@@ -603,15 +626,14 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
                         if (type.getQualifiedName() == null && type.getName() != null) {
                             // Local class
-                            cfcd.setFlags(cfcd.getFlags() & ~ACC_SYNTHETIC);
-                            localClassDeclarations.add(cfcd);
-                            bodyDeclaration.removeInnerType(internalName);
+                            declareLocalClass(cfcd, internalName);
                             lineNumber = ne.getLineNumber();
                         }
                     }
                 } else {
-                    // Anonymous class
+                    // Anonymous class (which may extend a local class)
                     cfbd = (ClassFileBodyDeclaration) ne.getBodyDeclaration();
+                    declareLocalClassOfType(ne.getObjectType());
                 }
 
                 if (cfbd == null && ne.getBodyDeclaration() == null) {

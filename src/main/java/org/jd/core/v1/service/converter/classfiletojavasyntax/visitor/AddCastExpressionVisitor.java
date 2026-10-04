@@ -1627,7 +1627,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (!unique && isProperMethodReference(expression) && type instanceof ObjectType targetType
                     && expression.getType() instanceof ObjectType expressionObjectType
                     && targetType.rawEquals(expressionObjectType) && hasKnownTypeParameters(type)
-                    && !containsErasedRawGenericType(targetType, unboundType)) {
+                    && !hasWildcardTypeArgument(targetType) && !containsErasedRawGenericType(targetType, unboundType)) {
                 // A method reference may be compatible with several overloads: cast to the target functional interface type
                 expression = addCastExpression(type, expression);
             }

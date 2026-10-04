@@ -27,7 +27,10 @@ public class MinDepthCFGReducer extends ControlFlowGraphReducer {
 
     @Override
     protected boolean needToUpdateConditionTernaryOperator(BasicBlock basicBlock, BasicBlock nextNext) {
-        return ByteCodeUtil.getMinDepth(nextNext) == -1;
+        // The block which follows the ternary operator uses its value, and also the values which the block with the condition pushed before it
+        // (the receiver 'this' of 'foo(a ? b : c, d)')
+        return ByteCodeUtil.getMinDepth(nextNext) == -1
+                || ByteCodeUtil.evalStackDepth(basicBlock) > 0 && ByteCodeUtil.evalStackDepth(basicBlock) + 1 == -ByteCodeUtil.evalStackDepth(nextNext);
     }
 
     @Override

@@ -30,6 +30,7 @@ public class SkippedMergeCFGReducer extends MinDepthCFGReducer {
     @Override
     protected void afterPreReduce() {
         turnJumpsOverMergesIntoStubs(getControlFlowGraph());
+        turnConditionalSkipsIntoStubs(getControlFlowGraph());
     }
 
     @Override

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -337,5 +339,103 @@ public class GuavaPatterns {
     /** The bounds Comparable<Integer> and Comparable<String> have the same raw type */
     public static <U extends Comparable<Integer>> Adapter2<U> comparing(U value) {
         return (Adapter2<U>) (Adapter2) new Comparing(value);
+    }
+
+    static boolean isOk() {
+        return modCounter > 0;
+    }
+
+    static boolean await(boolean reentrant) throws InterruptedException {
+        return reentrant;
+    }
+
+    static void signal() {
+        modCounter++;
+    }
+
+    static int modCounter;
+
+    /** A finally block which contains a try and a finally, and which reads the variables set in the try block */
+    public static boolean nestedFinally(ReentrantLock lock, boolean reentrant) throws InterruptedException {
+        boolean satisfied = false;
+        boolean threw = true;
+        try {
+            satisfied = isOk() || await(reentrant);
+            threw = false;
+            return satisfied;
+        } finally {
+            if (!satisfied) {
+                try {
+                    if (threw && !reentrant) {
+                        signal();
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    static boolean satisfiedNow() {
+        return modCounter < 0;
+    }
+
+    static boolean awaitNanos(long nanos, boolean reentrant) {
+        return reentrant && nanos > 0;
+    }
+
+    static long remainingNanos(long start, long timeout) {
+        return timeout - start;
+    }
+
+    /** The second operand of the '||' has a ternary operator as an argument, and the result is stored before it is returned */
+    public static boolean orWithTernaryArgument(long start, long timeout, boolean reentrant) {
+        boolean satisfied = satisfiedNow() || awaitNanos((start == 0L) ? timeout : remainingNanos(start, timeout), reentrant);
+        return satisfied;
+    }
+
+    final boolean fair = modCounter > 5;
+    final ReentrantLock lock = new ReentrantLock();
+
+    /** A labeled block left by a 'break', then a try with a finally which contains a try and a finally (Guava's Monitor.enterWhen) */
+    public boolean labeledBlockThenNestedFinally(long time, TimeUnit unit) throws InterruptedException {
+        final long timeoutNanos = unit.toNanos(time);
+        final ReentrantLock lock = this.lock;
+        boolean reentrant = lock.isHeldByCurrentThread();
+        long startTime = 0L;
+
+        locked:
+        {
+            if (!fair) {
+                if (Thread.interrupted()) {
+                    throw new InterruptedException();
+                }
+                if (lock.tryLock()) {
+                    break locked;
+                }
+            }
+            startTime = System.nanoTime();
+            if (!lock.tryLock(time, unit)) {
+                return false;
+            }
+        }
+
+        boolean satisfied = false;
+        boolean threw = true;
+        try {
+            satisfied = satisfiedNow() || awaitNanos((startTime == 0L) ? timeoutNanos : remainingNanos(startTime, timeoutNanos), reentrant);
+            threw = false;
+            return satisfied;
+        } finally {
+            if (!satisfied) {
+                try {
+                    if (threw && !reentrant) {
+                        signal();
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+        }
     }
 }

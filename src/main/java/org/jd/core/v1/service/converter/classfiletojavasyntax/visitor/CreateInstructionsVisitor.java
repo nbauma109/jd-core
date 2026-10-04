@@ -141,6 +141,9 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                     }
                 } catch (Exception | StackOverflowError e) {
                     assert ExceptionUtil.printStackTrace(e);
+                    // The failed attempt left its frames and its variables behind: the next reducer starts from scratch
+                    localVariableMaker = new LocalVariableMaker(typeMaker, comd, constructor);
+                    statementMaker = new StatementMaker(typeMaker, localVariableMaker, comd);
                 }
             }
             if (!reduced) {

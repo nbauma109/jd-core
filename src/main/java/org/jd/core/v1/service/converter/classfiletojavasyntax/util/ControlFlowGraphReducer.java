@@ -135,6 +135,53 @@ public abstract class ControlFlowGraphReducer {
         return structuredMerges;
     }
 
+    /**
+     * A condition which goes over some code to a statement merge, which the end of that code also reaches:
+     *
+     * <pre>locked: { if (!fair) { if (lock.tryLock()) break locked; } start = now(); lock.lock(); } x = 1;</pre>
+     *
+     * The merge is not an arm of any condition (the code which is skipped does not end with a jump), so the construction
+     * cannot nest it. The skipping edge becomes a jump stub, rendered as 'break label' out of a block around the skipped code.
+     */
+    protected static void turnConditionalSkipsIntoStubs(ControlFlowGraph cfg) {
+        for (BasicBlock merge : new ArrayList<>(cfg.getBasicBlocks())) {
+            if (!merge.matchType(TYPE_STATEMENTS) || merge.getPredecessors().size() < 2) {
+                continue;
+            }
+            for (BasicBlock skipping : new ArrayList<>(merge.getPredecessors())) {
+                if (skipping.matchType(TYPE_CONDITIONAL_BRANCH) && (skipping.getNext() == merge) != (skipping.getBranch() == merge)
+                        && skipsToMerge(skipping, skipping.getNext() == merge ? skipping.getBranch() : skipping.getNext(), merge)) {
+                    BasicBlock stub = cfg.newJumpBasicBlock(skipping, merge);
+
+                    if (skipping.getNext() == merge) {
+                        skipping.setNext(stub);
+                    } else {
+                        skipping.setBranch(stub);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @return true if the code which follows the condition is itself a merge (the end of the block which holds the condition) which
+     *         leads to the merge: the condition does not end its own block, it leaves the enclosing one
+     */
+    private static boolean skipsToMerge(BasicBlock condition, BasicBlock follower, BasicBlock merge) {
+        return follower.getPredecessors().size() >= 2 && follower.getFromOffset() > condition.getFromOffset()
+                && follower.getFromOffset() < merge.getFromOffset() && reaches(follower, merge, new HashSet<>());
+    }
+
+    private static boolean reaches(BasicBlock from, BasicBlock target, Set<BasicBlock> visited) {
+        if (from == target) {
+            return true;
+        }
+        if (from == null || from.getIndex() < 0 || !visited.add(from)) {
+            return false;
+        }
+        return reaches(from.getNext(), target, visited) || reaches(from.getBranch(), target, visited);
+    }
+
     /** @return the block which follows a statement merge reached by several blocks, or null */
     private static BasicBlock continuationOfSharedMerge(BasicBlock merge) {
         if (!merge.matchType(TYPE_STATEMENTS) || merge.getPredecessors().size() < 2) {

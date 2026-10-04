@@ -1006,4 +1006,15 @@ public class GuavaPatterns {
     public static StaticHolder holderOf(Thread thread) {
         return new StaticHolder(thread::start);
     }
+
+    /** The local class is created in a block but also used as the type of a variable after it */
+    public static Object localClassUsedAsType(boolean flag) {
+        class Marker {
+        }
+        Marker marker = null;
+        if (flag) {
+            marker = new Marker();
+        }
+        return marker;
+    }
 }

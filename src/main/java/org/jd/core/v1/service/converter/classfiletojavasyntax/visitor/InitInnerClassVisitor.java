@@ -37,6 +37,7 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
 import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
@@ -1026,6 +1027,22 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         if (expression.getTypeDotClass() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
                             count[0]++;
                         }
+                    }
+
+                    @Override
+                    public void visit(LocalVariableDeclarationStatement statement) {
+                        if (statement.getType() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
+                            count[0]++;
+                        }
+                        super.visit(statement);
+                    }
+
+                    @Override
+                    public void visit(CastExpression expression) {
+                        if (expression.getType() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
+                            count[0]++;
+                        }
+                        super.visit(expression);
                     }
                 };
                 if (syntax instanceof Statement statement) {

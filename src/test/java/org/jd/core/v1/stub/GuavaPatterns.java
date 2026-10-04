@@ -639,4 +639,56 @@ public class GuavaPatterns {
         }
         return null;
     }
+
+    public abstract static class Wrapper<V> {
+        abstract class Coll extends java.util.AbstractCollection<V> {
+            java.util.List<V> delegate() {
+                return null;
+            }
+
+            class It implements java.util.Iterator<V> {
+                final java.util.Iterator<V> iterator;
+
+                It() {
+                    this.iterator = delegate().iterator();
+                }
+
+                It(java.util.Iterator<V> iterator) {
+                    this.iterator = iterator;
+                }
+
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                public V next() {
+                    return iterator.next();
+                }
+            }
+        }
+
+        class ListColl extends Coll {
+            java.util.List<V> listDelegate() {
+                return null;
+            }
+
+            public java.util.Iterator<V> iterator() {
+                return new ListIt();
+            }
+
+            public int size() {
+                return 0;
+            }
+
+            /** The outer instance is stored in 'this$1' and the constructor passes it on to the inner superclass */
+            private final class ListIt extends Coll.It {
+                ListIt() {
+                }
+
+                ListIt(int index) {
+                    super(listDelegate().listIterator(index));
+                }
+            }
+        }
+    }
 }

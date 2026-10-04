@@ -182,6 +182,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             if (name.startsWith(OUTER_THIS_PREFIX)) {
                                 outerTypeFieldName = name;
                                 removeFirstParameter = true;
+                                if (expression.getRightExpression() instanceof ClassFileLocalVariableReferenceExpression outerParameter) {
+                                    // The references to the outer instance parameter (the one passed to an inner superclass) are named like the field
+                                    outerParameter.getLocalVariable().setName(name);
+                                }
                             } else if (name.startsWith("val$")) {
                                 syntheticInnerFieldNames.add(name);
 

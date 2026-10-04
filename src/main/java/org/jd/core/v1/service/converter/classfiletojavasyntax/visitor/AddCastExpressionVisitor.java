@@ -2129,6 +2129,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
         if (expression.isByteCodeCheckCast()
+                && expression.getType() instanceof ObjectType erasedType
+                && expression.getExpression() instanceof ClassFileMethodInvocationExpression call
+                && call.getType() instanceof GenericType resultVariable && resultVariable.getDimension() == 0
+                && declaredBoundsOf(resultVariable.getName()) != null
+                && !declaredBoundsOf(resultVariable.getName()).isList() && declaredBoundsOf(resultVariable.getName()).getFirst() instanceof ObjectType resultBound
+                && erasedType.rawEquals(resultBound)) {
+            // The CHECKCAST after a call whose result is a type variable is to the erasure of that variable: its bound
+            return true;
+        }
+        if (expression.isByteCodeCheckCast()
                 && type instanceof GenericType expectedGenericType
                 && expression.getExpression() instanceof ClassFileMethodInvocationExpression methodInvocationExpression
                 && methodInvocationExpression.getUnboundType() instanceof GenericType returnedGenericType

@@ -891,4 +891,15 @@ public class GuavaPatterns {
     public static <T> boolean advanceIndexed(java.util.Spliterator.OfInt delegate, java.util.function.IntFunction<T> function, java.util.function.Consumer<? super T> action) {
         return delegate.tryAdvance((java.util.function.IntConsumer) i -> action.accept(function.apply(i)));
     }
+
+    static final class FlatMapper<In, Out, S extends java.util.Spliterator<Out>> {
+        S prefix;
+        java.util.function.Function<In, S> function;
+        java.util.Spliterator<In> from;
+
+        /** The bytecode casts the result of the function to the erasure of S, which is its bound */
+        boolean advance() {
+            return from.tryAdvance(element -> prefix = function.apply(element));
+        }
+    }
 }

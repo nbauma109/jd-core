@@ -282,11 +282,21 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
         for (TypeParameter typeParameter : methodTypeParameters) {
             if (typeParameter instanceof TypeParameterWithTypeBounds withBounds && withBounds.getTypeBounds().getFirst() instanceof ObjectType firstBound
-                    && !TYPE_OBJECT.equals(firstBound) && bindings.get(typeParameter.getIdentifier()) instanceof Type bound
+                    && !TYPE_OBJECT.equals(firstBound) && boundType(bindings.get(typeParameter.getIdentifier())) instanceof Type bound
                     && !withinBounds(bound, withBounds.getTypeBounds())) {
                 bindings.put(typeParameter.getIdentifier(), firstBound.createType(null));
             }
         }
+    }
+
+    private static TypeArgument boundType(TypeArgument typeArgument) {
+        if (typeArgument instanceof WildcardSuperTypeArgument wildcardSuper) {
+            return wildcardSuper.type();
+        }
+        if (typeArgument instanceof WildcardExtendsTypeArgument wildcardExtends) {
+            return wildcardExtends.type();
+        }
+        return typeArgument;
     }
 
     private boolean withinBounds(Type type, BaseType bounds) {

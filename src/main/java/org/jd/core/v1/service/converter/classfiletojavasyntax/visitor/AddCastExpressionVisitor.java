@@ -1324,7 +1324,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (rightExpression.isMethodInvocationExpression()) {
                 ClassFileMethodInvocationExpression mie = (ClassFileMethodInvocationExpression)rightExpression;
 
-                if (mie.getTypeParameters() != null) {
+                if (mie.getTypeParameters() != null && !hasBoundedTypeParameter(mie.getTypeParameters())) {
                     // Do not add cast expression if method contains type parameters
                     rightExpression.accept(this);
                     return;
@@ -1344,6 +1344,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 return;
             }
 
+            // A call of a generic method with a bounded type variable gets what the bound infers, not what the target type does
+            if (rightExpression instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
+                    && hasBoundedTypeParameter(call.getTypeParameters())
+                    && expression.getLeftExpression().getType() instanceof ObjectType leftType && leftType.getTypeArguments() != null
+                    && !leftType.equals(rightExpression.getType())) {
+                rightExpression.accept(this);
+                expression.setRightExpression(addCastExpression(leftType.createType(null), rightExpression));
+                return;
+            }
+
             expression.setRightExpression(updateExpression(Collections.emptyMap(), typeBounds, expression.getLeftExpression().getType(), null, rightExpression, false, true, false));
             return;
         }
@@ -1359,6 +1369,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         normalizeTernaryBooleanConstants(expression, expression.getType());
         expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
         expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
+    }
+
+    /** A type variable with a bound (<C extends Comparable>) cannot be inferred from any target type */
+    private static boolean hasBoundedTypeParameter(BaseTypeParameter typeParameters) {
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (typeParameter instanceof TypeParameterWithTypeBounds) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {

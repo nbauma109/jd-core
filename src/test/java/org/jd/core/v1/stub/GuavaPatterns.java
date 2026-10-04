@@ -608,4 +608,19 @@ public class GuavaPatterns {
             return newBuilder;
         }
     }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static <C extends Comparable> java.util.Comparator<C> naturalComparator() {
+        return (java.util.Comparator<C>) java.util.Comparator.naturalOrder();
+    }
+
+    /** A bounded type variable of a generic method is inferred from its bound, never from the wildcard target type */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static <E> java.util.Comparator<E> comparatorOf(java.util.SortedSet<E> set) {
+        java.util.Comparator<? super E> result = set.comparator();
+        if (result == null) {
+            result = (java.util.Comparator<? super E>) naturalComparator();
+        }
+        return (java.util.Comparator<E>) result;
+    }
 }

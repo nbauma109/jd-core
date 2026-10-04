@@ -1612,7 +1612,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 ClassFileNewExpression ne = (ClassFileNewExpression)expression;
                                 ne.setObjectType(ne.getObjectType().createType(null));
                             }
-                            if (expression instanceof LambdaIdentifiersExpression) {
+                            if (expression instanceof LambdaIdentifiersExpression
+                                    || visitingWitnessedInvocation && objectType.getTypeArguments() != null && hasKnownTypeParameters(objectType)) {
+                                // (a raw argument would turn the call into an unchecked one, whatever the witness says)
                                 expression = addCastExpression(objectType, expression);
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);

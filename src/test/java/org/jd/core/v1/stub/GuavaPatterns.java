@@ -745,4 +745,55 @@ public class GuavaPatterns {
         java.util.Map.Entry<Bound<K>, IntervalEntry<K, String>> first = entries.firstEntry();
         return first.getValue().getKey().lowerBound;
     }
+
+    static final class Fluent<E> {
+        static <E> Fluent<E> from(Iterable<E> iterable) {
+            return new Fluent<>();
+        }
+
+        static <E> Fluent<E> from(Fluent<E> fluent) {
+            return fluent;
+        }
+
+        static <E> Fluent<E> from(E[] elements) {
+            return new Fluent<>();
+        }
+
+        <T> Fluent<T> transform(java.util.function.Function<? super E, T> function) {
+            return new Fluent<>();
+        }
+
+        java.util.List<E> toList() {
+            return null;
+        }
+    }
+
+    static final class Pending<V> {
+        final String name;
+
+        Pending(String name) {
+            this.name = name;
+        }
+    }
+
+    /** The argument is cast to the parameterized type of the overload, a raw one would make the call unchecked */
+    public static java.util.List<String> namesOf(java.util.List<Pending<?>> pendings) {
+        return Fluent.from(pendings).transform(pending -> pending.name).toList();
+    }
+
+    /** The type of a variable initialized by a ternary with null is the one of the call */
+    public static <T extends Comparable<?>> Object endpointOf(Wrapper2<T> range) {
+        T endpoint = range.has() ? range.end() : null;
+        return endpoint;
+    }
+
+    static final class Wrapper2<C extends Comparable<?>> {
+        boolean has() {
+            return true;
+        }
+
+        C end() {
+            return null;
+        }
+    }
 }

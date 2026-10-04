@@ -1214,8 +1214,12 @@ public class ByteCodeParser {
     /** The type arguments of the branches of such a ternary are only bound once the assignment is created, like those of a call */
     private static boolean isTernaryOfMethodInvocations(Expression value) {
         return value.isTernaryOperatorExpression()
-            && (value.getTrueExpression().isMethodInvocationExpression() || isTernaryOfMethodInvocations(value.getTrueExpression()))
-            && (value.getFalseExpression().isMethodInvocationExpression() || isTernaryOfMethodInvocations(value.getFalseExpression()));
+            && isMethodInvocationOrNull(value.getTrueExpression()) && isMethodInvocationOrNull(value.getFalseExpression())
+            && !(value.getTrueExpression().isNullExpression() && value.getFalseExpression().isNullExpression());
+    }
+
+    private static boolean isMethodInvocationOrNull(Expression value) {
+        return value.isMethodInvocationExpression() || value.isNullExpression() || isTernaryOfMethodInvocations(value);
     }
 
     private AbstractLocalVariable getLocalVariableInAssignment(int index, int offset, Expression value) {

@@ -358,6 +358,8 @@ public class Frame {
                         statement.getStatements().accept(searchLocalVariableVisitor);
                         undeclaredInExpressionStatements.addAll(searchLocalVariableVisitor.getVariables());
                     }
+                } else {
+                    addVariablesUsedOutsideOfInit(statement, undeclaredInExpressionStatements);
                 }
             } else {
                 searchLocalVariableVisitor.init();
@@ -416,6 +418,29 @@ public class Frame {
                 }
             }
         }
+    }
+
+    /** A variable assigned in the init of an earlier 'for' but used by this one without being initialized by it must stay declared outside */
+    private static void addVariablesUsedOutsideOfInit(Statement forStatement, Set<AbstractLocalVariable> variables) {
+        SearchUndeclaredLocalVariableVisitor initVisitor = new SearchUndeclaredLocalVariableVisitor();
+        forStatement.getInit().accept(initVisitor);
+        Set<AbstractLocalVariable> used = new HashSet<>();
+        SearchLocalVariableVisitor visitor = new SearchLocalVariableVisitor();
+
+        for (BaseExpression expression : new BaseExpression[] {forStatement.getCondition(), forStatement.getUpdate()}) {
+            if (expression != null) {
+                visitor.init();
+                expression.accept(visitor);
+                used.addAll(visitor.getVariables());
+            }
+        }
+        if (forStatement.getStatements() != null) {
+            visitor.init();
+            forStatement.getStatements().accept(visitor);
+            used.addAll(visitor.getVariables());
+        }
+        used.removeAll(initVisitor.getVariables());
+        variables.addAll(used);
     }
 
     protected void createNewLocalVariable(CreateLocalVariableVisitor createLocalVariableVisitor, ClassFileForStatement fs, AbstractLocalVariable lv) {

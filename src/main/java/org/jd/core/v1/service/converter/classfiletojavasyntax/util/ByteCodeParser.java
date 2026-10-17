@@ -51,6 +51,7 @@ import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
@@ -68,6 +69,8 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.InnerObjectType;
+import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
@@ -106,6 +109,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import static org.apache.bcel.Const.*;
 import static org.jd.core.v1.model.javasyntax.statement.ReturnStatement.RETURN;
@@ -149,6 +153,9 @@ public class ByteCodeParser {
     private final boolean genericTypesSupported;
     private final int majorVersion;
     private final String internalTypeName;
+    private final Set<String> fieldNamesInScope = new HashSet<>();
+    private final Set<String> enclosingTypeNames = new HashSet<>();
+    private final ClassFile classFile;
     private final AbstractTypeParametersToTypeArgumentsBinder typeParametersToTypeArgumentsBinder;
     private final BootstrapMethods attributeBootstrapMethods;
     private final ClassFileBodyDeclaration bodyDeclaration;
@@ -165,6 +172,13 @@ public class ByteCodeParser {
         this.diamondSupported = majorVersion >= MAJOR_1_7;
         this.genericTypesSupported = majorVersion >= MAJOR_1_5;
         this.internalTypeName = classFile.getInternalTypeName();
+        this.classFile = classFile;
+        for (ClassFile cf = classFile; cf != null; cf = cf.getOuterClassFile()) {
+            enclosingTypeNames.add(cf.getInternalTypeName());
+            for (org.apache.bcel.classfile.Field field : cf.getFields()) {
+                fieldNamesInScope.add(field.getName());
+            }
+        }
         this.attributeBootstrapMethods = classFile.getAttribute(ATTR_BOOTSTRAP_METHODS);
         this.bodyDeclaration = bodyDeclaration;
         this.returnedType = comd.getReturnedType();
@@ -214,7 +228,8 @@ public class ByteCodeParser {
 
         int opcode;
         int lineNumber;
-        for (int offset=fromOffset; offset<toOffset; offset++) {
+        int offset = fromOffset;
+        while (offset < toOffset) {
             int startOffset = offset;
             opcode = code[offset] & 255;
             lineNumber = cfg.getLineNumber(offset);
@@ -657,7 +672,10 @@ public class ByteCodeParser {
                     break;
                 case IINC:
                     localVariable = localVariableMaker.getLocalVariable(code[++offset] & 255, offset);
-                    parseIINC(statements, stack, lineNumber, offset, localVariable, (byte)(code[++offset] & 255));
+                    // The offset of the expressions is the one of the index of the variable, as it always was
+                    int variableIndexOffset = offset;
+                    count = (byte)(code[++offset] & 255);
+                    offset += parseIINC(statements, stack, lineNumber, variableIndexOffset, localVariable, count, new FollowingCode(code, offset + 1, toOffset));
                     break;
                 case I2L:
                     stack.push(new CastExpression(lineNumber, TYPE_LONG, forceExplicitCastExpression(stack.pop())));
@@ -830,7 +848,12 @@ public class ByteCodeParser {
                     withoutInheritedLineNumbersAfterAnonymousClass(cfg, parameters, startOffset);
 
                     if (opcode == INVOKESTATIC) {
-                        expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, new ObjectTypeReferenceExpression(lineNumber, ot), ot, name, descriptor, methodTypes, parameters);
+                        // javac qualifies an inherited static call made from an anonymous class (e.g. an enum constant body) with
+                        // that anonymous class, which has no name to print: leave the call unqualified
+                        Expression receiver = ot.getName() == null && ot.getInternalName().equals(internalTypeName)
+                                ? NoExpression.NO_EXPRESSION
+                                : new ObjectTypeReferenceExpression(lineNumber, unshadowedType(ot));
+                        expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(lineNumber, receiver, ot, name, descriptor, methodTypes, parameters);
                         if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
                             typeParametersToTypeArgumentsBinder.setExceptionTypes(exceptionTypes);
                             typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, expression1);
@@ -842,7 +865,11 @@ public class ByteCodeParser {
                         expression1 = stack.pop();
                         expression1 = withExplicitLineNumberOnly(cfg, expression1, lineNumber);
                         if (expression1 instanceof NewExpression newExpression && expression1.getType().isInnerObjectType() && !enclosingInstances.isEmpty()) {
-                            newExpression.setQualifier(enclosingInstances.pop());
+                            Expression outerInstance = enclosingInstances.pop();
+
+                            if (isPassedAsOuterInstance(descriptor, outerInstance)) {
+                                newExpression.setQualifier(outerInstance);
+                            }
                         }
                         if (expression1.isLocalVariableReferenceExpression()) {
                             ((ClassFileLocalVariableReferenceExpression)expression1).getLocalVariable().typeOnLeft(typeBounds, ot);
@@ -850,7 +877,7 @@ public class ByteCodeParser {
                         if (opcode == INVOKEINTERFACE) {
                             offset += 2; // Skip 'count' and one byte
                         }
-                        if (TYPE_VOID.equals(methodTypes.getReturnedType())) {
+                        if (TYPE_VOID.equals(methodTypes.getReturnedType()) || isPolymorphicSignature(methodTypes) && descriptor.endsWith(")V")) {
                             if (opcode == INVOKESPECIAL &&
                                 StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
                                 if (expression1.isNewExpression()) {
@@ -877,8 +904,9 @@ public class ByteCodeParser {
                                     break;
                                 }
                             }
-                            stack.push(typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
-                                lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters));
+                            expression1 = typeParametersToTypeArgumentsBinder.newMethodInvocationExpression(
+                                lineNumber, getMethodInstanceReference(expression1, ot, name, descriptor, opcode == INVOKESPECIAL), ot, name, descriptor, methodTypes, parameters);
+                            stack.push(isPolymorphicSignature(methodTypes) ? castToDescriptorReturnType(lineNumber, expression1, descriptor) : expression1);
                         }
                     }
                     break;
@@ -970,7 +998,7 @@ public class ByteCodeParser {
                     if (type1 == null) {
                         type1 = PrimitiveTypeUtil.getPrimitiveTypeFromDescriptor(typeName);
                     }
-                    stack.push(new InstanceOfExpression(lineNumber, stack.pop(), type1));
+                    stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
                     break;
                 case MONITORENTER:
                     statements.add(new ClassFileMonitorEnterStatement(stack.pop()));
@@ -985,7 +1013,7 @@ public class ByteCodeParser {
                     if (opcode == IINC) {
                         count = (short)( (code[++offset] & 255) << 8 | code[++offset] & 255 );
                         // The reference points to the byte following the 'wide' opcode, as for a plain 'iinc'
-                        parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count);
+                        offset += parseIINC(statements, stack, lineNumber, offset - 4, localVariableMaker.getLocalVariable(i, offset), count, new FollowingCode(code, offset + 1, toOffset));
                     } else {
                         switch (opcode) {
                             case ILOAD:
@@ -1063,6 +1091,7 @@ public class ByteCodeParser {
             }
 
             recordLoadStartOffset(opcode, startOffset, stack);
+            offset++;
         }
     }
 
@@ -1184,6 +1213,17 @@ public class ByteCodeParser {
         return parameter;
     }
 
+    /** The type arguments of the branches of such a ternary are only bound once the assignment is created, like those of a call */
+    private static boolean isTernaryOfMethodInvocations(Expression value) {
+        return value.isTernaryOperatorExpression()
+            && isMethodInvocationOrNull(value.getTrueExpression()) && isMethodInvocationOrNull(value.getFalseExpression())
+            && !(value.getTrueExpression().isNullExpression() && value.getFalseExpression().isNullExpression());
+    }
+
+    private static boolean isMethodInvocationOrNull(Expression value) {
+        return value.isMethodInvocationExpression() || value.isNullExpression() || isTernaryOfMethodInvocations(value);
+    }
+
     private AbstractLocalVariable getLocalVariableInAssignment(int index, int offset, Expression value) {
         Type valueType = value.getType();
 
@@ -1196,7 +1236,7 @@ public class ByteCodeParser {
             valueLocalVariable.variableOnLeft(typeBounds, lv);
             return lv;
         }
-        if (value.isMethodInvocationExpression()) {
+        if (value.isMethodInvocationExpression() || isTernaryOfMethodInvocations(value)) {
             if (valueType.isObjectType()) {
                 // Remove type arguments
                 valueType = ((ObjectType)valueType).createType(null);
@@ -1608,6 +1648,7 @@ public class ByteCodeParser {
                     // Create lambda expression
                     ClassFileMethodDeclaration cfmd = (ClassFileMethodDeclaration)methodDeclaration;
                     if (cfmd.getStatements() == null) {
+                        cfmd.setCapturedParameterTypes(capturedParameterTypes(indyParameters, (cfmd.getFlags() & ACC_STATIC) == 0));
                         CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
                         createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
                     }
@@ -1688,6 +1729,27 @@ public class ByteCodeParser {
      * candidate on the stack. A bound method reference receiver ('outer::method') uses the same
      * null-check idiom but has no such pending construction beneath it.
      */
+    private static boolean isPolymorphicSignature(TypeMaker.MethodTypes methodTypes) {
+        return methodTypes.getReturnedType() instanceof GenericType returned && "XXX".equals(returned.getName());
+    }
+
+    /** 'handle.invokeExact(...)' has the type of the call site: the source casts the result to it, the descriptor tells which */
+    private Expression castToDescriptorReturnType(int lineNumber, Expression call, String descriptor) {
+        Type returned = typeMaker.makeFromDescriptor(descriptor.substring(descriptor.indexOf(')') + 1));
+
+        return TYPE_OBJECT.equals(returned) ? call : new CastExpression(lineNumber, returned, call);
+    }
+
+    /** The first parameter of the constructor of a (non static) inner class is the outer instance: a static nested class has none */
+    private boolean isPassedAsOuterInstance(String constructorDescriptor, Expression outerCandidate) {
+        if (!constructorDescriptor.startsWith("(L") || !(outerCandidate.getType() instanceof ObjectType candidateType)) {
+            return true;
+        }
+        ObjectType firstParameterType = typeMaker.makeFromInternalTypeName(constructorDescriptor.substring(2, constructorDescriptor.indexOf(';')));
+
+        return typeMaker.isRawTypeAssignable(firstParameterType, candidateType);
+    }
+
     private static boolean isPendingInnerClassConstruction(DefaultStack<Expression> stack) {
         Expression outerCandidate = stack.pop();
         boolean pending = !stack.isEmpty() && stack.peek().isNewExpression() && stack.peek().getType().isInnerObjectType();
@@ -2166,45 +2228,82 @@ public class ByteCodeParser {
         return false;
     }
 
-    private void parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {
-        Expression expression;
+    /** The instructions which follow the one being parsed: the code, the offset of the next instruction and the end of the block */
+    private static final class FollowingCode {
+        private final byte[] code;
+        private final int offset;
+        private final int end;
 
+        private FollowingCode(byte[] code, int offset, int end) {
+            this.code = code;
+            this.offset = offset;
+            this.end = end;
+        }
+    }
+
+    /** @return the number of bytes of the following instructions which were consumed too */
+    private int parseIINC(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, int count, FollowingCode following) {
         if (!stack.isEmpty()) {
-            expression = stack.peek();
+            Expression expression = stack.peek();
 
-            if (expression.getLineNumber() == lineNumber && expression.isLocalVariableReferenceExpression()) {
-                ClassFileLocalVariableReferenceExpression exp = (ClassFileLocalVariableReferenceExpression)expression;
+            if ((count == 1 || count == -1) && expression.getLineNumber() == lineNumber && expression.isLocalVariableReferenceExpression()
+                    && ((ClassFileLocalVariableReferenceExpression)expression).getLocalVariable() == localVariable) {
+                // ILOAD found -> Create a post-incrementation
+                stack.pop();
+                stack.push(newPostArithmeticOperatorExpression(lineNumber, expression, count == 1 ? "++" : "--"));
+                return 0;
+            }
 
-                if (exp.getLocalVariable() == localVariable) {
-                    // ILOAD found -> Create a post-incrementation
-                    stack.pop();
+            // 'foo(bar(), ++i)' and 'foo(i, i += 4)': the value of the increment is loaded again by the instruction which follows. As
+            // expressions are still waiting on the stack, a statement would be executed before them: it must stay an expression
+            int loadLength = lengthOfILoad(following.code, following.offset, following.end, localVariable.getIndex());
 
-                    if (count == 1) {
-                        stack.push(newPostArithmeticOperatorExpression(lineNumber, expression, "++"));
-                    } else if (count == -1) {
-                        stack.push(newPostArithmeticOperatorExpression(lineNumber, expression, "--"));
-                    } else {
-                        throw new IllegalStateException();
-                    }
-
-                    return;
-                }
+            if (loadLength > 0) {
+                stack.push(newIncrementExpression(lineNumber, offset, localVariable, count));
+                return loadLength;
             }
         }
 
-        expression = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
+        statements.add(new ExpressionStatement(newIncrementExpression(lineNumber, offset, localVariable, count)));
+        return 0;
+    }
 
-        if (count == 1) {
-            expression = newPreArithmeticOperatorExpression(lineNumber, "++", expression);
-        } else if (count == -1) {
-            expression = newPreArithmeticOperatorExpression(lineNumber, "--", expression);
-        } else if (count >= 0) {
-            expression = new BinaryOperatorExpression(lineNumber, expression.getType(), expression, "+=", new IntegerConstantExpression(lineNumber, expression.getType(), count), 16);
-        } else {
-            expression = new BinaryOperatorExpression(lineNumber, expression.getType(), expression, "-=", new IntegerConstantExpression(lineNumber, expression.getType(), -count), 16);
+    /** @return the length of the 'iload' of a given local variable found at the offset, or 0 if there is no such instruction */
+    private static int lengthOfILoad(byte[] code, int offset, int toOffset, int variableIndex) {
+        if (offset >= toOffset) {
+            return 0;
         }
 
-        statements.add(new ExpressionStatement(expression));
+        int opcode = code[offset] & 255;
+
+        if (opcode == ILOAD) {
+            return offset + 1 < toOffset && (code[offset + 1] & 255) == variableIndex ? 2 : 0;
+        }
+        if (opcode == WIDE) {
+            // wide iload: the variable index takes two bytes
+            return offset + 3 < toOffset && (code[offset + 1] & 255) == ILOAD
+                    && ((code[offset + 2] & 255) << 8 | code[offset + 3] & 255) == variableIndex ? 4 : 0;
+        }
+        return opcode >= ILOAD_0 && opcode <= ILOAD_3 && opcode - ILOAD_0 == variableIndex ? 1 : 0;
+    }
+
+    private Expression newCompoundAssignmentExpression(int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {
+        Expression expression = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
+        String operator = count >= 0 ? "+=" : "-=";
+
+        return new BinaryOperatorExpression(lineNumber, expression.getType(), expression, operator, new IntegerConstantExpression(lineNumber, expression.getType(), Math.abs(count)), 16);
+    }
+
+    private Expression newIncrementExpression(int lineNumber, int offset, AbstractLocalVariable localVariable, int count) {
+        Expression expression = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
+
+        if (count == 1) {
+            return newPreArithmeticOperatorExpression(lineNumber, "++", expression);
+        }
+        if (count == -1) {
+            return newPreArithmeticOperatorExpression(lineNumber, "--", expression);
+        }
+        return newCompoundAssignmentExpression(lineNumber, offset, localVariable, count);
     }
 
     private void parseIF(DefaultStack<Expression> stack, int lineNumber, BasicBlock basicBlock, String operator1, String operator2, int priority) {
@@ -2360,7 +2459,7 @@ public class ByteCodeParser {
         ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
         Type type = makeFieldType(ot.getInternalName(), name, descriptor);
-        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, ot, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
+        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, unshadowedType(ot), !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
         stack.push(typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, ot, name, descriptor));
     }
 
@@ -2373,7 +2472,7 @@ public class ByteCodeParser {
         String descriptor = constants.getConstantString(constantNameAndType.getSignatureIndex(), CONSTANT_Utf8);
         Type type = makeFieldType(ot.getInternalName(), name, descriptor);
         Expression valueRef = stack.pop();
-        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, ot, !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
+        Expression objectRef = new ObjectTypeReferenceExpression(lineNumber, unshadowedType(ot), !internalTypeName.equals(typeName) || localVariableMaker.containsName(name));
         FieldReferenceExpression fieldRef = typeParametersToTypeArgumentsBinder.newFieldReferenceExpression(lineNumber, type, objectRef, ot, name, descriptor);
         parsePUT(statements, stack, lineNumber, fieldRef, valueRef);
     }
@@ -2548,8 +2647,8 @@ public class ByteCodeParser {
             rightVariable.typeOnRight(typeBounds, TYPE_BOOLEAN);
         }
 
-        typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(leftExpression.getType(), rightExpression);
-        typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(rightExpression.getType(), leftExpression);
+        typeParametersToTypeArgumentsBinder.bindOperandTypeWithOtherOperandType(leftExpression.getType(), rightExpression);
+        typeParametersToTypeArgumentsBinder.bindOperandTypeWithOtherOperandType(rightExpression.getType(), leftExpression);
 
         return new BinaryOperatorExpression(lineNumber, TYPE_BOOLEAN, leftExpression, operator, rightExpression, priority);
     }
@@ -2714,6 +2813,16 @@ public class ByteCodeParser {
         return internalTypeName.equals(typeName);
     }
 
+    /** @return the length of the instruction which stores the exception at the beginning of a handler, or which pops it */
+    public static int lengthOfExceptionStore(byte[] code, int offset) {
+        int opcode = code[offset] & 255;
+
+        if (opcode == WIDE) {
+            return 4;
+        }
+        return opcode == ASTORE ? 2 : 1;
+    }
+
     public static int getExceptionLocalVariableIndex(BasicBlock basicBlock) {
         ControlFlowGraph cfg = basicBlock.getControlFlowGraph();
         int offset = basicBlock.getFromOffset();
@@ -2729,6 +2838,7 @@ public class ByteCodeParser {
 
         return switch (opcode) {
             case ASTORE -> code[++offset] & 255;
+            case WIDE -> code[offset + 1] == (byte)ASTORE ? (code[offset + 2] & 255) << 8 | code[offset + 3] & 255 : -1;
             case ASTORE_0, ASTORE_1, ASTORE_2, ASTORE_3 -> opcode - ASTORE_0;
             case POP, POP2 -> -1;
             default -> -1;
@@ -2806,6 +2916,59 @@ public class ByteCodeParser {
         }
 
         return type;
+    }
+
+    /**
+     * A field in scope hides a type of the same simple name when the type is used as a qualifier (JLS 6.4.2),
+     * e.g. 'UUID.fromString(s)' inside 'TypeAdapter<UUID> UUID = ...': print the qualified name instead.
+     */
+    private ObjectType unshadowedType(ObjectType ot) {
+        if (ot.getClass() == ObjectType.class && ot.getDimension() == 0 && ot.getName() != null
+                && !ot.getName().equals(ot.getQualifiedName()) && fieldNamesInScope.contains(ot.getName())) {
+            return new ObjectType(ot.getInternalName(), ot.getQualifiedName(), ot.getQualifiedName());
+        }
+        return ot;
+    }
+
+    /** The types of the expressions a lambda captures, in the order of the leading parameters of its synthetic method */
+    private static List<Type> capturedParameterTypes(BaseExpression indyParameters, boolean capturesThis) {
+        if (indyParameters == null) {
+            return Collections.emptyList();
+        }
+        return StreamSupport.stream(indyParameters.spliterator(), false).skip(capturesThis ? 1 : 0).map(Expression::getType).toList();
+    }
+
+    /**
+     * Before Java 16 'instanceof' only accepts reifiable types: an inner class of a generic class must then be spelled out
+     * with its (raw) outer class, which is what the fully qualified name does ('TypeAdapter.NullSafeTypeAdapter').
+     */
+    private Type rawQualifiedInstanceOfType(Type type) {
+        // (only where the outer class is the one being decompiled, or encloses it: the name of the outer class is then left out)
+        if (type instanceof InnerObjectType innerObjectType && innerObjectType.getDimension() == 0 && innerObjectType.getOuterType() != null
+                && enclosingTypeNames.contains(innerObjectType.getOuterType().getInternalName())
+                && !isStaticNestedClass(innerObjectType.getInternalName())) {
+            TypeMaker.TypeTypes outerTypeTypes = typeMaker.makeTypeTypes(innerObjectType.getOuterType().getInternalName());
+
+            if (outerTypeTypes != null && outerTypeTypes.getTypeParameters() != null) {
+                String qualifiedName = innerObjectType.getQualifiedName();
+                int lastSlash = innerObjectType.getInternalName().lastIndexOf('/');
+                String nameInPackage = lastSlash < 0 ? qualifiedName : qualifiedName.substring(lastSlash + 1);
+
+                return new ObjectType(innerObjectType.getInternalName(), qualifiedName, nameInPackage);
+            }
+        }
+        return type;
+    }
+
+    private boolean isStaticNestedClass(String internalTypeName) {
+        for (ClassFile outer = classFile; outer != null; outer = outer.getOuterClassFile()) {
+            for (ClassFile inner : outer.getInnerClassFiles() == null ? List.<ClassFile>of() : outer.getInnerClassFiles()) {
+                if (internalTypeName.equals(inner.getInternalTypeName())) {
+                    return inner.isStatic();
+                }
+            }
+        }
+        return false;
     }
 
     private TypeMaker.MethodTypes makeMethodTypes(String internalTypeName, String methodName, String descriptor) {

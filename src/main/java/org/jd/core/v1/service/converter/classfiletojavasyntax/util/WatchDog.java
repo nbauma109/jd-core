@@ -31,6 +31,13 @@ public class WatchDog {
         }
     }
 
+    /** The link is no longer part of the path being walked: a block which is reached by another path (a shared tail) is not a cycle */
+    public void release(BasicBlock parent, BasicBlock child) {
+        if (child != null && !child.matchType(BasicBlock.GROUP_END)) {
+            links.remove(new Link(parent, child));
+        }
+    }
+
     protected static class Link {
         private final int parentIndex;
         private final int childIndex;

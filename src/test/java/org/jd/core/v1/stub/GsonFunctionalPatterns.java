@@ -344,4 +344,11 @@ public class GsonFunctionalPatterns {
     /** The generic exception of one declaration does not make its return type generic */
     public interface ThrowingAndGeneric<T, E extends Throwable> extends ThrowingGet<E>, GenericGet<T> {
     }
+
+    public interface CovariantToString<T> {
+        @Override
+        String toString();
+
+        T get();
+    }
 }

@@ -24,7 +24,8 @@ import java.util.Set;
 /** Finds the only abstract method of a functional interface, the inherited ones included. */
 public class SingleAbstractMethodFinder {
     private static final String[] NONE = new String[0];
-    private static final Set<String> OBJECT_METHODS = Set.of("equals(Ljava/lang/Object;)Z", "hashCode()I", "toString()Ljava/lang/String;");
+    /** The parameters of the public methods of Object: a covariant redeclaration (String toString()) is one of them too */
+    private static final Set<String> OBJECT_METHODS = Set.of("equals(Ljava/lang/Object;)", "hashCode()", "toString()");
 
     private final Loader loader;
     private final Map<String, String[]> singleAbstractMethods = new HashMap<>();
@@ -144,7 +145,7 @@ public class SingleAbstractMethodFinder {
                 // The methods whose parameters are the same are override-equivalent, whatever their (covariant) returned type is
                 String signature = declaration.substring(0, declaration.indexOf(')') + 1);
 
-                if (isBridge(method) == bridges && !method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(declaration)
+                if (isBridge(method) == bridges && !method.isStatic() && !method.isPrivate() && !OBJECT_METHODS.contains(signature)
                         && (!bridges || !declared.contains(signature))) {
                     members.put(signature, new Member(new MethodRef(internalName, method.getName(), method.getSignature()), method.isAbstract(),
                             returnsTypeVariable(method), ancestors));

@@ -1081,4 +1081,19 @@ public class GuavaPatterns {
     public static <R> void addUnchecked(java.util.List<java.util.List<R>> sink, java.util.List<? extends R> cell) {
         sink.add((java.util.List<R>) cell);
     }
+
+    static class GrandParent {
+        int shadowed = 1;
+    }
+
+    static class Parent extends GrandParent {
+        int shadowed = 2;
+    }
+
+    static final class Child extends Parent {
+        /** The field of the grandparent is hidden by the one of the parent: it is reached through a cast */
+        int grandParentField() {
+            return ((GrandParent) this).shadowed;
+        }
+    }
 }

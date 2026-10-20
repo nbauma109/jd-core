@@ -139,6 +139,11 @@ public class SingleAbstractMethodFinderTest {
     }
 
     @Test
+    public void testCovariantObjectMethodIsNotAbstract() {
+        assertArrayEquals(new String[] {PATTERNS + "$CovariantToString", "get", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$CovariantToString"));
+    }
+
+    @Test
     public void testSubInterfaceFirst() {
         assertArrayEquals(new String[] {PATTERNS + "$MixedReverse", "mixed", "()Ljava/lang/Object;"}, finder().find(PATTERNS + "$MixedReverse"));
     }

@@ -2715,7 +2715,12 @@ public class ByteCodeParser {
                 if (expression.getType() instanceof ObjectType thisType && typeMaker.isRawTypeAssignable(ot, thisType)) {
                     // javac names the class of the receiver for an inherited field: the declaring class is only named
                     // by 'super.field' or by the access to a private field of a superclass, which 'super.' reaches too
-                    return new SuperExpression(expression.getLineNumber(), expression.getType());
+                    // (when it is the direct superclass: otherwise an intermediate class may hide the field, the cast names the owner)
+                    TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(thisType.getInternalName());
+
+                    return typeTypes != null && typeTypes.getSuperType() != null && typeTypes.getSuperType().getInternalName().equals(ot.getInternalName())
+                        ? new SuperExpression(expression.getLineNumber(), expression.getType())
+                        : new CastExpression(expression.getLineNumber(), ot, expression);
                 }
             }
         }

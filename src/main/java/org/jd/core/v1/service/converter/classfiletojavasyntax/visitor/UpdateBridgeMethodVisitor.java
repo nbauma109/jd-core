@@ -191,7 +191,12 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
     private Expression receiverOfInheritedField(Expression receiver, String fieldClassName) {
         if (receiver.isThisExpression() && receiver.getType() instanceof ObjectType thisType && !thisType.getInternalName().equals(fieldClassName)
                 && typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName(fieldClassName), thisType)) {
-            return new SuperExpression(receiver.getLineNumber(), receiver.getType());
+            // (when it is the direct superclass: otherwise an intermediate class may hide the field, the cast names the owner)
+            TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(thisType.getInternalName());
+
+            return typeTypes != null && typeTypes.getSuperType() != null && typeTypes.getSuperType().getInternalName().equals(fieldClassName)
+                ? new SuperExpression(receiver.getLineNumber(), receiver.getType())
+                : new CastExpression(receiver.getLineNumber(), typeMaker.makeFromInternalTypeName(fieldClassName), receiver);
         }
         return receiver;
     }

@@ -190,6 +190,20 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             int lineNumber, Type type, Expression expression, ObjectType objectType, String name, String descriptor) {
         Type expressionType = expression.getType();
 
+        if (name.startsWith("this$") && type instanceof ObjectType outerType && outerType.getTypeArguments() == null && outerType.getDimension() == 0) {
+            // The outer instance of an inner class is an Outer<R, C, V>: the synthetic field this$0 only has the erased type
+            TypeMaker.TypeTypes outerTypes = typeMaker.makeTypeTypes(outerType.getInternalName());
+
+            if (outerTypes != null && outerTypes.getTypeParameters() != null) {
+                TypeArguments ownArguments = new TypeArguments();
+
+                for (TypeParameter typeParameter : outerTypes.getTypeParameters()) {
+                    ownArguments.add(new GenericType(typeParameter.getIdentifier()));
+                }
+                type = outerType.createType(ownArguments.size() == 1 ? ownArguments.getFirst() : ownArguments);
+            }
+        }
+
         if (expressionType.isObjectType()) {
             ObjectType expressionObjectType = (ObjectType) expressionType;
 
@@ -747,6 +761,15 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         return parameterTypes;
     }
 
+    /** 'this.backingMap.entrySet().spliterator()': calls with no type parameter of their own on a variable or a field, whose declared type says what the calls are */
+    private static boolean isChainOnDeclaredReceiver(Expression expression) {
+        if (expression instanceof ClassFileMethodInvocationExpression call) {
+            return call.getTypeParameters() == null && isChainOnDeclaredReceiver(call.getExpression());
+        }
+        return (expression.isLocalVariableReferenceExpression() || expression.isFieldReferenceExpression())
+                && expression.getType() instanceof ObjectType type && type.getTypeArguments() != null;
+    }
+
     /** @return true if the type is parameterized, by types which are not type variables (a field of type TypeCollector&lt;TypeToken&lt;?&gt;&gt;) */
     private boolean hasOnlyKnownTypeArguments(Type type) {
         if (!(type instanceof ObjectType objectType) || objectType.getTypeArguments() == null) {
@@ -865,9 +888,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 // 'flatMap(list.spliterator(), f)': what 'list.spliterator()' is, a Spliterator of what the list holds, tells the type variables of the call
                 for (Expression parameter : parameters) {
                     if (parameter instanceof ClassFileMethodInvocationExpression argumentCall && !argumentCall.isBound() && argumentCall.getTypeParameters() == null
-                            && (argumentCall.getExpression().isLocalVariableReferenceExpression() || argumentCall.getExpression().isFieldReferenceExpression())
-                            && argumentCall.getExpression().getType() instanceof ObjectType argumentReceiverType
-                            && argumentReceiverType.getTypeArguments() != null) {
+                            && isChainOnDeclaredReceiver(argumentCall.getExpression())) {
                         Type typeBeforeVisitingArgument = this.type;
 
                         this.type = argumentCall.getType();

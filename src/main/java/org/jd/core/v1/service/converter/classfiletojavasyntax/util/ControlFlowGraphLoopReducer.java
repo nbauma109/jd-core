@@ -279,8 +279,22 @@ public final class ControlFlowGraphLoopReducer {
         Set<BasicBlock> members = loop.getMembers();
         BasicBlock start = loop.getStart();
 
-        while (members.removeIf(member -> member != start && !members.containsAll(member.getPredecessors()))) {
+        Set<BasicBlock> removed = new HashSet<>();
+
+        while (members.removeIf(member -> member != start && !members.containsAll(member.getPredecessors()) && removed.add(member))) {
             // Until nothing is left to remove
+        }
+
+        // The loop now stops where the code it shares begins, not after it
+        Set<BasicBlock> frontier = new HashSet<>();
+
+        for (BasicBlock block : removed) {
+            if (block.getPredecessors().stream().anyMatch(members::contains)) {
+                frontier.add(block);
+            }
+        }
+        if (frontier.size() == 1) {
+            loop.setEnd(frontier.iterator().next());
         }
     }
 

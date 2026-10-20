@@ -52,6 +52,10 @@ import org.jd.core.v1.model.javasyntax.statement.TryStatement.CatchClause;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.InnerObjectType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.TypeArguments;
+import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileClassDeclaration;
@@ -615,7 +619,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 if (ne.getBodyDeclaration() == null) {
                     ObjectType type = ne.getObjectType();
                     String internalName = type.getInternalName();
-                    if (ne.getQualifier() != null && instanceMemberClassFinder != null && !instanceMemberClassFinder.isInstanceMemberClass(internalName)) {
+                    if (ne.getQualifier() != null && instanceMemberClassFinder != null && instanceMemberClassFinder.isKnownNotInstanceMemberClass(internalName)) {
                         // The receiver of a bound method reference passed to the constructor of a static class is no outer instance
                         ne.setQualifier(null);
                     }
@@ -1031,17 +1035,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
                     @Override
                     public void visit(LocalVariableDeclarationStatement statement) {
-                        if (statement.getType() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
-                            count[0]++;
-                        }
+                        count[0] += countTypeUses(statement.getType(), internalName);
                         super.visit(statement);
                     }
 
                     @Override
                     public void visit(CastExpression expression) {
-                        if (expression.getType() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
-                            count[0]++;
-                        }
+                        count[0] += countTypeUses(expression.getType(), internalName);
                         super.visit(expression);
                     }
                 };
@@ -1051,6 +1051,25 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     list.accept(counter);
                 }
                 return count[0];
+            }
+
+            /** The uses of the class in a type, in its type arguments too (List&lt;Local&gt;, ? extends Local) */
+            private int countTypeUses(Object type, String internalName) {
+                if (type instanceof ObjectType objectType) {
+                    int count = objectType.getInternalName().equals(internalName) ? 1 : 0;
+
+                    if (objectType.getTypeArguments() instanceof TypeArguments arguments) {
+                        for (TypeArgument argument : arguments) {
+                            count += countTypeUses(argument, internalName);
+                        }
+                        return count;
+                    }
+                    return count + countTypeUses(objectType.getTypeArguments(), internalName);
+                }
+                if (type instanceof WildcardExtendsTypeArgument extending) {
+                    return countTypeUses(extending.type(), internalName);
+                }
+                return type instanceof WildcardSuperTypeArgument supering ? countTypeUses(supering.type(), internalName) : 0;
             }
 
             private List<Statements> nestedStatements(Statement statement) {

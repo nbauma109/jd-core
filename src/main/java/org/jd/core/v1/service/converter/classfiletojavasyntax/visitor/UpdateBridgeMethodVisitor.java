@@ -187,10 +187,6 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         return expression;
     }
 
-    /**
-     * The static receiver of the field or method reached through an accessor comes from the body of the accessor:
-     * its line number is the one of the accessor, not the one of the call.
-     */
     /** The accessor of a private field of a superclass, called on 'this': the field is reached by 'super.' */
     private Expression receiverOfInheritedField(Expression receiver, String fieldClassName) {
         if (receiver.isThisExpression() && receiver.getType() instanceof ObjectType thisType && !thisType.getInternalName().equals(fieldClassName)
@@ -200,6 +196,10 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         return receiver;
     }
 
+    /**
+     * The static receiver of the field or method reached through an accessor comes from the body of the accessor:
+     * its line number is the one of the accessor, not the one of the call.
+     */
     private static Expression atCallSite(Expression receiver, Expression call) {
         return receiver != null && receiver.isObjectTypeReferenceExpression() ? receiver.copyTo(call.getLineNumber()) : receiver;
     }

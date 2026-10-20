@@ -30,6 +30,11 @@ public class InstanceMemberClassFinder {
         this.loader = loader;
     }
 
+    /** @return true only if the class could be read and is no instance member class (an unknown class is not known to be static) */
+    public boolean isKnownNotInstanceMemberClass(String internalName) {
+        return !isInstanceMemberClass(internalName) && loader.canLoad(internalName);
+    }
+
     public boolean isInstanceMemberClass(String internalName) {
         return instanceMemberClasses.computeIfAbsent(internalName, this::read);
     }

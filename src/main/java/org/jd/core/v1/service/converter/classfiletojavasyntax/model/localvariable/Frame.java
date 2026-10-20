@@ -427,6 +427,11 @@ public class Frame {
         Set<AbstractLocalVariable> used = new HashSet<>();
         SearchLocalVariableVisitor visitor = new SearchLocalVariableVisitor();
 
+        // (the right-hand side of the initializer reads the variables of the loops before: 'for (j = i; ...)')
+        visitor.init();
+        forStatement.getInit().accept(visitor);
+        used.addAll(visitor.getVariables());
+
         for (BaseExpression expression : new BaseExpression[] {forStatement.getCondition(), forStatement.getUpdate()}) {
             if (expression != null) {
                 visitor.init();

@@ -853,7 +853,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 // 'flatMap(list.spliterator(), f)': what 'list.spliterator()' is, a Spliterator of what the list holds, tells the type variables of the call
                 for (Expression parameter : parameters) {
                     if (parameter instanceof ClassFileMethodInvocationExpression argumentCall && !argumentCall.isBound() && argumentCall.getTypeParameters() == null
-                            && argumentCall.getExpression().isLocalVariableReferenceExpression() && argumentCall.getExpression().getType() instanceof ObjectType argumentReceiverType
+                            && (argumentCall.getExpression().isLocalVariableReferenceExpression() || argumentCall.getExpression().isFieldReferenceExpression())
+                            && argumentCall.getExpression().getType() instanceof ObjectType argumentReceiverType
                             && argumentReceiverType.getTypeArguments() != null) {
                         Type typeBeforeVisitingArgument = this.type;
 

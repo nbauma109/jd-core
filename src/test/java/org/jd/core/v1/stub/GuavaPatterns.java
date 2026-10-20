@@ -1045,8 +1045,8 @@ public class GuavaPatterns {
     }
 
     /** The captured variable is the component of an array argument: the unchecked cast stays */
-    @SuppressWarnings("unchecked")
-    public static ArrayBox<String[]> wrapped(java.util.List<?> values) {
-        return (ArrayBox<String[]>) wrapAll(values);
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static ArrayBox<String[]> wrappedArrays(java.util.List<?> values) {
+        return (ArrayBox<String[]>) (ArrayBox) wrapAll(values);
     }
 }

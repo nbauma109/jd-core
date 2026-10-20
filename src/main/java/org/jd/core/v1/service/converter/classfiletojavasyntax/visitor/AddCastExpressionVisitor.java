@@ -1495,7 +1495,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || target.getTypeArguments() == null || target.getDimension() != 0 || expressionType.getDimension() != 0) {
             return false;
         }
-        List<TypeArgument> viewArguments = typeArgumentsSeenAs(target.getInternalName(), expressionType, 0);
+        List<TypeArgument> viewArguments = typeArgumentsSeenAs(target.getInternalName(), expressionType, new HashSet<String>());
         List<TypeArgument> targetArguments = toTypeArgumentList(target.getTypeArguments());
 
         if (viewArguments.isEmpty()) {
@@ -1570,11 +1570,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** @return the type arguments of the given type seen as the given (super) class or interface, empty if it is raw or unrelated */
-    private List<TypeArgument> typeArgumentsSeenAs(String internalName, ObjectType type, int depth) {
+    private List<TypeArgument> typeArgumentsSeenAs(String internalName, ObjectType type, Set<String> visited) {
         if (type.getInternalName().equals(internalName)) {
             return type.getTypeArguments() == null ? Collections.emptyList() : toTypeArgumentList(type.getTypeArguments());
         }
-        TypeTypes typeTypes = depth > 8 ? null : typeMaker.makeTypeTypes(type.getInternalName());
+        TypeTypes typeTypes = visited.add(type.getInternalName()) ? typeMaker.makeTypeTypes(type.getInternalName()) : null;
 
         if (typeTypes == null) {
             return Collections.emptyList();
@@ -1582,7 +1582,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> typeArguments = type.getTypeArguments() == null ? Collections.emptyList() : toTypeArgumentList(type.getTypeArguments());
 
         for (ObjectType supertype : supertypesOf(typeTypes)) {
-            List<TypeArgument> found = typeArgumentsSeenAs(internalName, substituteTypeVariables(supertype, typeTypes.getTypeParameters(), typeArguments), depth + 1);
+            List<TypeArgument> found = typeArgumentsSeenAs(internalName, substituteTypeVariables(supertype, typeTypes.getTypeParameters(), typeArguments), visited);
 
             if (!found.isEmpty()) {
                 return found;
@@ -1603,7 +1603,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || returned.getTypeArguments() == null) {
             return false;
         }
-        List<TypeArgument> seen = typeArgumentsSeenAs(expected.getInternalName(), returned, 0);
+        List<TypeArgument> seen = typeArgumentsSeenAs(expected.getInternalName(), returned, new HashSet<String>());
         List<TypeArgument> expectedArguments = toTypeArgumentList(expected.getTypeArguments());
 
         if (seen.size() != expectedArguments.size()) {
@@ -1653,10 +1653,17 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** javac names the class of the call, which may inherit the method from one of its superclasses */
     private TypeMaker.MethodTypes findMethodTypes(String internalTypeName, String name, String descriptor) {
-        String owner = internalTypeName;
+        Deque<String> owners = new ArrayDeque<>();
+        Set<String> visited = new HashSet<>();
         TypeMaker.MethodTypes first = null;
 
-        for (int depth = 0; owner != null && depth < 16; depth++) {
+        owners.add(internalTypeName);
+        while (!owners.isEmpty()) {
+            String owner = owners.poll();
+
+            if (!visited.add(owner)) {
+                continue;
+            }
             TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(owner, name, descriptor);
 
             if (methodTypes != null && methodTypes.getTypeParameters() != null) {
@@ -1667,7 +1674,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
             TypeTypes typeTypes = typeMaker.makeTypeTypes(owner);
 
-            owner = typeTypes == null || typeTypes.getSuperType() == null ? null : typeTypes.getSuperType().getInternalName();
+            if (typeTypes != null) {
+                for (ObjectType supertype : supertypesOf(typeTypes)) {
+                    owners.add(supertype.getInternalName());
+                }
+            }
         }
         return first;
     }

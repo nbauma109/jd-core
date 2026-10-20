@@ -1107,4 +1107,42 @@ public class GuavaPatterns {
         }
         return probe instanceof Probe;
     }
+
+    static final class Slot<T> {
+        java.util.List<T> items;
+        java.util.function.Supplier<T> supplier;
+    }
+
+    /** A value of a wildcard type is assigned to the field of another instance */
+    @SuppressWarnings("unchecked")
+    public static <T> Slot<T> fillSlot(Slot<T> slot, java.util.List<? extends T> source) {
+        slot.items = (java.util.List<T>) source;
+        return slot;
+    }
+
+    /** The value of a generic call is assigned to the field of another instance */
+    public static <T> Slot<T> fillSlotFromCall(Slot<T> slot) {
+        slot.items = java.util.Collections.emptyList();
+        return slot;
+    }
+
+    static <T> T supply(java.util.function.Supplier<T> supplier) {
+        return supplier.get();
+    }
+
+    /** A supplier lambda creating a generic object */
+    public static <E> java.util.List<E> supplyList() {
+        return supply(() -> new java.util.ArrayList<E>());
+    }
+
+    /** The local class is created in a block but also used as the component type of an array after it */
+    public static Object localClassArrayLater(boolean flag) {
+        class Cell {
+        }
+        Object result = null;
+        if (flag) {
+            result = new Cell();
+        }
+        return result != null ? result : new Cell[1];
+    }
 }

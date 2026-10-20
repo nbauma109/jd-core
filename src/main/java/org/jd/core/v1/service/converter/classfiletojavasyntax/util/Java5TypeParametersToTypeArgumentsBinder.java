@@ -316,15 +316,25 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             if (!(bound instanceof ObjectType objectBound) || TYPE_OBJECT.equals(objectBound)) {
                 continue;
             }
-            if (type instanceof GenericType variable && variable.getDimension() == 0) {
+            if (type.getDimension() > 0) {
+                // an array is only an Object, a Cloneable and a Serializable
+                if (!isArraySupertype(objectBound)) {
+                    return false;
+                }
+            } else if (type instanceof GenericType variable) {
                 if (!variableHasBound(variable, objectBound)) {
                     return false;
                 }
-            } else if (type instanceof ObjectType objectType && objectType.getDimension() == 0 && !typeMaker.isRawTypeAssignable(objectBound, objectType)) {
+            } else if (type instanceof ObjectType objectType && !typeMaker.isRawTypeAssignable(objectBound, objectType)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isArraySupertype(ObjectType bound) {
+        String name = bound.getInternalName();
+        return "java/lang/Cloneable".equals(name) || "java/io/Serializable".equals(name);
     }
 
     private boolean variableHasBound(GenericType variable, ObjectType required) {

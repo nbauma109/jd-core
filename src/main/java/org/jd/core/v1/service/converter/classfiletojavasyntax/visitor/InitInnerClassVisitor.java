@@ -37,7 +37,9 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
 import org.jd.core.v1.model.javasyntax.expression.NoExpression;
@@ -1049,6 +1051,18 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     @Override
                     public void visit(InstanceOfExpression expression) {
                         count[0] += countTypeUses(expression.getInstanceOfType(), internalName);
+                        super.visit(expression);
+                    }
+
+                    @Override
+                    public void visit(NewArray expression) {
+                        count[0] += countTypeUses(expression.getType(), internalName);
+                        super.visit(expression);
+                    }
+
+                    @Override
+                    public void visit(NewInitializedArray expression) {
+                        count[0] += countTypeUses(expression.getType(), internalName);
                         super.visit(expression);
                     }
                 };

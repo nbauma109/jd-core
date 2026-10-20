@@ -31,14 +31,17 @@ public class WatchDog {
         }
     }
 
-    /** The link is no longer part of the path being walked: a block which is reached by another path (a shared tail) is not a cycle */
-    public void release(BasicBlock parent, BasicBlock child) {
-        if (child != null && !child.matchType(BasicBlock.GROUP_END)) {
-            links.remove(new Link(parent, child));
-        }
+    /** @return the links walked so far, to give back with {@link #restore} */
+    public Set<Link> snapshot() {
+        return new HashSet<>(links);
     }
 
-    protected static class Link {
+    /** Forgets the links which were walked since the snapshot: a shared tail is walked again by another branch */
+    public void restore(Set<Link> snapshot) {
+        links.retainAll(snapshot);
+    }
+
+    public static class Link {
         private final int parentIndex;
         private final int childIndex;
 

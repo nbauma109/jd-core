@@ -389,6 +389,7 @@ public class StatementMaker {
                 parseByteCode(basicBlock, statements);
                 break;
             case TYPE_TERNARY_OPERATOR:
+                Set<WatchDog.Link> walkedBeforeTernary = watchdog.snapshot();
                 watchdog.check(basicBlock, basicBlock.getCondition());
                 makeStatements(watchdog, basicBlock.getCondition(), statements, jumps);
                 condition = stack.pop();
@@ -404,10 +405,8 @@ public class StatementMaker {
                 watchdog.check(basicBlock, basicBlock.getNext());
                 makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
                 // A ternary operator which is the shared tail of several branches (a boolean 'return a == b') is walked once per branch
-                watchdog.release(basicBlock, basicBlock.getCondition());
-                watchdog.release(basicBlock, basicBlock.getSub1());
-                watchdog.release(basicBlock, basicBlock.getSub2());
-                watchdog.release(basicBlock, basicBlock.getNext());
+                // (the links inside the arms and the tail too: they are reset to be parsed again, and walked again)
+                watchdog.restore(walkedBeforeTernary);
                 makeParsableAgain(basicBlock.getSub1(), basicBlock.getNext());
                 makeParsableAgain(basicBlock.getSub2(), basicBlock.getNext());
                 break;

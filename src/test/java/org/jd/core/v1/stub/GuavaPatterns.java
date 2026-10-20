@@ -1031,4 +1031,9 @@ public class GuavaPatterns {
         java.util.function.Supplier<String> supplier = () -> (String) unboxNested(wrapper);
         return supplier.get();
     }
+
+    /** The outer instance is the qualifier, and the first argument of the constructor: it is written once */
+    public static <K, V> Object qualifiedCreation(GuavaOuter<K, V> outer, K key, V value) {
+        return outer.new Wrapped(key, value);
+    }
 }

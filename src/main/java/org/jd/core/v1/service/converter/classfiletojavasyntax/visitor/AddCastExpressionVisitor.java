@@ -2123,11 +2123,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return;
         }
         ObjectType accumulator = accumulatorTypeReturnedBy(arguments.get(3), call.getTypeBindings().get("R"));
+        Expression supplier = arguments.get(0);
 
         if (accumulator == null) {
+            writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(supplier, call.getTypeBindings().get("R"));
             return;
         }
-        Expression supplier = arguments.get(0);
         Expression created = supplier instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body ? body.getExpression() : null;
 
         if (supplier instanceof ConstructorReferenceExpression reference && reference.getObjectType().getTypeArguments() == null
@@ -2143,6 +2144,52 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         } else if (supplier instanceof MethodReferenceExpression reference && reference.getNonWildcardTypeArguments() == null
                 && reference.getExpression() instanceof ObjectTypeReferenceExpression) {
             reference.setNonWildcardTypeArguments(typeArgumentsOfMethodReturning(reference.getInternalTypeName(), reference.getName(), reference.getDescriptor(), accumulator));
+        }
+    }
+
+    /**
+     * 'Collector.of(LinkedHashMultiset::create, ..., multiset -&gt; ImmutableMultiset.copyFromEntries(multiset.entrySet()))': nothing says what the type
+     * arguments of the accumulator are but the result: a Collector of a collection of E accumulates E in a collection of E, javac would infer Object.
+     */
+    private void writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(Expression supplier, TypeArgument result) {
+        if (!(result instanceof ObjectType resultType) || resultType.getTypeArguments() == null || !hasKnownTypeParameters(resultType) || hasWildcardTypeArgument(resultType)) {
+            return;
+        }
+        List<TypeArgument> resultArguments = toTypeArgumentList(resultType.getTypeArguments());
+        MethodInvocationExpression factoryCall = supplier instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
+                && body.getExpression() instanceof ClassFileMethodInvocationExpression call && call.getExpression().isObjectTypeReferenceExpression() ? (MethodInvocationExpression) body.getExpression() : null;
+        String internalTypeName = factoryCall != null ? factoryCall.getInternalTypeName() : supplier instanceof MethodReferenceExpression reference && !(supplier instanceof MethodInvocationExpression)
+                && reference.getExpression() instanceof ObjectTypeReferenceExpression ? ((MethodReferenceExpression) supplier).getInternalTypeName() : null;
+        String name = factoryCall != null ? factoryCall.getName() : internalTypeName != null ? ((MethodReferenceExpression) supplier).getName() : null;
+        String descriptor = factoryCall != null ? factoryCall.getDescriptor() : internalTypeName != null ? ((MethodReferenceExpression) supplier).getDescriptor() : null;
+
+        if (internalTypeName == null) {
+            return;
+        }
+        TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(internalTypeName, name, descriptor);
+
+        if (methodTypes == null || methodTypes.getTypeParameters() == null || methodTypes.getTypeParameters().size() != resultArguments.size()
+                || !(methodTypes.getReturnedType() instanceof ObjectType returned) || returned.getTypeArguments() == null) {
+            return;
+        }
+        List<TypeArgument> returnedArguments = toTypeArgumentList(returned.getTypeArguments());
+        int index = 0;
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : methodTypes.getTypeParameters()) {
+            if (index >= returnedArguments.size() || !(returnedArguments.get(index) instanceof GenericType variable) || !variable.getName().equals(typeParameter.getIdentifier())) {
+                return;
+            }
+            index++;
+        }
+        TypeArguments arguments = new TypeArguments();
+
+        arguments.addAll(resultArguments);
+        BaseTypeArgument witness = arguments.size() == 1 ? arguments.getFirst() : arguments;
+
+        if (factoryCall != null && factoryCall.getNonWildcardTypeArguments() == null) {
+            factoryCall.setNonWildcardTypeArguments(witness);
+        } else if (factoryCall == null && ((MethodReferenceExpression) supplier).getNonWildcardTypeArguments() == null) {
+            ((MethodReferenceExpression) supplier).setNonWildcardTypeArguments(witness);
         }
     }
 

@@ -1096,4 +1096,15 @@ public class GuavaPatterns {
             return ((GrandParent) this).shadowed;
         }
     }
+
+    /** The local class is created in a block but also tested with instanceof after it */
+    public static boolean localClassTestedLater(boolean flag, Object value) {
+        class Probe {
+        }
+        Object probe = value;
+        if (flag) {
+            probe = new Probe();
+        }
+        return probe instanceof Probe;
+    }
 }

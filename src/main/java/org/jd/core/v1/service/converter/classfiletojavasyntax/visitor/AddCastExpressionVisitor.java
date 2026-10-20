@@ -1525,7 +1525,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (int i = 0; i < receiverArguments.size(); i++) {
             if (declared.getList().get(i).getIdentifier().equals(returnedVariable.getName())) {
-                return receiverArguments.getList().get(i) instanceof ObjectType argument && argument.rawEquals(castType);
+                // ('? extends Stream&lt;? extends V&gt;': what a Function&lt;T, ? extends Stream&lt;? extends V&gt;&gt; returns is a Stream)
+                return upperBoundOrSelf(receiverArguments.getList().get(i)) instanceof ObjectType argument && argument.rawEquals(castType);
             }
         }
         return false;
@@ -2168,7 +2169,26 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean isWildcardWhereConcreteExpected(ObjectType expected, ObjectType actual) {
         return expected.getDimension() == actual.getDimension() && expected.rawEquals(actual)
             && expected.getTypeArguments() != null && actual.getTypeArguments() != null
-            && !hasWildcardTypeArgument(expected) && hasWildcardTypeArgument(actual);
+            && (!hasWildcardTypeArgument(expected) && hasWildcardTypeArgument(actual) || differsInNestedTypeArguments(expected, actual));
+    }
+
+    /** An ImmutableList&lt;TypeToken&lt;?&gt;&gt; is not an ImmutableList&lt;TypeToken&lt;? super T&gt;&gt;: type arguments are invariant, whatever their own type arguments */
+    private static boolean differsInNestedTypeArguments(ObjectType expected, ObjectType actual) {
+        List<TypeArgument> expectedArguments = toTypeArgumentList(expected.getTypeArguments());
+        List<TypeArgument> actualArguments = toTypeArgumentList(actual.getTypeArguments());
+
+        if (expectedArguments.size() != actualArguments.size()) {
+            return false;
+        }
+        for (int i = 0; i < expectedArguments.size(); i++) {
+            if (expectedArguments.get(i) instanceof ObjectType expectedArgument && actualArguments.get(i) instanceof ObjectType actualArgument
+                    && expectedArgument.getDimension() == 0 && actualArgument.getDimension() == 0 && expectedArgument.rawEquals(actualArgument)
+                    && expectedArgument.getTypeArguments() != null && actualArgument.getTypeArguments() != null
+                    && !expectedArgument.getTypeArguments().equals(actualArgument.getTypeArguments())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
@@ -2400,13 +2420,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             BaseTypeArgument ta2 = expressionObjectType.getTypeArguments();
                             Type t = type;
 
-                            if (ta1 != null && ta2 != null && !ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2)) {
+                            if (ta1 != null && ta2 != null && (!ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2) || differsInNestedTypeArguments(objectType, expressionObjectType))) {
                                 if (objectType.rawEquals(expressionObjectType) && isInferredFromTarget(expression, ta1, ta2)) {
                                     // The type arguments of the invoked method are only fixed by the target type: javac infers them
                                     acceptWithExpectedType(expression, type);
                                     return expression;
                                 }
-                                if (objectType.rawEquals(expressionObjectType) && isWildcardOnTypeVariableMismatch(ta1, ta2, unboundType, expressionObjectType)) {
+                                if (objectType.rawEquals(expressionObjectType) && isWildcardOnTypeVariableMismatch(ta1, ta2, unboundType, expressionObjectType)
+                                        && !differsInNestedTypeArguments(objectType, expressionObjectType)) {
                                     // Wildcard type arguments bind to the method's type variables through capture conversion: no cast needed
                                     acceptWithExpectedType(expression, type);
                                     return expression;

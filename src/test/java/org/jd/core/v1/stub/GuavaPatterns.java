@@ -1,5 +1,7 @@
 package org.jd.core.v1.stub;
 
+import java.util.stream.Stream;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -1480,5 +1482,16 @@ public class GuavaPatterns {
 
     static <A, B> java.util.List<B> mapAll(java.util.List<A> list, java.util.function.Function<? super A, ? extends B> function) {
         return null;
+    }
+
+    static <T, V> java.util.stream.Collector<T, ?, java.util.List<V>> gatherAll(
+            java.util.function.Function<? super T, ? extends Stream<? extends V>> valuesFunction, java.util.function.Supplier<java.util.List<V>> factory) {
+        return null;
+    }
+
+    /** The Stream the function returns is not cast to the raw Stream: V would be inferred as Object */
+    public static <T, V> java.util.stream.Collector<T, ?, java.util.List<V>> flatteningCollector(
+            java.util.function.Function<? super T, ? extends Stream<? extends V>> valuesFunction) {
+        return gatherAll(input -> valuesFunction.apply(input).peek(java.util.Objects::requireNonNull), java.util.ArrayList::new);
     }
 }

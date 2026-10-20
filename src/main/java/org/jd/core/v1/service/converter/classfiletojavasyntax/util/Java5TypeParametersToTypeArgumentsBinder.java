@@ -735,6 +735,16 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         return parameterTypes;
     }
 
+    /** @return true if the type is parameterized, by types which are not type variables (a field of type TypeCollector&lt;TypeToken&lt;?&gt;&gt;) */
+    private boolean hasOnlyKnownTypeArguments(Type type) {
+        if (!(type instanceof ObjectType objectType) || objectType.getTypeArguments() == null) {
+            return false;
+        }
+        searchInTypeArgumentVisitor.init();
+        type.accept(searchInTypeArgumentVisitor);
+        return !searchInTypeArgumentVisitor.containsGeneric();
+    }
+
     private Type getExpressionType(Expression expression) {
         if (expression.isMethodInvocationExpression()) {
             return getExpressionType((ClassFileMethodInvocationExpression)expression);
@@ -825,6 +835,18 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 Type typeBeforeBindParameters = this.type;
                 bindParameters(parameterTypes, parameters);
                 this.type = typeBeforeBindParameters;
+            }
+
+            if (!parametersFirst && exp instanceof ClassFileMethodInvocationExpression receiverCall && !receiverCall.isBound() && receiverCall.getTypeParameters() == null
+                    && hasOnlyKnownTypeArguments(receiverCall.getExpression().getType())) {
+                // 'TypeCollector.FOR_GENERIC_TYPE.classesOnly().collectTypes(x)': the type of a receiver which has no type parameter of its
+                // own is what the type of its own receiver makes it, whatever type its caller is expected to return
+                Type typeBeforeVisitingReceiver = this.type;
+
+                this.type = receiverCall.getType();
+                exp.accept(this);
+                this.type = typeBeforeVisitingReceiver;
+                expressionType = exp.getType();
             }
 
             if (staticMethod || mie.getTypeParameters() != null || !mie.getInternalTypeName().equals(internalTypeName)) {

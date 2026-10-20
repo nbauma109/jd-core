@@ -1380,6 +1380,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     // (nothing tells how the type variables of the call relate to those the receiver binds: the assignment is unchecked)
                     value = addCastExpression(fieldType.createType(null), value);
                     expression.setRightExpression(value);
+                } else if (expression.getLeftExpression().getType() instanceof ObjectType fieldType && value.getType() instanceof ObjectType valueType
+                        && isWildcardWhereConcreteExpected(fieldType, valueType)) {
+                    value = addCastExpression(fieldType, value);
+                    expression.setRightExpression(value);
                 }
                 value.accept(this);
                 return;
@@ -1661,6 +1665,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return lambda.getParameterNames() != null && !lambda.getParameterNames().isEmpty();
     }
 
+    /** A 'Cell&lt;? extends R, ...&gt;' is not a 'Cell&lt;R, ...&gt;': the source has an unchecked cast */
+    private static boolean isWildcardWhereConcreteExpected(ObjectType expected, ObjectType actual) {
+        return expected.getDimension() == 0 && actual.getDimension() == 0 && expected.rawEquals(actual)
+            && expected.getTypeArguments() != null && actual.getTypeArguments() != null
+            && !hasWildcardTypeArgument(expected) && hasWildcardTypeArgument(actual);
+    }
+
     private boolean isFieldOfAnotherInstanceWithTypeVariables(Expression left) {
         return left instanceof FieldReferenceExpression field
                 && !field.getExpression().isThisExpression()
@@ -1884,7 +1895,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
                         } else if (!isJavaLangObject(type) && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
-                                || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType))) {
+                                || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType)
+                                || isWildcardWhereConcreteExpected(objectType, expressionObjectType))) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
                             BaseTypeArgument ta2 = expressionObjectType.getTypeArguments();
                             Type t = type;
@@ -2232,7 +2244,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         if (!expression.isByteCodeCheckCast() && expression.getType() instanceof ObjectType castType
                 && expression.getExpression().getType() instanceof ObjectType nestedType
-                && isUncheckedTypeVariableMismatch(castType, expression.getExpression(), nestedType)) {
+                && (isUncheckedTypeVariableMismatch(castType, expression.getExpression(), nestedType)
+                    || isWildcardWhereConcreteExpected(castType, nestedType))) {
             return false;
         }
         if (isParameterizedJavaLangObject(expression.getType())) {

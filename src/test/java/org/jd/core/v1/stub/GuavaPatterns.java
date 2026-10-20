@@ -1075,4 +1075,10 @@ public class GuavaPatterns {
             return me;
         }
     }
+
+    /** A list of a wildcard type is not a list of the concrete type: the source casts it (unchecked) */
+    @SuppressWarnings("unchecked")
+    public static <R> void addUnchecked(java.util.List<java.util.List<R>> sink, java.util.List<? extends R> cell) {
+        sink.add((java.util.List<R>) cell);
+    }
 }

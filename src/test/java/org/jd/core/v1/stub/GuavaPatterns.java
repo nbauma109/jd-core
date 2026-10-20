@@ -1192,4 +1192,25 @@ public class GuavaPatterns {
         }
         return false;
     }
+
+    /** The local class is created in a block but also the type of the variable of an enhanced for after it */
+    public static int localClassLoopedLater(boolean flag, java.util.List<Object> values) {
+        class Item {
+        }
+        Object created = null;
+        if (flag) {
+            created = new Item();
+        }
+        int count = created == null ? 0 : 1;
+        for (Object value : values) {
+            if (value instanceof Item) {
+                count++;
+            }
+        }
+        java.util.List<Item> items = new java.util.ArrayList<>();
+        for (Item item : items) {
+            count += item.hashCode();
+        }
+        return count;
+    }
 }

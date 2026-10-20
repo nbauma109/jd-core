@@ -1676,10 +1676,12 @@ public class ByteCodeParser {
                     Type cfmdReturnedType = cfmd.getReturnedType();
                     Type lambdaReturnedType = cfmdReturnedType != null && !ObjectType.TYPE_OBJECT.equals(cfmdReturnedType)
                             ? cfmdReturnedType : ObjectType.TYPE_OBJECT;
-                    stack.push(new LambdaIdentifiersExpression(
+                    LambdaIdentifiersExpression lambda = new LambdaIdentifiersExpression(
                             lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType,
                             lambdaParameterNames,
-                            lambdaStatements));
+                            lambdaStatements);
+                    lambda.setParameterTypes(prepareLambdaParameterTypes(cfmd.getFormalParameters(), parameterCount));
+                    stack.push(lambda);
                     return;
                 }
             }
@@ -1769,6 +1771,17 @@ public class ByteCodeParser {
             return names;
         }
         return names.subList(names.size() - parameterCount, names.size());
+    }
+
+    private List<Type> prepareLambdaParameterTypes(BaseFormalParameter formalParameters, int parameterCount) {
+        if (formalParameters == null || parameterCount == 0) {
+            return null;
+        }
+        lambdaParameterNamesVisitor.init();
+        formalParameters.accept(lambdaParameterNamesVisitor);
+        List<Type> types = lambdaParameterNamesVisitor.getTypes();
+
+        return types.size() == parameterCount ? types : types.subList(types.size() - parameterCount, types.size());
     }
 
     private Map<String, String> prepareUniqueLambdaParameterNames(List<String> lambdaParameterNames) {
@@ -2885,18 +2898,25 @@ public class ByteCodeParser {
 
     private static class LambdaParameterNamesVisitor extends AbstractNopDeclarationVisitor {
         protected DefaultList<String> names;
+        protected DefaultList<Type> types;
 
         public void init() {
             names = new DefaultList<>();
+            types = new DefaultList<>();
         }
 
         public List<String> getNames() {
             return names;
         }
 
+        public List<Type> getTypes() {
+            return types;
+        }
+
         @Override
         public void visit(FormalParameter declaration) {
             names.add(declaration.getName());
+            types.add(declaration.getType());
         }
 
         @Override

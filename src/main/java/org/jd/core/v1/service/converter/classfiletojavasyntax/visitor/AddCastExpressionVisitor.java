@@ -728,6 +728,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         castReceiverWithUnresolvedBoundedTypeVariablesToRaw(expression);
+        writeParameterTypesOfLambdasWithoutTarget(expression);
         castArgumentsMentioningCapturedTypeVariablesToRaw(expression);
         parameterizeCheckCastsPassedWithLambdas(expression);
 
@@ -1831,6 +1832,71 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
+     * 'Ordering.natural().onResultOf(params -&gt; params.contains(x)).compound(...)': a receiver is no target of its call, and nothing
+     * else infers the type variable F of 'onResultOf(Function&lt;F, ?&gt;)': the lambda is given the (erased) types of its parameters.
+     */
+    private void writeParameterTypesOfLambdasWithoutTarget(MethodInvocationExpression expression) {
+        if (expression == memberReceiver) {
+            writeParameterTypesOfLambdas(expression);
+        }
+        if (expression instanceof ClassFileMethodInvocationExpression outer && outer.getTypeParameters() != null && outer.getUnboundParameterTypes() != null
+                && !Utils.isEmpty(outer.getParameters()) && outer.getParameters().size() == outer.getUnboundParameterTypes().size()) {
+            // 'a.compound(Ordering.natural().onResultOf(p -> ...))': the argument is a Comparator&lt;? super U&gt; of a type variable only the argument gives
+            Set<String> outerVariables = getMethodTypeParameterNames(outer);
+            Iterator<Expression> argumentIterator = outer.getParameters().iterator();
+
+            for (Type declared : outer.getUnboundParameterTypes()) {
+                Expression argument = argumentIterator.next();
+
+                if (argument instanceof ClassFileMethodInvocationExpression inner && declared instanceof ObjectType declaredType && declaredType.getTypeArguments() != null
+                        && toTypeArgumentList(declaredType.getTypeArguments()).stream().allMatch(typeArgument -> upperBoundOrSelf(typeArgument) instanceof GenericType variable
+                                && outerVariables.contains(variable.getName()))) {
+                    writeParameterTypesOfLambdas(inner);
+                }
+            }
+        }
+    }
+
+    private void writeParameterTypesOfLambdas(MethodInvocationExpression expression) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null
+                || call.getUnboundParameterTypes() == null || Utils.isEmpty(call.getParameters()) || call.getParameters().size() != call.getUnboundParameterTypes().size()) {
+            return;
+        }
+        Set<String> methodVariables = getMethodTypeParameterNames(call);
+        List<Type> declaredTypes = new ArrayList<>();
+        List<Expression> arguments = new ArrayList<>();
+
+        call.getUnboundParameterTypes().forEach(declaredTypes::add);
+        call.getParameters().forEach(arguments::add);
+
+        for (int i = 0; i < declaredTypes.size(); i++) {
+            if (arguments.get(i) instanceof LambdaIdentifiersExpression lambda && lambda.getParameterNames() != null && !lambda.getParameterNames().isEmpty()
+                    && lambda.getParameterTypes() != null && lambda.getParameterTypes().size() == lambda.getParameterNames().size()
+                    && declaredTypes.get(i) instanceof ObjectType functionalType && functionalType.getTypeArguments() != null) {
+                Set<String> others = new HashSet<>();
+
+                for (int j = 0; j < declaredTypes.size(); j++) {
+                    if (j != i) {
+                        others.addAll(declaredTypes.get(j).findTypeParametersInType());
+                    }
+                }
+                boolean free = false;
+
+                // (the first type arguments of a functional interface are those of the parameters: Function&lt;F, R&gt;, BiFunction&lt;A, B, R&gt;)
+                List<TypeArgument> functionalArguments = toTypeArgumentList(functionalType.getTypeArguments());
+
+                for (TypeArgument argument : functionalArguments.subList(0, Math.min(lambda.getParameterNames().size(), functionalArguments.size()))) {
+                    free |= upperBoundOrSelf(argument) instanceof GenericType variable && variable.getDimension() == 0 && methodVariables.contains(variable.getName())
+                            && !others.contains(variable.getName());
+                }
+                if (free) {
+                    lambda.setExplicitParameterTypes(true);
+                }
+            }
+        }
+    }
+
+    /**
      * 'Ordering.from(c).onKeys().immutableSortedCopy(list)': a receiver is no target of its call, javac infers the type variables
      * of its generic method as their bounds ('onKeys': &lt;F extends T&gt;) when nothing in the bytecode tells which ones the source
      * had. The receiver is raw (what the bytecode sees of it) then.
@@ -1849,12 +1915,27 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && !(withBounds.getTypeBounds().getFirst() instanceof ObjectType bound && isJavaLangObject(bound))) {
                 TypeArgument binding = receiver.getTypeBindings().get(typeParameter.getIdentifier());
 
-                if (binding == null || WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT.equals(binding)) {
+                if (binding == null || WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT.equals(binding)
+                        || binding instanceof ObjectType bindingType && withBounds.getTypeBounds().getFirst() instanceof ObjectType firstBound && bindingType.rawEquals(firstBound)
+                        && hasTypeParameterBoundedByTypeVariable(expression)) {
                     expression.setExpression(addCastExpression(receiverType.createType(null), receiver));
                     return;
                 }
             }
         }
+    }
+
+    /** 'onKeys' (&lt;F extends T&gt;): its type variable is the one of the class of the receiver, which the receiver's own inference decides (T of an Ordering&lt;T&gt;) */
+    private static boolean hasTypeParameterBoundedByTypeVariable(MethodInvocationExpression expression) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null) {
+            return false;
+        }
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : call.getTypeParameters()) {
+            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds && withBounds.getTypeBounds().getFirst() instanceof GenericType) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -2909,7 +2990,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || !(methodInvocation.getUnboundType() instanceof ObjectType unboundObjectType)
                 || unboundObjectType.getTypeArguments() == null
                 || Collections.disjoint(unboundObjectType.findTypeParametersInType(), getMethodTypeParameterNames(methodInvocation))
-                || hasProperMethodArgumentConstraint(methodInvocation)) {
+                || hasProperMethodArgumentConstraint(methodInvocation, unboundObjectType.findTypeParametersInType())) {
             return false;
         }
 
@@ -2967,9 +3048,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private static boolean hasProperMethodArgumentConstraint(ClassFileMethodInvocationExpression invocation) {
+        return hasProperMethodArgumentConstraint(invocation, getMethodTypeParameterNames(invocation));
+    }
+
+    /** @param typeVariables the type variables of the method whose inference is asked about (the others do not matter: 'compose(not(in(c)), Entry::getKey)' constrains B, not A) */
+    private static boolean hasProperMethodArgumentConstraint(ClassFileMethodInvocationExpression invocation, Set<String> typeVariables) {
         BaseType parameterTypes = invocation.getUnboundParameterTypes();
         BaseExpression arguments = invocation.getParameters();
-        Set<String> methodTypeParameters = getMethodTypeParameterNames(invocation);
+        Set<String> methodTypeParameters = new HashSet<>(getMethodTypeParameterNames(invocation));
+
+        methodTypeParameters.retainAll(typeVariables);
 
         if (parameterTypes != null && arguments != null) {
             var parameterTypeIterator = parameterTypes.iterator();

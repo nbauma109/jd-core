@@ -96,6 +96,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Map;
@@ -685,6 +686,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             visitingVarArgsInvocation = oldVisitingVarArgs;
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
             typeVariablesSharedAcrossParameters = oldTypeVariablesSharedAcrossParameters;
+            writeTypeArgumentsOfInstancesSuppliedToTypeVariables((ClassFileMethodInvocationExpression) expression, expression.getParameters(), unboundParameterTypes);
         }
 
         if (expression.getNonWildcardTypeArguments() != null) {
@@ -1010,12 +1012,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    private static boolean isGenericCallToWildcardParameter(ClassFileNewExpression expression, BaseExpression parameters) {
-        if (parameters == null || parameters.size() != 1 || !(parameters.getFirst() instanceof ClassFileMethodInvocationExpression call)
-                || call.getTypeParameters() == null || expression.getParameterTypes() == null) {
+    private boolean isGenericCallToWildcardParameter(ClassFileNewExpression expression, BaseExpression parameters) {
+        if (parameters == null || !(parameters.getFirst() instanceof ClassFileMethodInvocationExpression call)
+                || parameters.size() > 1 && !parameters.getLast().isNullExpression()
+                || call.getTypeParameters() == null || expression.getDescriptor() == null) {
             return false;
         }
-        return expression.getParameterTypes().getFirst() instanceof ObjectType parameterType && hasWildcardSuperTypeArgument(parameterType);
+        // (the access constructor of a private constructor has one more parameter: the generic types are those of the constructor)
+        String descriptor = expression.getDescriptor().replaceFirst("L[^;()]*\\$[0-9]+;\\)", ")");
+        TypeMaker.MethodTypes constructor = typeMaker.makeMethodTypes(expression.getObjectType().getInternalName(), "<init>", descriptor);
+
+        return constructor != null && constructor.getParameterTypes() != null
+            && constructor.getParameterTypes().getFirst() instanceof ObjectType parameterType && hasWildcardSuperTypeArgument(parameterType);
     }
 
     private static boolean hasWildcardSuperTypeArgument(ObjectType type) {
@@ -1572,6 +1580,32 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return false;
+    }
+
+    /**
+     * 'Collector.of(() -> new Builder&lt;&gt;(c), ...)': the type variable of the supplier is only inferred from the supplier, and a
+     * diamond infers nothing out of the other arguments: the type arguments of the instance are written.
+     */
+    private void writeTypeArgumentsOfInstancesSuppliedToTypeVariables(ClassFileMethodInvocationExpression call, BaseExpression parameters, BaseType unboundParameterTypes) {
+        Set<String> methodTypeParameterNames = getMethodTypeParameterNames(call);
+
+        if (methodTypeParameterNames.isEmpty() || unboundParameterTypes == null || parameters == null || parameters.size() != unboundParameterTypes.size()) {
+            return;
+        }
+        Iterator<Expression> parameterIterator = parameters.iterator();
+
+        for (Type unboundParameterType : unboundParameterTypes) {
+            Expression parameter = parameterIterator.next();
+
+            if (parameter instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
+                    && body.getExpression() instanceof NewExpression newExpression && newExpression.getObjectType().getTypeArguments() != null
+                    && !hasWildcardTypeArgument(newExpression.getObjectType()) && hasKnownTypeParameters(newExpression.getObjectType())
+                    && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null
+                    && toTypeArgumentList(functionalType.getTypeArguments()).stream().anyMatch(argument ->
+                            upperBoundOrSelf(argument) instanceof GenericType variable && methodTypeParameterNames.contains(variable.getName()))) {
+                newExpression.setDiamondPossible(false);
+            }
+        }
     }
 
     /** javac names the class of the call, which may inherit the method from one of its superclasses */

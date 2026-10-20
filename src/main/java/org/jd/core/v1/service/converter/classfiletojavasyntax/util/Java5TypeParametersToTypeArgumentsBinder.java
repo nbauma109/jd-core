@@ -83,6 +83,7 @@ import org.jd.core.v1.util.StringConstants;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -111,6 +112,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     private final Map<String, TypeArgument> contextualBindings;
     private final Map<String, BaseType> contextualTypeBounds;
 
+    private final Set<MethodInvocationExpression> chainBoundFirst = Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean parametersFirst;
     private boolean omitNonWildcardTypeArguments;
 
@@ -771,6 +773,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
         this.type = TYPE_OBJECT;
         call.accept(this);
+        chainBoundFirst.add(call);
     }
 
     /** 'this.backingMap.entrySet().spliterator()': calls with no type parameter of their own on a variable or a field, whose declared type says what the calls are */
@@ -805,6 +808,11 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
     private Type getExpressionType(ClassFileMethodInvocationExpression mie) {
         Type t = mie.getType();
+
+        if (chainBoundFirst.contains(mie)) {
+            // (the type of a call bound before the one it is the receiver of is not a type to be bound, whatever its type variables)
+            return t;
+        }
 
         searchInTypeArgumentVisitor.init();
         t.accept(searchInTypeArgumentVisitor);

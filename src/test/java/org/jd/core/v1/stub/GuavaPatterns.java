@@ -1543,4 +1543,16 @@ public class GuavaPatterns {
             return containsColumn(key) ? column(java.util.Objects.requireNonNull((C) key)) : null;
         }
     }
+
+    static final class SneakyThrower<T extends Throwable> {
+        @SuppressWarnings("unchecked")
+        private Error throwIt(Throwable throwable) throws T {
+            throw (T) throwable;
+        }
+
+        /** The instance has a type argument which is no checked exception, or the call throws the Throwable the variable is erased to */
+        static Error sneakyThrow(Throwable throwable) {
+            throw new SneakyThrower<Error>().throwIt(throwable);
+        }
+    }
 }

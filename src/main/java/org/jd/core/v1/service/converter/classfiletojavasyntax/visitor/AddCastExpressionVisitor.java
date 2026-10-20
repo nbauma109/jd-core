@@ -1373,7 +1373,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
             if (isFieldOfAnotherInstanceWithTypeVariables(expression.getLeftExpression())) {
                 // The field type is declared with the type variables of its class, which the receiver binds differently
-                dropCastToDeclaredFieldType(expression).accept(this);
+                Expression value = dropCastToDeclaredFieldType(expression);
+
+                if (value instanceof ClassFileMethodInvocationExpression call && call.getTypeParameters() != null
+                        && expression.getLeftExpression().getType() instanceof ObjectType fieldType) {
+                    // (nothing tells how the type variables of the call relate to those the receiver binds: the assignment is unchecked)
+                    value = addCastExpression(fieldType.createType(null), value);
+                    expression.setRightExpression(value);
+                }
+                value.accept(this);
                 return;
             }
 

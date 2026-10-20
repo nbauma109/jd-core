@@ -25,9 +25,11 @@ import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.SuperExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
@@ -111,7 +113,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         if (exp.isFieldReferenceExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp);
 
-            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : receiverOfInheritedField(mie1.getParameters().getFirst(), fre.getInternalTypeName());
 
             return new FieldReferenceExpression(mie1.getLineNumber(), fre.getType(), expression, fre.getInternalTypeName(), fre.getName(), fre.getDescriptor());
         }
@@ -163,7 +165,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         } else if (exp.isPostOperatorExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : receiverOfInheritedField(mie1.getParameters().getFirst(), fre.getInternalTypeName());
 
             return new PostOperatorExpression(
                     mie1.getLineNumber(),
@@ -172,7 +174,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         } else if (exp.isPreOperatorExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : receiverOfInheritedField(mie1.getParameters().getFirst(), fre.getInternalTypeName());
 
             return new PreOperatorExpression(
                     mie1.getLineNumber(),
@@ -189,6 +191,15 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
      * The static receiver of the field or method reached through an accessor comes from the body of the accessor:
      * its line number is the one of the accessor, not the one of the call.
      */
+    /** The accessor of a private field of a superclass, called on 'this': the field is reached by 'super.' */
+    private Expression receiverOfInheritedField(Expression receiver, String fieldClassName) {
+        if (receiver.isThisExpression() && receiver.getType() instanceof ObjectType thisType && !thisType.getInternalName().equals(fieldClassName)
+                && typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName(fieldClassName), thisType)) {
+            return new SuperExpression(receiver.getLineNumber(), receiver.getType());
+        }
+        return receiver;
+    }
+
     private static Expression atCallSite(Expression receiver, Expression call) {
         return receiver != null && receiver.isObjectTypeReferenceExpression() ? receiver.copyTo(call.getLineNumber()) : receiver;
     }

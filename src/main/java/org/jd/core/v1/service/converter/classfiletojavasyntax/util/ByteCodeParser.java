@@ -2712,6 +2712,11 @@ public class ByteCodeParser {
                         return new SuperExpression(expression.getLineNumber(), expression.getType());
                     }
                 }
+                if (expression.getType() instanceof ObjectType thisType && typeMaker.isRawTypeAssignable(ot, thisType)) {
+                    // javac names the class of the receiver for an inherited field: the declaring class is only named
+                    // by 'super.field' or by the access to a private field of a superclass, which 'super.' reaches too
+                    return new SuperExpression(expression.getLineNumber(), expression.getType());
+                }
             }
         }
 

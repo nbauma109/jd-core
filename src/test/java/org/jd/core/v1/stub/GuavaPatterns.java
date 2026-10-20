@@ -1049,4 +1049,30 @@ public class GuavaPatterns {
     public static ArrayBox<String[]> wrappedArrays(java.util.List<?> values) {
         return (ArrayBox<String[]>) (ArrayBox) wrapAll(values);
     }
+
+    static class MirrorHolder<K, V> {
+        private MirrorHolder<V, K> inverse;
+
+        K check(K key) {
+            return key;
+        }
+    }
+
+    static final class MirrorView<K, V> extends MirrorHolder<K, V> {
+        /** A private field of the superclass is reached through super */
+        V checkInverse(V value) {
+            return super.inverse.check(value);
+        }
+    }
+
+    static final class Settings<K, V> {
+        java.util.function.Function<? super K, ? super V> mapper;
+
+        @SuppressWarnings("unchecked")
+        <K1 extends K, V1 extends V> Settings<K1, V1> mapping(java.util.function.Function<? super K1, ? super V1> function) {
+            Settings<K1, V1> me = (Settings<K1, V1>) this;
+            me.mapper = java.util.Objects.requireNonNull(function);
+            return me;
+        }
+    }
 }

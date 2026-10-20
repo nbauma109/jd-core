@@ -1055,6 +1055,17 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     }
 
                     @Override
+                    public void visit(CatchClause statement) {
+                        count[0] += countTypeUses(statement.getType(), internalName);
+                        if (statement.getOtherTypes() != null) {
+                            for (ObjectType otherType : statement.getOtherTypes()) {
+                                count[0] += countTypeUses(otherType, internalName);
+                            }
+                        }
+                        super.visit(statement);
+                    }
+
+                    @Override
                     public void visit(NewArray expression) {
                         count[0] += countTypeUses(expression.getType(), internalName);
                         super.visit(expression);

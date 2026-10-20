@@ -427,10 +427,10 @@ public class Frame {
         Set<AbstractLocalVariable> used = new HashSet<>();
         SearchLocalVariableVisitor visitor = new SearchLocalVariableVisitor();
 
-        // The right-hand side of the initializer reads the variables of the earlier loops (the second loop of 'j = i')
-        visitor.init();
-        forStatement.getInit().accept(visitor);
-        used.addAll(visitor.getVariables());
+        // The right-hand side of the initializer reads the variables of the earlier loops (the second loop of 'j = i'),
+        // the variable it assigns too ('i = transform(i)')
+        Set<AbstractLocalVariable> readByInit = new HashSet<>();
+        collectVariablesReadByInit(forStatement.getInit(), visitor, readByInit, used);
 
         for (BaseExpression expression : new BaseExpression[] {forStatement.getCondition(), forStatement.getUpdate()}) {
             if (expression != null) {
@@ -445,7 +445,26 @@ public class Frame {
             used.addAll(visitor.getVariables());
         }
         used.removeAll(initVisitor.getVariables());
+        used.addAll(readByInit);
         variables.addAll(used);
+    }
+
+    /** The variables read by the assignments of the init go to 'reads', those of any other init to 'others' */
+    private static void collectVariablesReadByInit(BaseExpression init, SearchLocalVariableVisitor visitor, Set<AbstractLocalVariable> reads, Set<AbstractLocalVariable> others) {
+        if (init instanceof Expressions expressions) {
+            for (Expression expression : expressions) {
+                collectVariablesReadByInit(expression, visitor, reads, others);
+            }
+            return;
+        }
+        visitor.init();
+        if (init instanceof BinaryOperatorExpression assignment && "=".equals(assignment.getOperator())) {
+            assignment.getRightExpression().accept(visitor);
+            reads.addAll(visitor.getVariables());
+        } else {
+            init.accept(visitor);
+            others.addAll(visitor.getVariables());
+        }
     }
 
     protected void createNewLocalVariable(CreateLocalVariableVisitor createLocalVariableVisitor, ClassFileForStatement fs, AbstractLocalVariable lv) {

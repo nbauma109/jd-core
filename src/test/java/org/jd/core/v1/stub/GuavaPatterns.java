@@ -1160,4 +1160,36 @@ public class GuavaPatterns {
     public static <E> Crate<E> makeFromDeclaringInterface(Factory factory) {
         return (Crate) factory.make();
     }
+
+    static int transform(int value) {
+        return value + 1;
+    }
+
+    /** The second loop reads the variable it assigns in its initializer */
+    public static int loopsReadingTheirVariable(int count) {
+        int i;
+        int total = 0;
+        for (i = 0; i < count; i++) {
+            total += i;
+        }
+        for (i = transform(i); i < count * 2; i++) {
+            total += i;
+        }
+        return total;
+    }
+
+    /** The local exception is thrown in a block but also caught after it */
+    public static boolean localExceptionCaughtLater(boolean flag) {
+        class Failure extends Exception {
+            private static final long serialVersionUID = 1L;
+        }
+        try {
+            if (flag) {
+                throw new Failure();
+            }
+        } catch (Failure e) {
+            return true;
+        }
+        return false;
+    }
 }

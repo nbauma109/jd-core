@@ -1494,4 +1494,28 @@ public class GuavaPatterns {
             java.util.function.Function<? super T, ? extends Stream<? extends V>> valuesFunction) {
         return gatherAll(input -> valuesFunction.apply(input).peek(java.util.Objects::requireNonNull), java.util.ArrayList::new);
     }
+
+    static <A, B> java.util.Spliterator<B> flatSpliterator(java.util.Spliterator<A> from, java.util.function.Function<? super A, java.util.Spliterator<B>> function) {
+        return null;
+    }
+
+    /** The lambda returns a Spliterator&lt;? extends T&gt; where the call is to produce a Spliterator&lt;T&gt;: the source casts it */
+    @SuppressWarnings("unchecked")
+    public static <T> Stream<T> concatSpliterators(java.util.List<java.util.Spliterator<? extends T>> spliterators) {
+        return java.util.stream.StreamSupport.<T>stream(flatSpliterator(spliterators.spliterator(), spliterator -> (java.util.Spliterator<T>) spliterator), false);
+    }
+
+    static final class Holder<V> {
+        final java.util.List<V> values;
+
+        Holder(java.util.List<V> values) {
+            this.values = values;
+        }
+
+        /** The V of the constructor is the U of the expected type, not the V of this class */
+        <U> Holder<U> derive(java.util.ArrayList<U> list) {
+            Holder<U> derived = new Holder<>(list);
+            return derived;
+        }
+    }
 }

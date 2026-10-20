@@ -753,10 +753,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         removeEmptyVarArgsArray(expression);
     }
 
-    /**
-     * javac passes an empty array for a varargs method called without any: the call is spelled without it. The printer
-     * hides that array too, but loses track of the comma after the block body of a lambda.
-     */
     /** An overload of the same arity which cannot take the arguments (choose(int) for choose(Callable, Object...)) does not matter */
     private boolean hasApplicableOverloadWithoutTheLastParameter(MethodInvocationExpression expression, BaseExpression parameters) {
         if (typeMaker.matchCount(expression.getInternalTypeName(), expression.getName(), parameters.size() - 1, false) == 0) {
@@ -768,6 +764,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return typeMaker.matchCount(getLocalTypeBindings(expression), getLocalTypeBounds(expression), expression.getInternalTypeName(), expression.getName(), remaining, false) > 0;
     }
 
+    /**
+     * javac passes an empty array for a varargs method called without any: the call is spelled without it. The printer
+     * hides that array too, but loses track of the comma after the block body of a lambda.
+     */
     private void removeEmptyVarArgsArray(MethodInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
 

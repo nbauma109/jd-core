@@ -427,7 +427,7 @@ public class Frame {
         Set<AbstractLocalVariable> used = new HashSet<>();
         SearchLocalVariableVisitor visitor = new SearchLocalVariableVisitor();
 
-        // (the right-hand side of the initializer reads the variables of the loops before: 'for (j = i; ...)')
+        // The right-hand side of the initializer reads the variables of the earlier loops (the second loop of 'j = i')
         visitor.init();
         forStatement.getInit().accept(visitor);
         used.addAll(visitor.getVariables());

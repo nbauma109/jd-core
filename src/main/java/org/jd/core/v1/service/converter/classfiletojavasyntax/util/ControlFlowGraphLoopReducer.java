@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.apache.bcel.Const.MONITORENTER;
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.END;
@@ -286,13 +287,10 @@ public final class ControlFlowGraphLoopReducer {
         }
 
         // The loop now stops where the code it shares begins, not after it
-        Set<BasicBlock> frontier = new HashSet<>();
+        Set<BasicBlock> frontier = removed.stream()
+            .filter(block -> block.getPredecessors().stream().anyMatch(members::contains))
+            .collect(Collectors.toSet());
 
-        for (BasicBlock block : removed) {
-            if (block.getPredecessors().stream().anyMatch(members::contains)) {
-                frontier.add(block);
-            }
-        }
         if (frontier.size() == 1) {
             loop.setEnd(frontier.iterator().next());
         }

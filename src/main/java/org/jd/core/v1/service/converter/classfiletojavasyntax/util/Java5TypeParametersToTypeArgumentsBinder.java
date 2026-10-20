@@ -301,6 +301,21 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
+    /** 'Range&lt;K&gt;' is not a 'Range&lt;Comparable&gt;', although K is bounded by Comparable: type arguments are invariant */
+    private static boolean isTypeVariableWhereBoundExpected(BaseTypeArgument expected, BaseTypeArgument actual) {
+        if (!expected.isTypeArgumentList() || !actual.isTypeArgumentList() || expected.getTypeArgumentList().size() != actual.getTypeArgumentList().size()) {
+            return expected instanceof ObjectType && actual instanceof GenericType;
+        }
+        Iterator<TypeArgument> actualIterator = actual.getTypeArgumentList().iterator();
+
+        for (TypeArgument expectedArgument : expected.getTypeArgumentList()) {
+            if (expectedArgument instanceof ObjectType && actualIterator.next() instanceof GenericType) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static TypeArgument boundType(TypeArgument typeArgument) {
         if (typeArgument instanceof WildcardSuperTypeArgument wildcardSuper) {
             return wildcardSuper.type();
@@ -1177,7 +1192,9 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     if (expressionExpressionType.isObjectType()) {
                         ObjectType expressionExpressionObjectType = (ObjectType)expressionExpressionType;
 
-                        if (expressionExpressionObjectType.getTypeArguments() == null || objectType.getTypeArguments().isTypeArgumentAssignableFrom(typeMaker, contextualBindings, contextualTypeBounds, expressionExpressionObjectType.getTypeArguments())) {
+                        if (expressionExpressionObjectType.getTypeArguments() == null
+                                || objectType.getTypeArguments().isTypeArgumentAssignableFrom(typeMaker, contextualBindings, contextualTypeBounds, expressionExpressionObjectType.getTypeArguments())
+                                && !isTypeVariableWhereBoundExpected(objectType.getTypeArguments(), expressionExpressionObjectType.getTypeArguments())) {
                             expression.setType(objectType);
                         }
                     } else if (expressionExpressionType.isGenericType()) {

@@ -988,6 +988,21 @@ public class GuavaPatterns {
         boolean isBelowAll() {
             return next == Boundary.<C>belowAll();
         }
+
+        /** The field is declared by an anonymous class of the generic class */
+        Runnable watcher() {
+            return new Runnable() {
+                Boundary<C> last;
+
+                @Override
+                public void run() {
+                    if (last == Boundary.<C>belowAll()) {
+                        return;
+                    }
+                    last = next;
+                }
+            };
+        }
     }
 
     interface Stoppable {
@@ -1212,5 +1227,227 @@ public class GuavaPatterns {
             count += item.hashCode();
         }
         return count;
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class Pin<C extends Comparable> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Pin<C> below() {
+            return null;
+        }
+    }
+
+    static final class Pinned<C extends Comparable<?>> {
+        Pin<C> last;
+
+        /** The type variable of the generic method has the name, but not the bound, of the one of the class */
+        Runnable watcher() {
+            return new Runnable() {
+                @Override
+                public void run() {
+                    if (last == Pin.<C>below()) {
+                        return;
+                    }
+                }
+            };
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class Span<C extends Comparable> {
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class SpanEntry<K extends Comparable, V> {
+        SpanEntry(Span<K> span, V value) {
+        }
+    }
+
+    /** The argument is a Span of a type variable bounded by 'Comparable&lt;?&gt;', the class needs a raw 'Comparable': no cast */
+    public static <K extends Comparable<?>, V> SpanEntry<K, V> newSpanEntry(Span<K> span, V value) {
+        SpanEntry<K, V> entry = new SpanEntry<>(span, value);
+        return entry;
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static <K extends Comparable, V> java.util.Map<Span<K>, SpanEntry<K, V>> copySpans(java.util.Map<Span<K>, ? extends V> source) {
+        java.util.Map<Span<K>, SpanEntry<K, V>> target = new java.util.HashMap<>();
+        for (java.util.Map.Entry<Span<K>, ? extends V> entry : source.entrySet()) {
+            target.put(entry.getKey(), new SpanEntry<>(entry.getKey(), entry.getValue()));
+        }
+        return target;
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class SpanMap<K extends Comparable, V> {
+        @SuppressWarnings("rawtypes")
+        private static final class Slot<K extends Comparable, V> {
+            Slot(Span<K> span, V value) {
+            }
+        }
+
+        private final java.util.Map<Span<K>, Slot<K, V>> slots;
+
+        private SpanMap(java.util.Map<Span<K>, Slot<K, V>> slots) {
+            this.slots = slots;
+        }
+
+        /** The nested class and the generic method both declare K */
+        @SuppressWarnings("rawtypes")
+        static <K extends Comparable, V> SpanMap<K, V> copyOf(java.util.Map<Span<K>, ? extends V> source) {
+            java.util.Map<Span<K>, Slot<K, V>> target = new java.util.HashMap<>();
+            for (java.util.Map.Entry<Span<K>, ? extends V> entry : source.entrySet()) {
+                target.put(entry.getKey(), new Slot<>(entry.getKey(), entry.getValue()));
+            }
+            return new SpanMap<>(target);
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    abstract static class Ranking<T> implements java.util.Comparator<T> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Ranking<C> natural() {
+            return null;
+        }
+
+        <S extends T> Ranking<S> reverse() {
+            return null;
+        }
+    }
+
+    static final class Descending<E> {
+        /** 'S extends T' is bounded by the Comparable of the receiver, E is not */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        java.util.Comparator<? super E> comparator() {
+            return (java.util.Comparator) Ranking.natural().reverse();
+        }
+    }
+
+    abstract static class KeyOrder<T> {
+        static <T> KeyOrder<T> from(java.util.Comparator<T> comparator) {
+            return null;
+        }
+
+        <F extends T> KeyOrder<java.util.Map.Entry<F, ?>> onKeys() {
+            return null;
+        }
+
+        <E extends T> java.util.List<E> sortedCopy(Iterable<E> elements) {
+            return null;
+        }
+    }
+
+    /** The receiver is a standalone expression: javac infers F as the capture of '? super K', the source gives K */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <K, V> java.util.Collection<java.util.Map.Entry<K, V>> sortedByKeys(java.util.Comparator<? super K> comparator, java.util.Collection<java.util.Map.Entry<K, V>> entries) {
+        return (java.util.Collection) KeyOrder.from(comparator).<K>onKeys().sortedCopy(entries);
+    }
+
+    static final class Accumulating<K, V> {
+        Accumulating<K, V> put(K key, V value) {
+            return this;
+        }
+
+        Accumulating<K, V> combine(Accumulating<K, V> other) {
+            return this;
+        }
+
+        java.util.Map<K, V> build() {
+            return null;
+        }
+    }
+
+    /** The accumulator type of the collector is only inferred from the supplier: it is written */
+    public static <T, K, V> java.util.stream.Collector<T, ?, java.util.Map<K, V>> toAccumulated(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return java.util.stream.Collector.of(Accumulating<K, V>::new, (accumulating, input) -> accumulating.put(keyFunction.apply(input), valueFunction.apply(input)),
+                Accumulating::combine, Accumulating::build);
+    }
+
+    public static <T, K, V> java.util.stream.Collector<T, ?, java.util.Map<K, V>> toAccumulatedByLambda(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return java.util.stream.Collector.of(() -> new Accumulating<K, V>(), (accumulating, input) -> accumulating.put(keyFunction.apply(input), valueFunction.apply(input)),
+                Accumulating::combine, Accumulating::build);
+    }
+
+    static final class KeyedAccumulator<K extends Enum<K>, V> {
+        void put(K key, V value) {
+        }
+    }
+
+    /** The variable keeps the type variable of the key, not the Enum its erasure is */
+    public static <T, K extends Enum<K>, V> java.util.function.BiConsumer<KeyedAccumulator<K, V>, T> keyedAccumulation(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return (accumulator, input) -> {
+            K key = keyFunction.apply(input);
+            V value = valueFunction.apply(input);
+            accumulator.put(java.util.Objects.requireNonNull(key, "key"), java.util.Objects.requireNonNull(value, "value"));
+        };
+    }
+
+    static final class Gathering<E> {
+        static <E> Gathering<E> create() {
+            return new Gathering<>();
+        }
+
+        Gathering<E> add(E element) {
+            return this;
+        }
+
+        Gathering<E> merge(Gathering<E> other) {
+            return this;
+        }
+
+        java.util.List<E> toList() {
+            return null;
+        }
+    }
+
+    /** The accumulator comes from a call of a generic method: it is written */
+    public static <E> java.util.stream.Collector<E, ?, java.util.List<E>> gathering() {
+        return java.util.stream.Collector.of(Gathering::<E>create, Gathering::add, Gathering::merge, Gathering::toList);
+    }
+
+    public static <E> java.util.stream.Collector<E, ?, java.util.List<E>> gatheringByLambda() {
+        return java.util.stream.Collector.of(() -> Gathering.<E>create(), Gathering::add, Gathering::merge, state -> state.toList());
+    }
+
+    abstract static class EnumCollecting<E> {
+    }
+
+    static <E extends Enum<E>> EnumCollecting<E> enumCollecting() {
+        return null;
+    }
+
+    /** No E extends Enum<E> is an Enum<?> */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static final EnumCollecting<Enum<?>> ENUM_COLLECTING = (EnumCollecting) enumCollecting();
+
+    static <T, K, U, M extends java.util.Map<K, U>> java.util.stream.Collector<T, ?, M> toMapOf(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends U> valueFunction,
+            java.util.function.Supplier<M> mapFactory) {
+        return java.util.stream.Collectors.toMap(keyFunction, valueFunction, (first, second) -> first, mapFactory);
+    }
+
+    /** The map supplied to the collector: a diamond infers nothing of its type arguments, they are written */
+    public static <T, K, V> java.util.stream.Collector<T, ?, java.util.SortedMap<K, V>> toSorted(
+            java.util.Comparator<? super K> comparator, java.util.function.Function<? super T, ? extends K> keyFunction,
+            java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return java.util.stream.Collectors.collectingAndThen(
+                java.util.stream.Collectors.toMap(keyFunction, valueFunction, (first, second) -> first, () -> new java.util.TreeMap<K, V>(comparator)),
+                java.util.Collections::unmodifiableSortedMap);
+    }
+
+    @SafeVarargs
+    static <K, V> java.util.Map<K, V> mapOfExactEntries(java.util.Map.Entry<K, V>... entries) {
+        return null;
+    }
+
+    /** The array of entries of wildcard types is passed to a method taking entries of the types of the result: the source casts it */
+    @SafeVarargs
+    @SuppressWarnings("unchecked")
+    public static <K, V> java.util.Map<K, V> mapOfWildcardEntries(java.util.Map.Entry<? extends K, ? extends V>... entries) {
+        java.util.Map.Entry<K, V>[] exactEntries = (java.util.Map.Entry<K, V>[]) entries;
+        return mapOfExactEntries(exactEntries);
     }
 }

@@ -816,6 +816,9 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 // Remove last synthetic parameter
                 expression.setParameters(removeLastSyntheticParameter(scie.getParameters(), scie.getParameterTypes()));
             }
+
+            // (the arguments may create instances of classes with a synthetic constructor: 'super(new Inner(a, b, null))')
+            safeAccept(expression.getParameters());
         }
 
         @Override

@@ -109,7 +109,8 @@ public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisi
     }
 
     private static boolean equals(BaseType bt1, BaseType bt2) {
-        return bt2 == null || bt2.equals(bt1);
+        // The bounds of two variables of the same name, 'Comparable<?>' of a class and 'Comparable' of a method, are compatible
+        return bt2 == null || bt2.equals(bt1) || bt1 instanceof ObjectType objectType1 && bt2 instanceof ObjectType objectType2 && objectType1.rawEquals(objectType2);
     }
 
     protected TypeArgument checkTypeClassCheckDimensionAndReturnCurrentAsTypeArgument(GenericType type) {

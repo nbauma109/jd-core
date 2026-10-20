@@ -761,6 +761,18 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         return parameterTypes;
     }
 
+    /** Binds 'this.backingMap.entrySet().spliterator()' from the declared field outwards: each call is the type of the one it is called on */
+    private void bindChainOnDeclaredReceiver(ClassFileMethodInvocationExpression call) {
+        if (call.isBound()) {
+            return;
+        }
+        if (call.getExpression() instanceof ClassFileMethodInvocationExpression receiverCall) {
+            bindChainOnDeclaredReceiver(receiverCall);
+        }
+        this.type = TYPE_OBJECT;
+        call.accept(this);
+    }
+
     /** 'this.backingMap.entrySet().spliterator()': calls with no type parameter of their own on a variable or a field, whose declared type says what the calls are */
     private static boolean isChainOnDeclaredReceiver(Expression expression) {
         if (expression instanceof ClassFileMethodInvocationExpression call) {
@@ -860,6 +872,19 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             Expression exp = mie.getExpression();
             Type expressionType = exp.getType();
 
+            if (mie.getTypeParameters() != null && parameters != null) {
+                // 'flatMap(list.spliterator(), f)': what 'list.spliterator()' is, a Spliterator of what the list holds, tells the type variables of the call
+                for (Expression parameter : parameters) {
+                    if (parameter instanceof ClassFileMethodInvocationExpression argumentCall && !argumentCall.isBound() && argumentCall.getTypeParameters() == null
+                            && isChainOnDeclaredReceiver(argumentCall.getExpression())) {
+                        Type typeBeforeVisitingArgument = this.type;
+
+                        bindChainOnDeclaredReceiver(argumentCall);
+                        this.type = typeBeforeVisitingArgument;
+                    }
+                }
+            }
+
             if (parametersFirst) {
                 Type typeBeforeVisitingExpression = this.type;
                 // The receiver is not what the enclosing call expects (an array for a parameter 'Type[]' of 'foo(((Bar) x).getArray())')
@@ -882,20 +907,6 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 exp.accept(this);
                 this.type = typeBeforeVisitingReceiver;
                 expressionType = exp.getType();
-            }
-
-            if (!parametersFirst && mie.getTypeParameters() != null && parameters != null) {
-                // 'flatMap(list.spliterator(), f)': what 'list.spliterator()' is, a Spliterator of what the list holds, tells the type variables of the call
-                for (Expression parameter : parameters) {
-                    if (parameter instanceof ClassFileMethodInvocationExpression argumentCall && !argumentCall.isBound() && argumentCall.getTypeParameters() == null
-                            && isChainOnDeclaredReceiver(argumentCall.getExpression())) {
-                        Type typeBeforeVisitingArgument = this.type;
-
-                        this.type = argumentCall.getType();
-                        argumentCall.accept(this);
-                        this.type = typeBeforeVisitingArgument;
-                    }
-                }
             }
 
             if (staticMethod || mie.getTypeParameters() != null || !mie.getInternalTypeName().equals(internalTypeName)) {

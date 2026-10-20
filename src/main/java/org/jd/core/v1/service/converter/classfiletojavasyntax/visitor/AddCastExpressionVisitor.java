@@ -1013,7 +1013,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean isGenericCallToWildcardParameter(ClassFileNewExpression expression, BaseExpression parameters) {
-        if (parameters == null || !(parameters.getFirst() instanceof ClassFileMethodInvocationExpression call)
+        if (Utils.isEmpty(parameters) || !(parameters.getFirst() instanceof ClassFileMethodInvocationExpression call)
                 || parameters.size() > 1 && !parameters.getLast().isNullExpression()
                 || call.getTypeParameters() == null || expression.getDescriptor() == null) {
             return false;

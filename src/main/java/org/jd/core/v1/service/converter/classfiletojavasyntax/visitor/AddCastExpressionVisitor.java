@@ -2573,7 +2573,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             fixedSupertypes |= expression instanceof ClassFileNewExpression && ta1 != null && ta2 != null
                                     && ta2.equals(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT) && !hasWildcardTypeArgument(objectType);
                             if ((!expression.isNew() || fixedSupertypes) && hasKnownTypeParameters(t)
-                                    && !(unboundType == null && t instanceof ObjectType castType && mentionsTypeVariableTheCallDoesNotBind(castType, typeBindings))) {
+                                    && !(unboundType == null && t instanceof ObjectType castType && mentionsTypeVariableTheCallDoesNotBind(castType, typeBindings))
+                                    && !isInferredFromItsArgumentsWhereTheBindingIsUnknown(expression)) {
                                 if (!(expression instanceof MethodReferenceExpression)
                                         && t instanceof ObjectType targetType
                                         && targetType.getTypeArguments() != null
@@ -2794,6 +2795,24 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         return captureUpperBound instanceof ObjectType captureBoundType
                 && (requiredBoundType.rawEquals(captureBoundType) || typeMaker.isRawTypeAssignable(requiredBoundType, captureBoundType));
+    }
+
+    /**
+     * 'predicate.apply(Maps.immutableEntry(entry.getKey(), value))': the type variables of the call are all fixed by its arguments, which javac knows the
+     * (declared) types of better than the types we bound them to ('Entry&lt;?, V&gt;' of an 'entry' we did not know the type of yet): nothing is cast.
+     */
+    private boolean isInferredFromItsArgumentsWhereTheBindingIsUnknown(Expression expression) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || call.getTypeBindings() == null) {
+            return false;
+        }
+        Set<String> unknown = new HashSet<>();
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : call.getTypeParameters()) {
+            if (WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT.equals(call.getTypeBindings().get(typeParameter.getIdentifier()))) {
+                unknown.add(typeParameter.getIdentifier());
+            }
+        }
+        return !unknown.isEmpty() && hasProperMethodArgumentConstraint(call, unknown);
     }
 
     /** The E of 'typePreservingSet(Set&lt;E&gt;, ...)' when the call does not bind it: a cast to Set&lt;E&gt; is a cast to nothing the source has */

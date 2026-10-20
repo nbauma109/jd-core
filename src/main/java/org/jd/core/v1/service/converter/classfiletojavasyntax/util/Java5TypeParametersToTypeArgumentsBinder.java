@@ -255,6 +255,18 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         return type;
     }
 
+    /**
+     * The expected type of an argument is the type of the parameter, which may be a type variable of the method called ('immutableEntry(K, V)'):
+     * outside of the call, K means nothing (and confuses the K of 'Entry.getKey()' the argument is): nothing is expected then.
+     */
+    private Type expectedTypeInScope(Type parameterType) {
+        if (parameterType instanceof GenericType variable && variable.getDimension() == 0 && !contextualBindings.containsKey(variable.getName())
+                && !contextualTypeBounds.containsKey(variable.getName())) {
+            return TYPE_OBJECT;
+        }
+        return parameterType;
+    }
+
     private void bindParameters(BaseType parameterTypes, BaseExpression parameters) {
         if (parameterTypes != null) {
             if (parameterTypes.isList() && parameters.isList()) {
@@ -264,13 +276,13 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 Expression parameter;
                 while (parametersIterator.hasNext() && parameterTypesIterator.hasNext()) {
                     parameter = parametersIterator.next();
-                    this.type = parameterTypesIterator.next();
+                    this.type = expectedTypeInScope(parameterTypesIterator.next());
                     parameter.accept(this);
                     parameter.accept(removeNonWildcardTypeArgumentsVisitor);
                 }
             } else {
                 Expression parameter = parameters.getFirst();
-                this.type = parameterTypes.getFirst();
+                this.type = expectedTypeInScope(parameterTypes.getFirst());
                 parameter.accept(this);
                 parameter.accept(removeNonWildcardTypeArgumentsVisitor);
             }

@@ -1527,4 +1527,20 @@ public class GuavaPatterns {
     public static java.util.List<Cell2<?>> innerCells(java.util.List<Cell2<?>> cells) {
         return cells.stream().map(cell -> (Cell2<?>) cell.inner).collect(java.util.stream.Collectors.toList());
     }
+
+    static final class Columns<C, V> {
+        V column(C columnKey) {
+            return null;
+        }
+
+        boolean containsColumn(Object key) {
+            return false;
+        }
+
+        /** The key, an Object, is cast to the type variable the method takes: nothing in the bytecode, the source has an unchecked cast */
+        @SuppressWarnings("unchecked")
+        V get(Object key) {
+            return containsColumn(key) ? column(java.util.Objects.requireNonNull((C) key)) : null;
+        }
+    }
 }

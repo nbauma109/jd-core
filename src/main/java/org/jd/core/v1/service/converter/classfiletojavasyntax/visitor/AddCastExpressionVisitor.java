@@ -1965,16 +1965,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     body.setExpression(addCastExpression(expected, body.getExpression()));
                 }
             }
-            // 'inputs.transform(future -> (FluentFuture<?>) future.state.future).toList()': the type variable of the result is only given by the lambda,
-            // which would make it a capture of the wildcard of the result: the source casts the result to its own type
-            if (call == memberReceiver && argument instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
-                    && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null
-                    && body.getExpression().getType() instanceof ObjectType resultType && resultType.getTypeArguments() != null && resultType.getDimension() == 0
-                    && toTypeArgumentList(resultType.getTypeArguments()).stream().anyMatch(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT::equals) && !body.getExpression().isCastExpression()
-                    && upperBoundOrSelf(toTypeArgumentList(functionalType.getTypeArguments()).get(toTypeArgumentList(functionalType.getTypeArguments()).size() - 1)) instanceof GenericType result
-                    && getMethodTypeParameterNames(call).contains(result.getName())) {
-                body.setExpression(addCastExpression(resultType, body.getExpression()));
-            }
             // (a field of another instance, 'future.state.future': the type variables of its type are those of the other instance)
             if (call == memberReceiver && argument instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
                     && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null

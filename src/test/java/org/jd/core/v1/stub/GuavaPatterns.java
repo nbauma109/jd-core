@@ -1450,4 +1450,16 @@ public class GuavaPatterns {
         java.util.Map.Entry<K, V>[] exactEntries = (java.util.Map.Entry<K, V>[]) entries;
         return mapOfExactEntries(exactEntries);
     }
+
+    static final class Token<T> {
+        Token<? super T> supertypeOf(Class<? super T> type) {
+            return null;
+        }
+    }
+
+    /** The T of a receiver of wildcard type is a capture: a Class&lt;? super T&gt; is no argument of the method, the source casts it to a raw type */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <T> Token<? super T> supertypeOfBound(Token<? super T> bound, Class<? super T> type) {
+        return (Token<? super T>) bound.supertypeOf((Class) type);
+    }
 }

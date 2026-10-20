@@ -728,6 +728,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         castReceiverWithUnresolvedBoundedTypeVariablesToRaw(expression);
+        castArgumentsMentioningCapturedTypeVariablesToRaw(expression);
 
         if (expression.getNonWildcardTypeArguments() != null) {
             if (hasKnownTypeParameters(expression.getNonWildcardTypeArguments())) {
@@ -859,6 +860,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         BaseType unboundParameterTypes = expression.getUnboundParameterTypes();
 
+        if (unboundParameterTypes == null) {
+            // (the types of the arguments of a call of the class itself are not bound: they are those the method declares)
+            TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+
+            unboundParameterTypes = methodTypes == null ? null : methodTypes.getParameterTypes();
+        }
         if (unboundParameterTypes == null) {
             return null;
         }
@@ -1732,6 +1739,61 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             upperBoundOrSelf(argument) instanceof GenericType variable && methodTypeParameterNames.contains(variable.getName()))) {
                 newExpression.setDiamondPossible(false);
             }
+        }
+    }
+
+    /**
+     * 'bound.getSupertype((Class) supertype)' where bound is a 'TypeToken&lt;? super T&gt;' and getSupertype takes a 'Class&lt;? super T&gt;':
+     * the T of the receiver is a capture, which a 'Class&lt;? super T&gt;' (an argument of type variables) is not a 'Class&lt;? super capture&gt;' of:
+     * the source casts the argument to a raw type.
+     */
+    private void castArgumentsMentioningCapturedTypeVariablesToRaw(MethodInvocationExpression expression) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression call) || !(call.getExpression().getType() instanceof ObjectType receiverType)
+                || call.getExpression().isThisExpression() || call.getExpression().isObjectTypeReferenceExpression() || receiverType.getTypeArguments() == null
+                || !receiverType.getInternalName().equals(call.getInternalTypeName()) || Utils.isEmpty(call.getParameters())) {
+            return;
+        }
+        TypeMaker.TypeTypes receiverTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());
+        TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (receiverTypes == null || receiverTypes.getTypeParameters() == null || methodTypes == null || methodTypes.getParameterTypes() == null
+                || call.getParameters().size() != methodTypes.getParameterTypes().size()) {
+            return;
+        }
+        Set<String> captured = new HashSet<>();
+        Iterator<TypeArgument> receiverArguments = toTypeArgumentList(receiverType.getTypeArguments()).iterator();
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : receiverTypes.getTypeParameters()) {
+            if (receiverArguments.hasNext() && isWildcard(receiverArguments.next())) {
+                captured.add(typeParameter.getIdentifier());
+            }
+        }
+        if (captured.isEmpty()) {
+            return;
+        }
+        Iterator<Type> declaredTypes = methodTypes.getParameterTypes().iterator();
+        Expressions updated = new Expressions();
+        boolean changed = false;
+
+        for (Expression argument : call.getParameters()) {
+            Type declared = declaredTypes.next();
+
+            if (declared instanceof ObjectType declaredObjectType && declaredObjectType.getTypeArguments() != null && declaredObjectType.getDimension() == 0
+                    && declaredObjectType.findTypeParametersInType().stream().anyMatch(captured::contains)
+                    && argument.getType() instanceof ObjectType argumentType && argumentType.getTypeArguments() != null && !argumentType.findTypeParametersInType().isEmpty()
+                    && !argument.isNullExpression() && !(argument instanceof LambdaIdentifiersExpression)
+                    && !(argument instanceof MethodReferenceExpression && !(argument instanceof MethodInvocationExpression)) && !(argument instanceof ConstructorReferenceExpression)) {
+                if (argument instanceof CastExpression cast && cast.getType() instanceof ObjectType castType && castType.getTypeArguments() != null) {
+                    cast.setType(castType.createType(null));
+                } else if (!argument.isCastExpression()) {
+                    argument = addCastExpression(declaredObjectType.createType(null), argument);
+                }
+                changed = true;
+            }
+            updated.add(argument);
+        }
+        if (changed) {
+            call.setParameters(updated.size() == 1 ? updated.getFirst() : updated);
         }
     }
 

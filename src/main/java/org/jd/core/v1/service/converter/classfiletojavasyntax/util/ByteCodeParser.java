@@ -2701,31 +2701,33 @@ public class ByteCodeParser {
      * @return expression, 'this' or 'super'
      */
     private Expression getFieldInstanceReference(Expression expression, ObjectType ot, String name) {
-        if (expression.isThisExpression()) {
-            String internalName = expression.getType().getInternalName();
-
-            if (!ot.getInternalName().equals(internalName)) {
-                memberVisitor.init(name, null);
-                for (ClassFileFieldDeclaration field : bodyDeclaration.getFieldDeclarations()) {
-                    field.getFieldDeclarators().accept(memberVisitor);
-                    if (memberVisitor.found()) {
-                        return new SuperExpression(expression.getLineNumber(), expression.getType());
-                    }
-                }
-                if (expression.getType() instanceof ObjectType thisType && typeMaker.isRawTypeAssignable(ot, thisType)) {
-                    // javac names the class of the receiver for an inherited field: the declaring class is only named
-                    // by 'super.field' or by the access to a private field of a superclass, which 'super.' reaches too
-                    // (when it is the direct superclass: otherwise an intermediate class may hide the field, the cast names the owner)
-                    TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(thisType.getInternalName());
-
-                    return typeTypes != null && typeTypes.getSuperType() != null && typeTypes.getSuperType().getInternalName().equals(ot.getInternalName())
-                        ? new SuperExpression(expression.getLineNumber(), expression.getType())
-                        : new CastExpression(expression.getLineNumber(), ot, expression);
-                }
+        if (!expression.isThisExpression() || ot.getInternalName().equals(expression.getType().getInternalName())) {
+            return expression;
+        }
+        memberVisitor.init(name, null);
+        for (ClassFileFieldDeclaration field : bodyDeclaration.getFieldDeclarations()) {
+            field.getFieldDeclarators().accept(memberVisitor);
+            if (memberVisitor.found()) {
+                return new SuperExpression(expression.getLineNumber(), expression.getType());
             }
         }
-
+        if (expression.getType() instanceof ObjectType thisType && typeMaker.isRawTypeAssignable(ot, thisType)) {
+            return inheritedFieldReceiver(expression, thisType, ot);
+        }
         return expression;
+    }
+
+    /**
+     * javac names the class of the receiver for an inherited field: the declaring class is only named by 'super.field' or by the
+     * access to a private field of a superclass, which 'super.' reaches too when it is the direct superclass (otherwise an
+     * intermediate class may hide the field: the cast names the owner).
+     */
+    private Expression inheritedFieldReceiver(Expression thisExpression, ObjectType thisType, ObjectType owner) {
+        TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(thisType.getInternalName());
+
+        return typeTypes != null && typeTypes.getSuperType() != null && typeTypes.getSuperType().getInternalName().equals(owner.getInternalName())
+            ? new SuperExpression(thisExpression.getLineNumber(), thisExpression.getType())
+            : new CastExpression(thisExpression.getLineNumber(), owner, thisExpression);
     }
 
     /**

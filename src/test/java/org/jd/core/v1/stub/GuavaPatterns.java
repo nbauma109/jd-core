@@ -1126,14 +1126,6 @@ public class GuavaPatterns {
         return slot;
     }
 
-    static <T> T supply(java.util.function.Supplier<T> supplier) {
-        return supplier.get();
-    }
-
-    /** A supplier lambda creating a generic object */
-    public static <E> java.util.List<E> supplyList() {
-        return supply(() -> new java.util.ArrayList<E>());
-    }
 
     /** The local class is created in a block but also used as the component type of an array after it */
     public static Object localClassArrayLater(boolean flag) {
@@ -1144,5 +1136,28 @@ public class GuavaPatterns {
             result = new Cell();
         }
         return result != null ? result : new Cell[1];
+    }
+
+    static class Crate<C> {
+    }
+
+    interface Factory {
+        default <C extends Comparable<C>> Crate<C> make() {
+            return new Crate<>();
+        }
+    }
+
+    static final class FactoryImpl implements Factory {
+    }
+
+    /** The method is declared by an interface of the receiver class */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <E> Crate<E> makeFromInterface(FactoryImpl factory) {
+        return (Crate) factory.make();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <E> Crate<E> makeFromDeclaringInterface(Factory factory) {
+        return (Crate) factory.make();
     }
 }

@@ -1036,4 +1036,17 @@ public class GuavaPatterns {
     public static <K, V> Object qualifiedCreation(GuavaOuter<K, V> outer, K key, V value) {
         return outer.new Wrapped(key, value);
     }
+
+    static final class ArrayBox<T> {
+    }
+
+    static <T> ArrayBox<T[]> wrapAll(java.util.List<T> values) {
+        return new ArrayBox<>();
+    }
+
+    /** The captured variable is the component of an array argument: the unchecked cast stays */
+    @SuppressWarnings("unchecked")
+    public static ArrayBox<String[]> wrapped(java.util.List<?> values) {
+        return (ArrayBox<String[]>) wrapAll(values);
+    }
 }

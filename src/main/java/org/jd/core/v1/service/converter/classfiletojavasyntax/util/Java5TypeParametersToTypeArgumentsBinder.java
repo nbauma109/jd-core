@@ -587,7 +587,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private static boolean isCaptured(TypeArgument typeArgument, Set<String> captured) {
-        return typeArgument instanceof GenericType genericType && genericType.getDimension() == 0 && captured.contains(genericType.getName());
+        // (an array of a captured variable, Box<T[]>, cannot be written with a wildcard either: it is a Box<?>)
+        return typeArgument instanceof GenericType genericType && captured.contains(genericType.getName());
     }
 
     /** The type variables of the parameter types which face a wildcard in the type of the corresponding argument (capture conversion) */

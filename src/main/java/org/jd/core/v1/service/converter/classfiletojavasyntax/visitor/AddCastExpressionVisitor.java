@@ -729,6 +729,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         castReceiverWithUnresolvedBoundedTypeVariablesToRaw(expression);
         castArgumentsMentioningCapturedTypeVariablesToRaw(expression);
+        parameterizeCheckCastsPassedWithLambdas(expression);
 
         if (expression.getNonWildcardTypeArguments() != null) {
             if (hasKnownTypeParameters(expression.getNonWildcardTypeArguments())) {
@@ -1738,6 +1739,38 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && toTypeArgumentList(functionalType.getTypeArguments()).stream().anyMatch(argument ->
                             upperBoundOrSelf(argument) instanceof GenericType variable && methodTypeParameterNames.contains(variable.getName()))) {
                 newExpression.setDiamondPossible(false);
+            }
+        }
+    }
+
+    /**
+     * 'Lists.transform((List&lt;V1&gt;) values, v -&gt; ...)': the bytecode casts the Collection&lt;V1&gt; to the erased List, and a raw
+     * argument makes the parameter of the lambda an Object: the cast keeps the type arguments the operand gives it.
+     */
+    private void parameterizeCheckCastsPassedWithLambdas(MethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (Utils.isEmpty(parameters) || !containsFunctionalExpression(parameters)) {
+            return;
+        }
+        for (Expression parameter : parameters) {
+            if (parameter instanceof CastExpression cast && cast.isByteCodeCheckCast() && cast.getType() instanceof ObjectType castType && castType.getTypeArguments() == null
+                    && castType.getDimension() == 0 && cast.getExpression().getType() instanceof ObjectType operandType && operandType.getTypeArguments() != null
+                    && operandType.getDimension() == 0 && hasKnownTypeParameters(operandType) && !hasWildcardTypeArgument(operandType)) {
+                TypeMaker.TypeTypes castTypes = typeMaker.makeTypeTypes(castType.getInternalName());
+
+                if (castTypes != null && castTypes.getTypeParameters() != null) {
+                    TypeArguments ownArguments = new TypeArguments();
+
+                    for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : castTypes.getTypeParameters()) {
+                        ownArguments.add(new GenericType(typeParameter.getIdentifier()));
+                    }
+                    BaseTypeArgument arguments = argumentsBoundByUnifying(castTypes.getTypeParameters(), castType.createType(ownArguments), operandType);
+
+                    if (arguments != null) {
+                        cast.setType(castType.createType(arguments));
+                    }
+                }
             }
         }
     }

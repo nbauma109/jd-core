@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_CLASS;
+import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_OBJECT;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_CLASS_WILDCARD;
 
 public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisitor {
@@ -110,7 +111,9 @@ public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisi
 
     private static boolean equals(BaseType bt1, BaseType bt2) {
         // The bounds of two variables of the same name, 'Comparable<?>' of a class and 'Comparable' of a method, are compatible
-        return bt2 == null || bt2.equals(bt1) || bt1 instanceof ObjectType objectType1 && bt2 instanceof ObjectType objectType2 && objectType1.rawEquals(objectType2);
+        // (a variable without bounds, 'R', and a variable bounded by Object, 'K extends @Nullable Object', have the same ones)
+        return bt2 == null || bt2.equals(bt1) || bt1 == null && TYPE_OBJECT.equals(bt2)
+                || bt1 instanceof ObjectType objectType1 && bt2 instanceof ObjectType objectType2 && objectType1.rawEquals(objectType2);
     }
 
     protected TypeArgument checkTypeClassCheckDimensionAndReturnCurrentAsTypeArgument(GenericType type) {

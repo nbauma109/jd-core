@@ -1462,4 +1462,23 @@ public class GuavaPatterns {
     public static <T> Token<? super T> supertypeOfBound(Token<? super T> bound, Class<? super T> type) {
         return (Token<? super T>) bound.supertypeOf((Class) type);
     }
+
+    static <K, V> java.util.Map.Entry<K, V> pairOf(K key, V value) {
+        return null;
+    }
+
+    /** The argument is an Entry&lt;R, V&gt;, which a '? super Entry&lt;R, V&gt;' takes as it is */
+    public static <R, V> boolean accepts(java.util.function.Predicate<? super java.util.Map.Entry<R, V>> predicate, R key, V value) {
+        return predicate.test(pairOf(key, value));
+    }
+
+    /** The collection is cast to the erased list, then given to a method which takes lambdas */
+    @SuppressWarnings("unchecked")
+    public static <V1, V2> java.util.List<V2> transformValues(java.util.Collection<V1> values, java.util.function.Function<? super V1, V2> function) {
+        return mapAll((java.util.List<V1>) values, v1 -> function.apply(v1));
+    }
+
+    static <A, B> java.util.List<B> mapAll(java.util.List<A> list, java.util.function.Function<? super A, ? extends B> function) {
+        return null;
+    }
 }

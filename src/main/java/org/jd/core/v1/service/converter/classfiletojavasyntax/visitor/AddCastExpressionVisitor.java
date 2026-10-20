@@ -129,6 +129,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
     private final Loader loader;
     private boolean visitingVarArgsInvocation;
+    private Set<String> typeVariablesOfTheCall = Collections.emptySet();
     private final SingleAbstractMethodFinder singleAbstractMethodFinder;
     private final InheritedMethodFinder inheritedMethodFinder;
     private boolean lambdaReturnFromTarget;
@@ -717,8 +718,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Set<String> oldTypeVariablesSharedAcrossParameters = typeVariablesSharedAcrossParameters;
             typeVariablesSharedAcrossParameters = findTypeVariablesSharedAcrossParameters(unboundParameterTypes);
             boolean oldVisitingVarArgs = visitingVarArgsInvocation;
+            Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
             visitingVarArgsInvocation = expression.isVarArgs();
+            typeVariablesOfTheCall = getMethodTypeParameterNames((ClassFileMethodInvocationExpression) expression);
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, new CastFlags(forceCast, unique, rawCast)));
+            typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
             visitingVarArgsInvocation = oldVisitingVarArgs;
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
             typeVariablesSharedAcrossParameters = oldTypeVariablesSharedAcrossParameters;
@@ -2568,7 +2572,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             // 'new Foo<>(wildcardParameterizedArgument)' is a Foo<capture>, which no target type can be inferred for
                             fixedSupertypes |= expression instanceof ClassFileNewExpression && ta1 != null && ta2 != null
                                     && ta2.equals(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT) && !hasWildcardTypeArgument(objectType);
-                            if ((!expression.isNew() || fixedSupertypes) && hasKnownTypeParameters(t)) {
+                            if ((!expression.isNew() || fixedSupertypes) && hasKnownTypeParameters(t)
+                                    && !(unboundType == null && t instanceof ObjectType castType && mentionsTypeVariableTheCallDoesNotBind(castType, typeBindings))) {
                                 if (!(expression instanceof MethodReferenceExpression)
                                         && t instanceof ObjectType targetType
                                         && targetType.getTypeArguments() != null
@@ -2789,6 +2794,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         return captureUpperBound instanceof ObjectType captureBoundType
                 && (requiredBoundType.rawEquals(captureBoundType) || typeMaker.isRawTypeAssignable(requiredBoundType, captureBoundType));
+    }
+
+    /** The E of 'typePreservingSet(Set&lt;E&gt;, ...)' when the call does not bind it: a cast to Set&lt;E&gt; is a cast to nothing the source has */
+    private boolean mentionsTypeVariableTheCallDoesNotBind(ObjectType type, Map<String, TypeArgument> typeBindings) {
+        for (String name : type.findTypeParametersInType()) {
+            TypeArgument binding = typeBindings == null ? null : typeBindings.get(name);
+
+            if (typeVariablesOfTheCall.contains(name) && (binding == null || WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT.equals(binding))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isWildcard(TypeArgument typeArgument) {

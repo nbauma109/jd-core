@@ -1518,4 +1518,13 @@ public class GuavaPatterns {
             return derived;
         }
     }
+
+    static final class Cell2<T> {
+        Cell2<?> inner;
+    }
+
+    /** The result of the lambda is cast to its own wildcard type, or the elements of the list would be captures */
+    public static java.util.List<Cell2<?>> innerCells(java.util.List<Cell2<?>> cells) {
+        return cells.stream().map(cell -> (Cell2<?>) cell.inner).collect(java.util.stream.Collectors.toList());
+    }
 }

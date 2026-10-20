@@ -849,6 +849,21 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 expressionType = exp.getType();
             }
 
+            if (!parametersFirst && mie.getTypeParameters() != null && parameters != null) {
+                // 'flatMap(list.spliterator(), f)': what 'list.spliterator()' is, a Spliterator of what the list holds, tells the type variables of the call
+                for (Expression parameter : parameters) {
+                    if (parameter instanceof ClassFileMethodInvocationExpression argumentCall && !argumentCall.isBound() && argumentCall.getTypeParameters() == null
+                            && argumentCall.getExpression().isLocalVariableReferenceExpression() && argumentCall.getExpression().getType() instanceof ObjectType argumentReceiverType
+                            && argumentReceiverType.getTypeArguments() != null) {
+                        Type typeBeforeVisitingArgument = this.type;
+
+                        this.type = argumentCall.getType();
+                        argumentCall.accept(this);
+                        this.type = typeBeforeVisitingArgument;
+                    }
+                }
+            }
+
             if (staticMethod || mie.getTypeParameters() != null || !mie.getInternalTypeName().equals(internalTypeName)) {
                 TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(mie.getInternalTypeName());
 

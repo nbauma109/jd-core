@@ -729,6 +729,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         castReceiverWithUnresolvedBoundedTypeVariablesToRaw(expression);
+        writeTypeArgumentsOfReceiverBoundToWildcardType(expression);
         writeParameterTypesOfLambdasWithoutTarget(expression);
         castArgumentsMentioningCapturedTypeVariablesToRaw(expression);
         parameterizeCheckCastsPassedWithLambdas(expression);
@@ -1964,6 +1965,58 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     body.setExpression(addCastExpression(expected, body.getExpression()));
                 }
             }
+            // 'inputs.transform(future -> (FluentFuture<?>) future.state.future).toList()': the type variable of the result is only given by the lambda,
+            // which would make it a capture of the wildcard of the result: the source casts the result to its own type
+            if (call == memberReceiver && argument instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
+                    && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null
+                    && body.getExpression().getType() instanceof ObjectType resultType && resultType.getTypeArguments() != null && resultType.getDimension() == 0
+                    && toTypeArgumentList(resultType.getTypeArguments()).stream().anyMatch(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT::equals) && !body.getExpression().isCastExpression()
+                    && upperBoundOrSelf(toTypeArgumentList(functionalType.getTypeArguments()).get(toTypeArgumentList(functionalType.getTypeArguments()).size() - 1)) instanceof GenericType result
+                    && getMethodTypeParameterNames(call).contains(result.getName())) {
+                body.setExpression(addCastExpression(resultType, body.getExpression()));
+            }
+            // (a field of another instance, 'future.state.future': the type variables of its type are those of the other instance)
+            if (call == memberReceiver && argument instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
+                    && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null
+                    && body.getExpression() instanceof FieldReferenceExpression field && !field.getExpression().isThisExpression() && !field.getExpression().isObjectTypeReferenceExpression()
+                    && field.getType() instanceof ObjectType fieldType && fieldType.getTypeArguments() != null && fieldType.getDimension() == 0 && !fieldType.findTypeParametersInType().isEmpty()
+                    && upperBoundOrSelf(toTypeArgumentList(functionalType.getTypeArguments()).get(toTypeArgumentList(functionalType.getTypeArguments()).size() - 1)) instanceof GenericType result
+                    && getMethodTypeParameterNames(call).contains(result.getName())) {
+                TypeArguments wildcards = new TypeArguments();
+
+                toTypeArgumentList(fieldType.getTypeArguments()).forEach(typeArgument -> wildcards.add(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT));
+                ObjectType castType = fieldType.createType(wildcards.size() == 1 ? wildcards.getFirst() : wildcards);
+
+                body.setExpression(addCastExpression(castType, body.getExpression()));
+                if (call.getTypeParameters().size() == 1 && call.getNonWildcardTypeArguments() == null) {
+                    // (T would be the capture of the wildcard: 'transform' is given the type it returns)
+                    call.setNonWildcardTypeArguments(castType);
+                }
+            }
+        }
+    }
+
+    /**
+     * 'inputs.&lt;FluentFuture&lt;?&gt;&gt;transform(f).toList()': the type variable of a call which is a receiver is no target of the call, javac makes it the capture of the
+     * wildcard its argument has: it is written when it is a type with a wildcard.
+     */
+    private void writeTypeArgumentsOfReceiverBoundToWildcardType(MethodInvocationExpression expression) {
+        if (expression != memberReceiver || !(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null
+                || call.getNonWildcardTypeArguments() != null || call.getTypeBindings() == null || call.getExpression().isThisExpression()) {
+            return;
+        }
+        TypeArguments arguments = new TypeArguments();
+        boolean wildcard = false;
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : call.getTypeParameters()) {
+            if (!(call.getTypeBindings().get(typeParameter.getIdentifier()) instanceof ObjectType bound) || !hasKnownTypeParameters(bound)) {
+                return;
+            }
+            wildcard |= bound.getTypeArguments() != null && toTypeArgumentList(bound.getTypeArguments()).stream().anyMatch(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT::equals);
+            arguments.add(bound);
+        }
+        if (wildcard) {
+            call.setNonWildcardTypeArguments(arguments.size() == 1 ? arguments.getFirst() : arguments);
         }
     }
 

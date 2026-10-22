@@ -1609,4 +1609,22 @@ public class GuavaPatterns {
         }
         return first == null ? new Child() : first;
     }
+
+    /** Several uses in a block, of a class that captures a variable of that block: the class is declared in the block, before the first use */
+    public static int localClassUsedTwiceInABlock(boolean flag) {
+        if (flag) {
+            final int base = 3;
+
+            class Adder {
+                int add(int value) {
+                    return value + base;
+                }
+            }
+            int first = new Adder().add(1);
+            int second = new Adder().add(2);
+
+            return first + second;
+        }
+        return 0;
+    }
 }

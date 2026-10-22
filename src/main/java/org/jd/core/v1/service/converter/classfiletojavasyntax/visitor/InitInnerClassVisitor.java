@@ -369,6 +369,30 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         @Override
+        public void visit(FieldDeclaration declaration) {
+            count += countTypeUses(declaration.getType(), internalName);
+            super.visit(declaration);
+        }
+
+        @Override
+        public void visit(FormalParameter declaration) {
+            count += countTypeUses(declaration.getType(), internalName);
+            super.visit(declaration);
+        }
+
+        @Override
+        public void visit(MethodDeclaration declaration) {
+            count += countTypeUses(declaration.getReturnedType(), internalName) + countTypeUses(declaration.getExceptionTypes(), internalName);
+            super.visit(declaration);
+        }
+
+        @Override
+        public void visit(ConstructorDeclaration declaration) {
+            count += countTypeUses(declaration.getExceptionTypes(), internalName);
+            super.visit(declaration);
+        }
+
+        @Override
         public void visit(ConstructorReferenceExpression expression) {
             count += countTypeUses(expression.getObjectType(), internalName);
         }
@@ -444,6 +468,14 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     return count;
                 }
                 return count + countTypeUses(objectType.getTypeArguments(), internalName);
+            }
+            if (type instanceof BaseType types && types.isList()) {
+                int count = 0;
+
+                for (Type member : types) {
+                    count += countTypeUses(member, internalName);
+                }
+                return count;
             }
             if (type instanceof WildcardExtendsTypeArgument extending) {
                 return countTypeUses(extending.type(), internalName);
@@ -1130,6 +1162,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         current = next;
                         target = current;
                         users = usersOf(current, internalName);
+                    }
+                    if (users.size() > 1) {
+                        // several uses in the selected block: the declaration goes before the first
+                        user = users.get(0);
                     }
                     if (target != null && target != root && target.contains(user)) {
                         target.add(target.indexOf(user), new TypeDeclarationStatement(declaration));

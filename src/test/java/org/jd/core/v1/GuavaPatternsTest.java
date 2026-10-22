@@ -6,6 +6,7 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.GuavaSub;
+import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.TypeAnnotationPatterns;
 import org.junit.Test;
 
@@ -39,6 +40,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
+        assertTrue(source.contains("class TypeAnnotationPatterns<T extends @Maybe Object>"));
+        assertTrue(source.contains("<U extends @Maybe Object> U first(U value)"));
         assertTrue(source.contains("@Maybe T generic;"));
         assertTrue(source.contains("@Maybe public T pick(@Maybe T value)"));
         assertTrue(source.contains("@Maybe Object object;"));
@@ -50,5 +53,14 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertFalse(source.contains("@Maybe Entry"));
         assertFalse(source.contains("@Maybe Object[]"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testLocalClassUsedInTheSignatureOfAnotherLocalClass() throws Exception {
+        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // Item is declared before the block holding its only 'new Item()', because Holder, declared after the block, has a field of that type
+        assertTrue(source, source.indexOf("class Item") != -1 && source.indexOf("class Item") < source.indexOf("if (flag)"));
     }
 }

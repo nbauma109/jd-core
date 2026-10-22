@@ -120,7 +120,10 @@ final class EcjStringSwitchDetector {
         return new Result(newValues, newOffsets, newStrings, chainFrom, chainTo);
     }
 
-    /** @return false if a target is in the comparisons, which are deleted, or if a string is compared twice (a duplicate 'case' label does not compile) */
+    /**
+     * @return false if a target is in the comparisons, which are deleted, or if a string is compared twice (a duplicate 'case' label does not
+     * compile)
+     */
     private static boolean isRewritable(List<String> strings, List<Integer> targets, int defaultOffset, int chainFrom, int chainTo) {
         if (defaultOffset >= chainFrom && defaultOffset < chainTo) {
             return false;

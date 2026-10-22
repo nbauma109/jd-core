@@ -211,7 +211,10 @@ public abstract class ControlFlowGraphReducer {
         return stubbed;
     }
 
-    /** @return true if the code which is also reached from outside a loop must not be part of it: only for the methods which cannot be reduced otherwise */
+    /**
+     * @return true if the code which is also reached from outside a loop must not be part of it: only for the methods which cannot be reduced
+     * otherwise
+     */
     protected boolean pruneSharedLoopCode() {
         return false;
     }

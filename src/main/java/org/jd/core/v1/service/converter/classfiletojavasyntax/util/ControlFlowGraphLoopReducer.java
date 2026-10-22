@@ -877,7 +877,10 @@ public final class ControlFlowGraphLoopReducer {
         reduce(cfg, false);
     }
 
-    /** @param pruneSharedCode the code which is also reached from outside a loop is not a member of the loop: this is a fallback, as it is not right for every loop */
+    /**
+     * @param pruneSharedCode the code which is also reached from outside a loop is not a member of the loop: this is a fallback, as it is not
+     * right for every loop
+     */
     public static void reduce(ControlFlowGraph cfg, boolean pruneSharedCode) {
         BitSet[] arrayOfDominatorIndexes = buildDominatorIndexes(cfg);
         List<Loop> loops = identifyNaturalLoops(cfg, arrayOfDominatorIndexes);

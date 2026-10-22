@@ -612,7 +612,10 @@ public class StatementMaker {
         return switchCases.stream().anyMatch(switchCase -> switchCase.getStringValue() != null);
     }
 
-    /** The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch (s)'. */
+    /**
+     * The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch
+     * (s)'.
+     */
     private void selectString(SwitchStatement switchStatement) {
         Expression selector = switchStatement.getCondition();
 

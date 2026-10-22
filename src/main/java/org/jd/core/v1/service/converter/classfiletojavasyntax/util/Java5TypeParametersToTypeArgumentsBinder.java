@@ -193,7 +193,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         Type expressionType = expression.getType();
 
         if (name.startsWith("this$") && type instanceof ObjectType outerType && outerType.getTypeArguments() == null && outerType.getDimension() == 0) {
-            // The outer instance of an inner class is an Outer<R, C, V>: the synthetic field this$0 only has the erased type
+            // this$0 is erased: the outer instance is an Outer<R, C, V>
             TypeMaker.TypeTypes outerTypes = typeMaker.makeTypeTypes(outerType.getInternalName());
 
             if (outerTypes != null && outerTypes.getTypeParameters() != null) {
@@ -272,8 +272,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     /**
-     * The expected type of an argument is the type of the parameter, which may be a type variable of the method called ('immutableEntry(K, V)'):
-     * outside of the call, K means nothing (and confuses the K of 'Entry.getKey()' the argument is): nothing is expected then.
+     * The expected type of an argument: the type of the parameter, unless it is a type variable of the callee ('immutableEntry(K, V)'), which
+     * means nothing here.
      */
     private Type expectedTypeInScope(Type parameterType) {
         if (parameterType instanceof GenericType variable && variable.getDimension() == 0 && !contextualBindings.containsKey(variable.getName())
@@ -329,7 +329,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
-    /** 'Range&lt;K&gt;' is not a 'Range&lt;Comparable&gt;', although K is bounded by Comparable: type arguments are invariant */
+    /** Type arguments are invariant: a 'Range&lt;K&gt;' is no 'Range&lt;Comparable&gt;', even if K extends Comparable. */
     private static boolean isTypeVariableWhereBoundExpected(BaseTypeArgument expected, BaseTypeArgument actual) {
         if (!expected.isTypeArgumentList() || !actual.isTypeArgumentList() || expected.getTypeArgumentList().size() != actual.getTypeArgumentList().size()) {
             return expected instanceof ObjectType && actual instanceof GenericType;
@@ -763,7 +763,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         return parameterTypes;
     }
 
-    /** Binds 'this.backingMap.entrySet().spliterator()' from the declared field outwards: each call is the type of the one it is called on */
+    /**
+     * Binds a chain of calls on a declared variable or field from the inside out ('this.backingMap.entrySet().spliterator()'), each call
+     * typed by the one before.
+     */
     private void bindChainOnDeclaredReceiver(ClassFileMethodInvocationExpression call) {
         if (call.isBound()) {
             return;
@@ -776,7 +779,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         chainBoundFirst.add(call);
     }
 
-    /** 'this.backingMap.entrySet().spliterator()': calls with no type parameter of their own on a variable or a field, whose declared type says what the calls are */
+    /** A chain of calls without type parameters on a variable or field, whose declared type types the chain. */
     private static boolean isChainOnDeclaredReceiver(Expression expression) {
         if (expression instanceof ClassFileMethodInvocationExpression call) {
             return call.getTypeParameters() == null && isChainOnDeclaredReceiver(call.getExpression());
@@ -785,7 +788,9 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                 && expression.getType() instanceof ObjectType type && type.getTypeArguments() != null;
     }
 
-    /** @return true if the type is parameterized, by types which are not type variables (a field of type TypeCollector&lt;TypeToken&lt;?&gt;&gt;) */
+    /**
+     * @return true if the type is parameterized only by types which are not type variables.
+     */
     private boolean hasOnlyKnownTypeArguments(Type type) {
         if (!(type instanceof ObjectType objectType) || objectType.getTypeArguments() == null) {
             return false;
@@ -810,7 +815,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         Type t = mie.getType();
 
         if (chainBoundFirst.contains(mie)) {
-            // (the type of a call bound before the one it is the receiver of is not a type to be bound, whatever its type variables)
+            // already bound as part of the chain: its type is final
             return t;
         }
 
@@ -881,7 +886,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             Type expressionType = exp.getType();
 
             if (mie.getTypeParameters() != null && parameters != null) {
-                // 'flatMap(list.spliterator(), f)': what 'list.spliterator()' is, a Spliterator of what the list holds, tells the type variables of the call
+                // 'flatMap(list.spliterator(), f)': the type of the argument tells the call's type variables
                 for (Expression parameter : parameters) {
                     if (parameter instanceof ClassFileMethodInvocationExpression argumentCall && !argumentCall.isBound() && argumentCall.getTypeParameters() == null
                             && isChainOnDeclaredReceiver(argumentCall.getExpression())) {
@@ -907,8 +912,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
             if (!parametersFirst && exp instanceof ClassFileMethodInvocationExpression receiverCall && !receiverCall.isBound() && receiverCall.getTypeParameters() == null
                     && hasOnlyKnownTypeArguments(receiverCall.getExpression().getType())) {
-                // 'TypeCollector.FOR_GENERIC_TYPE.classesOnly().collectTypes(x)': the type of a receiver which has no type parameter of its
-                // own is what the type of its own receiver makes it, whatever type its caller is expected to return
+                // 'FOR_GENERIC_TYPE.classesOnly().collectTypes(x)': a receiver without type parameters is typed by its own receiver,
+                // not by the type its caller is expected to return
                 Type typeBeforeVisitingReceiver = this.type;
 
                 this.type = receiverCall.getType();

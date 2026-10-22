@@ -90,7 +90,10 @@ public class SingleAbstractMethodFinder {
     private record Member(MethodRef method, boolean isAbstract, boolean returnsTypeVariable, Set<String> ancestors) {
     }
 
-    /** @return the members of an interface by signature, the inherited ones included (the most specific declaration wins), or empty if an interface could not be read */
+    /**
+     * @return the members of an interface by signature, the inherited ones included (the most specific declaration wins), or empty if an
+     * interface could not be read
+     */
     private Optional<Map<String, Member>> membersOf(String internalName, Map<String, Optional<Map<String, Member>>> known) {
         if (known.containsKey(internalName)) {
             return known.get(internalName);
@@ -195,7 +198,10 @@ public class SingleAbstractMethodFinder {
         return false;
     }
 
-    /** The declaration of a sub interface overrides the one of its super interface; unrelated ones are override-equivalent: the generic return type is the most specific */
+    /**
+     * The declaration of a sub interface overrides the one of its super interface; unrelated ones are override-equivalent: the generic return
+     * type is the most specific
+     */
     private static Member moreSpecific(Member first, Member second) {
         if (first.method.declaringInterface.equals(second.method.declaringInterface)) {
             return first;

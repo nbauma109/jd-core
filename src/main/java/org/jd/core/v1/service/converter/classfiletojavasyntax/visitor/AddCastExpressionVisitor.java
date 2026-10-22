@@ -147,7 +147,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
     private Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
-    /** The number of scopes of type variables which are outside the static member (or the static class) which is visited: the type variables of classes are not visible from it */
+    /**
+     * The number of scopes of type variables which are outside the static member (or the static class) which is visited: the type variables of
+     * classes are not visible from it
+     */
     private int staticBoundary;
     private Type expectedType;
 
@@ -529,10 +532,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'K key = keyFunction.apply(input)' of a lambda: the bytecode casts the result to the erasure of K (an Enum), which
-     * the variable was typed with.
+     * A lambda's 'K key = keyFunction.apply(input)': the bytecode casts to the erasure of K (an Enum) and the variable gets that type.
      *
-     * @return the type variable the initializer is, if the declared type is its erasure
+     * @return the type variable the initializer is, when the declared type is its erasure
      */
     private Type typeVariableErasedTo(LocalVariableDeclarationStatement declaration) {
         if (!(declaration.getType() instanceof ObjectType declared) || declared.getTypeArguments() != null || declared.getDimension() != 0
@@ -811,8 +813,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Holder&lt;U&gt; d = new Holder&lt;&gt;(list)' in a Holder&lt;V&gt;: the V of the constructor is the U the instance gets, not the V of the class
-     * the call is written in.
+     * 'Holder&lt;U&gt; d = new Holder&lt;&gt;(list)' inside a Holder&lt;V&gt;: the constructor's V is the instance's U, not the enclosing
+     * class's V.
      */
     private BaseType withTypeArgumentsOfTheInstance(ClassFileNewExpression expression, BaseType parameterTypes) {
         ObjectType instanceType = expression.getObjectType();
@@ -913,7 +915,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         BaseType unboundParameterTypes = expression.getUnboundParameterTypes();
 
         if (unboundParameterTypes == null) {
-            // (the types of the arguments of a call of the class itself are not bound: they are those the method declares)
+            // a call within the class has no bound parameter types: use the declared ones
             TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
 
             unboundParameterTypes = methodTypes == null ? null : methodTypes.getParameterTypes();
@@ -1175,7 +1177,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
-    /** @return the bounds of the innermost type parameter of this name (null if it has none), as the map of bounds is ambiguous when names are reused */
+    /**
+     * @return the bounds of the innermost type parameter of this name (null if it has none), as the map of bounds is ambiguous when names are
+     * reused
+     */
     private BaseType declaredBoundsOf(String typeVariableName) {
         for (TypeParameter scope : typeParameters) {
             for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : scope.type()) {
@@ -1213,7 +1218,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return true;
     }
 
-    /** The bounds Comparable&lt;String&gt; and Comparable&lt;Integer&gt; have the same raw type, but nothing is a member of both: compare their concrete type arguments */
+    /**
+     * The bounds Comparable&lt;String&gt; and Comparable&lt;Integer&gt; have the same raw type, but nothing is a member of both: compare their
+     * concrete type arguments
+     */
     private static boolean haveCompatibleTypeArguments(ObjectType required, ObjectType declared) {
         BaseTypeArgument requiredArguments = required.getTypeArguments();
         BaseTypeArgument declaredArguments = declared.getTypeArguments();
@@ -1576,7 +1584,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (int i = 0; i < receiverArguments.size(); i++) {
             if (declared.getList().get(i).getIdentifier().equals(returnedVariable.getName())) {
-                // ('? extends Stream&lt;? extends V&gt;': what a Function&lt;T, ? extends Stream&lt;? extends V&gt;&gt; returns is a Stream)
+                // 'Function<T, ? extends Stream<...>>' returns a Stream
                 return upperBoundOrSelf(receiverArguments.getList().get(i)) instanceof ObjectType argument && argument.rawEquals(castType);
             }
         }
@@ -1667,7 +1675,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             TypeArguments nested = new TypeArguments();
 
             toTypeArgumentList(objectType.getTypeArguments()).forEach(nestedArgument -> nested.add(substitute(nestedArgument, bindings)));
-            // (a single type argument is not a list of one)
+            // one type argument is not a list of one
             return objectType.createType(nested.size() == 1 ? nested.getFirst() : nested);
         }
         return argument;
@@ -1739,14 +1747,17 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 argument instanceof GenericType other && other.getName().equals(variable.getName()));
     }
 
-    /** 'Enum&lt;Enum&lt;?&gt;&gt;' is what 'Enum&lt;?&gt;' must be to be the E of 'E extends Enum&lt;E&gt;': 'Enum&lt;?&gt;' is not */
+    /** No 'Enum&lt;?&gt;' is the E of 'E extends Enum&lt;E&gt;': E would have to be 'Enum&lt;Enum&lt;?&gt;&gt;'. */
     private boolean isItsOwnArgumentOf(ObjectType bound, ObjectType target) {
         List<TypeArgument> seen = typeArgumentsSeenAs(bound.getInternalName(), target, new HashSet<String>());
 
         return !seen.isEmpty() && seen.stream().allMatch(argument -> argument.equals(target));
     }
 
-    /** The first bound of a type parameter of the method, 'S extends T' being what the type argument of the receiver gives for T ('Ordering&lt;Comparable&gt;.reverse()') */
+    /**
+     * First bound of a method type parameter; 'S extends T' resolves T through the receiver's type arguments
+     * ('Ordering&lt;Comparable&gt;.reverse()').
+     */
     private Type boundOfMethodTypeParameter(ClassFileMethodInvocationExpression call, TypeParameterWithTypeBounds typeParameter) {
         Type bound = typeParameter.getTypeBounds().getFirst();
 
@@ -1798,8 +1809,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Lists.transform((List&lt;V1&gt;) values, v -&gt; ...)': the bytecode casts the Collection&lt;V1&gt; to the erased List, and a raw
-     * argument makes the parameter of the lambda an Object: the cast keeps the type arguments the operand gives it.
+     * 'Lists.transform((List&lt;V1&gt;) values, v -&gt; ...)': the checkcast is to the erased List and a raw argument types the lambda
+     * parameter as Object; keep the operand's type arguments.
      */
     private void parameterizeCheckCastsPassedWithLambdas(MethodInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
@@ -1830,8 +1841,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Collections.unmodifiableSet(this.delegate.entrySet())' where delegate is a 'Multiset&lt;? extends E&gt;': the elements of the set are Entry&lt;capture&gt;, which a
-     * generic method fixing its type variable (to the Entry&lt;E&gt; of the target) does not take: the source casts the argument to a raw type.
+     * 'Collections.unmodifiableSet(this.delegate.entrySet())' with delegate a 'Multiset&lt;? extends E&gt;': the elements are
+     * Entry&lt;capture&gt;, which a type variable fixed by the target (Entry&lt;E&gt;) rejects; the source casts the argument to a raw type.
      */
     private void castArgumentsCapturedFromWildcardReceiversToRaw(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || Utils.isEmpty(call.getParameters())) {
@@ -1875,15 +1886,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 captured.add(typeParameter.getIdentifier());
             }
         }
-        // (a captured variable nested in the type argument of the result: Set<Entry<E>>, not the type variable itself, which '? extends' makes a plain bound)
+        // a captured variable nested in the result's type argument (Set<Entry<E>>)
         return returned.getTypeArguments() != null && toTypeArgumentList(returned.getTypeArguments()).stream()
                 .anyMatch(argument -> argument instanceof ObjectType nested && nested.getTypeArguments() != null && nested.findTypeParametersInType().stream().anyMatch(captured::contains));
     }
 
     /**
-     * 'bound.getSupertype((Class) supertype)' where bound is a 'TypeToken&lt;? super T&gt;' and getSupertype takes a 'Class&lt;? super T&gt;':
-     * the T of the receiver is a capture, which a 'Class&lt;? super T&gt;' (an argument of type variables) is not a 'Class&lt;? super capture&gt;' of:
-     * the source casts the argument to a raw type.
+     * 'bound.getSupertype((Class) supertype)' with bound a 'TypeToken&lt;? super T&gt;': T is a capture, and a 'Class&lt;? super T&gt;'
+     * argument is not a 'Class&lt;? super capture&gt;'; the source casts it to a raw type.
      */
     private void castArgumentsMentioningCapturedTypeVariablesToRaw(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || !(call.getExpression().getType() instanceof ObjectType receiverType)
@@ -1936,8 +1946,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Ordering.natural().onResultOf(params -&gt; params.contains(x)).compound(...)': a receiver is no target of its call, and nothing
-     * else infers the type variable F of 'onResultOf(Function&lt;F, ?&gt;)': the lambda is given the (erased) types of its parameters.
+     * 'Ordering.natural().onResultOf(params -&gt; ...).compound(...)': nothing infers F of 'onResultOf(Function&lt;F, ?&gt;)' (a receiver has
+     * no target type), so the lambda writes its erased parameter types.
      */
     private void writeParameterTypesOfLambdasWithoutTarget(MethodInvocationExpression expression) {
         if (expression == memberReceiver) {
@@ -1945,7 +1955,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         if (expression instanceof ClassFileMethodInvocationExpression outer && outer.getTypeParameters() != null && outer.getUnboundParameterTypes() != null
                 && !Utils.isEmpty(outer.getParameters()) && outer.getParameters().size() == outer.getUnboundParameterTypes().size()) {
-            // 'a.compound(Ordering.natural().onResultOf(p -> ...))': the argument is a Comparator&lt;? super U&gt; of a type variable only the argument gives
+            // 'a.compound(Ordering.natural().onResultOf(p -> ...))': only the argument gives the Comparator<? super U>'s type variable
             Set<String> outerVariables = getMethodTypeParameterNames(outer);
             Iterator<Expression> argumentIterator = outer.getParameters().iterator();
 
@@ -1986,7 +1996,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
                 boolean free = false;
 
-                // (the first type arguments of a functional interface are those of the parameters: Function&lt;F, R&gt;, BiFunction&lt;A, B, R&gt;)
+                // the first type arguments of a functional interface are its parameters: Function<F, R>, BiFunction<A, B, R>
                 List<TypeArgument> functionalArguments = toTypeArgumentList(functionalType.getTypeArguments());
 
                 for (TypeArgument argument : functionalArguments.subList(0, Math.min(lambda.getParameterNames().size(), functionalArguments.size()))) {
@@ -2001,9 +2011,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'flatMap(list.spliterator(), rowEntry -&gt; map(((Map) rowEntry.getValue()).entrySet().spliterator(), columnEntry -&gt; ...))': the bytecode of the lambdas has the erased
-     * types only. When a raw argument makes the type variables of the call Object, or when the lambda casts what it takes out of its parameter, an implicit lambda
-     * would be given types the body does not fit: the lambda writes the (erased) types its parameters had.
+     * 'flatMap(list.spliterator(), rowEntry -&gt; map(((Map) rowEntry.getValue()).entrySet().spliterator(), columnEntry -&gt; ...))': lambda bytecode only has erased types.
+     * When a raw argument makes the call's type variables Object, or the lambda casts what it takes out of its parameter, an implicit lambda gets types its body does not fit: write the erased types.
      */
     private void writeParameterTypesOfLambdasWhoseTypesAreLost(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || Utils.isEmpty(call.getParameters())) {
@@ -2029,7 +2038,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    /** A Map.Entry written without its type arguments: what the bytecode of a lambda knows of a parameter which is not an Object or a class without type variables */
+    /** A generic class without type arguments: what a lambda's bytecode knows of its parameter. */
     private boolean isRawGenericType(Type type) {
         if (!(type instanceof ObjectType objectType) || objectType.getTypeArguments() != null || objectType.getDimension() != 0) {
             return false;
@@ -2068,8 +2077,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'flatMap(splitrs, splitr -&gt; (Spliterator&lt;T&gt;) splitr)': the call returns a Spliterator&lt;T&gt;, the function has to return one, and a
-     * Spliterator&lt;? extends T&gt; is not: the source casts the result.
+     * 'flatMap(splitrs, splitr -&gt; (Spliterator&lt;T&gt;) splitr)': the function must return a Spliterator&lt;T&gt;, which a
+     * Spliterator&lt;? extends T&gt; is not; the source casts it.
      */
     private void castResultsOfLambdasToTheTypesTheCallBinds(ClassFileMethodInvocationExpression call, BaseType unboundParameterTypes) {
         if (unboundParameterTypes == null || call.getTypeBindings() == null || Utils.isEmpty(call.getParameters()) || call.getParameters().size() != unboundParameterTypes.size()) {
@@ -2080,7 +2089,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (Type unboundParameterType : unboundParameterTypes) {
             Expression argument = argumentIterator.next();
 
-            // (a lambda which returns its parameter, whose type arguments the bytecode of the lambda does not carry)
+            // a lambda returning its parameter, whose type arguments the lambda's bytecode lacks
             if (argument instanceof LambdaIdentifiersExpression lambda && lambda.getParameterNames() != null && lambda.getStatements() instanceof LambdaExpressionStatement body
                     && body.getExpression().isLocalVariableReferenceExpression() && lambda.getParameterNames().contains(body.getExpression().getName())
                     && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null
@@ -2093,7 +2102,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     body.setExpression(addCastExpression(expected, body.getExpression()));
                 }
             }
-            // (a field of another instance, 'future.state.future': the type variables of its type are those of the other instance)
+            // a field of another instance ('future.state.future'): its type variables are that instance's
             if (call == memberReceiver && argument instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body
                     && unboundParameterType instanceof ObjectType functionalType && functionalType.getTypeArguments() != null
                     && body.getExpression() instanceof FieldReferenceExpression field && !field.getExpression().isThisExpression() && !field.getExpression().isObjectTypeReferenceExpression()
@@ -2107,7 +2116,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
                 body.setExpression(addCastExpression(castType, body.getExpression()));
                 if (call.getTypeParameters().size() == 1 && call.getNonWildcardTypeArguments() == null) {
-                    // (T would be the capture of the wildcard: 'transform' is given the type it returns)
+                    // else T is the capture of the wildcard
                     call.setNonWildcardTypeArguments(castType);
                 }
             }
@@ -2115,8 +2124,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'throw new SneakyThrows&lt;Error&gt;().throwIt(t)' (throwIt: throws T): the bytecode has no type argument, a raw instance would throw the Throwable which T is
-     * erased to; javac needs a type which is not a checked exception.
+     * 'throw new SneakyThrows&lt;Error&gt;().throwIt(t)' (throwIt throws T): the bytecode has no type argument and a raw instance throws
+     * Throwable; use an unchecked type.
      */
     private void writeTypeArgumentOfInstanceWhoseMethodThrowsIt(MethodInvocationExpression expression) {
         if (!(expression.getExpression() instanceof ClassFileNewExpression newExpression) || newExpression.getObjectType().getTypeArguments() != null
@@ -2149,8 +2158,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'inputs.&lt;FluentFuture&lt;?&gt;&gt;transform(f).toList()': the type variable of a call which is a receiver is no target of the call, javac makes it the capture of the
-     * wildcard its argument has: it is written when it is a type with a wildcard.
+     * 'inputs.&lt;FluentFuture&lt;?&gt;&gt;transform(f).toList()': a receiver has no target type, javac makes the type variable the capture of
+     * its argument's wildcard; write it.
      */
     private void writeTypeArgumentsOfReceiverBoundToWildcardType(MethodInvocationExpression expression) {
         if (expression != memberReceiver || !(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null
@@ -2173,9 +2182,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Ordering.from(c).onKeys().immutableSortedCopy(list)': a receiver is no target of its call, javac infers the type variables
-     * of its generic method as their bounds ('onKeys': &lt;F extends T&gt;) when nothing in the bytecode tells which ones the source
-     * had. The receiver is raw (what the bytecode sees of it) then.
+     * 'Ordering.from(c).onKeys().immutableSortedCopy(list)': a receiver has no target type, and javac infers the bounds ('onKeys': &lt;F
+     * extends T&gt;) when the bytecode does not say; the receiver is raw.
      */
     private void castReceiverWithUnresolvedBoundedTypeVariablesToRaw(MethodInvocationExpression expression) {
         if (!(expression.getExpression() instanceof ClassFileMethodInvocationExpression receiver) || receiver.getTypeParameters() == null
@@ -2201,7 +2209,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    /** 'onKeys' (&lt;F extends T&gt;): its type variable is the one of the class of the receiver, which the receiver's own inference decides (T of an Ordering&lt;T&gt;) */
+    /** 'onKeys' (&lt;F extends T&gt;): F is bounded by a type variable of the receiver's class. */
     private static boolean hasTypeParameterBoundedByTypeVariable(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null) {
             return false;
@@ -2215,8 +2223,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Collectors.toMap(f, g, h, () -&gt; new TreeMap&lt;&gt;(c))' (toMap: &lt;M extends Map&lt;K, U&gt;&gt; ... Supplier&lt;M&gt;): the diamond infers
-     * nothing out of the other arguments, the type arguments of the instance are those which make it the bound of M.
+     * 'Collectors.toMap(f, g, h, () -&gt; new TreeMap&lt;&gt;(c))' (M extends Map&lt;K, U&gt;): the diamond infers nothing from the other
+     * arguments; give the instance the type arguments that make it M's bound.
      */
     private void writeTypeArgumentsOfInstancesSuppliedToBoundedTypeVariables(ClassFileMethodInvocationExpression call, BaseExpression parameters, BaseType unboundParameterTypes) {
         if (call.getTypeParameters() == null || call.getTypeBindings() == null || unboundParameterTypes == null || parameters == null || parameters.size() != unboundParameterTypes.size()) {
@@ -2252,12 +2260,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    /** 'new TreeMap&lt;&gt;(c)' is a TreeMap&lt;?, ?&gt; as long as nothing gave it type arguments */
+    /** 'new TreeMap&lt;&gt;(c)' is a TreeMap&lt;?, ?&gt; until something types it. */
     private static boolean isWithoutKnownTypeArguments(ObjectType type) {
         return type.getTypeArguments() == null || toTypeArgumentList(type.getTypeArguments()).stream().allMatch(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT::equals);
     }
 
-    /** @return the first bound of the type parameter of the method, with the type arguments the call gives to the type variables it is made of, null if it is not a parameterized type */
+    /**
+     * @return the first bound of the type parameter, with the call's type arguments substituted; null if it is not parameterized
+     */
     private ObjectType boundOfMethodTypeVariable(ClassFileMethodInvocationExpression call, GenericType variable) {
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : call.getTypeParameters()) {
             if (typeParameter.getIdentifier().equals(variable.getName()) && typeParameter instanceof TypeParameterWithTypeBounds withBounds
@@ -2270,10 +2280,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Collector.of(Builder::new, ..., Builder::combine, Builder::build)': the accumulator is only inferred from the supplier,
-     * and a reference to a generic constructor (or a diamond, or a call of a generic method) infers nothing from the other
-     * arguments: its type arguments are those the finisher gives to the type of the result ('build' returns an
-     * 'ImmutableMap&lt;K, V&gt;' of a 'Builder&lt;K, V&gt;').
+     * 'Collector.of(Builder::new, ..., Builder::combine, Builder::build)': only the supplier gives the accumulator type, and a generic constructor reference, diamond or generic factory infers nothing from the other arguments.
+     * Write its type arguments: those the finisher gives to the result ('build' returns an ImmutableMap&lt;K, V&gt; of a Builder&lt;K, V&gt;).
      */
     private void writeTypeArgumentsOfAccumulatorSuppliedToCollector(ClassFileMethodInvocationExpression call) {
         if (!"java/util/stream/Collector".equals(call.getInternalTypeName()) || !"of".equals(call.getName())
@@ -2306,8 +2314,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'Collector.of(LinkedHashMultiset::create, ..., multiset -&gt; ImmutableMultiset.copyFromEntries(multiset.entrySet()))': nothing says what the type
-     * arguments of the accumulator are but the result: a Collector of a collection of E accumulates E in a collection of E, javac would infer Object.
+     * 'Collector.of(LinkedHashMultiset::create, ..., m -&gt; ImmutableMultiset.copyFromEntries(m.entrySet()))': when nothing else says, a
+     * collector of a collection of E accumulates E; javac would infer Object.
      */
     private void writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(Expression supplier, TypeArgument result) {
         if (!(result instanceof ObjectType resultType) || resultType.getTypeArguments() == null || !hasKnownTypeParameters(resultType) || hasWildcardTypeArgument(resultType)) {
@@ -2351,7 +2359,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    /** @return the type arguments of the generic method which make it return the given type, null if they are not all known (or the method is not generic) */
+    /**
+     * @return the type arguments that make the generic method return the given type; null if unknown or not generic
+     */
     private BaseTypeArgument typeArgumentsOfMethodReturning(String internalTypeName, String name, String descriptor, ObjectType returned) {
         TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(internalTypeName, name, descriptor);
 
@@ -2363,9 +2373,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * @param declared a type declared with the given type parameters ('Builder&lt;K, V&gt;' of the method or of its class)
-     * @param actual the same type with the arguments they are given
-     * @return the arguments of the type parameters, null if they are not all given a known one
+     * @param declared a type written with the given type parameters ('Builder&lt;K, V&gt;')
+     * @param actual the same type with actual arguments
+     * @return the arguments of the type parameters; null if one is unknown
      */
     private BaseTypeArgument argumentsBoundByUnifying(BaseTypeParameter typeParameters, ObjectType declared, ObjectType actual) {
         List<TypeArgument> seen = typeArgumentsSeenAs(actual.getInternalName(), declared, new HashSet<String>());
@@ -2394,7 +2404,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return arguments;
     }
 
-    /** @return the type of the receiver of 'Owner::method' (or 'state -> state.method()') with the type arguments which make 'method' return the given result, null if they are not all known */
+    /**
+     * @return the receiver type of 'Owner::method' (or 'state -&gt; state.method()') with the type arguments that make 'method' return the result; null if unknown
+     */
     private ObjectType accumulatorTypeReturnedBy(Expression finisher, TypeArgument result) {
         if (!(result instanceof ObjectType resultType) || resultType.getTypeArguments() == null) {
             return null;
@@ -2494,7 +2506,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             && (!hasWildcardTypeArgument(expected) && hasWildcardTypeArgument(actual) || differsInNestedTypeArguments(expected, actual));
     }
 
-    /** An ImmutableList&lt;TypeToken&lt;?&gt;&gt; is not an ImmutableList&lt;TypeToken&lt;? super T&gt;&gt;: type arguments are invariant, whatever their own type arguments */
+    /** Type arguments are invariant: an ImmutableList&lt;TypeToken&lt;?&gt;&gt; is no ImmutableList&lt;TypeToken&lt;? super T&gt;&gt;. */
     private static boolean differsInNestedTypeArguments(ObjectType expected, ObjectType actual) {
         List<TypeArgument> expectedArguments = toTypeArgumentList(expected.getTypeArguments());
         List<TypeArgument> actualArguments = toTypeArgumentList(actual.getTypeArguments());
@@ -3003,8 +3015,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * 'predicate.apply(Maps.immutableEntry(entry.getKey(), value))': the type variables of the call are all fixed by its arguments, which javac knows the
-     * (declared) types of better than the types we bound them to ('Entry&lt;?, V&gt;' of an 'entry' we did not know the type of yet): nothing is cast.
+     * 'predicate.apply(Maps.immutableEntry(entry.getKey(), value))': the call's type variables are fixed by its arguments, whose declared
+     * types javac knows better than our bindings (Entry&lt;?, V&gt;): do not cast.
      */
     private boolean isInferredFromItsArgumentsWhereTheBindingIsUnknown(Expression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || call.getTypeBindings() == null) {
@@ -3020,7 +3032,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return !unknown.isEmpty() && hasProperMethodArgumentConstraint(call, unknown);
     }
 
-    /** The E of 'typePreservingSet(Set&lt;E&gt;, ...)' when the call does not bind it: a cast to Set&lt;E&gt; is a cast to nothing the source has */
+    /**
+     * A cast to 'Set&lt;E&gt;' with E a type variable of the callee the call does not bind ('typePreservingSet(Set&lt;E&gt;, ...)') casts to
+     * nothing the source has.
+     */
     private boolean mentionsTypeVariableTheCallDoesNotBind(ObjectType type, Map<String, TypeArgument> typeBindings) {
         for (String name : type.findTypeParametersInType()) {
             TypeArgument binding = typeBindings == null ? null : typeBindings.get(name);
@@ -3083,8 +3098,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && declaredBoundsOf(resultVariable.getName()) != null
                 && !declaredBoundsOf(resultVariable.getName()).isList() && declaredBoundsOf(resultVariable.getName()).getFirst() instanceof ObjectType resultBound
                 && (erasedType.rawEquals(resultBound) || typeMaker.isRawTypeAssignable(erasedType, resultBound))) {
-            // The CHECKCAST after a call whose result is a type variable is to the erasure of that variable (or of the variable it
-            // is in the superclass, of a wider bound): its bound
+            // The CHECKCAST after a call returning a type variable is to its erasure (or to a wider bound
+            // when the variable is the superclass's)
             return true;
         }
         if (expression.isByteCodeCheckCast()
@@ -3427,7 +3442,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return hasProperMethodArgumentConstraint(invocation, getMethodTypeParameterNames(invocation));
     }
 
-    /** @param typeVariables the type variables of the method whose inference is asked about (the others do not matter: 'compose(not(in(c)), Entry::getKey)' constrains B, not A) */
+    /**
+     * @param typeVariables the type variables whose inference is asked about ('compose(not(in(c)), Entry::getKey)' constrains B, not A)
+     */
     private static boolean hasProperMethodArgumentConstraint(ClassFileMethodInvocationExpression invocation, Set<String> typeVariables) {
         BaseType parameterTypes = invocation.getUnboundParameterTypes();
         BaseExpression arguments = invocation.getParameters();

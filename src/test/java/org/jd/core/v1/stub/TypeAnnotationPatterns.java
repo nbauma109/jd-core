@@ -18,6 +18,7 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
     String name;
     @Maybe Object object;
     @Twice Object twice;
+    @Deprecated @Twice @Maybe Object several;
     @Maybe T generic;
     @Maybe List<String> elements;
     @Maybe String[] annotatedElementsOfArray;
@@ -35,6 +36,15 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
     public @Maybe T pick(@Maybe T value) {
         generic = value;
         return generic;
+    }
+
+    /** Two type parameters take an annotation on their bound */
+    public static <A extends @Maybe Object, B extends @Maybe Object> int pair(A first, B second) {
+        return java.util.Objects.hash(first, second);
+    }
+
+    public static <W extends @Maybe Comparable<W>> W max(W value) {
+        return value;
     }
 
     public static <U extends @Maybe Object> U first(U value) {

@@ -47,6 +47,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(source.contains("@Maybe Object object;"));
         // an annotation for declarations and types is written once
         assertTrue(source.contains("@Twice Object twice;"));
+        assertTrue(source.contains("@Maybe Object several;") && source.contains("@Deprecated"));
+        assertTrue(source.contains("<A extends @Maybe Object, B extends @Maybe Object>"));
         assertFalse(source.contains("@Twice @Twice"));
         assertTrue(source.contains("(String first, int second, @Maybe Object third)"));
         assertTrue(source.contains("public String find(@Maybe Object key, int count, String other, List<String> values)"));
@@ -75,5 +77,23 @@ public class GuavaPatternsTest extends AbstractJdTest {
 
         // Item is declared before the block holding its only 'new Item()', because Bounded, declared after the block, has a type parameter bounded by it
         assertTrue(method, method.indexOf("class Item") != -1 && method.indexOf("class Item") < method.indexOf("if (flag)"));
+    }
+
+    @Test
+    public void testLocalClassesMentionedEverywhere() throws Exception {
+        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String method = source.substring(source.indexOf("mentionedEverywhere("));
+
+        // Marker is used by Tagged, in a catch, in type arguments and in a constructor reference: its declaration stays before the block
+        assertTrue(method, method.indexOf("class Marker") != -1 && method.indexOf("class Marker") < method.indexOf("if (flag)"));
+    }
+
+    @Test
+    public void testFieldOfTheSuperclassHiddenByAField() throws Exception {
+        String internalClassName = GuavaPatterns.class.getName().replace('.', '/') + "$HiddenFieldDerived";
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, source.contains("super.count"));
     }
 }

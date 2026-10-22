@@ -1627,4 +1627,18 @@ public class GuavaPatterns {
         }
         return 0;
     }
+
+    static class HiddenFieldBase {
+        int count = 1;
+    }
+
+    /** Both classes have a field 'count': the one of the superclass is reached by 'super' */
+    @SuppressWarnings("java:S2387") // the shadowing is what the stub is about
+    static class HiddenFieldDerived extends HiddenFieldBase {
+        int count = 2;
+
+        int both() {
+            return count + super.count;
+        }
+    }
 }

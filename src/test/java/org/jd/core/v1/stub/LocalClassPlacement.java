@@ -35,4 +35,43 @@ public class LocalClassPlacement {
         }
         return first == null ? new Bounded<Item>().value : first;
     }
+
+    /** Local classes mentioned in every place a class can be: implements clauses, multi-catch, throws lists, type arguments and constructor references */
+    public static Object mentionedEverywhere(boolean flag) throws Exception {
+        class Problem extends Exception {
+            private static final long serialVersionUID = 1L;
+        }
+        class Marker {
+        }
+        class Tagged implements java.io.Serializable, Comparable<Marker> {
+            @Override
+            public int compareTo(Marker other) {
+                return 0;
+            }
+
+            void fail(Marker marker) throws Problem, java.io.IOException {
+                if (marker == null) {
+                    throw new Problem();
+                }
+            }
+        }
+        Object first = null;
+
+        if (flag) {
+            try {
+                first = new Marker();
+                new Tagged().fail((Marker) first);
+            } catch (Problem | IllegalStateException e) {
+                first = e;
+            }
+            java.util.List<? extends Marker> markers = new java.util.ArrayList<Marker>();
+            java.util.List<? super Marker> sink = new java.util.ArrayList<Object>();
+            java.util.function.Supplier<Marker> supplier = Marker::new;
+            Marker[] array = new Marker[] {supplier.get()};
+
+            sink.add(array[0]);
+            first = markers.isEmpty() ? sink : first;
+        }
+        return first == null ? new Tagged() : first;
+    }
 }

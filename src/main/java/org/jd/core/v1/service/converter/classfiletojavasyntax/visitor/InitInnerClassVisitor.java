@@ -39,6 +39,7 @@ import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpressi
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.ConstructorReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
@@ -1030,6 +1031,16 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             count[0]++;
                         }
                         super.visit(expression);
+                    }
+
+                    @Override
+                    public void visit(ConstructorReferenceExpression expression) {
+                        count[0] += countTypeUses(expression.getObjectType(), internalName);
+                    }
+
+                    @Override
+                    public void visit(ObjectTypeReferenceExpression expression) {
+                        count[0] += countTypeUses(expression.getObjectType(), internalName);
                     }
 
                     @Override

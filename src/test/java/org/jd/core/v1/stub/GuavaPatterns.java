@@ -1576,4 +1576,23 @@ public class GuavaPatterns {
             return !this.successors((N) pair.nodeU()).isEmpty();
         }
     }
+
+    /** The ground type of the target is Supplier&lt;T&gt;: the lambda returns a T, not the Object it is erased to */
+    @SuppressWarnings("unchecked")
+    public static <T> java.util.function.Supplier<? super T> superSupplier(Object o) {
+        return () -> (T) o;
+    }
+
+    /** A reference to the constructor is a use of the local class, as is a new instance: the declaration stays before both */
+    public static Object localClassReferencedByConstructor(boolean flag) {
+        class Local {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Local();
+        }
+        java.util.function.Supplier<Object> supplier = Local::new;
+        return first == null ? supplier.get() : first;
+    }
 }

@@ -488,9 +488,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return visitor.getType() instanceof Type bound ? bound : null;
     }
 
-    /** A lambda of a 'Supplier<? extends T>' is typed by its upper bound */
+    /** A lambda of a 'Supplier<? extends T>' is typed by its upper bound, one of a 'Supplier<? super T>' by its lower bound (the ground type is Supplier<T>) */
     private static Type upperBound(TypeArgument argument) {
         if (argument instanceof WildcardExtendsTypeArgument wildcard) {
+            return wildcard.type();
+        }
+        if (argument instanceof WildcardSuperTypeArgument wildcard) {
             return wildcard.type();
         }
         return argument instanceof Type argumentType ? argumentType : null;

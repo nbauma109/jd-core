@@ -290,9 +290,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 FileUtils.deleteDirectory(templatesDir);
             }
 
-            // Delete all .java files of the sources (src/main/java by default)
+            // Delete all .java files of the sources (src/main/java by default), but the module descriptors: the
+            // decompiler does not write them (module-info.class is skipped) and the build of the modules which require
+            // the library (the test library of Guava) needs the descriptor of the one it rebuilds
             Files.walk(Paths.get(projectDir.getPath(), layout.sourceDirectory()))
-                    .filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> path.toString().endsWith(".java") && !path.endsWith("module-info.java"))
                     .forEach(path -> {
                         try {
                             Files.delete(path);

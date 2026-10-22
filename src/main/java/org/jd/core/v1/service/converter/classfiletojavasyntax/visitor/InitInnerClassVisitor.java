@@ -337,6 +337,122 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** A synthetic outer-instance parameter is only null-checked, never read: a read means a real parameter. */
+    /** Counts the uses of a class in a piece of syntax: instances, references to its constructor or members, casts, arrays, declarations, extends and implements */
+    private static final class LocalClassUseCounter extends AbstractJavaSyntaxVisitor {
+        private final String internalName;
+        private int count;
+
+        LocalClassUseCounter(String internalName) {
+            this.internalName = internalName;
+        }
+
+        int getCount() {
+            return count;
+        }
+
+    @Override
+    public void visit(NewExpression expression) {
+        if (expression.getObjectType().getInternalName().equals(internalName)) {
+            count++;
+        }
+        super.visit(expression);
+    }
+
+    @Override
+    public void visit(ClassDeclaration declaration) {
+        count += countTypeUses(declaration.getSuperType(), internalName);
+        if (declaration.getInterfaces() != null) {
+            for (Type interfaceType : declaration.getInterfaces()) {
+                count += countTypeUses(interfaceType, internalName);
+            }
+        }
+        super.visit(declaration);
+    }
+
+    @Override
+    public void visit(ConstructorReferenceExpression expression) {
+        count += countTypeUses(expression.getObjectType(), internalName);
+    }
+
+    @Override
+    public void visit(ObjectTypeReferenceExpression expression) {
+        count += countTypeUses(expression.getObjectType(), internalName);
+    }
+
+    @Override
+    public void visit(TypeReferenceDotClassExpression expression) {
+        if (expression.getTypeDotClass() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
+            count++;
+        }
+    }
+
+    @Override
+    public void visit(LocalVariableDeclarationStatement statement) {
+        count += countTypeUses(statement.getType(), internalName);
+        super.visit(statement);
+    }
+
+    @Override
+    public void visit(CastExpression expression) {
+        count += countTypeUses(expression.getType(), internalName);
+        super.visit(expression);
+    }
+
+    @Override
+    public void visit(InstanceOfExpression expression) {
+        count += countTypeUses(expression.getInstanceOfType(), internalName);
+        super.visit(expression);
+    }
+
+    @Override
+    public void visit(CatchClause statement) {
+        count += countTypeUses(statement.getType(), internalName);
+        if (statement.getOtherTypes() != null) {
+            for (ObjectType otherType : statement.getOtherTypes()) {
+                count += countTypeUses(otherType, internalName);
+            }
+        }
+        super.visit(statement);
+    }
+
+    @Override
+    public void visit(ForEachStatement statement) {
+        count += countTypeUses(statement.getType(), internalName);
+        super.visit(statement);
+    }
+
+    @Override
+    public void visit(NewArray expression) {
+        count += countTypeUses(expression.getType(), internalName);
+        super.visit(expression);
+    }
+
+    @Override
+    public void visit(NewInitializedArray expression) {
+        count += countTypeUses(expression.getType(), internalName);
+        super.visit(expression);
+    }
+
+    /** The uses of the class in a type, in its type arguments too (List&lt;Local&gt;, ? extends Local) */
+    private static int countTypeUses(Object type, String internalName) {
+        if (type instanceof ObjectType objectType) {
+            int count = objectType.getInternalName().equals(internalName) ? 1 : 0;
+
+            if (objectType.getTypeArguments() instanceof TypeArguments arguments) {
+                for (TypeArgument argument : arguments) {
+                    count += countTypeUses(argument, internalName);
+                }
+                return count;
+            }
+            return count + countTypeUses(objectType.getTypeArguments(), internalName);
+        }
+        if (type instanceof WildcardExtendsTypeArgument extending) {
+            return countTypeUses(extending.type(), internalName);
+        }
+        return type instanceof WildcardSuperTypeArgument supering ? countTypeUses(supering.type(), internalName) : 0;
+    }
+    }
+
     private static final class ReferenceSearch extends AbstractJavaSyntaxVisitor {
         private final AbstractLocalVariable variable;
         private boolean referenced;
@@ -1033,116 +1149,14 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             private int countUses(Object syntax, String internalName) {
-                int[] count = new int[1];
-                AbstractJavaSyntaxVisitor counter = new AbstractJavaSyntaxVisitor() {
-                    @Override
-                    public void visit(NewExpression expression) {
-                        if (expression.getObjectType().getInternalName().equals(internalName)) {
-                            count[0]++;
-                        }
-                        super.visit(expression);
-                    }
+                LocalClassUseCounter counter = new LocalClassUseCounter(internalName);
 
-                    @Override
-                    public void visit(ClassDeclaration declaration) {
-                        count[0] += countTypeUses(declaration.getSuperType(), internalName);
-                        if (declaration.getInterfaces() != null) {
-                            for (Type interfaceType : declaration.getInterfaces()) {
-                                count[0] += countTypeUses(interfaceType, internalName);
-                            }
-                        }
-                        super.visit(declaration);
-                    }
-
-                    @Override
-                    public void visit(ConstructorReferenceExpression expression) {
-                        count[0] += countTypeUses(expression.getObjectType(), internalName);
-                    }
-
-                    @Override
-                    public void visit(ObjectTypeReferenceExpression expression) {
-                        count[0] += countTypeUses(expression.getObjectType(), internalName);
-                    }
-
-                    @Override
-                    public void visit(TypeReferenceDotClassExpression expression) {
-                        if (expression.getTypeDotClass() instanceof ObjectType type && type.getInternalName().equals(internalName)) {
-                            count[0]++;
-                        }
-                    }
-
-                    @Override
-                    public void visit(LocalVariableDeclarationStatement statement) {
-                        count[0] += countTypeUses(statement.getType(), internalName);
-                        super.visit(statement);
-                    }
-
-                    @Override
-                    public void visit(CastExpression expression) {
-                        count[0] += countTypeUses(expression.getType(), internalName);
-                        super.visit(expression);
-                    }
-
-                    @Override
-                    public void visit(InstanceOfExpression expression) {
-                        count[0] += countTypeUses(expression.getInstanceOfType(), internalName);
-                        super.visit(expression);
-                    }
-
-                    @Override
-                    public void visit(CatchClause statement) {
-                        count[0] += countTypeUses(statement.getType(), internalName);
-                        if (statement.getOtherTypes() != null) {
-                            for (ObjectType otherType : statement.getOtherTypes()) {
-                                count[0] += countTypeUses(otherType, internalName);
-                            }
-                        }
-                        super.visit(statement);
-                    }
-
-                    @Override
-                    public void visit(ForEachStatement statement) {
-                        count[0] += countTypeUses(statement.getType(), internalName);
-                        super.visit(statement);
-                    }
-
-                    @Override
-                    public void visit(NewArray expression) {
-                        count[0] += countTypeUses(expression.getType(), internalName);
-                        super.visit(expression);
-                    }
-
-                    @Override
-                    public void visit(NewInitializedArray expression) {
-                        count[0] += countTypeUses(expression.getType(), internalName);
-                        super.visit(expression);
-                    }
-                };
                 if (syntax instanceof Statement statement) {
                     statement.accept(counter);
                 } else if (syntax instanceof Statements list) {
                     list.accept(counter);
                 }
-                return count[0];
-            }
-
-            /** The uses of the class in a type, in its type arguments too (List&lt;Local&gt;, ? extends Local) */
-            private int countTypeUses(Object type, String internalName) {
-                if (type instanceof ObjectType objectType) {
-                    int count = objectType.getInternalName().equals(internalName) ? 1 : 0;
-
-                    if (objectType.getTypeArguments() instanceof TypeArguments arguments) {
-                        for (TypeArgument argument : arguments) {
-                            count += countTypeUses(argument, internalName);
-                        }
-                        return count;
-                    }
-                    return count + countTypeUses(objectType.getTypeArguments(), internalName);
-                }
-                if (type instanceof WildcardExtendsTypeArgument extending) {
-                    return countTypeUses(extending.type(), internalName);
-                }
-                return type instanceof WildcardSuperTypeArgument supering ? countTypeUses(supering.type(), internalName) : 0;
+                return counter.getCount();
             }
 
             private List<Statements> nestedStatements(Statement statement) {

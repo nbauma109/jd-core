@@ -160,8 +160,8 @@ public class ByteCodeParser {
     private final BootstrapMethods attributeBootstrapMethods;
     private final ClassFileBodyDeclaration bodyDeclaration;
     private final Map<String, BaseType> typeBounds;
-    private Type returnedType;
-    private BaseType exceptionTypes;
+    private final Type returnedType;
+    private final BaseType exceptionTypes;
 
     public ByteCodeParser(
             TypeMaker typeMaker, LocalVariableMaker localVariableMaker, ClassFile classFile,

@@ -2,8 +2,10 @@ package org.jd.core.v1;
 
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.stub.GuavaOuter;
 import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.LocalClassPlacement;
@@ -95,5 +97,27 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
         assertTrue(source, source.contains("super.count"));
+    }
+
+    @Test
+    public void testOuterInstanceOfAnInnerClassWhichCannotBeRead() throws Exception {
+        String wrapped = (GuavaOuter.class.getName() + "$Wrapped").replace('.', '/');
+        ClassPathLoader delegate = new ClassPathLoader();
+        Loader loader = new Loader() {
+            @Override
+            public boolean canLoad(String internalName) {
+                return delegate.canLoad(internalName);
+            }
+
+            @Override
+            public byte[] load(String internalName) throws java.io.IOException {
+                // the class file of the inner class is not a class file: nothing tells that it is an inner class
+                return internalName.equals(wrapped) ? new byte[] {1, 2, 3} : delegate.load(internalName);
+            }
+        };
+        String source = decompileSuccess(loader, new PlainTextPrinter(), GuavaSub.class.getName().replace('.', '/')).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // the outer instance is written once, as the qualifier, or not at all
+        assertFalse(source, source.contains(".new Wrapped(this,") || source.contains(".new GuavaOuter.Wrapped(this,"));
     }
 }

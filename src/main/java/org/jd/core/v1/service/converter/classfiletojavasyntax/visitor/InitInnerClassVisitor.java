@@ -911,7 +911,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     || Utils.isEmpty(parameters) || !(parameters.getFirst().isThisExpression() || parameters.getFirst() == ne.getQualifier())
                     || !(parameterTypes.getFirst() instanceof ObjectType first)
                     || !first.getInternalName().equals(innerType.getOuterType().getInternalName())
-                    || !instanceMemberClassFinder.isInstanceMemberClass(innerType.getInternalName())) {
+                    // (an argument which is the qualifier is the outer instance whatever the class is: 'outer.new Inner(outer)' is wrong)
+                    || parameters.getFirst() != ne.getQualifier() && !instanceMemberClassFinder.isInstanceMemberClass(innerType.getInternalName())) {
                 return;
             }
             if (parameters.isList()) {

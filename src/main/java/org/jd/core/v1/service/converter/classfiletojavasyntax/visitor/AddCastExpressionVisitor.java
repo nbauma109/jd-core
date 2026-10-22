@@ -140,15 +140,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Map<String, BaseType> typeBounds;
     private Type returnedType;
     private BaseType exceptionTypes;
-    private Deque<TypeParameter> typeParameters = new ArrayDeque<>();
-    private Map<String, BaseTypeArgument> parameterTypeArguments = new HashMap<>();
+    private final Deque<TypeParameter> typeParameters = new ArrayDeque<>();
+    private final Map<String, BaseTypeArgument> parameterTypeArguments = new HashMap<>();
     private Type type;
     private boolean visitingAnonymousClass;
     private boolean visitingLambda;
     private Expression memberReceiver;
     private boolean visitingWitnessedInvocation;
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
-    private Set<String> fieldNamesInLambda = new HashSet<>();
+    private final Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
     /**
      * The number of scopes of type variables which are outside the static member (or the static class) which is visited: the type variables of
@@ -3161,7 +3161,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         List<String> names = identifiersOf(types.getTypeParameters());
 
-        return names.size() != given.size() ? Collections.emptyMap() : IntStream.range(0, names.size()).boxed().collect(Collectors.toMap(names::get, given::get));
+        return names.size() == given.size() ? IntStream.range(0, names.size()).boxed().collect(Collectors.toMap(names::get, given::get)) : Collections.emptyMap();
     }
 
     /** The type variables of the class of the receiver which the receiver gives a wildcard of the kind. */

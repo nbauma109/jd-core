@@ -53,6 +53,9 @@ public class LocalClassPlacement {
                 if (marker == null) {
                     throw new Problem();
                 }
+                if (marker.hashCode() == 0) {
+                    throw new java.io.IOException("none");
+                }
             }
         }
         Object first = null;
@@ -67,7 +70,7 @@ public class LocalClassPlacement {
             java.util.List<? extends Marker> markers = new java.util.ArrayList<Marker>();
             java.util.List<? super Marker> sink = new java.util.ArrayList<Object>();
             java.util.function.Supplier<Marker> supplier = Marker::new;
-            Marker[] array = new Marker[] {supplier.get()};
+            Marker[] array = {supplier.get()};
 
             sink.add(array[0]);
             first = markers.isEmpty() ? sink : first;

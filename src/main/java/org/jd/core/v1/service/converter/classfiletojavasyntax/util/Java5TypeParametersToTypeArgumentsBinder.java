@@ -114,7 +114,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
     private final Set<MethodInvocationExpression> chainBoundFirst = Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean parametersFirst;
-    private boolean omitNonWildcardTypeArguments;
+    private final boolean omitNonWildcardTypeArguments;
 
     public Java5TypeParametersToTypeArgumentsBinder(TypeMaker typeMaker, String internalTypeName, ClassFileConstructorOrMethodDeclaration comd) {
         this.typeMaker = typeMaker;

@@ -19,7 +19,7 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 
 public class MinDepthCFGReducer extends ControlFlowGraphReducer {
 
-    private boolean preReduce;
+    private final boolean preReduce;
 
     public MinDepthCFGReducer(boolean preReduce) {
         this.preReduce = preReduce;

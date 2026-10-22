@@ -71,6 +71,7 @@ import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeParameter;
 import org.jd.core.v1.model.javasyntax.type.TypeParameterWithTypeBounds;
+import org.jd.core.v1.model.javasyntax.type.TypeParameters;
 import org.jd.core.v1.model.javasyntax.type.Types;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileAnnotationDeclaration;
@@ -145,7 +146,7 @@ public class ConvertClassFileProcessor {
         return new ClassFileInterfaceDeclaration(
                 annotationReferences, declarationFlags(classFile),
                 typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
-                typeTypes.getTypeParameters(), typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
+                withBoundAnnotations(converter, typeTypes.getTypeParameters(), classFile), typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
     }
 
     protected ClassFileEnumDeclaration convertEnumDeclaration(TypeMaker parser, AnnotationConverter converter, ClassFile classFile, ClassFileBodyDeclaration outerClassFileBodyDeclaration) {
@@ -178,7 +179,7 @@ public class ConvertClassFileProcessor {
         return new ClassFileClassDeclaration(
                 annotationReferences, declarationFlags(classFile),
                 typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
-                typeTypes.getTypeParameters(), typeTypes.getSuperType(),
+                withBoundAnnotations(converter, typeTypes.getTypeParameters(), classFile), typeTypes.getSuperType(),
                 typeTypes.getInterfaces(), convertPermittedSubclasses(parser, classFile), bodyDeclaration);
     }
 
@@ -285,7 +286,7 @@ public class ConvertClassFileProcessor {
         return new ClassFileRecordDeclaration(
                 annotationReferences, classFile.getAccessFlags(),
                 typeTypes.getThisType().getInternalName(), typeTypes.getThisType().getName(),
-                typeTypes.getTypeParameters(), recordComponents,
+                withBoundAnnotations(converter, typeTypes.getTypeParameters(), classFile), recordComponents,
                 typeTypes.getInterfaces(), bodyDeclaration);
     }
 
@@ -411,18 +412,18 @@ public class ConvertClassFileProcessor {
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name)) {
                 if (classFile.isRecord()) {
                     list.add(new ClassFileRecordConstructorDeclaration(
-                            bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
+                            bodyDeclaration, classFile, method, annotationReferences, withBoundAnnotations(converter, methodTypes.getTypeParameters(), method),
                             methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
                 } else {
                     list.add(new ClassFileConstructorDeclaration(
-                            bodyDeclaration, classFile, method, annotationReferences, methodTypes.getTypeParameters(),
+                            bodyDeclaration, classFile, method, annotationReferences, withBoundAnnotations(converter, methodTypes.getTypeParameters(), method),
                             methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), bindings, typeBounds, firstLineNumber));
                 }
             } else if (StringConstants.CLASS_CONSTRUCTOR.equals(name)) {
                 list.add(new ClassFileStaticInitializerDeclaration(bodyDeclaration, classFile, method, bindings, typeBounds, firstLineNumber));
             } else {
                 ClassFileMethodDeclaration methodDeclaration = new ClassFileMethodDeclaration(
-                        bodyDeclaration, classFile, method, annotationReferences, name, methodTypes.getTypeParameters(),
+                        bodyDeclaration, classFile, method, annotationReferences, name, withBoundAnnotations(converter, methodTypes.getTypeParameters(), method),
                         methodTypes.getReturnedType(), methodTypes.getParameterTypes(), methodTypes.getExceptionTypes(), defaultAnnotationValue,
                         bindings, typeBounds, firstLineNumber);
                 if (classFile.isInterface()) {
@@ -484,6 +485,36 @@ public class ConvertClassFileProcessor {
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
 
         return converter.convert(visibleEntries, invisibleEntries);
+    }
+
+    /** The type parameters as the declaration writes them: 'K extends @Nullable Object' keeps the annotation of its bound */
+    protected BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, ClassFile classFile) {
+        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(classFile.getAttributes(), classFile.getConstantPool()));
+    }
+
+    protected BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, Method method) {
+        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(method));
+    }
+
+    private BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, TypeAnnotationReader reader) {
+        if (typeParameters == null || !reader.hasBoundAnnotations()) {
+            return typeParameters;
+        }
+        TypeParameters annotated = new TypeParameters();
+        int index = 0;
+
+        for (TypeParameter typeParameter : typeParameters) {
+            annotated.add(withBoundAnnotations(converter, typeParameter, reader.getBoundAnnotations(index++)));
+        }
+        return annotated.size() == 1 ? annotated.getFirst() : annotated;
+    }
+
+    /** Only the bound that is a type variable or Object takes the annotation: elsewhere the printer may qualify the name */
+    private TypeParameter withBoundAnnotations(AnnotationConverter converter, TypeParameter typeParameter, List<String> markers) {
+        BaseType bound = typeParameter instanceof TypeParameterWithTypeBounds withBounds ? withBounds.getTypeBounds() : ObjectType.TYPE_OBJECT;
+        BaseAnnotationReference references = bound instanceof Type boundType ? converter.withMarkers(null, markers, boundType) : null;
+
+        return references == null ? typeParameter : new TypeParameterWithTypeBounds(typeParameter.getIdentifier(), bound, references);
     }
 
     /** '@Nullable' on the type of a field or of the result of a method is a type annotation, kept apart in the class file */

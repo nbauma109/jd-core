@@ -40,6 +40,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
+        assertTrue(source.contains("class TypeAnnotationPatterns<T extends @Maybe Object>"));
+        assertTrue(source.contains("<U extends @Maybe Object> U first(U value)"));
         assertTrue(source.contains("@Maybe T generic;"));
         assertTrue(source.contains("@Maybe public T pick(@Maybe T value)"));
         assertTrue(source.contains("@Maybe Object object;"));

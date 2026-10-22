@@ -8,12 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Annotations on types (like the '@Nullable' of JSpecify), which the class file keeps apart from the ones on declarations */
-public class TypeAnnotationPatterns<T> {
-    @Target(ElementType.TYPE_USE)
-    @Retention(RetentionPolicy.RUNTIME)
-    public @interface Maybe {
-    }
-
+public class TypeAnnotationPatterns<T extends @Maybe Object> {
     @Target(ElementType.TYPE_USE)
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Labeled {
@@ -39,6 +34,10 @@ public class TypeAnnotationPatterns<T> {
     public @Maybe T pick(@Maybe T value) {
         generic = value;
         return generic;
+    }
+
+    public static <U extends @Maybe Object> U first(U value) {
+        return value;
     }
 
     public void put(@Maybe Object[] keys, Map.@Maybe Entry<String, String> entry, @Labeled("x") Object value) {

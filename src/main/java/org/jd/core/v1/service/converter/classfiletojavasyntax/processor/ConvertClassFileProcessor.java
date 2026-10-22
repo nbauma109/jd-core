@@ -86,6 +86,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.AnnotationConverter;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeAnnotationReader;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.RecordHelper;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.PopulateBindingsWithTypeParameterVisitor;
@@ -327,6 +328,7 @@ public class ConvertClassFileProcessor {
         for (Field field : fields) {
             annotationReferences = convertAnnotationReferences(converter, field);
             typeField = parser.parseFieldSignature(classFile, field);
+            annotationReferences = withTypeAnnotations(converter, annotationReferences, field, typeField, classFile);
             variableInitializer = convertFieldInitializer(field, typeField);
             fieldDeclarator = new FieldDeclarator(field.getName(), variableInitializer);
             if (!classFile.isRecord()) {
@@ -380,6 +382,7 @@ public class ConvertClassFileProcessor {
             }
 
             methodTypes = parser.parseMethodSignature(classFile, method);
+            annotationReferences = withTypeAnnotations(converter, annotationReferences, method, methodTypes.getReturnedType(), classFile);
             if ((method.getAccessFlags() & Const.ACC_STATIC) == 0) {
                 bindings = bodyDeclaration.getBindings();
                 typeBounds = bodyDeclaration.getTypeBounds();
@@ -481,6 +484,14 @@ public class ConvertClassFileProcessor {
         AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
 
         return converter.convert(visibleEntries, invisibleEntries);
+    }
+
+    /** '@Nullable' on the type of a field or of the result of a method is a type annotation, kept apart in the class file */
+    protected BaseAnnotationReference withTypeAnnotations(AnnotationConverter converter, BaseAnnotationReference references, FieldOrMethod fieldOrMethod, Type type, ClassFile classFile) {
+        if (fieldOrMethod instanceof Method method && Const.CONSTRUCTOR_NAME.equals(method.getName())) {
+            return references;
+        }
+        return converter.withMarkers(references, TypeAnnotationReader.of(fieldOrMethod).getDeclarationAnnotations(), type, classFile);
     }
 
     protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, RecordComponentInfo recordComponentInfo) {

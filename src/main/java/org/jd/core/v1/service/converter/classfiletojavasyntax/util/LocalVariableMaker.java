@@ -157,7 +157,9 @@ public class LocalVariableMaker {
             RuntimeVisibleParameterAnnotations rvpa = (RuntimeVisibleParameterAnnotations) Stream.of(method.getAttributes()).filter(RuntimeVisibleParameterAnnotations.class::isInstance).findAny().orElse(null);
             RuntimeInvisibleParameterAnnotations ripa = (RuntimeInvisibleParameterAnnotations) Stream.of(method.getAttributes()).filter(RuntimeInvisibleParameterAnnotations.class::isInstance).findAny().orElse(null);
 
-            if (rvpa == null && ripa == null) {
+            TypeAnnotationReader typeAnnotations = TypeAnnotationReader.of(method);
+
+            if (rvpa == null && ripa == null && !typeAnnotations.hasParameterAnnotations()) {
                 AbstractLocalVariable lv;
                 for (int parameterIndex=0, variableIndex=firstVariableIndex; parameterIndex<=lastParameterIndex; parameterIndex++, variableIndex++) {
                     lv = localVariableSet.root(variableIndex);
@@ -185,7 +187,7 @@ public class LocalVariableMaker {
                     invisibles = invisiblesArray == null || invisiblesArray.length <= parameterIndex ? null : invisiblesArray[parameterIndex];
                     AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
                     AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
-                    annotationReferences = annotationConverter.convert(visibleEntries, invisibleEntries);
+                    annotationReferences = annotationConverter.withMarkers(annotationConverter.convert(visibleEntries, invisibleEntries), typeAnnotations.getParameterAnnotations(parameterIndex), lv.getType(), classFile);
 
                     fp.add(new ClassFileFormalParameter(annotationReferences, lv, varargs && parameterIndex==lastParameterIndex));
 

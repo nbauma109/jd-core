@@ -994,6 +994,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             private void placeInNestedStatements(Statements root) {
                 for (ClassFileClassDeclaration declaration : new ArrayList<>(localClassDeclarations)) {
                     String internalName = declaration.getInternalTypeName();
+
+                    if (isUsedByOtherPendingDeclaration(declaration)) {
+                        continue;
+                    }
                     Statements current = root;
                     Statements target = null;
                     Statement user = null;
@@ -1018,6 +1022,12 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
 
+            /** A pending declaration is placed later, wherever its own uses are: the class it needs must stay visible to all (superclass, interfaces, body) */
+            private boolean isUsedByOtherPendingDeclaration(ClassFileClassDeclaration declaration) {
+                return localClassDeclarations.stream()
+                        .anyMatch(other -> other != declaration && countUses(new TypeDeclarationStatement(other), declaration.getInternalTypeName()) > 0);
+            }
+
             private List<Statement> usersOf(Statements list, String internalName) {
                 return list.stream().filter(statement -> countUses(statement, internalName) > 0).toList();
             }
@@ -1031,6 +1041,17 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                             count[0]++;
                         }
                         super.visit(expression);
+                    }
+
+                    @Override
+                    public void visit(ClassDeclaration declaration) {
+                        count[0] += countTypeUses(declaration.getSuperType(), internalName);
+                        if (declaration.getInterfaces() != null) {
+                            for (Type interfaceType : declaration.getInterfaces()) {
+                                count[0] += countTypeUses(interfaceType, internalName);
+                            }
+                        }
+                        super.visit(declaration);
                     }
 
                     @Override

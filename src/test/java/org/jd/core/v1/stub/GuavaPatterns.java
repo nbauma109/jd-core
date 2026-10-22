@@ -1595,4 +1595,18 @@ public class GuavaPatterns {
         java.util.function.Supplier<Object> supplier = Local::new;
         return first == null ? supplier.get() : first;
     }
+
+    /** The superclass of a local class stays visible to it, though the only other use of the superclass is in a block */
+    public static Object localClassWithLocalSubclass(boolean flag) {
+        class Base {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Base();
+        }
+        class Child extends Base {
+        }
+        return first == null ? new Child() : first;
+    }
 }

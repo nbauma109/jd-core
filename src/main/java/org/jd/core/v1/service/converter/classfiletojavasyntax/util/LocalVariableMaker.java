@@ -187,7 +187,7 @@ public class LocalVariableMaker {
                     invisibles = invisiblesArray == null || invisiblesArray.length <= parameterIndex ? null : invisiblesArray[parameterIndex];
                     AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
                     AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
-                    annotationReferences = annotationConverter.withMarkers(annotationConverter.convert(visibleEntries, invisibleEntries), typeAnnotations.getParameterAnnotations(parameterIndex), lv.getType(), classFile);
+                    annotationReferences = annotationConverter.withMarkers(annotationConverter.convert(visibleEntries, invisibleEntries), typeAnnotations.getParameterAnnotations(parameterIndex), lv.getType());
 
                     fp.add(new ClassFileFormalParameter(annotationReferences, lv, varargs && parameterIndex==lastParameterIndex));
 

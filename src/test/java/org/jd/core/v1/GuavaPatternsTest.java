@@ -39,10 +39,11 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
         String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
-        assertTrue(source.contains("@Maybe String name;"));
-        assertTrue(source.contains("@Maybe List<String> elements;"));
-        assertTrue(source.contains("(@Maybe String first, int second, @Maybe Object third)"));
-        assertTrue(source.contains("@Maybe public String find(@Maybe Object key, int count, String other, @Maybe List<String> values)"));
+        assertTrue(source.contains("@Maybe T generic;"));
+        assertTrue(source.contains("@Maybe public T pick(@Maybe T value)"));
+        assertTrue(source.contains("@Maybe Object object;"));
+        assertTrue(source.contains("(String first, int second, @Maybe Object third)"));
+        assertTrue(source.contains("public String find(@Maybe Object key, int count, String other, List<String> values)"));
         // written in front of a declaration, they would not annotate the same type
         assertFalse(source.contains("@Maybe String[] annotatedElementsOfArray"));
         assertFalse(source.contains("@Maybe Map.Entry"));

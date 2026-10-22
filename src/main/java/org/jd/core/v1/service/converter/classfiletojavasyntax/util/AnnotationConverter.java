@@ -13,7 +13,6 @@ import org.apache.bcel.classfile.ClassElementValue;
 import org.apache.bcel.classfile.ElementValue;
 import org.apache.bcel.classfile.EnumElementValue;
 import org.apache.bcel.classfile.SimpleElementValue;
-import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.classfile.attribute.ElementValueVisitor;
 import org.jd.core.v1.model.javasyntax.expression.DoubleConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
@@ -70,10 +69,11 @@ public class AnnotationConverter implements ElementValueVisitor {
 
     /**
      * Adds marker annotations (given by descriptor) to the references: the type annotations written in front of a declaration of the given type.
-     * Not for the types where this position would annotate something else: arrays (their elements), nested classes (written 'Outer.@Nullable Inner').
+     * Only for the types which are never written with a qualifier or as an array, where this position would annotate something else
+     * ('p.Outer.@Nullable Inner'): a type variable, 'Object'. Others stay without, until the printer can place them inside the type.
      */
-    public BaseAnnotationReference withMarkers(BaseAnnotationReference references, List<String> markerDescriptors, Type type, ClassFile classFile) {
-        if (markerDescriptors.isEmpty() || type == null || type.getDimension() != 0 || type instanceof ObjectType objectType && (objectType.getInternalName().indexOf('$') != -1 || isHiddenByEnclosingClass(objectType, classFile))) {
+    public BaseAnnotationReference withMarkers(BaseAnnotationReference references, List<String> markerDescriptors, Type type) {
+        if (markerDescriptors.isEmpty() || type == null || type.getDimension() != 0 || !(type.isGenericType() || type instanceof ObjectType objectType && "java/lang/Object".equals(objectType.getInternalName()))) {
             return references;
         }
         AnnotationReferences<AnnotationReference> all = new AnnotationReferences<>();
@@ -91,16 +91,6 @@ public class AnnotationConverter implements ElementValueVisitor {
             }
         }
         return all.size() == 1 ? all.getFirst() : all;
-    }
-
-    /** The class or one it is nested in has the simple name of the type, which is then written with its package ('java.util.Optional' in 'com.google.common.base.Optional') */
-    private static boolean isHiddenByEnclosingClass(ObjectType type, ClassFile classFile) {
-        for (ClassFile cf = classFile; cf != null; cf = cf.getOuterClassFile()) {
-            if (!cf.getInternalTypeName().equals(type.getInternalName()) && cf.getInternalTypeName().substring(cf.getInternalTypeName().lastIndexOf('/') + 1).equals(type.getName())) {
-                return true;
-            }
-        }
-        return false;
     }
 
     protected BaseAnnotationReference convert(AnnotationEntry[] as) {

@@ -328,7 +328,7 @@ public class ConvertClassFileProcessor {
         for (Field field : fields) {
             annotationReferences = convertAnnotationReferences(converter, field);
             typeField = parser.parseFieldSignature(classFile, field);
-            annotationReferences = withTypeAnnotations(converter, annotationReferences, field, typeField, classFile);
+            annotationReferences = withTypeAnnotations(converter, annotationReferences, field, typeField);
             variableInitializer = convertFieldInitializer(field, typeField);
             fieldDeclarator = new FieldDeclarator(field.getName(), variableInitializer);
             if (!classFile.isRecord()) {
@@ -382,7 +382,7 @@ public class ConvertClassFileProcessor {
             }
 
             methodTypes = parser.parseMethodSignature(classFile, method);
-            annotationReferences = withTypeAnnotations(converter, annotationReferences, method, methodTypes.getReturnedType(), classFile);
+            annotationReferences = withTypeAnnotations(converter, annotationReferences, method, methodTypes.getReturnedType());
             if ((method.getAccessFlags() & Const.ACC_STATIC) == 0) {
                 bindings = bodyDeclaration.getBindings();
                 typeBounds = bodyDeclaration.getTypeBounds();
@@ -487,11 +487,11 @@ public class ConvertClassFileProcessor {
     }
 
     /** '@Nullable' on the type of a field or of the result of a method is a type annotation, kept apart in the class file */
-    protected BaseAnnotationReference withTypeAnnotations(AnnotationConverter converter, BaseAnnotationReference references, FieldOrMethod fieldOrMethod, Type type, ClassFile classFile) {
+    protected BaseAnnotationReference withTypeAnnotations(AnnotationConverter converter, BaseAnnotationReference references, FieldOrMethod fieldOrMethod, Type type) {
         if (fieldOrMethod instanceof Method method && Const.CONSTRUCTOR_NAME.equals(method.getName())) {
             return references;
         }
-        return converter.withMarkers(references, TypeAnnotationReader.of(fieldOrMethod).getDeclarationAnnotations(), type, classFile);
+        return converter.withMarkers(references, TypeAnnotationReader.of(fieldOrMethod).getDeclarationAnnotations(), type);
     }
 
     protected BaseAnnotationReference convertAnnotationReferences(AnnotationConverter converter, RecordComponentInfo recordComponentInfo) {

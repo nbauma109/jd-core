@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Annotations on types (like the '@Nullable' of JSpecify), which the class file keeps apart from the ones on declarations */
-public class TypeAnnotationPatterns {
+public class TypeAnnotationPatterns<T> {
     @Target(ElementType.TYPE_USE)
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Maybe {
@@ -20,7 +20,9 @@ public class TypeAnnotationPatterns {
         String value();
     }
 
-    @Maybe String name;
+    String name;
+    @Maybe Object object;
+    @Maybe T generic;
     @Maybe List<String> elements;
     @Maybe String[] annotatedElementsOfArray;
     Map.@Maybe Entry<String, String> nestedEntry;
@@ -32,6 +34,11 @@ public class TypeAnnotationPatterns {
 
     public @Maybe String find(@Maybe Object key, int count, String other, @Maybe List<String> values) {
         return key == null || count == 0 || other == null || values == null ? null : name;
+    }
+
+    public @Maybe T pick(@Maybe T value) {
+        generic = value;
+        return generic;
     }
 
     public void put(@Maybe Object[] keys, Map.@Maybe Entry<String, String> entry, @Labeled("x") Object value) {

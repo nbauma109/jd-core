@@ -199,9 +199,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
             if (outerTypes != null && outerTypes.getTypeParameters() != null) {
                 TypeArguments ownArguments = new TypeArguments();
 
-                for (TypeParameter typeParameter : outerTypes.getTypeParameters()) {
-                    ownArguments.add(new GenericType(typeParameter.getIdentifier()));
-                }
+                outerTypes.getTypeParameters().forEach(typeParameter -> ownArguments.add(new GenericType(typeParameter.getIdentifier())));
                 type = outerType.createType(ownArguments.size() == 1 ? ownArguments.getFirst() : ownArguments);
             }
         }

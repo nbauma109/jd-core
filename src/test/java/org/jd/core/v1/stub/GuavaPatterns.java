@@ -1374,6 +1374,7 @@ public class GuavaPatterns {
 
     static final class KeyedAccumulator<K extends Enum<K>, V> {
         void put(K key, V value) {
+            java.util.Objects.requireNonNull(key, "key");
         }
     }
 
@@ -1524,6 +1525,7 @@ public class GuavaPatterns {
     }
 
     /** The result of the lambda is cast to its own wildcard type, or the elements of the list would be captures */
+    @SuppressWarnings("java:S6204") // collect(Collectors.toList()) is the pattern the decompiler must keep compiling
     public static java.util.List<Cell2<?>> innerCells(java.util.List<Cell2<?>> cells) {
         return cells.stream().map(cell -> (Cell2<?>) cell.inner).collect(java.util.stream.Collectors.toList());
     }

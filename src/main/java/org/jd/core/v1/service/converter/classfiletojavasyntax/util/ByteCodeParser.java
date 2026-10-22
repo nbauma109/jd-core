@@ -1761,7 +1761,7 @@ public class ByteCodeParser {
 
     private List<String> prepareLambdaParameterNames(BaseFormalParameter formalParameters, int parameterCount) {
         if (formalParameters == null || parameterCount == 0) {
-            return null;
+            return Collections.emptyList();
         }
         lambdaParameterNamesVisitor.init();
         formalParameters.accept(lambdaParameterNamesVisitor);

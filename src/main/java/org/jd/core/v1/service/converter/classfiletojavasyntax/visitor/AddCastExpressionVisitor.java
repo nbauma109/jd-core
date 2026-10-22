@@ -744,6 +744,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         writeParameterTypesOfLambdasWhoseTypesAreLost(expression);
         castArgumentsMentioningCapturedTypeVariablesToRaw(expression);
         castArgumentsCapturedFromWildcardReceiversToRaw(expression);
+        castCapturesToTheTypeVariableOfTheParameter(expression);
         parameterizeCheckCastsPassedWithLambdas(expression);
 
         if (expression.getNonWildcardTypeArguments() != null) {
@@ -1862,6 +1863,109 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (changed) {
             call.setParameters(updated.size() == 1 ? updated.getFirst() : updated);
         }
+    }
+
+    /**
+     * 'successors((N) endpointPair.nodeU())' with endpointPair an 'EndpointPair&lt;?&gt;': the capture returned by nodeU() is no N, the source casts it.
+     */
+    private void castCapturesToTheTypeVariableOfTheParameter(MethodInvocationExpression expression) {
+        if (!(expression instanceof ClassFileMethodInvocationExpression call) || Utils.isEmpty(call.getParameters()) || !(call.getExpression().getType() instanceof ObjectType receiverType)
+                || receiverType.getTypeArguments() == null) {
+            return;
+        }
+        // The class which declares the method with type variables for parameters: the receiver's class may only inherit it ('AbstractBaseGraph.successors(N)')
+        String owner = declaringClassOfGenericParameters(call);
+        TypeMaker.MethodTypes declared = owner == null ? null : typeMaker.makeMethodTypes(owner, call.getName(), call.getDescriptor());
+        TypeTypes ownerTypes = owner == null ? null : typeMaker.makeTypeTypes(owner);
+
+        if (declared == null || declared.getParameterTypes() == null || ownerTypes == null || ownerTypes.getTypeParameters() == null
+                || declared.getParameterTypes().size() != call.getParameters().size()) {
+            return;
+        }
+        // The type variables of that class, as the receiver gives them
+        Map<String, TypeArgument> given = new HashMap<>();
+        Iterator<TypeArgument> receiverArguments = typeArgumentsSeenAs(owner, receiverType, new HashSet<String>()).iterator();
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : ownerTypes.getTypeParameters()) {
+            if (receiverArguments.hasNext()) {
+                given.put(typeParameter.getIdentifier(), receiverArguments.next());
+            }
+        }
+        Expressions updated = new Expressions();
+        Iterator<Type> declaredTypes = declared.getParameterTypes().iterator();
+        boolean changed = false;
+
+        for (Expression argument : call.getParameters()) {
+            Type declaredType = declaredTypes.next();
+
+            if (declaredType instanceof GenericType parameter && parameter.getDimension() == 0 && given.get(parameter.getName()) instanceof GenericType variable
+                    && variable.getDimension() == 0 && hasKnownTypeParameters(variable)
+                    && argument instanceof ClassFileMethodInvocationExpression argumentCall && returnsCapturedTypeVariable(argumentCall)) {
+                argument = addCastExpression(variable, argument);
+                changed = true;
+            }
+            updated.add(argument);
+        }
+        if (changed) {
+            call.setParameters(updated.size() == 1 ? updated.getFirst() : updated);
+        }
+    }
+
+    /** @return the first class, from the one of the call up its supertypes, which declares the called method with a type variable for a parameter; null if none */
+    private String declaringClassOfGenericParameters(ClassFileMethodInvocationExpression call) {
+        Deque<String> owners = new ArrayDeque<>();
+        Set<String> visited = new HashSet<>();
+
+        owners.add(call.getInternalTypeName());
+        while (!owners.isEmpty()) {
+            String owner = owners.poll();
+
+            if (!visited.add(owner)) {
+                continue;
+            }
+            TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(owner, call.getName(), call.getDescriptor());
+
+            if (methodTypes != null && methodTypes.getParameterTypes() != null) {
+                for (Type parameterType : methodTypes.getParameterTypes()) {
+                    if (parameterType instanceof GenericType) {
+                        return owner;
+                    }
+                }
+            }
+            TypeTypes typeTypes = typeMaker.makeTypeTypes(owner);
+
+            if (typeTypes != null) {
+                for (ObjectType supertype : supertypesOf(typeTypes)) {
+                    owners.add(supertype.getInternalName());
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 'endpointPair.nodeU()' with endpointPair an 'EndpointPair&lt;?&gt;': a call on a variable or field returning a type variable of the class the receiver gives a wildcard to. */
+    private boolean returnsCapturedTypeVariable(ClassFileMethodInvocationExpression call) {
+        Expression receiver = call.getExpression();
+
+        if (!(receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression()) || !(receiver.getType() instanceof ObjectType receiverType)
+                || receiverType.getTypeArguments() == null || !receiverType.getInternalName().equals(call.getInternalTypeName())) {
+            return false;
+        }
+        TypeTypes receiverTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());
+        TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (receiverTypes == null || receiverTypes.getTypeParameters() == null || methodTypes == null || !(methodTypes.getReturnedType() instanceof GenericType returned)
+                || returned.getDimension() != 0) {
+            return false;
+        }
+        Iterator<TypeArgument> receiverArguments = toTypeArgumentList(receiverType.getTypeArguments()).iterator();
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : receiverTypes.getTypeParameters()) {
+            if (receiverArguments.hasNext() && isWildcard(receiverArguments.next()) && typeParameter.getIdentifier().equals(returned.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean producesCapturesOfWildcardReceiver(ClassFileMethodInvocationExpression call) {

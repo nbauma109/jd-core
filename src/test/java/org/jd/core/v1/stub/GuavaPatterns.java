@@ -1555,4 +1555,23 @@ public class GuavaPatterns {
             throw new SneakyThrower<Error>().throwIt(throwable);
         }
     }
+
+    interface Successors<N> {
+        java.util.Set<N> successors(N node);
+    }
+
+    static final class NodePair<T> {
+        T nodeU() {
+            return null;
+        }
+    }
+
+    abstract static class NodeGraph<N> implements Successors<N> {
+        /** The node of a NodePair&lt;?&gt; is a capture, the source casts it to the N the method takes */
+        @SuppressWarnings("unchecked")
+        boolean hasSuccessors(Object object) {
+            NodePair<?> pair = (NodePair<?>) object;
+            return !this.successors((N) pair.nodeU()).isEmpty();
+        }
+    }
 }

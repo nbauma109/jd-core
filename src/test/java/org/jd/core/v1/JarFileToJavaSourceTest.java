@@ -166,7 +166,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testGuava() throws Exception {
         // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
-                new ProjectLayout("guava", "src", true, List.of("-pl", "guava-tests", "-am")));
+                new ProjectLayout("guava", "src", true, "package", List.of("-pl", "guava-tests", "-am")));
     }
 
     protected void test(String groupId, String artifactId, String version) throws Exception {
@@ -199,19 +199,22 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
      *                        {@code src/main/java}, but some projects (Guava) use {@code src}
      * @param runFromRepositoryRoot whether Maven runs at the root of the repository rather than in the module: the unit
      *                              tests of some projects (Guava) are in sibling modules of the one which is rebuilt
+     * @param mavenPhase the last phase of the Maven build: {@code test} is enough unless a module needs the jar of another
+     *                   one of the build ({@code package} for Guava, whose test library requires the module descriptor
+     *                   that only the multi-release jar of Guava has)
      * @param mavenArguments more arguments of the Maven command (e.g. {@code -pl guava-tests -am})
      */
-    protected record ProjectLayout(String moduleDir, String sourceDirectory, boolean runFromRepositoryRoot, List<String> mavenArguments) {
+    protected record ProjectLayout(String moduleDir, String sourceDirectory, boolean runFromRepositoryRoot, String mavenPhase, List<String> mavenArguments) {
         static final String DEFAULT_SOURCE_DIRECTORY = "src/main/java";
 
         /** The module is the repository itself */
         static ProjectLayout root() {
-            return new ProjectLayout(null, DEFAULT_SOURCE_DIRECTORY, false, List.of());
+            return new ProjectLayout(null, DEFAULT_SOURCE_DIRECTORY, false, "test", List.of());
         }
 
         /** A module of a multi-module repository, built and tested on its own */
         static ProjectLayout module(String moduleDir) {
-            return new ProjectLayout(moduleDir, DEFAULT_SOURCE_DIRECTORY, false, List.of());
+            return new ProjectLayout(moduleDir, DEFAULT_SOURCE_DIRECTORY, false, "test", List.of());
         }
     }
 
@@ -401,7 +404,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 List<String> command = new ArrayList<>();
                 command.add(mvnCommand);
                 command.add("--batch-mode");
-                command.add("test");
+                command.add(layout.mavenPhase());
                 command.add("--no-transfer-progress");
                 if (testJavaHome == null) {
                     command.add("-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"

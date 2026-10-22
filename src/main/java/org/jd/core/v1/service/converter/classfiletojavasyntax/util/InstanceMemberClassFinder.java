@@ -19,12 +19,15 @@ import org.jd.core.v1.api.loader.Loader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /** Tells whether a class is a non-static member class (an inner class which is created with an outer instance), by reading its class file. */
 public class InstanceMemberClassFinder {
     private final Loader loader;
     private final Map<String, Boolean> instanceMemberClasses = new HashMap<>();
+    private final Set<String> unreadableClasses = new HashSet<>();
 
     public InstanceMemberClassFinder(Loader loader) {
         this.loader = loader;
@@ -32,7 +35,7 @@ public class InstanceMemberClassFinder {
 
     /** @return true only if the class could be read and is no instance member class (an unknown class is not known to be static) */
     public boolean isKnownNotInstanceMemberClass(String internalName) {
-        return !isInstanceMemberClass(internalName) && loader.canLoad(internalName);
+        return !isInstanceMemberClass(internalName) && loader.canLoad(internalName) && !unreadableClasses.contains(internalName);
     }
 
     public boolean isInstanceMemberClass(String internalName) {
@@ -62,6 +65,8 @@ public class InstanceMemberClassFinder {
             }
             return false;
         } catch (IOException | ClassFormatException e) {
+            // malformed bytes: the class is not known to be static either
+            unreadableClasses.add(internalName);
             return false;
         }
     }

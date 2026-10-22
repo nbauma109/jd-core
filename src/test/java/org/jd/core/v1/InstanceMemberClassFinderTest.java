@@ -78,4 +78,12 @@ public class InstanceMemberClassFinderTest {
         assertTrue(finder.isInstanceMemberClass(OUTER + "$Wrapped"));
         assertTrue(finder.isInstanceMemberClass(OUTER + "$Wrapped"));
     }
+
+    @Test
+    public void testUnreadableClassIsNotKnownToBeStatic() {
+        InstanceMemberClassFinder faulty = new InstanceMemberClassFinder(new FaultyLoader(null, OUTER + "$Wrapped"));
+
+        assertFalse(faulty.isKnownNotInstanceMemberClass(OUTER + "$Wrapped"));
+        assertTrue(finder().isKnownNotInstanceMemberClass(PATTERNS + "$Cut"));
+    }
 }

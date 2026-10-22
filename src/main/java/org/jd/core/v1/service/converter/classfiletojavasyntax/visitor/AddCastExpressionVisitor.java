@@ -1873,31 +1873,20 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         // The class which declares the method with type variables for parameters: the receiver's class may only inherit it ('AbstractBaseGraph.successors(N)')
         String owner = declaringClassOfGenericParameters(call);
         TypeMaker.MethodTypes declared = owner == null ? null : typeMaker.makeMethodTypes(owner, call.getName(), call.getDescriptor());
-        TypeTypes ownerTypes = owner == null ? null : typeMaker.makeTypeTypes(owner);
 
-        if (declared == null || declared.getParameterTypes() == null || ownerTypes == null || ownerTypes.getTypeParameters() == null
-                || declared.getParameterTypes().size() != call.getParameters().size()) {
+        if (declared == null || declared.getParameterTypes() == null || declared.getParameterTypes().size() != call.getParameters().size()) {
             return;
         }
         // The type variables of that class, as the receiver gives them
-        Map<String, TypeArgument> given = new HashMap<>();
-        Iterator<TypeArgument> receiverArguments = typeArgumentsSeenAs(owner, receiverType, new HashSet<String>()).iterator();
-
-        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : ownerTypes.getTypeParameters()) {
-            if (receiverArguments.hasNext()) {
-                given.put(typeParameter.getIdentifier(), receiverArguments.next());
-            }
-        }
+        Map<String, TypeArgument> given = typeVariablesGiven(owner, typeArgumentsSeenAs(owner, receiverType, new HashSet<String>()));
         Expressions updated = new Expressions();
         Iterator<Type> declaredTypes = declared.getParameterTypes().iterator();
         boolean changed = false;
 
         for (Expression argument : call.getParameters()) {
-            Type declaredType = declaredTypes.next();
+            GenericType variable = capturedVariableToCastTo(declaredTypes.next(), argument, given);
 
-            if (declaredType instanceof GenericType parameter && parameter.getDimension() == 0 && given.get(parameter.getName()) instanceof GenericType variable
-                    && variable.getDimension() == 0 && hasKnownTypeParameters(variable)
-                    && argument instanceof ClassFileMethodInvocationExpression argumentCall && returnsCapturedTypeVariable(argumentCall)) {
+            if (variable != null) {
                 argument = addCastExpression(variable, argument);
                 changed = true;
             }
@@ -1906,6 +1895,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (changed) {
             call.setParameters(updated.size() == 1 ? updated.getFirst() : updated);
         }
+    }
+
+    /** @return the type variable the receiver gives to the declared type variable, if the argument is a capture of a wildcard; null otherwise */
+    private GenericType capturedVariableToCastTo(Type declaredType, Expression argument, Map<String, TypeArgument> given) {
+        if (declaredType instanceof GenericType parameter && parameter.getDimension() == 0 && given.get(parameter.getName()) instanceof GenericType variable
+                && variable.getDimension() == 0 && hasKnownTypeParameters(variable)
+                && argument instanceof ClassFileMethodInvocationExpression argumentCall && returnsCapturedTypeVariable(argumentCall)) {
+            return variable;
+        }
+        return null;
     }
 
     /** @return the first class, from the one of the call up its supertypes, which declares the called method with a type variable for a parameter; null if none */
@@ -1922,19 +1921,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
             TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(owner, call.getName(), call.getDescriptor());
 
-            if (methodTypes != null && methodTypes.getParameterTypes() != null) {
-                for (Type parameterType : methodTypes.getParameterTypes()) {
-                    if (parameterType instanceof GenericType) {
-                        return owner;
-                    }
-                }
+            if (methodTypes != null && methodTypes.getParameterTypes() != null && StreamSupport.stream(methodTypes.getParameterTypes().spliterator(), false).anyMatch(GenericType.class::isInstance)) {
+                return owner;
             }
             TypeTypes typeTypes = typeMaker.makeTypeTypes(owner);
 
             if (typeTypes != null) {
-                for (ObjectType supertype : supertypesOf(typeTypes)) {
-                    owners.add(supertype.getInternalName());
-                }
+                supertypesOf(typeTypes).forEach(supertype -> owners.add(supertype.getInternalName()));
             }
         }
         return null;

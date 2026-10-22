@@ -22,11 +22,14 @@ import java.util.TreeMap;
 
 /**
  * Reads the type annotations (JSR 308) that BCEL leaves as unknown attributes, such as the '@Nullable' of 'void put(@Nullable Object key)'.
+ * To be replaced by the attributes of BCEL once it has them (apache/commons-bcel#539).
  * Only the marker annotations of the whole type of a field, a method result or a parameter are kept: those can be written in front of the declaration.
  */
 public final class TypeAnnotationReader {
     private static final int TARGET_FIELD = 0x13;
     private static final int TARGET_METHOD_RETURN = 0x14;
+    private static final int TARGET_CLASS_TYPE_PARAMETER_BOUND = 0x11;
+    private static final int TARGET_METHOD_TYPE_PARAMETER_BOUND = 0x12;
     private static final int TARGET_FORMAL_PARAMETER = 0x16;
     private static final int NO_PARAMETER = -1;
 
@@ -34,15 +37,20 @@ public final class TypeAnnotationReader {
     private final List<String> declaration = new ArrayList<>();
     /** Descriptors of the annotations of the type of each parameter, by index */
     private final Map<Integer, List<String>> parameters = new TreeMap<>();
+    /** Descriptors of the annotations of the class bound of each type parameter, by index of the type parameter */
+    private final Map<Integer, List<String>> bounds = new TreeMap<>();
 
     private TypeAnnotationReader() {
     }
 
     public static TypeAnnotationReader of(FieldOrMethod fieldOrMethod) {
-        TypeAnnotationReader reader = new TypeAnnotationReader();
-        ConstantPool constants = fieldOrMethod.getConstantPool();
+        return of(fieldOrMethod.getAttributes(), fieldOrMethod.getConstantPool());
+    }
 
-        for (Attribute attribute : fieldOrMethod.getAttributes()) {
+    public static TypeAnnotationReader of(Attribute[] attributes, ConstantPool constants) {
+        TypeAnnotationReader reader = new TypeAnnotationReader();
+
+        for (Attribute attribute : attributes) {
             if (attribute instanceof Unknown unknown && unknown.getName().startsWith("Runtime") && unknown.getName().endsWith("TypeAnnotations")) {
                 try {
                     reader.read(unknown.getBytes(), constants);
@@ -63,6 +71,15 @@ public final class TypeAnnotationReader {
         return parameters.getOrDefault(parameterIndex, Collections.emptyList());
     }
 
+    /** @return the descriptors of the annotations of the bound of the type parameter ('K extends @Nullable Object') */
+    public List<String> getBoundAnnotations(int typeParameterIndex) {
+        return bounds.getOrDefault(typeParameterIndex, Collections.emptyList());
+    }
+
+    public boolean hasBoundAnnotations() {
+        return !bounds.isEmpty();
+    }
+
     public boolean hasParameterAnnotations() {
         return !parameters.isEmpty();
     }
@@ -72,7 +89,8 @@ public final class TypeAnnotationReader {
 
         for (int count = in.readUnsignedShort(); count > 0; count--) {
             int target = in.readUnsignedByte();
-            int parameterIndex = skipTargetInfo(in, target);
+            int[] info = readTargetInfo(in, target);
+            int parameterIndex = info[0];
             int pathLength = in.readUnsignedByte();
 
             in.skipBytes(pathLength * 2);
@@ -89,20 +107,24 @@ public final class TypeAnnotationReader {
                     declaration.add(descriptor);
                 } else if (target == TARGET_FORMAL_PARAMETER && parameterIndex != NO_PARAMETER) {
                     parameters.computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
+                } else if ((target == TARGET_CLASS_TYPE_PARAMETER_BOUND || target == TARGET_METHOD_TYPE_PARAMETER_BOUND) && info[1] == 0) {
+                    bounds.computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
                 }
             }
         }
     }
 
-    /** @return the index of the parameter for a parameter target, else NO_PARAMETER */
-    private static int skipTargetInfo(DataInputStream in, int target) throws IOException {
+    /** @return the index of the parameter and, for a bound of a type parameter, the index of the bound (else NO_PARAMETER for both) */
+    private static int[] readTargetInfo(DataInputStream in, int target) throws IOException {
         switch (target) {
             case TARGET_FORMAL_PARAMETER:
-                return in.readUnsignedByte();
+                return new int[] {in.readUnsignedByte(), NO_PARAMETER};
+            case TARGET_CLASS_TYPE_PARAMETER_BOUND, TARGET_METHOD_TYPE_PARAMETER_BOUND:
+                return new int[] {in.readUnsignedByte(), in.readUnsignedByte()};
             case 0x00, 0x01:
                 in.skipBytes(1);
                 break;
-            case 0x10, 0x11, 0x12, 0x17, 0x42, 0x43, 0x44, 0x45, 0x46:
+            case 0x10, 0x17, 0x42, 0x43, 0x44, 0x45, 0x46:
                 in.skipBytes(2);
                 break;
             case 0x47, 0x48, 0x49, 0x4A, 0x4B:
@@ -115,7 +137,7 @@ public final class TypeAnnotationReader {
                 // 0x13, 0x14, 0x15: empty
                 break;
         }
-        return NO_PARAMETER;
+        return new int[] {NO_PARAMETER, NO_PARAMETER};
     }
 
     private static void skipElementValue(DataInputStream in) throws IOException {

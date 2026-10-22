@@ -86,7 +86,8 @@ public class AnnotationConverter implements ElementValueVisitor {
         for (String descriptor : markerDescriptors) {
             AnnotationReference marker = new AnnotationReference(typeMaker.makeFromDescriptor(descriptor));
 
-            if (!all.contains(marker)) {
+            // an annotation for both a declaration and a type is in both attributes: written once, it is not repeatable
+            if (all.stream().noneMatch(reference -> reference.getType().getInternalName().equals(marker.getType().getInternalName()))) {
                 all.add(marker);
             }
         }

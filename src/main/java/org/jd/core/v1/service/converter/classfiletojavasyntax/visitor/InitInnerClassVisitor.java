@@ -61,6 +61,7 @@ import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeArguments;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.model.javasyntax.type.TypeParameterWithTypeBounds;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileClassDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorDeclaration;
@@ -366,6 +367,12 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
             super.visit(declaration);
+        }
+
+        @Override
+        public void visit(TypeParameterWithTypeBounds parameter) {
+            count += countTypeUses(parameter.getTypeBounds(), internalName);
+            super.visit(parameter);
         }
 
         @Override

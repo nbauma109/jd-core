@@ -45,6 +45,9 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(source.contains("@Maybe T generic;"));
         assertTrue(source.contains("@Maybe public T pick(@Maybe T value)"));
         assertTrue(source.contains("@Maybe Object object;"));
+        // an annotation for declarations and types is written once
+        assertTrue(source.contains("@Twice Object twice;"));
+        assertFalse(source.contains("@Twice @Twice"));
         assertTrue(source.contains("(String first, int second, @Maybe Object third)"));
         assertTrue(source.contains("public String find(@Maybe Object key, int count, String other, List<String> values)"));
         // written in front of a declaration, they would not annotate the same type
@@ -62,5 +65,15 @@ public class GuavaPatternsTest extends AbstractJdTest {
 
         // Item is declared before the block holding its only 'new Item()', because Holder, declared after the block, has a field of that type
         assertTrue(source, source.indexOf("class Item") != -1 && source.indexOf("class Item") < source.indexOf("if (flag)"));
+    }
+
+    @Test
+    public void testLocalClassUsedInTheBoundOfAnotherLocalClass() throws Exception {
+        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String method = source.substring(source.indexOf("itemInTheBoundOfAnotherLocalClass("));
+
+        // Item is declared before the block holding its only 'new Item()', because Bounded, declared after the block, has a type parameter bounded by it
+        assertTrue(method, method.indexOf("class Item") != -1 && method.indexOf("class Item") < method.indexOf("if (flag)"));
     }
 }

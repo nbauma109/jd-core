@@ -17,6 +17,7 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
 
     String name;
     @Maybe Object object;
+    @Twice Object twice;
     @Maybe T generic;
     @Maybe List<String> elements;
     @Maybe String[] annotatedElementsOfArray;

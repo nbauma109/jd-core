@@ -20,4 +20,19 @@ public class LocalClassPlacement {
         }
         return first == null ? new Holder().get(null) : first;
     }
+
+    /** The class used in the bound of the type parameter of another local class stays visible to it */
+    public static Object itemInTheBoundOfAnotherLocalClass(boolean flag) {
+        class Item {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Item();
+        }
+        class Bounded<T extends Item> {
+            T value;
+        }
+        return first == null ? new Bounded<Item>().value : first;
+    }
 }

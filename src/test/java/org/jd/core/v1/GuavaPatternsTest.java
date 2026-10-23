@@ -9,6 +9,7 @@ import org.jd.core.v1.stub.GuavaOuter;
 import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.BoundedBindings;
 import org.jd.core.v1.stub.GuavaSub;
+import org.jd.core.v1.stub.InferenceLimits;
 import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.LoopUpdates;
 import org.jd.core.v1.stub.SynchronizedReturns;
@@ -166,6 +167,18 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
         assertEquals(printed, -1, printed.indexOf("throw null"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testCallsWhoseTypeArgumentsTheBytecodeDoesNotKeep() throws Exception {
+        String internalClassName = InferenceLimits.class.getName().replace('.', '/');
+        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, source.contains("((Value)values.get(\"key\")).answer()") || source.contains("((Value) values.get(\"key\")).answer()"));
+        assertFalse(source, source.contains("::<String>create"));
+        assertFalse(source, source.contains("(List)box.lists()") || source.contains("(List) box.lists()"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

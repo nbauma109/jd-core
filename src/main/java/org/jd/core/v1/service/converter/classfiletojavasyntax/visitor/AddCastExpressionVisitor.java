@@ -1621,8 +1621,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (int i = 0; i < receiverArguments.size(); i++) {
             if (declared.getList().get(i).getIdentifier().equals(returnedVariable.getName())) {
-                // 'Function<T, ? extends Stream<...>>' returns a Stream
-                return upperBoundOrSelf(receiverArguments.getList().get(i)) instanceof ObjectType argument && argument.rawEquals(castType);
+                // 'Function<T, ? extends Stream<...>>' returns a Stream; what a '? super Value' gives back is only an Object
+                TypeArgument receiverArgument = receiverArguments.getList().get(i);
+
+                return !(receiverArgument instanceof WildcardSuperTypeArgument) && upperBoundOrSelf(receiverArgument) instanceof ObjectType argument && argument.rawEquals(castType);
             }
         }
         return false;
@@ -1881,6 +1883,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      */
     private void castArgumentsCapturedFromWildcardReceiversToRaw(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || Utils.isEmpty(call.getParameters())) {
+            return;
+        }
+        if (StreamSupport.stream(call.getParameters().spliterator(), false).anyMatch(LambdaIdentifiersExpression.class::isInstance)) {
+            // a raw argument would give the parameters of an implicit lambda the type Object
             return;
         }
         Expressions updated = new Expressions();
@@ -2438,7 +2444,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Expression supplier = arguments.get(0);
 
         if (accumulator == null) {
-            writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(supplier, call.getTypeBindings().get("R"));
+            writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(supplier, arguments.get(1), call.getTypeBindings().get("T"), call.getTypeBindings().get("R"));
             return;
         }
         Expression created = supplier instanceof LambdaIdentifiersExpression lambda && lambda.getStatements() instanceof LambdaExpressionStatement body ? body.getExpression() : null;
@@ -2463,7 +2469,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * 'Collector.of(LinkedHashMultiset::create, ..., m -&gt; ImmutableMultiset.copyFromEntries(m.entrySet()))': when nothing else says, a
      * collector of a collection of E accumulates E; javac would infer Object.
      */
-    private void writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(Expression supplier, TypeArgument result) {
+    private void writeTypeArgumentsOfFactoryAsTheOnesOfTheResult(Expression supplier, Expression accumulator, TypeArgument element, TypeArgument result) {
         MethodReferenceExpression factory = factoryOf(supplier);
 
         if (factory == null || factory.getNonWildcardTypeArguments() != null || !(result instanceof ObjectType resultType) || resultType.getTypeArguments() == null
@@ -2472,6 +2478,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         List<TypeArgument> resultArguments = toTypeArgumentList(resultType.getTypeArguments());
 
+        // 'List::add' accumulates the elements themselves: a finisher which changes their type ('Collector<Integer, ?, List<String>>') says nothing about them
+        if (isProperMethodReference(accumulator) && resultArguments.size() == 1 && !resultArguments.get(0).equals(element)) {
+            return;
+        }
         if (returnsItsTypeVariablesInOrder(typeMaker.makeMethodTypes(factory.getInternalTypeName(), factory.getName(), factory.getDescriptor()), resultArguments.size())) {
             TypeArguments arguments = new TypeArguments();
 

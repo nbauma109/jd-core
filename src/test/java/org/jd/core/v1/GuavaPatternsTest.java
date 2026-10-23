@@ -84,6 +84,16 @@ public class GuavaPatternsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testLocalClassUsedInTheDeclarationOfAForStatement() throws Exception {
+        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String method = source.substring(source.indexOf("itemInTheDeclarationOfAForStatement("));
+
+        // Item is declared before the block holding its only 'new Item()', because the 'for' after the block declares a variable of that type
+        assertTrue(method, method.indexOf("class Item") != -1 && method.indexOf("class Item") < method.indexOf("if (flag)"));
+    }
+
+    @Test
     public void testLocalClassUsedInTheBoundOfAnotherLocalClass() throws Exception {
         String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");

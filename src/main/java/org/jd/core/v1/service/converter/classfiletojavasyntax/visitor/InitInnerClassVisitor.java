@@ -422,6 +422,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             super.visit(statement);
         }
 
+        /** The declaration of a 'for' statement is no statement: 'for (Local item = null; ...)' */
+        @Override
+        public void visit(LocalVariableDeclaration declaration) {
+            count += countTypeUses(declaration.getType(), internalName);
+            super.visit(declaration);
+        }
+
         @Override
         public void visit(CastExpression expression) {
             count += countTypeUses(expression.getType(), internalName);

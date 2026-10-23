@@ -77,4 +77,21 @@ public class LocalClassPlacement {
         }
         return first == null ? new Tagged() : first;
     }
+
+    /** The class used in the declaration of a 'for' statement stays visible to it */
+    public static Object itemInTheDeclarationOfAForStatement(boolean flag) {
+        class Item {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Item();
+        }
+        Object last = null;
+
+        for (Item item = null; flag; flag = false) {
+            last = item;
+        }
+        return first == null ? last : first;
+    }
 }

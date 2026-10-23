@@ -577,7 +577,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         BaseType bounds = declaredBoundsOf(variable.getName());
 
-        return bounds != null && bounds.getFirst() instanceof ObjectType firstBound && firstBound.getInternalName().equals(declared.getInternalName()) ? variable : null;
+        // with several bounds ('T extends Number & Runnable') the variable is also each of the others, which an overloaded method can select
+        return bounds != null && !bounds.isList() && bounds.getFirst() instanceof ObjectType firstBound && firstBound.getInternalName().equals(declared.getInternalName()) ? variable : null;
     }
 
     @Override

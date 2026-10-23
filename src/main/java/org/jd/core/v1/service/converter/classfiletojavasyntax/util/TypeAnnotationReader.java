@@ -13,6 +13,7 @@ import org.apache.bcel.classfile.Unknown;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -102,7 +103,7 @@ public final class TypeAnnotationReader {
             int parameterIndex = info[0];
             int pathLength = in.readUnsignedByte();
 
-            in.skipBytes(pathLength * 2);
+            skip(in, pathLength * 2);
 
             String descriptor = constants.getConstantUtf8(in.readUnsignedShort()).getBytes();
             int pairs = in.readUnsignedShort();
@@ -131,16 +132,16 @@ public final class TypeAnnotationReader {
             case TARGET_CLASS_TYPE_PARAMETER_BOUND, TARGET_METHOD_TYPE_PARAMETER_BOUND:
                 return new int[] {in.readUnsignedByte(), in.readUnsignedByte()};
             case 0x00, 0x01:
-                in.skipBytes(1);
+                skip(in, 1);
                 break;
             case 0x10, 0x17, 0x42, 0x43, 0x44, 0x45, 0x46:
-                in.skipBytes(2);
+                skip(in, 2);
                 break;
             case 0x47, 0x48, 0x49, 0x4A, 0x4B:
-                in.skipBytes(3);
+                skip(in, 3);
                 break;
             case 0x40, 0x41:
-                in.skipBytes(in.readUnsignedShort() * 6);
+                skip(in, in.readUnsignedShort() * 6);
                 break;
             default:
                 // 0x13, 0x14, 0x15: empty
@@ -149,17 +150,24 @@ public final class TypeAnnotationReader {
         return new int[] {NO_PARAMETER, NO_PARAMETER};
     }
 
+    /** Skips the given number of bytes, which must all be there: a truncated attribute is not read */
+    private static void skip(DataInputStream in, int count) throws IOException {
+        if (in.skipBytes(count) != count) {
+            throw new EOFException();
+        }
+    }
+
     private static void skipElementValue(DataInputStream in) throws IOException {
         int tag = in.readUnsignedByte();
 
         switch (tag) {
             case 'e':
-                in.skipBytes(4);
+                skip(in, 4);
                 break;
             case '@':
-                in.skipBytes(2);
+                skip(in, 2);
                 for (int pairs = in.readUnsignedShort(); pairs > 0; pairs--) {
-                    in.skipBytes(2);
+                    skip(in, 2);
                     skipElementValue(in);
                 }
                 break;
@@ -170,7 +178,7 @@ public final class TypeAnnotationReader {
                 break;
             default:
                 // constants and class literals: one index
-                in.skipBytes(2);
+                skip(in, 2);
                 break;
         }
     }

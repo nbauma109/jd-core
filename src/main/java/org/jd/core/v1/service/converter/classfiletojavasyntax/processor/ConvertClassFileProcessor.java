@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -352,6 +354,8 @@ public class ConvertClassFileProcessor {
                 String recordComponentName = classFile.getConstantPool().getConstantString(index, Const.CONSTANT_Utf8);
                 String recordComponentSignature = classFile.getConstantPool().getConstantString(descriptorIndex, Const.CONSTANT_Utf8);
                 ObjectType recordComponentType = parser.makeFromDescriptor(recordComponentSignature);
+                annotationReferences = converter.withMarkers(annotationReferences,
+                        TypeAnnotationReader.of(recordComponentInfo.getAttributes(), classFile.getConstantPool()).getDeclarationAnnotations(), recordComponentType);
                 recordComponents.add(new RecordComponent(annotationReferences, recordComponentType, recordComponentName));
             }
         }
@@ -489,32 +493,101 @@ public class ConvertClassFileProcessor {
 
     /** The type parameters as the declaration writes them: 'K extends @Nullable Object' keeps the annotation of its bound */
     protected BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, ClassFile classFile) {
-        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(classFile.getAttributes(), classFile.getConstantPool()));
+        org.apache.bcel.classfile.Signature signature = classFile.getAttribute(Const.ATTR_SIGNATURE);
+
+        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(classFile.getAttributes(), classFile.getConstantPool()),
+                signature == null ? null : signature.getSignature());
     }
 
     protected BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, Method method) {
-        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(method));
+        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(method), method.getGenericSignature());
     }
 
-    private BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, TypeAnnotationReader reader) {
+    private BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, TypeAnnotationReader reader, String signature) {
         if (typeParameters == null || !reader.hasBoundAnnotations()) {
             return typeParameters;
         }
         TypeParameters annotated = new TypeParameters();
+        Set<Integer> objectClassBounds = typeParametersWithObjectClassBound(signature);
         int index = 0;
 
         for (TypeParameter typeParameter : typeParameters) {
-            annotated.add(withBoundAnnotations(converter, typeParameter, reader.getBoundAnnotations(index++)));
+            annotated.add(withBoundAnnotations(converter, typeParameter, reader.getBoundAnnotations(index), objectClassBounds.contains(index)));
+            index++;
         }
         return annotated.size() == 1 ? annotated.getFirst() : annotated;
     }
 
-    /** Only the bound that is a type variable or Object takes the annotation: elsewhere the printer may qualify the name */
-    private TypeParameter withBoundAnnotations(AnnotationConverter converter, TypeParameter typeParameter, List<String> markers) {
+    /**
+     * The annotation is the one of the class bound, whether or not interfaces follow it ('T extends @A Object & Serializable'): the bounds the
+     * type maker returns do not have an explicit Object class bound, so it is put back in front of the interfaces.
+     */
+    private TypeParameter withBoundAnnotations(AnnotationConverter converter, TypeParameter typeParameter, List<String> markers, boolean objectClassBound) {
         BaseType bound = typeParameter instanceof TypeParameterWithTypeBounds withBounds ? withBounds.getTypeBounds() : ObjectType.TYPE_OBJECT;
-        BaseAnnotationReference references = bound instanceof Type boundType ? converter.withMarkers(null, markers, boundType) : null;
+
+        if (objectClassBound && !ObjectType.TYPE_OBJECT.equals(bound)) {
+            Types bounds = new Types();
+
+            bounds.add(ObjectType.TYPE_OBJECT);
+            bound.forEach(bounds::add);
+            bound = bounds;
+        }
+
+        BaseAnnotationReference references = converter.withMarkers(null, markers, bound.getFirst());
 
         return references == null ? typeParameter : new TypeParameterWithTypeBounds(typeParameter.getIdentifier(), bound, references);
+    }
+
+    /** @return the indexes of the type parameters of a generic signature (the one of a class or a method) whose class bound is Object: 'T:Ljava/lang/Object;:Ljava/io/Serializable;' */
+    private static Set<Integer> typeParametersWithObjectClassBound(String signature) {
+        Set<Integer> indexes = new HashSet<>();
+
+        if (signature == null || !signature.startsWith("<")) {
+            return indexes;
+        }
+        int position = 1;
+        int index = 0;
+
+        while (position < signature.length() && signature.charAt(position) != '>') {
+            position = signature.indexOf(':', position) + 1;
+            if (position == 0) {
+                break;
+            }
+            if (signature.charAt(position) != ':') {
+                int end = endOfFieldTypeSignature(signature, position);
+
+                if ("Ljava/lang/Object;".equals(signature.substring(position, end))) {
+                    indexes.add(index);
+                }
+                position = end;
+            }
+            while (position < signature.length() && signature.charAt(position) == ':') {
+                position = endOfFieldTypeSignature(signature, position + 1);
+            }
+            index++;
+        }
+        return indexes;
+    }
+
+    private static int endOfFieldTypeSignature(String signature, int start) {
+        int position = start;
+        int depth = 0;
+
+        while (signature.charAt(position) == '[') {
+            position++;
+        }
+        for (; position < signature.length(); position++) {
+            char c = signature.charAt(position);
+
+            if (c == '<') {
+                depth++;
+            } else if (c == '>') {
+                depth--;
+            } else if (c == ';' && depth == 0) {
+                return position + 1;
+            }
+        }
+        return position;
     }
 
     /** '@Nullable' on the type of a field or of the result of a method is a type annotation, kept apart in the class file */

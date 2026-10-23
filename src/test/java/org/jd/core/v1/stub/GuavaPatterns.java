@@ -1676,4 +1676,12 @@ public class GuavaPatterns {
     static <E> java.util.List<E> viaFactory(NumberFactory factory) {
         return (java.util.List<E>) (java.util.List<?>) factory.make();
     }
+
+    /** A local variable of the bound of a type variable which is assigned again does not become a variable of that type */
+    static <T extends Number> Number reassigned(T value, Number other) {
+        Number number = value;
+
+        number = other;
+        return number;
+    }
 }

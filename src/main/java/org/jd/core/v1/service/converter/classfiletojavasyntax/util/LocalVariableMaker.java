@@ -158,6 +158,10 @@ public class LocalVariableMaker {
             RuntimeInvisibleParameterAnnotations ripa = (RuntimeInvisibleParameterAnnotations) Stream.of(method.getAttributes()).filter(RuntimeInvisibleParameterAnnotations.class::isInstance).findAny().orElse(null);
 
             TypeAnnotationReader typeAnnotations = TypeAnnotationReader.of(method);
+            // The type annotations are numbered by the parameters of the declaration: the outer instance of an inner class and the name and the ordinal
+            // of an enum, which the descriptor starts with, are not counted
+            int syntheticParameters = !constructor || method.getArgumentTypes().length != parameterTypes.size() ? 0
+                    : classFile.isEnum() ? 2 : classFile.getOuterClassFile() != null && !classFile.isStatic() ? 1 : 0;
 
             if (rvpa == null && ripa == null && !typeAnnotations.hasParameterAnnotations()) {
                 AbstractLocalVariable lv;
@@ -187,7 +191,7 @@ public class LocalVariableMaker {
                     invisibles = invisiblesArray == null || invisiblesArray.length <= parameterIndex ? null : invisiblesArray[parameterIndex];
                     AnnotationEntry[] visibleEntries = visible == null ? null : visible.getAnnotationEntries();
                     AnnotationEntry[] invisibleEntries = invisibles == null ? null : invisibles.getAnnotationEntries();
-                    annotationReferences = annotationConverter.withMarkers(annotationConverter.convert(visibleEntries, invisibleEntries), typeAnnotations.getParameterAnnotations(parameterIndex), lv.getType());
+                    annotationReferences = annotationConverter.withMarkers(annotationConverter.convert(visibleEntries, invisibleEntries), typeAnnotations.getParameterAnnotations(parameterIndex - syntheticParameters), lv.getType());
 
                     fp.add(new ClassFileFormalParameter(annotationReferences, lv, varargs && parameterIndex==lastParameterIndex));
 

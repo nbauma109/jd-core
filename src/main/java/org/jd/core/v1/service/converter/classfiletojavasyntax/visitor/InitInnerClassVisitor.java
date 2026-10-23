@@ -468,6 +468,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             if (type instanceof ObjectType objectType) {
                 int count = objectType.getInternalName().equals(internalName) ? 1 : 0;
 
+                if (objectType instanceof InnerObjectType innerType && innerType.getOuterType() != null) {
+                    // 'Outer<Local>.Inner': the type arguments of the enclosing type are not those of this one
+                    count += countTypeUses(innerType.getOuterType(), internalName);
+                }
+
                 if (objectType.getTypeArguments() instanceof TypeArguments arguments) {
                     for (TypeArgument argument : arguments) {
                         count += countTypeUses(argument, internalName);

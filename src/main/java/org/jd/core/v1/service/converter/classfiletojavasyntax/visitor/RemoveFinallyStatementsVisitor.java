@@ -73,8 +73,8 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             } else if (lastStatement.isContinueStatement() || lastStatement.isBreakStatement()) {
                 i--;
             } else if (lastStatement instanceof SynchronizedStatement synchronizedStatement) {
-                // 'try { synchronized (m) { return v; } } finally { f(); }': the copy of the 'finally' statements is not after the
-                // block but in it, before its 'return'
+                // When a synchronized block of the try returns, the copy of the finally statements is not after the block but in it,
+                // before its return.
                 statementCountToRemove = 0;
                 i--;
                 synchronizedStatement.getStatements().accept(this);

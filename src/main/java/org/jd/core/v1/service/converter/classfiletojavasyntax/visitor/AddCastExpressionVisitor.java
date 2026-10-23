@@ -43,6 +43,7 @@ import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
+import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
@@ -528,13 +529,38 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         ListIterator<Statement> iterator = list.listIterator();
 
         while (iterator.hasNext()) {
-            if (iterator.next() instanceof LocalVariableDeclarationStatement declaration && typeVariableErasedTo(declaration) instanceof GenericType variable) {
+            Statement statement = iterator.next();
+
+            if (visitingLambda && statement instanceof LocalVariableDeclarationStatement declaration && typeVariableErasedTo(declaration) instanceof GenericType variable
+                    && !isReassignedAfter(list, declaration)) {
                 LocalVariableDeclarationStatement redeclared = new LocalVariableDeclarationStatement(variable, declaration.getLocalVariableDeclarators());
 
                 redeclared.setFinal(declaration.isFinal());
                 iterator.set(redeclared);
             }
         }
+    }
+
+    /** A variable which is assigned again keeps the type it was declared with: what it is assigned may not be the type variable */
+    private static boolean isReassignedAfter(Statements list, LocalVariableDeclarationStatement declaration) {
+        if (!(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator)) {
+            return true;
+        }
+        boolean[] reassigned = new boolean[1];
+        AbstractJavaSyntaxVisitor finder = new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(BinaryOperatorExpression expression) {
+                if (expression.getOperator().endsWith("=") && !"==".equals(expression.getOperator()) && !"!=".equals(expression.getOperator())
+                        && !"<=".equals(expression.getOperator()) && !">=".equals(expression.getOperator())
+                        && expression.getLeftExpression().isLocalVariableReferenceExpression() && declarator.getName().equals(expression.getLeftExpression().getName())) {
+                    reassigned[0] = true;
+                }
+                super.visit(expression);
+            }
+        };
+
+        list.subList(list.indexOf(declaration) + 1, list.size()).forEach(statement -> statement.accept(finder));
+        return reassigned[0];
     }
 
     /**
@@ -722,10 +748,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean rawCast = false;
             boolean oldVisitingWitnessedInvocation = visitingWitnessedInvocation;
             // The printer only renders <TypeArgs> when a receiver qualifier is also printed: an implicit
-            // 'this' call never shows the witness, so it does not actually disambiguate anything there.
+            // 'this' call (or one without receiver, such as an inherited static method) never shows the witness,
+            // so it does not actually disambiguate anything there.
             visitingWitnessedInvocation = expression.getNonWildcardTypeArguments() != null
                 && hasKnownTypeParameters(expression.getNonWildcardTypeArguments())
-                && !expression.getExpression().isThisExpression();
+                && !expression.getExpression().isThisExpression()
+                && !(expression.getExpression() instanceof NoExpression);
             Set<String> oldTypeVariablesSharedAcrossParameters = typeVariablesSharedAcrossParameters;
             typeVariablesSharedAcrossParameters = findTypeVariablesSharedAcrossParameters(unboundParameterTypes);
             boolean oldVisitingVarArgs = visitingVarArgsInvocation;

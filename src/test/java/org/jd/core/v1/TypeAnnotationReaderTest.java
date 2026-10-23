@@ -218,6 +218,22 @@ public class TypeAnnotationReaderTest {
     }
 
     @Test
+    public void testNothingIsKeptOfAnAttributeWhichStopsInAnElementValue() throws IOException {
+        // a valid annotation, then one whose last element value stops after its tag
+        TypeAnnotationReader reader = read(2, out -> {
+            marker(out, FIELD, 0, NULLABLE);
+            out.writeByte(FIELD);
+            out.writeByte(0);
+            out.writeShort(OTHER);
+            out.writeShort(1);
+            out.writeShort(OTHER);
+            out.writeByte('s');
+        });
+
+        assertTrue(reader.getDeclarationAnnotations().isEmpty());
+    }
+
+    @Test
     public void testOtherAttributesAreIgnored() {
         byte[] content = {0, 0};
         TypeAnnotationReader reader = TypeAnnotationReader.of(new Attribute[] {new Unknown(ATTRIBUTE_NAME, 2, content, new ConstantPool(new Constant[] {

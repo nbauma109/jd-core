@@ -12,6 +12,7 @@ import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.LoopUpdates;
 import org.jd.core.v1.stub.SynchronizedReturns;
 import org.jd.core.v1.stub.TypeAnnotationPatterns;
+import org.jd.core.v1.stub.TypeAnnotationRecord;
 import org.junit.Test;
 
 public class GuavaPatternsTest extends AbstractJdTest {
@@ -47,19 +48,23 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(source.contains("class TypeAnnotationPatterns<T extends @Maybe Object>"));
         assertTrue(source.contains("<U extends @Maybe Object> U first(U value)"));
         assertTrue(source.contains("@Maybe T generic;"));
-        assertTrue(source.contains("@Maybe public T pick(@Maybe T value)"));
+        assertTrue(source.contains("public @Maybe T pick(@Maybe T value)"));
         assertTrue(source.contains("@Maybe Object object;"));
         // an annotation for declarations and types is written once
         assertTrue(source.contains("@Twice Object twice;"));
         assertTrue(source.contains("@Maybe Object several;") && source.contains("@Deprecated"));
         assertTrue(source.contains("<A extends @Maybe Object, B extends @Maybe Object>"));
+        assertTrue(source.contains("<S extends @Maybe Object & Serializable> S sturdy(S value)") || source.contains("<S extends @Maybe Object & java.io.Serializable> S sturdy(S value)"));
         assertFalse(source.contains("@Twice @Twice"));
-        assertTrue(source.contains("(String first, int second, @Maybe Object third)"));
-        assertTrue(source.contains("public String find(@Maybe Object key, int count, String other, List<String> values)"));
-        // written in front of a declaration, they would not annotate the same type
+        // on every kind of type: a class, a parameterized class, a type variable
+        assertTrue(source.contains("(@Maybe String first, int second, @Maybe Object third)"));
+        assertTrue(source.contains("public @Maybe String find(@Maybe Object key, int count, String other, @Maybe List<String> values)"));
+        assertTrue(source.contains("@Maybe List<String> elements;"));
+        // a nested class is annotated after its outer class
+        assertTrue(source.contains("Map.@Maybe Entry<String, String> nestedEntry;"));
+        assertTrue(source.contains("Map.@Maybe Entry<String, String> entry"));
+        // the annotation of the elements of an array is not the one of the array
         assertFalse(source.contains("@Maybe String[] annotatedElementsOfArray"));
-        assertFalse(source.contains("@Maybe Map.Entry"));
-        assertFalse(source.contains("@Maybe Entry"));
         assertFalse(source.contains("@Maybe Object[]"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
@@ -152,5 +157,13 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(source, source.contains("try { synchronized ("));
         assertEquals(source, 2, source.split("return load\\(", -1).length - 1);
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testTypeAnnotationOfARecordComponent() throws Exception {
+        String internalClassName = TypeAnnotationRecord.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, source.contains("@Maybe Object value"));
     }
 }

@@ -31,6 +31,7 @@ import org.jd.core.v1.model.javasyntax.reference.ElementValuePair;
 import org.jd.core.v1.model.javasyntax.reference.ElementValuePairs;
 import org.jd.core.v1.model.javasyntax.reference.ElementValues;
 import org.jd.core.v1.model.javasyntax.reference.ExpressionElementValue;
+import org.jd.core.v1.model.javasyntax.reference.TypeUseAnnotationReference;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
@@ -68,12 +69,11 @@ public class AnnotationConverter implements ElementValueVisitor {
     }
 
     /**
-     * Adds marker annotations (given by descriptor) to the references: the type annotations written in front of a declaration of the given type.
-     * Only for the types which are never written with a qualifier or as an array, where this position would annotate something else
-     * ('p.Outer.@Nullable Inner'): a type variable, 'Object'. Others stay without, until the printer can place them inside the type.
+     * Adds marker annotations (given by descriptor) to the references: the type annotations of the type of a declaration, which the printer writes
+     * inside the type ('java.lang.@Nullable String', '@Nullable T'). Not for an array: the annotation of its elements is not the one of the array.
      */
     public BaseAnnotationReference withMarkers(BaseAnnotationReference references, List<String> markerDescriptors, Type type) {
-        if (markerDescriptors.isEmpty() || type == null || type.getDimension() != 0 || !(type.isGenericType() || type instanceof ObjectType objectType && "java/lang/Object".equals(objectType.getInternalName()))) {
+        if (markerDescriptors.isEmpty() || type == null || type.getDimension() != 0) {
             return references;
         }
         AnnotationReferences<AnnotationReference> all = new AnnotationReferences<>();
@@ -84,7 +84,7 @@ public class AnnotationConverter implements ElementValueVisitor {
             all.addAll(((AnnotationReferences<AnnotationReference>) references).getList());
         }
         for (String descriptor : markerDescriptors) {
-            AnnotationReference marker = new AnnotationReference(typeMaker.makeFromDescriptor(descriptor));
+            AnnotationReference marker = new TypeUseAnnotationReference(typeMaker.makeFromDescriptor(descriptor));
 
             // an annotation for both a declaration and a type is in both attributes: written once, it is not repeatable
             if (all.stream().noneMatch(reference -> reference.getType().getInternalName().equals(marker.getType().getInternalName()))) {

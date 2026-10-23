@@ -47,6 +47,11 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
         return value;
     }
 
+    /** The annotated class bound is followed by an interface bound */
+    public static <S extends @Maybe Object & java.io.Serializable> S sturdy(S value) {
+        return value;
+    }
+
     public static <U extends @Maybe Object> U first(U value) {
         return value;
     }

@@ -63,11 +63,13 @@ public class TypeAnnotationReaderTest {
 
     @Test
     public void testFieldParameterAndBounds() throws IOException {
-        TypeAnnotationReader reader = read(4, out -> {
+        TypeAnnotationReader reader = read(5, out -> {
             marker(out, FIELD, 0, NULLABLE);
             marker(out, FORMAL_PARAMETER, 2, NULLABLE);
             marker(out, CLASS_TYPE_PARAMETER_BOUND, 0x0100, NULLABLE);
             marker(out, METHOD_TYPE_PARAMETER_BOUND, 0x0000, OTHER);
+            // the first bound is an interface: the index of the bound is 1
+            marker(out, METHOD_TYPE_PARAMETER_BOUND, 0x0301, NULLABLE);
         });
 
         assertEquals(List.of("Lp/Nullable;"), reader.getDeclarationAnnotations());
@@ -78,6 +80,8 @@ public class TypeAnnotationReaderTest {
         assertEquals(List.of("Lp/Other;"), reader.getBoundAnnotations(0));
         assertEquals(List.of("Lp/Nullable;"), reader.getBoundAnnotations(1));
         assertTrue(reader.getBoundAnnotations(2).isEmpty());
+        assertEquals(List.of("Lp/Nullable;"), reader.getInterfaceBoundAnnotations(3));
+        assertTrue(reader.getInterfaceBoundAnnotations(0).isEmpty());
         assertTrue(reader.hasBoundAnnotations());
     }
 
@@ -99,8 +103,8 @@ public class TypeAnnotationReaderTest {
             out.writeShort(OTHER);
             out.writeByte('I');
             out.writeShort(OTHER);
-            // for the second bound of a type parameter
-            marker(out, METHOD_TYPE_PARAMETER_BOUND, 0x0001, NULLABLE);
+            // for the second interface bound of a type parameter
+            marker(out, METHOD_TYPE_PARAMETER_BOUND, 0x0002, NULLABLE);
         });
 
         assertTrue(reader.getDeclarationAnnotations().isEmpty());

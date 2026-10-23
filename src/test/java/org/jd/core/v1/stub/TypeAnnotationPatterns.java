@@ -1,5 +1,6 @@
 package org.jd.core.v1.stub;
 
+import java.io.Closeable;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -66,5 +67,10 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
         nestedEntry = entry;
         annotatedElementsOfArray = keys == null ? null : new String[0];
         labeled = String.valueOf(value);
+    }
+
+    /** The first bound is an interface: the annotation has the index 1 of the bounds, the index 0 being the one of the class bound */
+    public static <C extends @Maybe Closeable> C register(C closeable) {
+        return closeable;
     }
 }

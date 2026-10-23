@@ -40,6 +40,7 @@ public final class TypeAnnotationReader {
     private final Map<Integer, List<String>> parameters = new TreeMap<>();
     /** Descriptors of the annotations of the class bound of each type parameter, by index of the type parameter */
     private final Map<Integer, List<String>> bounds = new TreeMap<>();
+    private final Map<Integer, List<String>> interfaceBounds = new TreeMap<>();
 
     private TypeAnnotationReader() {
     }
@@ -70,6 +71,7 @@ public final class TypeAnnotationReader {
         declaration.addAll(other.declaration);
         other.parameters.forEach((index, descriptors) -> parameters.computeIfAbsent(index, k -> new ArrayList<>()).addAll(descriptors));
         other.bounds.forEach((index, descriptors) -> bounds.computeIfAbsent(index, k -> new ArrayList<>()).addAll(descriptors));
+        other.interfaceBounds.forEach((index, descriptors) -> interfaceBounds.computeIfAbsent(index, k -> new ArrayList<>()).addAll(descriptors));
     }
 
     /** @return the descriptors of the annotations of the type of the field, or of the result of the method */
@@ -86,8 +88,16 @@ public final class TypeAnnotationReader {
         return bounds.getOrDefault(typeParameterIndex, Collections.emptyList());
     }
 
+    /**
+     * @return the descriptors of the annotations of the first interface bound of the type parameter, when it has no class bound
+     * ('C extends @Nullable Closeable': the index of the bound is 1, the index 0 being the one of the class bound)
+     */
+    public List<String> getInterfaceBoundAnnotations(int typeParameterIndex) {
+        return interfaceBounds.getOrDefault(typeParameterIndex, Collections.emptyList());
+    }
+
     public boolean hasBoundAnnotations() {
-        return !bounds.isEmpty();
+        return !bounds.isEmpty() || !interfaceBounds.isEmpty();
     }
 
     public boolean hasParameterAnnotations() {
@@ -117,8 +127,8 @@ public final class TypeAnnotationReader {
                     declaration.add(descriptor);
                 } else if (target == TARGET_FORMAL_PARAMETER && parameterIndex != NO_PARAMETER) {
                     parameters.computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
-                } else if ((target == TARGET_CLASS_TYPE_PARAMETER_BOUND || target == TARGET_METHOD_TYPE_PARAMETER_BOUND) && info[1] == 0) {
-                    bounds.computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
+                } else if ((target == TARGET_CLASS_TYPE_PARAMETER_BOUND || target == TARGET_METHOD_TYPE_PARAMETER_BOUND) && info[1] <= 1) {
+                    (info[1] == 0 ? bounds : interfaceBounds).computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
                 }
             }
         }

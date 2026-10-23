@@ -509,10 +509,13 @@ public class ConvertClassFileProcessor {
         }
         TypeParameters annotated = new TypeParameters();
         Set<Integer> objectClassBounds = typeParametersWithObjectClassBound(signature);
+        Set<Integer> withoutClassBound = typeParametersWithoutClassBound(signature);
         int index = 0;
 
         for (TypeParameter typeParameter : typeParameters) {
-            annotated.add(withBoundAnnotations(converter, typeParameter, reader.getBoundAnnotations(index), objectClassBounds.contains(index)));
+            List<String> markers = withoutClassBound.contains(index) ? reader.getInterfaceBoundAnnotations(index) : reader.getBoundAnnotations(index);
+
+            annotated.add(withBoundAnnotations(converter, typeParameter, markers, objectClassBounds.contains(index)));
             index++;
         }
         return annotated.size() == 1 ? annotated.getFirst() : annotated;
@@ -536,6 +539,34 @@ public class ConvertClassFileProcessor {
         BaseAnnotationReference references = converter.withMarkers(null, markers, bound.getFirst());
 
         return references == null ? typeParameter : new TypeParameterWithTypeBounds(typeParameter.getIdentifier(), bound, references);
+    }
+
+    /** @return the indexes of the type parameters of a generic signature whose first bound is an interface: 'C::Ljava/io/Closeable;' */
+    private static Set<Integer> typeParametersWithoutClassBound(String signature) {
+        Set<Integer> indexes = new HashSet<>();
+
+        if (signature == null || !signature.startsWith("<")) {
+            return indexes;
+        }
+        int position = 1;
+        int index = 0;
+
+        while (position < signature.length() && signature.charAt(position) != '>') {
+            position = signature.indexOf(':', position) + 1;
+            if (position == 0) {
+                break;
+            }
+            if (signature.charAt(position) == ':') {
+                indexes.add(index);
+            } else {
+                position = endOfFieldTypeSignature(signature, position);
+            }
+            while (position < signature.length() && signature.charAt(position) == ':') {
+                position = endOfFieldTypeSignature(signature, position + 1);
+            }
+            index++;
+        }
+        return indexes;
     }
 
     /** @return the indexes of the type parameters of a generic signature (the one of a class or a method) whose class bound is Object: 'T:Ljava/lang/Object;:Ljava/io/Serializable;' */

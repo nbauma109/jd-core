@@ -82,4 +82,13 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
         }
         return new Local(null);
     }
+
+    static {
+        class InInitializer {
+            InInitializer(@Maybe String first, Object second) {
+            }
+        }
+        Object created = new InInitializer(null, null);
+        created.hashCode();
+    }
 }

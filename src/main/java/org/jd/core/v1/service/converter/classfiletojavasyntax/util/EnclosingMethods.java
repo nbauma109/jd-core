@@ -30,4 +30,11 @@ public final class EnclosingMethods {
                 .filter(method -> method.getName().equals(name) && method.getSignature().equals(signature))
                 .anyMatch(Method::isStatic);
     }
+
+    /** A local class of an initializer or of a field initializer: the attribute names no method, and the initializer may be static */
+    public static boolean isDeclaredInAnInitializer(ClassFile classFile) {
+        EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
+
+        return enclosingMethod != null && enclosingMethod.getEnclosingMethodIndex() == 0;
+    }
 }

@@ -160,7 +160,7 @@ public class LocalVariableMaker {
             TypeAnnotationReader typeAnnotations = TypeAnnotationReader.of(method);
             // The type annotations are numbered by the parameters of the declaration: the outer instance of an inner class and the name and the ordinal
             // of an enum, which the descriptor starts with, are not counted
-            int syntheticParameters = constructor && method.getArgumentTypes().length == parameterTypes.size() ? countSyntheticParameters(classFile) : 0;
+            int syntheticParameters = constructor && method.getArgumentTypes().length == parameterTypes.size() ? countSyntheticParameters(classFile, method) : 0;
 
             if (rvpa == null && ripa == null && !typeAnnotations.hasParameterAnnotations()) {
                 AbstractLocalVariable lv;
@@ -639,12 +639,21 @@ public class LocalVariableMaker {
         }
     }
 
-    private static int countSyntheticParameters(ClassFile classFile) {
+    private static int countSyntheticParameters(ClassFile classFile, Method constructor) {
         if (classFile.isEnum()) {
             return 2;
         }
         ClassFile outerClassFile = classFile.getOuterClassFile();
 
-        return outerClassFile != null && !classFile.isStatic() && !EnclosingMethods.isDeclaredInStaticMethod(classFile, outerClassFile) ? 1 : 0;
+        if (outerClassFile == null || classFile.isStatic() || EnclosingMethods.isDeclaredInStaticMethod(classFile, outerClassFile)) {
+            return 0;
+        }
+        if (EnclosingMethods.isDeclaredInAnInitializer(classFile)) {
+            // a static initializer gives no outer instance, an instance initializer does: it is the first parameter
+            org.apache.bcel.generic.Type[] types = constructor.getArgumentTypes();
+
+            return types.length > 0 && types[0].getSignature().equals("L" + outerClassFile.getInternalTypeName() + ";") ? 1 : 0;
+        }
+        return 1;
     }
 }

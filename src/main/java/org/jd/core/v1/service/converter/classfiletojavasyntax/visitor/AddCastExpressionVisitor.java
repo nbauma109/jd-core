@@ -1460,7 +1460,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
 
-            if (localType.getName() != null) {
+            // '((A) this).x' names the owner of a field which the classes between hide: the cast is not redundant
+            boolean ownerCastOfThis = exp instanceof CastExpression ownerCast && ownerCast.getExpression().isThisExpression() && !ownerCast.isByteCodeCheckCast();
+
+            if (localType.getName() != null && !ownerCastOfThis) {
                 Expression oldMemberReceiver = memberReceiver;
                 memberReceiver = exp;
                 expression.setExpression(updateExpression(Collections.emptyMap(), typeBounds, localType, null, exp, false, true, false));
@@ -1751,31 +1754,24 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * First bound of a method type parameter; 'S extends T' resolves T through the receiver's type arguments
-     * ('Ordering&lt;Comparable&gt;.reverse()').
+     * First bound of a method type parameter; 'S extends T' resolves T, a type variable of the class which declares the method, through the type
+     * arguments the receiver gives it ('Ordering&lt;Comparable&gt;.reverse()', or 'Impl implements Factory&lt;Number&gt;' for a method of Factory).
      */
     private Type boundOfMethodTypeParameter(ClassFileMethodInvocationExpression call, TypeParameterWithTypeBounds typeParameter) {
         Type bound = typeParameter.getTypeBounds().getFirst();
 
-        if (!(bound instanceof GenericType variable) || variable.getDimension() != 0 || !(call.getExpression().getType() instanceof ObjectType receiverType)
-                || receiverType.getTypeArguments() == null) {
+        if (!(bound instanceof GenericType variable) || variable.getDimension() != 0 || !(call.getExpression().getType() instanceof ObjectType receiverType)) {
             return bound;
         }
-        TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());
+        TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(call.getInternalTypeName());
 
         if (typeTypes == null || typeTypes.getTypeParameters() == null) {
             return bound;
         }
-        List<TypeArgument> receiverArguments = toTypeArgumentList(receiverType.getTypeArguments());
-        int index = 0;
+        List<TypeArgument> given = typeArgumentsSeenAs(call.getInternalTypeName(), receiverType, new HashSet<String>());
+        int index = identifiersOf(typeTypes.getTypeParameters()).indexOf(variable.getName());
 
-        for (org.jd.core.v1.model.javasyntax.type.TypeParameter classTypeParameter : typeTypes.getTypeParameters()) {
-            if (classTypeParameter.getIdentifier().equals(variable.getName()) && index < receiverArguments.size() && receiverArguments.get(index) instanceof ObjectType argument) {
-                return argument;
-            }
-            index++;
-        }
-        return bound;
+        return index >= 0 && index < given.size() && given.get(index) instanceof ObjectType argument ? argument : bound;
     }
 
     /**

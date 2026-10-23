@@ -345,8 +345,10 @@ public final class ControlFlowGraphLoopReducer {
                 end = preferTheExitToTheEnclosingLoop(start, members, end);
             }
 
+            // (the update of an enclosing loop is not a tail of this one: 'for (...; i++) { while (true) { ... break; } }', whose 'i++' is on
+            // the line of the header of the 'for', which comes before the line of the 'break')
             if (!end.matchType(TYPE_END|TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_LOOP_START|TYPE_LOOP_CONTINUE|TYPE_LOOP_END) &&
-                end.getPredecessors().size() == 1 &&
+                end.getPredecessors().size() == 1 && !isUpdateOfEnclosingLoop(start, end) &&
                 end.getPredecessors().iterator().next().getLastLineNumber() + 1 >= end.getFirstLineNumber())
             {
                 Set<BasicBlock> set = new HashSet<>();

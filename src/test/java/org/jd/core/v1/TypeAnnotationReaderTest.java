@@ -207,6 +207,17 @@ public class TypeAnnotationReaderTest {
     }
 
     @Test
+    public void testNothingIsKeptOfAnAttributeWhichIsMalformedAfterAValidAnnotation() throws IOException {
+        // a valid annotation, then an entry which stops after its target
+        TypeAnnotationReader reader = read(2, out -> {
+            marker(out, FIELD, 0, NULLABLE);
+            out.writeByte(FIELD);
+        });
+
+        assertTrue(reader.getDeclarationAnnotations().isEmpty());
+    }
+
+    @Test
     public void testOtherAttributesAreIgnored() {
         byte[] content = {0, 0};
         TypeAnnotationReader reader = TypeAnnotationReader.of(new Attribute[] {new Unknown(ATTRIBUTE_NAME, 2, content, new ConstantPool(new Constant[] {

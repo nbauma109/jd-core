@@ -1641,4 +1641,39 @@ public class GuavaPatterns {
             return count + super.count;
         }
     }
+
+    static class FieldA {
+        int x = 1;
+    }
+
+    static class FieldB extends FieldA {
+        int x = 2;
+    }
+
+    /** The field of a class two levels up, hidden by the fields of the classes between: 'super' would reach the one of FieldB */
+    @SuppressWarnings("java:S2387") // the shadowing is what the stub is about
+    static class FieldC extends FieldB {
+        int x = 3;
+
+        int viaTheGrandparent() {
+            return ((FieldA) this).x;
+        }
+    }
+
+    interface FactoryOf<X> {
+        <C extends X> java.util.List<C> make();
+    }
+
+    /** The bound of the type variable of the method is a type variable of the interface, which the class gives an argument */
+    static class NumberFactory implements FactoryOf<Number> {
+        @Override
+        public <C extends Number> java.util.List<C> make() {
+            return new java.util.ArrayList<>();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <E> java.util.List<E> viaFactory(NumberFactory factory) {
+        return (java.util.List<E>) (java.util.List<?>) factory.make();
+    }
 }

@@ -52,14 +52,23 @@ public final class TypeAnnotationReader {
 
         for (Attribute attribute : attributes) {
             if (attribute instanceof Unknown unknown && unknown.getName().startsWith("Runtime") && unknown.getName().endsWith("TypeAnnotations")) {
+                TypeAnnotationReader read = new TypeAnnotationReader();
+
                 try {
-                    reader.read(unknown.getBytes(), constants);
+                    read.read(unknown.getBytes(), constants);
+                    reader.merge(read);
                 } catch (IOException | RuntimeException e) {
-                    // an attribute which cannot be read is dropped, as it was before
+                    // an attribute which cannot be read is dropped as a whole, as it was before
                 }
             }
         }
         return reader;
+    }
+
+    private void merge(TypeAnnotationReader other) {
+        declaration.addAll(other.declaration);
+        other.parameters.forEach((index, descriptors) -> parameters.computeIfAbsent(index, k -> new ArrayList<>()).addAll(descriptors));
+        other.bounds.forEach((index, descriptors) -> bounds.computeIfAbsent(index, k -> new ArrayList<>()).addAll(descriptors));
     }
 
     /** @return the descriptors of the annotations of the type of the field, or of the result of the method */

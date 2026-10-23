@@ -2721,7 +2721,10 @@ public class ByteCodeParser {
         for (ClassFileFieldDeclaration field : bodyDeclaration.getFieldDeclarations()) {
             field.getFieldDeclarators().accept(memberVisitor);
             if (memberVisitor.found()) {
-                return new SuperExpression(expression.getLineNumber(), expression.getType());
+                // this class declares a field of that name: 'super' reaches the one of the direct superclass, an owner higher up needs a cast
+                return expression.getType() instanceof ObjectType thisType && typeMaker.isRawTypeAssignable(ot, thisType)
+                        ? inheritedFieldReceiver(expression, thisType, ot)
+                        : new SuperExpression(expression.getLineNumber(), expression.getType());
             }
         }
         if (expression.getType() instanceof ObjectType thisType && typeMaker.isRawTypeAssignable(ot, thisType)) {

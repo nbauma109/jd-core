@@ -9,6 +9,7 @@ import org.jd.core.v1.stub.GuavaOuter;
 import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.LocalClassPlacement;
+import org.jd.core.v1.stub.LoopUpdates;
 import org.jd.core.v1.stub.TypeAnnotationPatterns;
 import org.junit.Test;
 
@@ -119,5 +120,24 @@ public class GuavaPatternsTest extends AbstractJdTest {
 
         // the outer instance is written once, as the qualifier, or not at all
         assertFalse(source, source.contains(".new Wrapped(this,") || source.contains(".new GuavaOuter.Wrapped(this,"));
+    }
+
+    @Test
+    public void testFieldTwoLevelsUpHiddenByTheFieldsBetween() throws Exception {
+        String internalClassName = GuavaPatterns.class.getName().replace('.', '/') + "$FieldC";
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertFalse(source, source.contains("super.x"));
+        assertTrue(source, source.contains("(FieldA)this).x") || source.contains("(GuavaPatterns.FieldA)this).x"));
+    }
+
+    @Test
+    public void testUpdateOfALoopWhoseInnerLoopEndsWithABreak() throws Exception {
+        String internalClassName = LoopUpdates.class.getName().replace('.', '/');
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // each outer 'for' keeps its update, or its loop would never end
+        assertFalse(source, source.matches(".*for \\(int \\w+ = 0; \\w+ < \\w+; \\).*"));
+        assertTrue(source, source.matches(".*for \\(int (\\w+) = 0; \\1 < \\w+; \\1\\+\\+\\).*"));
     }
 }

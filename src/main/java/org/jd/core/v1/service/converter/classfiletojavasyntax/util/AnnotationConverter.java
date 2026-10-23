@@ -70,10 +70,11 @@ public class AnnotationConverter implements ElementValueVisitor {
 
     /**
      * Adds marker annotations (given by descriptor) to the references: the type annotations of the type of a declaration, which the printer writes
-     * inside the type ('java.lang.@Nullable String', '@Nullable T'). Not for an array: the annotation of its elements is not the one of the array.
+     * inside the type ('java.lang.@Nullable String', '@Nullable T', 'String @Nullable []'). One that is also an annotation of the declaration is in
+     * both attributes of the class file: the printer writes it once when it can.
      */
     public BaseAnnotationReference withMarkers(BaseAnnotationReference references, List<String> markerDescriptors, Type type) {
-        if (markerDescriptors.isEmpty() || type == null || type.getDimension() != 0) {
+        if (markerDescriptors.isEmpty() || type == null) {
             return references;
         }
         AnnotationReferences<AnnotationReference> all = new AnnotationReferences<>();
@@ -83,14 +84,7 @@ public class AnnotationConverter implements ElementValueVisitor {
         } else if (references != null) {
             all.addAll(((AnnotationReferences<AnnotationReference>) references).getList());
         }
-        for (String descriptor : markerDescriptors) {
-            AnnotationReference marker = new TypeUseAnnotationReference(typeMaker.makeFromDescriptor(descriptor));
-
-            // an annotation for both a declaration and a type is in both attributes: written once, it is not repeatable
-            if (all.stream().noneMatch(reference -> reference.getType().getInternalName().equals(marker.getType().getInternalName()))) {
-                all.add(marker);
-            }
-        }
+        markerDescriptors.forEach(descriptor -> all.add(new TypeUseAnnotationReference(typeMaker.makeFromDescriptor(descriptor))));
         return all.size() == 1 ? all.getFirst() : all;
     }
 

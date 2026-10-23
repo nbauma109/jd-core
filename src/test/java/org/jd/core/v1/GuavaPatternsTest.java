@@ -66,6 +66,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         // the annotation of the elements of an array is not the one of the array
         assertFalse(source.contains("@Maybe String[] annotatedElementsOfArray"));
         assertFalse(source.contains("@Maybe Object[]"));
+        assertTrue(source.contains("String @Maybe [] arrayItself;"));
+        assertTrue(source.contains("count(String @Maybe ... arguments)"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

@@ -22,6 +22,7 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
     @Maybe T generic;
     @Maybe List<String> elements;
     @Maybe String[] annotatedElementsOfArray;
+    String @Maybe [] arrayItself;
     Map.@Maybe Entry<String, String> nestedEntry;
     @Labeled("not a marker") String labeled;
 
@@ -50,6 +51,11 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
     /** The annotated class bound is followed by an interface bound */
     public static <S extends @Maybe Object & java.io.Serializable> S sturdy(S value) {
         return value;
+    }
+
+    /** The annotation is on the array of the arguments, not on its elements */
+    public static int count(String @Maybe ... arguments) {
+        return arguments.length;
     }
 
     public static <U extends @Maybe Object> U first(U value) {

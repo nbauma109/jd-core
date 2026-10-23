@@ -37,4 +37,15 @@ public class SynchronizedReturns {
             misses++;
         }
     }
+
+    /** The copy of this 'finally' is a synchronized block which completes normally: it is removed, not taken for a returning block */
+    public void cleanedUpUnderALock(Object lock) {
+        try {
+            misses += 3;
+        } finally {
+            synchronized (lock) {
+                misses--;
+            }
+        }
+    }
 }

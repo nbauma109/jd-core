@@ -21,6 +21,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String internalClassName = GuavaPatterns.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
 
+        assertEquals(-1, source.indexOf("ErrorThrower<RuntimeException>"));
         assertEquals(-1, source.indexOf("null."));
         assertEquals(-1, source.indexOf("throw null"));
         assertEquals(-1, source.indexOf("Decompilation failed"));
@@ -158,6 +159,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         // the block is not taken for the copy of the 'finally' and removed with it
         assertTrue(source, source.contains("try { synchronized ("));
         assertEquals(source, 2, source.split("return load\\(", -1).length - 1);
+        // the 'finally' which is a synchronized block is written once
+        assertEquals(source, 1, source.split("misses--", -1).length - 1);
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

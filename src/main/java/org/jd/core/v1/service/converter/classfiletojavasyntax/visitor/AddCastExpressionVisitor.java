@@ -2276,13 +2276,29 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 .filter(GenericType.class::isInstance).map(exceptionType -> ((GenericType) exceptionType).getName()).collect(Collectors.toSet());
         List<String> identifiers = identifiersOf(instanceTypes.getTypeParameters());
 
-        if (thrown.containsAll(identifiers)) {
+        if (thrown.containsAll(identifiers) && allAreSatisfiedByRuntimeException(instanceTypes.getTypeParameters())) {
             TypeArguments arguments = new TypeArguments();
 
             identifiers.forEach(identifier -> arguments.add(typeMaker.makeFromInternalTypeName("java/lang/RuntimeException")));
             newExpression.setObjectType(newExpression.getObjectType().createType(singleOrList(arguments)));
             newExpression.setDiamondPossible(false);
         }
+    }
+
+    /** A bound such as 'T extends Error' is not satisfied by RuntimeException: the raw instance then throws an unchecked type already. */
+    private static boolean allAreSatisfiedByRuntimeException(BaseTypeParameter typeParameters) {
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds) {
+                BaseType bounds = withBounds.getTypeBounds();
+
+                for (Type bound : bounds.isList() ? bounds.<Type>getList() : List.of(bounds.getFirst())) {
+                    if (!(bound instanceof ObjectType objectType) || !RUNTIME_EXCEPTION_BOUNDS.contains(objectType.getInternalName())) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /**
@@ -3168,6 +3184,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         return false;
     }
+
+    private static final Set<String> RUNTIME_EXCEPTION_BOUNDS = Set.of("java/lang/Object", "java/lang/Throwable", "java/lang/Exception", "java/lang/RuntimeException");
 
     private static List<String> identifiersOf(BaseTypeParameter typeParameters) {
         return StreamSupport.stream(typeParameters.spliterator(), false).map(org.jd.core.v1.model.javasyntax.type.TypeParameter::getIdentifier).toList();

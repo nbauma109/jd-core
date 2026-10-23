@@ -72,9 +72,9 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
                 i--;
             } else if (lastStatement.isContinueStatement() || lastStatement.isBreakStatement()) {
                 i--;
-            } else if (lastStatement instanceof SynchronizedStatement synchronizedStatement) {
+            } else if (lastStatement instanceof SynchronizedStatement synchronizedStatement && endsAbruptly(synchronizedStatement.getStatements())) {
                 // When a synchronized block of the try returns, the copy of the finally statements is not after the block but in it,
-                // before its return.
+                // before its return. A block which completes normally is itself the copy of a finally block.
                 statementCountToRemove = 0;
                 i--;
                 synchronizedStatement.getStatements().accept(this);
@@ -134,6 +134,12 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
 
             statementCountToRemove = oldStatementCountToRemove;
         }
+    }
+
+    private static boolean endsAbruptly(BaseStatement statement) {
+        Statement last = statement.getLast();
+
+        return last.isReturnExpressionStatement() || last.isReturnStatement() || last.isThrowStatement() || last.isContinueStatement() || last.isBreakStatement();
     }
 
     private static WhileStatement getInfiniteWhileStatement(BaseStatement statement) {

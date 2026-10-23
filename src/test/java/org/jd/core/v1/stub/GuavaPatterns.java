@@ -1558,6 +1558,18 @@ public class GuavaPatterns {
         }
     }
 
+    /** The bound is an Error: RuntimeException is no argument for it, and the raw instance throws an unchecked type */
+    static final class ErrorThrower<T extends Error> {
+        @SuppressWarnings("unchecked")
+        private Error throwIt(Throwable throwable) throws T {
+            throw (T) throwable;
+        }
+
+        static Error rethrow(Throwable throwable) {
+            throw new ErrorThrower<Error>().throwIt(throwable);
+        }
+    }
+
     interface Successors<N> {
         java.util.Set<N> successors(N node);
     }

@@ -55,6 +55,7 @@ public class SynchronizedReturns {
             misses += 4;
         } finally {
             synchronized (lock) {
+                // nothing: the block is only a lock
             }
         }
     }

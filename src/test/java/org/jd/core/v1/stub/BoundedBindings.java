@@ -16,6 +16,9 @@ public class BoundedBindings {
     }
 
     public static final class Pair<A, B> {
+        Pair<A, B> same() {
+            return this;
+        }
     }
 
     static <C extends Comparable<?>> Ord<C> natural() {
@@ -64,11 +67,11 @@ public class BoundedBindings {
 
     static <E> Pair<E, String> ofVariables() {
         Pair<E, String> pair = (Pair) pair();
-        return pair;
+        return pair.same();
     }
 
     static Pair<Object, List<String>> ofObjects() {
         Pair<Object, List<String>> pair = (Pair) pair();
-        return pair;
+        return pair.same();
     }
 }

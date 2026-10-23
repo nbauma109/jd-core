@@ -59,7 +59,7 @@ public class InferenceLimits {
         int accepted;
 
         void accept(T value) {
-            accepted++;
+            accepted += value.hashCode() & 1;
         }
     }
 

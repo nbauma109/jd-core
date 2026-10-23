@@ -466,20 +466,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         /** The uses of the class in a type, in its type arguments too (List&lt;Local&gt;, ? extends Local) */
         private static int countTypeUses(Object type, String internalName) {
             if (type instanceof ObjectType objectType) {
-                int count = objectType.getInternalName().equals(internalName) ? 1 : 0;
-
-                if (objectType instanceof InnerObjectType innerType && innerType.getOuterType() != null) {
-                    // 'Outer<Local>.Inner': the type arguments of the enclosing type are not those of this one
-                    count += countTypeUses(innerType.getOuterType(), internalName);
-                }
-
-                if (objectType.getTypeArguments() instanceof TypeArguments arguments) {
-                    for (TypeArgument argument : arguments) {
-                        count += countTypeUses(argument, internalName);
-                    }
-                    return count;
-                }
-                return count + countTypeUses(objectType.getTypeArguments(), internalName);
+                return countObjectTypeUses(objectType, internalName);
             }
             if (type instanceof BaseType types && types.isList()) {
                 int count = 0;
@@ -493,6 +480,23 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 return countTypeUses(extending.type(), internalName);
             }
             return type instanceof WildcardSuperTypeArgument supering ? countTypeUses(supering.type(), internalName) : 0;
+        }
+
+        private static int countObjectTypeUses(ObjectType objectType, String internalName) {
+            int count = objectType.getInternalName().equals(internalName) ? 1 : 0;
+
+            if (objectType instanceof InnerObjectType innerType && innerType.getOuterType() != null) {
+                // 'Outer<Local>.Inner': the type arguments of the enclosing type are not those of this one
+                count += countTypeUses(innerType.getOuterType(), internalName);
+            }
+
+            if (objectType.getTypeArguments() instanceof TypeArguments arguments) {
+                for (TypeArgument argument : arguments) {
+                    count += countTypeUses(argument, internalName);
+                }
+                return count;
+            }
+            return count + countTypeUses(objectType.getTypeArguments(), internalName);
         }
     }
 

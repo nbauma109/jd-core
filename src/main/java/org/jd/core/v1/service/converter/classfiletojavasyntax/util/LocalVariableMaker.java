@@ -160,8 +160,7 @@ public class LocalVariableMaker {
             TypeAnnotationReader typeAnnotations = TypeAnnotationReader.of(method);
             // The type annotations are numbered by the parameters of the declaration: the outer instance of an inner class and the name and the ordinal
             // of an enum, which the descriptor starts with, are not counted
-            int syntheticParameters = !constructor || method.getArgumentTypes().length != parameterTypes.size() ? 0
-                    : classFile.isEnum() ? 2 : classFile.getOuterClassFile() != null && !classFile.isStatic() ? 1 : 0;
+            int syntheticParameters = constructor && method.getArgumentTypes().length == parameterTypes.size() ? countSyntheticParameters(classFile) : 0;
 
             if (rvpa == null && ripa == null && !typeAnnotations.hasParameterAnnotations()) {
                 AbstractLocalVariable lv;
@@ -638,5 +637,12 @@ public class LocalVariableMaker {
             localVariable.getFrame().removeLocalVariable(localVariable);
             frame.addLocalVariable(localVariable);
         }
+    }
+
+    private static int countSyntheticParameters(ClassFile classFile) {
+        if (classFile.isEnum()) {
+            return 2;
+        }
+        return classFile.getOuterClassFile() != null && !classFile.isStatic() ? 1 : 0;
     }
 }

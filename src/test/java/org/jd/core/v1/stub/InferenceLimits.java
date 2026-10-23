@@ -56,7 +56,10 @@ public class InferenceLimits {
     }
 
     public static class Bounded<T extends Number & Runnable> {
+        int accepted;
+
         void accept(T value) {
+            accepted++;
         }
     }
 

@@ -50,6 +50,7 @@ public class SynchronizedReturns {
     }
 
     /** The copy of this 'finally' is an empty synchronized block */
+    @SuppressWarnings("java:S108")
     public void emptyUnderALock(Object lock) {
         try {
             misses += 4;

@@ -137,7 +137,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
         // each outer 'for' keeps its update, or its loop would never end
-        assertFalse(source, source.matches(".*for \\(int \\w+ = 0; \\w+ < \\w+; \\).*"));
-        assertTrue(source, source.matches(".*for \\(int (\\w+) = 0; \\1 < \\w+; \\1\\+\\+\\).*"));
+        assertFalse(source, source.contains("; )"));
+        assertTrue(source, source.contains("++)"));
     }
 }

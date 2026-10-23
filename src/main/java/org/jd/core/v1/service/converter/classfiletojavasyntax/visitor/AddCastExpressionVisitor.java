@@ -1437,6 +1437,31 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    /** '((A) this).x' names the owner of a field which the classes between hide: the cast is not redundant */
+    private static boolean isOwnerCastOfThis(Expression exp) {
+        return exp instanceof CastExpression ownerCast && ownerCast.getExpression().isThisExpression() && !ownerCast.isByteCodeCheckCast();
+    }
+
+    /** @return the type of the cast when it takes the type variable of the owner of the field ('((Holder<T>) o).value' read as a T), else the type of the owner */
+    private Type withTypeVariableOfTheOwnerAsTheCast(FieldReferenceExpression expression, Expression exp, Type localType) {
+        if (exp instanceof CastExpression castExpression
+                && castExpression.getType() instanceof ObjectType castType
+                && castType.getTypeArguments() == null
+                && expression.getType() instanceof GenericType fieldType
+                && expectedType instanceof GenericType contextualType
+                && fieldType.getName().equals(contextualType.getName())) {
+            TypeTypes ownerTypes = typeMaker.makeTypeTypes(expression.getInternalTypeName());
+            BaseTypeParameter ownerParameters = ownerTypes == null ? null : ownerTypes.getTypeParameters();
+            if (ownerParameters != null && ownerParameters.size() == 1
+                    && ownerParameters.getFirst().getIdentifier().equals(fieldType.getName())) {
+                castExpression.setType(castType.createType(
+                        new GenericType(contextualType.getName(), contextualType.getDimension() - fieldType.getDimension())));
+                return castExpression.getType();
+            }
+        }
+        return localType;
+    }
+
     @Override
     public void visit(FieldReferenceExpression expression) {
         Expression exp = expression.getExpression();
@@ -1444,26 +1469,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (exp != null && !exp.isObjectTypeReferenceExpression()) {
             Type localType = typeMaker.makeFromInternalTypeName(expression.getInternalTypeName());
 
-            if (exp instanceof CastExpression castExpression
-                    && castExpression.getType() instanceof ObjectType castType
-                    && castType.getTypeArguments() == null
-                    && expression.getType() instanceof GenericType fieldType
-                    && expectedType instanceof GenericType contextualType
-                    && fieldType.getName().equals(contextualType.getName())) {
-                TypeTypes ownerTypes = typeMaker.makeTypeTypes(expression.getInternalTypeName());
-                BaseTypeParameter ownerParameters = ownerTypes == null ? null : ownerTypes.getTypeParameters();
-                if (ownerParameters != null && ownerParameters.size() == 1
-                        && ownerParameters.getFirst().getIdentifier().equals(fieldType.getName())) {
-                    castExpression.setType(castType.createType(
-                            new GenericType(contextualType.getName(), contextualType.getDimension() - fieldType.getDimension())));
-                    localType = castExpression.getType();
-                }
-            }
+            localType = withTypeVariableOfTheOwnerAsTheCast(expression, exp, localType);
 
             // '((A) this).x' names the owner of a field which the classes between hide: the cast is not redundant
-            boolean ownerCastOfThis = exp instanceof CastExpression ownerCast && ownerCast.getExpression().isThisExpression() && !ownerCast.isByteCodeCheckCast();
-
-            if (localType.getName() != null && !ownerCastOfThis) {
+            if (localType.getName() != null && !isOwnerCastOfThis(exp)) {
                 Expression oldMemberReceiver = memberReceiver;
                 memberReceiver = exp;
                 expression.setExpression(updateExpression(Collections.emptyMap(), typeBounds, localType, null, exp, false, true, false));

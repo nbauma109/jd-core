@@ -649,7 +649,10 @@ public class LocalVariableMaker {
             return 0;
         }
         if (EnclosingMethods.isDeclaredInAnInitializer(classFile)) {
-            // a static initializer gives no outer instance, an instance initializer does: it is the first parameter
+            if (EnclosingMethods.isCreatedByTheStaticInitializer(classFile, outerClassFile)) {
+                return 0;
+            }
+            // an instance initializer gives an outer instance, which is the first parameter (the class is not created: only the descriptor says)
             org.apache.bcel.generic.Type[] types = constructor.getArgumentTypes();
 
             return types.length > 0 && types[0].getSignature().equals("L" + outerClassFile.getInternalTypeName() + ";") ? 1 : 0;

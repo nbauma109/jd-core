@@ -90,5 +90,12 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
         }
         Object created = new InInitializer(null, null);
         created.hashCode();
+        class OfTheOuterType {
+            @SuppressWarnings("rawtypes")
+            OfTheOuterType(@Maybe TypeAnnotationPatterns first, String second) {
+            }
+        }
+        Object other = new OfTheOuterType(null, null);
+        other.hashCode();
     }
 }

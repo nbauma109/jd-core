@@ -7,6 +7,12 @@ import org.apache.bcel.classfile.EnclosingMethod;
 import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.model.classfile.ClassFile;
 
+import org.apache.bcel.classfile.Code;
+import org.apache.bcel.generic.ConstantPoolGen;
+import org.apache.bcel.generic.InstructionHandle;
+import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.NEW;
+
 import java.util.Arrays;
 
 public final class EnclosingMethods {
@@ -36,5 +42,24 @@ public final class EnclosingMethods {
         EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
 
         return enclosingMethod != null && enclosingMethod.getEnclosingMethodIndex() == 0;
+    }
+
+    /** A local class is only created by the initializer which declares it: the static initializer of the outer class, when its '<clinit>' creates it */
+    public static boolean isCreatedByTheStaticInitializer(ClassFile classFile, ClassFile outerClassFile) {
+        ConstantPoolGen constants = new ConstantPoolGen(outerClassFile.getConstantPool());
+        String className = classFile.getInternalTypeName().replace('/', '.');
+
+        for (Method method : outerClassFile.getMethods()) {
+            Code code = method.getCode();
+
+            if (Const.STATIC_INITIALIZER_NAME.equals(method.getName()) && code != null) {
+                for (InstructionHandle handle : new InstructionList(code.getCode())) {
+                    if (handle.getInstruction() instanceof NEW creation && creation.getLoadClassType(constants).getClassName().equals(className)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

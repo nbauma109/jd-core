@@ -61,6 +61,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(source.contains("<C extends @Maybe Closeable> C register(C closeable)") || source.contains("<C extends java.io.@Maybe Closeable> C register(C closeable)"));
         assertTrue(source.contains("Local(@Maybe Object value)"));
         assertTrue(source.contains("InInitializer(@Maybe String first, Object second)"));
+        assertTrue(source.contains("OfTheOuterType(@Maybe TypeAnnotationPatterns first, String second)"));
         assertFalse(source.contains("@Twice @Twice"));
         // on every kind of type: a class, a parameterized class, a type variable
         assertTrue(source.contains("(@Maybe String first, int second, @Maybe Object third)"));

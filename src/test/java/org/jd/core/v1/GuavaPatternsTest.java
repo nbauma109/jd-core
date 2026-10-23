@@ -10,6 +10,7 @@ import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.LoopUpdates;
+import org.jd.core.v1.stub.SynchronizedReturns;
 import org.jd.core.v1.stub.TypeAnnotationPatterns;
 import org.junit.Test;
 
@@ -139,5 +140,17 @@ public class GuavaPatternsTest extends AbstractJdTest {
         // each outer 'for' keeps its update, or its loop would never end
         assertFalse(source, source.contains("; )"));
         assertTrue(source, source.contains("++)"));
+    }
+
+    @Test
+    public void testSynchronizedBlockWhichReturnsInATryWithAFinally() throws Exception {
+        String internalClassName = SynchronizedReturns.class.getName().replace('.', '/');
+        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // the block is not taken for the copy of the 'finally' and removed with it
+        assertTrue(source, source.contains("try { synchronized ("));
+        assertEquals(source, 2, source.split("return load\\(", -1).length - 1);
+        assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 }

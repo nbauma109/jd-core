@@ -73,4 +73,13 @@ public class TypeAnnotationPatterns<T extends @Maybe Object> {
     public static <C extends @Maybe Closeable> C register(C closeable) {
         return closeable;
     }
+
+    /** A local class of a static method has no outer instance: the index of the parameter of its constructor is the one of the descriptor */
+    public static Object localClassOfAStaticMethod() {
+        class Local {
+            Local(@Maybe Object value) {
+            }
+        }
+        return new Local(null);
+    }
 }

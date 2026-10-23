@@ -94,4 +94,20 @@ public class LocalClassPlacement {
         }
         return first == null ? last : first;
     }
+
+    static class Holder<T> {
+    }
+
+    /** The class is only in the type argument of the superclass of an anonymous class, after the block of its only instance */
+    public static Object itemInTheTypeArgumentOfAnAnonymousClass(boolean flag) {
+        class Item {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Item();
+        }
+        return first == null ? new Holder<Item>() {
+        } : first;
+    }
 }

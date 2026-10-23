@@ -7,9 +7,6 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.apache.bcel.Const;
-import org.apache.bcel.classfile.ConstantNameAndType;
-import org.apache.bcel.classfile.ConstantPool;
-import org.apache.bcel.classfile.EnclosingMethod;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.classfile.MethodParameter;
 import org.apache.bcel.classfile.MethodParameters;
@@ -76,6 +73,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.EnclosingMethods;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InstanceMemberClassFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
@@ -221,7 +219,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
             if (OUTER_THIS_PARAMETER_NAME.matcher(firstParameter.getName()).matches() && firstParameter.getType() instanceof ObjectType firstParameterType
                     && firstParameterType.getInternalName().equals(outerClassFile.getInternalTypeName())
-                    && !isDeclaredInStaticMethod(classFile, outerClassFile)
+                    && !EnclosingMethods.isDeclaredInStaticMethod(classFile, outerClassFile)
                     && isMandatedOuterParameter(classFile, cfcd.getMethod())
                     && firstParameter instanceof ClassFileFormalParameter outerParameter) {
                 outerInstanceParameter = true;
@@ -305,23 +303,6 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    private static boolean isDeclaredInStaticMethod(ClassFile classFile, ClassFile outerClassFile) {
-        EnclosingMethod enclosingMethod = classFile.getAttribute(Const.ATTR_ENCLOSING_METHOD);
-
-        if (enclosingMethod == null || enclosingMethod.getEnclosingMethodIndex() == 0) {
-            return false;
-        }
-
-        ConstantPool constants = classFile.getConstantPool();
-        ConstantNameAndType nameAndType = enclosingMethod.getEnclosingMethod();
-        String name = nameAndType.getName(constants);
-        String signature = nameAndType.getSignature(constants);
-
-        return Arrays.stream(outerClassFile.getMethods())
-                .filter(method -> method.getName().equals(name) && method.getSignature().equals(signature))
-                .anyMatch(Method::isStatic);
-    }
-
     private static boolean isMandatedOuterParameter(ClassFile classFile, Method constructor) {
         if (classFile.getMajorVersion() < MAJOR_VERSION_MANDATED_PARAMETERS) {
             // javac 18-20 drop the unused outer instance without describing the parameter
@@ -352,9 +333,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(NewExpression expression) {
-            if (expression.getObjectType().getInternalName().equals(internalName)) {
-                count++;
-            }
+            count += countTypeUses(expression.getObjectType(), internalName);
             super.visit(expression);
         }
 

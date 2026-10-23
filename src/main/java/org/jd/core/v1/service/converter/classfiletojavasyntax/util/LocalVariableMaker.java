@@ -643,6 +643,8 @@ public class LocalVariableMaker {
         if (classFile.isEnum()) {
             return 2;
         }
-        return classFile.getOuterClassFile() != null && !classFile.isStatic() ? 1 : 0;
+        ClassFile outerClassFile = classFile.getOuterClassFile();
+
+        return outerClassFile != null && !classFile.isStatic() && !EnclosingMethods.isDeclaredInStaticMethod(classFile, outerClassFile) ? 1 : 0;
     }
 }

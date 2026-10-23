@@ -54,4 +54,20 @@ public class InferenceLimits {
     public static int hiddenByTheMethod(Pair<String, Value> pair, Object value) {
         return ((Value) pair.pick(value)).answer();
     }
+
+    public static class Bounded<T extends Number & Runnable> {
+        void accept(T value) {
+        }
+    }
+
+    /** The bound of the wildcard alone does not satisfy the bounds of the variable of the class */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static void severalBounds(Bounded<? extends Number> bounded, Number number) {
+        ((Bounded) bounded).accept(number);
+    }
+
+    /** A method reference needs the type of the elements of the list */
+    public static int referenceOverCaptures(Box<? extends Number> box) {
+        return count(box.lists(), List::size);
+    }
 }

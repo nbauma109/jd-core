@@ -1047,6 +1047,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         BaseTypeArgument receiverArguments = receiverType.getTypeArguments();
 
         if (isCaptureWildcard(receiverArguments)) {
+            if (StreamSupport.stream(typeTypes.getTypeParameters().spliterator(), false).anyMatch(AddCastExpressionVisitor::hasSeveralBounds)) {
+                return receiverType.createType((BaseTypeArgument)null);
+            }
             Type bound = classTypeParameterBounds.values().size() == 1 ? classTypeParameterBounds.values().iterator().next() : null;
             Type replacement = wildcardReplacement((TypeArgument)receiverArguments, bound);
             return replacement == null ? receiverType.createType((BaseTypeArgument)null) : receiverType.createType(replacement);
@@ -1061,7 +1064,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter = typeParameterIterator.next();
 
                 if (isCaptureWildcard(receiverArgument)) {
-                    Type replacement = wildcardReplacement(receiverArgument, classTypeParameterBounds.get(typeParameter.getIdentifier()));
+                    Type replacement = hasSeveralBounds(typeParameter) ? null : wildcardReplacement(receiverArgument, classTypeParameterBounds.get(typeParameter.getIdentifier()));
                     if (replacement == null) {
                         return receiverType.createType((BaseTypeArgument)null);
                     }
@@ -1076,6 +1079,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return receiverType.createType((BaseTypeArgument)null);
+    }
+
+    /** 'T extends Number & Runnable': the bound of the wildcard alone does not satisfy the bounds of the variable */
+    private static boolean hasSeveralBounds(org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
+        return typeParameter instanceof TypeParameterWithTypeBounds withBounds && withBounds.getTypeBounds().size() > 1;
     }
 
     /**
@@ -1887,8 +1895,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || Utils.isEmpty(call.getParameters())) {
             return;
         }
-        if (StreamSupport.stream(call.getParameters().spliterator(), false).anyMatch(LambdaIdentifiersExpression.class::isInstance)) {
-            // a raw argument would give the parameters of an implicit lambda the type Object
+        if (StreamSupport.stream(call.getParameters().spliterator(), false).anyMatch(argument -> argument instanceof LambdaIdentifiersExpression || isProperMethodReference(argument))) {
+            // a raw argument would give the parameters of an implicit lambda, or the ones a method reference has to accept, the type Object
             return;
         }
         Expressions updated = new Expressions();

@@ -44,7 +44,7 @@ public final class EnclosingMethods {
         return enclosingMethod != null && enclosingMethod.getEnclosingMethodIndex() == 0;
     }
 
-    /** A local class is only created by the initializer which declares it: the static initializer of the outer class, when its '<clinit>' creates it */
+    /** A local class is only created by the initializer which declares it: the static initializer of the outer class, when its '<clinit>' or one of the lambdas it declares creates it */
     public static boolean isCreatedByTheStaticInitializer(ClassFile classFile, ClassFile outerClassFile) {
         ConstantPoolGen constants = new ConstantPoolGen(outerClassFile.getConstantPool());
         String className = classFile.getInternalTypeName().replace('/', '.');
@@ -52,7 +52,7 @@ public final class EnclosingMethods {
         for (Method method : outerClassFile.getMethods()) {
             Code code = method.getCode();
 
-            if (Const.STATIC_INITIALIZER_NAME.equals(method.getName()) && code != null) {
+            if (code != null && (Const.STATIC_INITIALIZER_NAME.equals(method.getName()) || method.getName().startsWith("lambda$static$"))) {
                 for (InstructionHandle handle : new InstructionList(code.getCode())) {
                     if (handle.getInstruction() instanceof NEW creation && creation.getLoadClassType(constants).getClassName().equals(className)) {
                         return true;

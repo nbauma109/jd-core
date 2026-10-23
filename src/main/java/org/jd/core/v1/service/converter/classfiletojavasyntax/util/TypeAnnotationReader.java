@@ -110,7 +110,6 @@ public final class TypeAnnotationReader {
         for (int count = in.readUnsignedShort(); count > 0; count--) {
             int target = in.readUnsignedByte();
             int[] info = readTargetInfo(in, target);
-            int parameterIndex = info[0];
             int pathLength = in.readUnsignedByte();
 
             skip(in, pathLength * 2);
@@ -123,14 +122,21 @@ public final class TypeAnnotationReader {
                 skipElementValue(in);
             }
             if (pathLength == 0 && pairs == 0) {
-                if (target == TARGET_FIELD || target == TARGET_METHOD_RETURN) {
-                    declaration.add(descriptor);
-                } else if (target == TARGET_FORMAL_PARAMETER && parameterIndex != NO_PARAMETER) {
-                    parameters.computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
-                } else if ((target == TARGET_CLASS_TYPE_PARAMETER_BOUND || target == TARGET_METHOD_TYPE_PARAMETER_BOUND) && info[1] <= 1) {
-                    (info[1] == 0 ? bounds : interfaceBounds).computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
-                }
+                keep(target, info, descriptor);
             }
+        }
+    }
+
+    /** Keeps the annotation of a whole type: the others (the path is not empty, the annotation has elements) are not represented */
+    private void keep(int target, int[] info, String descriptor) {
+        int parameterIndex = info[0];
+
+        if (target == TARGET_FIELD || target == TARGET_METHOD_RETURN) {
+            declaration.add(descriptor);
+        } else if (target == TARGET_FORMAL_PARAMETER && parameterIndex != NO_PARAMETER) {
+            parameters.computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
+        } else if ((target == TARGET_CLASS_TYPE_PARAMETER_BOUND || target == TARGET_METHOD_TYPE_PARAMETER_BOUND) && info[1] <= 1) {
+            (info[1] == 0 ? bounds : interfaceBounds).computeIfAbsent(parameterIndex, k -> new ArrayList<>()).add(descriptor);
         }
     }
 

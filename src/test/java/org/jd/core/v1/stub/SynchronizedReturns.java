@@ -48,4 +48,14 @@ public class SynchronizedReturns {
             }
         }
     }
+
+    /** The copy of this 'finally' is an empty synchronized block */
+    public void emptyUnderALock(Object lock) {
+        try {
+            misses += 4;
+        } finally {
+            synchronized (lock) {
+            }
+        }
+    }
 }

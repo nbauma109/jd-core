@@ -7,6 +7,7 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.stub.GuavaOuter;
 import org.jd.core.v1.stub.GuavaPatterns;
+import org.jd.core.v1.stub.BoundedBindings;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.LoopUpdates;
@@ -162,7 +163,17 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertEquals(source, 2, source.split("return load\\(", -1).length - 1);
         // the 'finally' which is a synchronized block is written once
         assertEquals(source, 1, source.split("misses--", -1).length - 1);
+        assertTrue(source, source.contains("emptyUnderALock"));
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testTypeVariablesOutsideTheirBoundsAreBoundToTheirBounds() throws Exception {
+        String internalClassName = BoundedBindings.class.getName().replace('.', '/');
+        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertEquals(printed, -1, printed.indexOf("throw null"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 
     @Test

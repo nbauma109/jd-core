@@ -137,6 +137,9 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
     }
 
     private static boolean endsAbruptly(BaseStatement statement) {
+        if (statement.size() == 0) {
+            return false;
+        }
         Statement last = statement.getLast();
 
         return last.isReturnExpressionStatement() || last.isReturnStatement() || last.isThrowStatement() || last.isContinueStatement() || last.isBreakStatement();

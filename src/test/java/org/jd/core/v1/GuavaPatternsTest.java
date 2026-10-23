@@ -178,6 +178,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
         assertTrue(source, source.contains("((Value)values.get(\"key\")).answer()") || source.contains("((Value) values.get(\"key\")).answer()"));
+        assertTrue(source, source.contains("((Value)pair.pick(value)).answer()") || source.contains("((Value) pair.pick(value)).answer()"));
         assertFalse(source, source.contains("::<String>create"));
         assertFalse(source, source.contains("(List)box.lists()") || source.contains("(List) box.lists()"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));

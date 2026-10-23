@@ -42,4 +42,16 @@ public class InferenceLimits {
     public static int lambdaOverCaptures(Box<? extends Number> box) {
         return count(box.lists(), elements -> elements.size());
     }
+
+    public static class Pair<K, V> {
+        @SuppressWarnings("unchecked")
+        <V> V pick(Object value) {
+            return (V) value;
+        }
+    }
+
+    /** The type variable of the method hides the one of the class: it is inferred from the argument, the receiver says nothing of it */
+    public static int hiddenByTheMethod(Pair<String, Value> pair, Object value) {
+        return ((Value) pair.pick(value)).answer();
+    }
 }

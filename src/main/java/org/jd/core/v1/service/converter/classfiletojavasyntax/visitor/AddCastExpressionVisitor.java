@@ -1610,7 +1610,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
 
-        if (methodTypes == null || !(methodTypes.getReturnedType() instanceof GenericType returnedVariable) || returnedVariable.getDimension() != 0) {
+        if (methodTypes == null || !(methodTypes.getReturnedType() instanceof GenericType returnedVariable) || returnedVariable.getDimension() != 0
+                || (methodTypes.getTypeParameters() != null && identifiersOf(methodTypes.getTypeParameters()).contains(returnedVariable.getName()))) {
+            // a type variable of the method, which may hide the one of the class, is inferred from the arguments, not from the receiver
             return false;
         }
         TypeTypes typeTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());

@@ -74,43 +74,23 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 
+    /** The local class is declared before the block holding its only 'new', because what comes after the block needs it */
     @Test
-    public void testLocalClassUsedInTheSignatureOfAnotherLocalClass() throws Exception {
+    public void testLocalClassIsDeclaredBeforeWhatNeedsItAfterTheBlockOfItsOnlyInstance() throws Exception {
         String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
         String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
-        // Item is declared before the block holding its only 'new Item()', because Holder, declared after the block, has a field of that type
-        assertTrue(source, source.indexOf("class Item") != -1 && source.indexOf("class Item") < source.indexOf("if (flag)"));
+        // a field of the class in another local class, a bound, the declaration of a 'for' statement, an implements clause, a catch, type arguments, a constructor reference
+        assertDeclaredBeforeTheBlock(source, "itemInTheSignatureOfAnotherLocalClass(", "Item");
+        assertDeclaredBeforeTheBlock(source, "itemInTheBoundOfAnotherLocalClass(", "Item");
+        assertDeclaredBeforeTheBlock(source, "itemInTheDeclarationOfAForStatement(", "Item");
+        assertDeclaredBeforeTheBlock(source, "mentionedEverywhere(", "Marker");
     }
 
-    @Test
-    public void testLocalClassUsedInTheDeclarationOfAForStatement() throws Exception {
-        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
-        String method = source.substring(source.indexOf("itemInTheDeclarationOfAForStatement("));
+    private static void assertDeclaredBeforeTheBlock(String source, String method, String className) {
+        String body = source.substring(source.indexOf(method));
 
-        // Item is declared before the block holding its only 'new Item()', because the 'for' after the block declares a variable of that type
-        assertTrue(method, method.indexOf("class Item") != -1 && method.indexOf("class Item") < method.indexOf("if (flag)"));
-    }
-
-    @Test
-    public void testLocalClassUsedInTheBoundOfAnotherLocalClass() throws Exception {
-        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
-        String method = source.substring(source.indexOf("itemInTheBoundOfAnotherLocalClass("));
-
-        // Item is declared before the block holding its only 'new Item()', because Bounded, declared after the block, has a type parameter bounded by it
-        assertTrue(method, method.indexOf("class Item") != -1 && method.indexOf("class Item") < method.indexOf("if (flag)"));
-    }
-
-    @Test
-    public void testLocalClassesMentionedEverywhere() throws Exception {
-        String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
-        String method = source.substring(source.indexOf("mentionedEverywhere("));
-
-        // Marker is used by Tagged, in a catch, in type arguments and in a constructor reference: its declaration stays before the block
-        assertTrue(method, method.indexOf("class Marker") != -1 && method.indexOf("class Marker") < method.indexOf("if (flag)"));
+        assertTrue(body, body.indexOf("class " + className) != -1 && body.indexOf("class " + className) < body.indexOf("if (flag)"));
     }
 
     @Test

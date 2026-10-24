@@ -112,7 +112,7 @@ public class LocalClassPlacement {
     }
 
     /** The class used in the resource of a 'try' stays visible to it */
-    public static Object itemInTheResourceOfATry(boolean flag) throws Exception {
+    public static Object itemInTheResourceOfATry(boolean flag) {
         class Item implements AutoCloseable {
             @Override
             public void close() {

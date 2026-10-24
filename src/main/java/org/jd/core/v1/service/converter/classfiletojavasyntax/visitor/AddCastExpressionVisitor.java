@@ -1887,16 +1887,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return arguments == null ? null : castType.createType(arguments);
     }
 
-    /**
-     * 'Collections.unmodifiableSet(this.delegate.entrySet())' with delegate a 'Multiset&lt;? extends E&gt;': the elements are
-     * Entry&lt;capture&gt;, which a type variable fixed by the target (Entry&lt;E&gt;) rejects; the source casts the argument to a raw type.
-     */
     /** The type variable is inferred from an argument whose type has a capture ('first(box.lists())'): javac does it, a type argument written for it is rejected */
     private boolean hasAnArgumentCapturedFromAWildcardReceiver(ClassFileMethodInvocationExpression call) {
         return !Utils.isEmpty(call.getParameters()) && StreamSupport.stream(call.getParameters().spliterator(), false)
                 .anyMatch(argument -> argument instanceof ClassFileMethodInvocationExpression argumentCall && producesCapturesOfWildcardReceiver(argumentCall));
     }
 
+    /**
+     * 'Collections.unmodifiableSet(this.delegate.entrySet())' with delegate a 'Multiset&lt;? extends E&gt;': the elements are
+     * Entry&lt;capture&gt;, which a type variable fixed by the target (Entry&lt;E&gt;) rejects; the source casts the argument to a raw type.
+     */
     private void castArgumentsCapturedFromWildcardReceiversToRaw(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || Utils.isEmpty(call.getParameters())) {
             return;

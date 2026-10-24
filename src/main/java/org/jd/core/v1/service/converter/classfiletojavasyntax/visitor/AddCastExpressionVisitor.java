@@ -2207,24 +2207,27 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (method.length == 0) {
             return false;
         }
+        return functionalParameterTypes(targetType, method).stream()
+                .anyMatch(parameterType -> upperBoundOrSelf(parameterType) instanceof ObjectType bound && bound.getTypeArguments() != null);
+    }
+
+    /** The parameter types of the functional method of a target, seen through its type arguments (an interface with none declares them itself) */
+    private List<Type> functionalParameterTypes(ObjectType targetType, String[] method) {
         TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(method[0], method[1], method[2]);
 
         if (methodTypes == null || methodTypes.getParameterTypes() == null) {
-            return false;
+            return List.of();
         }
-        // An interface with no type argument (or none of its own) declares the parameterized types itself
         ObjectType declaring = targetType.getTypeArguments() == null ? null : parameterizationOfDeclaringInterface(targetType, method[0]);
         TypeTypes typeTypes = declaring == null || declaring.getTypeArguments() == null ? null : typeMaker.makeTypeTypes(method[0]);
-        List<TypeArgument> typeArguments = typeTypes == null || typeTypes.getTypeParameters() == null ? List.of() : toTypeArgumentList(declaring.getTypeArguments());
+        boolean bound = typeTypes != null && typeTypes.getTypeParameters() != null;
+        List<TypeArgument> typeArguments = bound ? toTypeArgumentList(declaring.getTypeArguments()) : List.of();
+        List<Type> seen = new ArrayList<>();
 
         for (Type parameterType : methodTypes.getParameterTypes()) {
-            Type seen = typeArguments.isEmpty() ? parameterType : bindTypeVariables(parameterType, typeTypes.getTypeParameters(), typeArguments);
-
-            if (upperBoundOrSelf(seen) instanceof ObjectType bound && bound.getTypeArguments() != null) {
-                return true;
-            }
+            seen.add(bound ? bindTypeVariables(parameterType, typeTypes.getTypeParameters(), typeArguments) : parameterType);
         }
-        return false;
+        return seen;
     }
 
     /** A generic class without type arguments: what a lambda's bytecode knows of its parameter. */

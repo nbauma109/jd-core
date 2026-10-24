@@ -60,4 +60,16 @@ public class SynchronizedReturns {
             }
         }
     }
+
+    /** The copy of this 'finally' is a synchronized block which returns: it is the copy, the call is made once */
+    @SuppressWarnings("finally")
+    public Object returnsInTheFinally(Object lock) {
+        try {
+            misses += 6;
+        } finally {
+            synchronized (lock) {
+                return await(lock);
+            }
+        }
+    }
 }

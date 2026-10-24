@@ -167,6 +167,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         // the 'finally' which is a synchronized block is written once
         assertEquals(source, 1, source.split("misses--", -1).length - 1);
         assertTrue(source, source.contains("emptyUnderALock"));
+        // the call of the synchronized block of the 'finally' which returns is made once
+        assertEquals(source, 1, source.split("return await\\(lock\\)", -1).length - 1);
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

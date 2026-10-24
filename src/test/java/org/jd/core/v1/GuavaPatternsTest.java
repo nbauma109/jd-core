@@ -92,6 +92,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertDeclaredBeforeTheBlock(source, "itemInTheDeclarationOfAForStatement(", "Item");
         assertDeclaredBeforeTheBlock(source, "mentionedEverywhere(", "Marker");
         assertDeclaredBeforeTheBlock(source, "itemInTheTypeArgumentOfAnAnonymousClass(", "Item");
+        assertDeclaredBeforeTheBlock(source, "itemInTheResourceOfATry(", "Item");
     }
 
     private static void assertDeclaredBeforeTheBlock(String source, String method, String className) {
@@ -190,6 +191,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertFalse(source, source.contains("<String>create"));
         assertFalse(source, source.contains("(List)box.lists()") || source.contains("(List) box.lists()"));
         assertFalse(source, source.contains("(Bounded<Number>)"));
+        assertFalse(source, source.contains("first((List)") || source.contains("first((List) "));
+        assertFalse(source, source.contains("(List strings)") || source.contains("(List xs)"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

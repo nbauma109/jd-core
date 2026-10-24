@@ -110,4 +110,23 @@ public class LocalClassPlacement {
         return first == null ? new Holder<Item>() {
         } : first;
     }
+
+    /** The class used in the resource of a 'try' stays visible to it */
+    public static Object itemInTheResourceOfATry(boolean flag) throws Exception {
+        class Item implements AutoCloseable {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Item();
+        }
+        try (Item resource = null) {
+            first = resource;
+        }
+        return first;
+    }
 }

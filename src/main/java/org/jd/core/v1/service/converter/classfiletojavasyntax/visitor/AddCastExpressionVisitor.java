@@ -1891,8 +1891,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * 'Collections.unmodifiableSet(this.delegate.entrySet())' with delegate a 'Multiset&lt;? extends E&gt;': the elements are
      * Entry&lt;capture&gt;, which a type variable fixed by the target (Entry&lt;E&gt;) rejects; the source casts the argument to a raw type.
      */
+    /** The type variable is inferred from an argument whose type has a capture ('first(box.lists())'): javac does it, a type argument written for it is rejected */
+    private boolean hasAnArgumentCapturedFromAWildcardReceiver(ClassFileMethodInvocationExpression call) {
+        return !Utils.isEmpty(call.getParameters()) && StreamSupport.stream(call.getParameters().spliterator(), false)
+                .anyMatch(argument -> argument instanceof ClassFileMethodInvocationExpression argumentCall && producesCapturesOfWildcardReceiver(argumentCall));
+    }
+
     private void castArgumentsCapturedFromWildcardReceiversToRaw(MethodInvocationExpression expression) {
         if (!(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null || Utils.isEmpty(call.getParameters())) {
+            return;
+        }
+        if (expression == memberReceiver) {
+            // The result is read ('first(box.lists()).size()'): a raw argument would make it an Object, and a type argument with a wildcard is rejected:
+            // javac infers the capture itself
+            if (hasAnArgumentCapturedFromAWildcardReceiver(call)) {
+                call.setNonWildcardTypeArguments(null);
+            }
             return;
         }
         if (StreamSupport.stream(call.getParameters().spliterator(), false).anyMatch(argument -> argument instanceof LambdaIdentifiersExpression || isProperMethodReference(argument))) {
@@ -2163,14 +2177,32 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 rawArgument |= argumentTypes != null && argumentTypes.getTypeParameters() != null;
             }
         }
+        List<Type> declaredTypes = call.getUnboundParameterTypes() == null ? List.of() : new ArrayList<>(StreamSupport.stream(call.getUnboundParameterTypes().spliterator(), false).toList());
+        int index = 0;
+
         for (Expression argument : call.getParameters()) {
+            Type declared = index < declaredTypes.size() ? declaredTypes.get(index) : null;
+
+            index++;
             if (argument instanceof LambdaIdentifiersExpression lambda && lambda.getParameterNames() != null && !lambda.getParameterNames().isEmpty()
                     && lambda.getParameterTypes() != null && lambda.getParameterTypes().size() == lambda.getParameterNames().size()
                     && lambda.getParameterTypes().stream().allMatch(this::isRawGenericType)
+                    && !targetGivesTheParameterTypes(lambda, declared)
                     && (rawArgument || castsWhatItTakesOutOfItsParameters(lambda))) {
                 lambda.setExplicitParameterTypes(true);
             }
         }
+    }
+
+    /** 'Function&lt;List&lt;String&gt;, R&gt;': the functional type has the parameterized type of the parameters, which erased types would contradict */
+    private static boolean targetGivesTheParameterTypes(LambdaIdentifiersExpression lambda, Type declared) {
+        if (!(declared instanceof ObjectType functionalType) || functionalType.getTypeArguments() == null) {
+            return false;
+        }
+        List<TypeArgument> functionalArguments = toTypeArgumentList(functionalType.getTypeArguments());
+
+        return functionalArguments.subList(0, Math.min(lambda.getParameterNames().size(), functionalArguments.size())).stream()
+                .anyMatch(argument -> upperBoundOrSelf(argument) instanceof ObjectType parameterType && parameterType.getTypeArguments() != null);
     }
 
     /** A generic class without type arguments: what a lambda's bytecode knows of its parameter. */
@@ -2324,7 +2356,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      */
     private void writeTypeArgumentsOfReceiverBoundToWildcardType(MethodInvocationExpression expression) {
         if (expression != memberReceiver || !(expression instanceof ClassFileMethodInvocationExpression call) || call.getTypeParameters() == null
-                || call.getNonWildcardTypeArguments() != null || call.getTypeBindings() == null || call.getExpression().isThisExpression()) {
+                || call.getNonWildcardTypeArguments() != null || call.getTypeBindings() == null || call.getExpression().isThisExpression()
+                || hasAnArgumentCapturedFromAWildcardReceiver(call)) {
             return;
         }
         TypeArguments arguments = new TypeArguments();

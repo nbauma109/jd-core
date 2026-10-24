@@ -47,6 +47,7 @@ import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.statement.TypeDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement.CatchClause;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
@@ -405,6 +406,13 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         public void visit(LocalVariableDeclaration declaration) {
             count += countTypeUses(declaration.getType(), internalName);
             super.visit(declaration);
+        }
+
+        /** The resource of a 'try' is no declaration: 'try (Local resource = ...)' */
+        @Override
+        public void visit(TryStatement.Resource resource) {
+            count += countTypeUses(resource.getType(), internalName);
+            super.visit(resource);
         }
 
         @Override

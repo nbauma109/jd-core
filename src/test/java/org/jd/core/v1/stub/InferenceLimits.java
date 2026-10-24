@@ -79,4 +79,22 @@ public class InferenceLimits {
         return Collector.of(InferenceLimits::create, (accumulated, element) -> accumulated.add(element), (first, second) -> first,
                 accumulated -> accumulated.stream().map(Object::toString).toList());
     }
+
+    static <T> T first(List<T> values) {
+        return values.get(0);
+    }
+
+    static <R> R apply(java.util.function.Function<List<String>, R> function) {
+        return function.apply(new ArrayList<>());
+    }
+
+    /** The result is read: a raw argument would make it an Object */
+    public static int resultOfAnInvocationWhichIsReadAsAReceiver(Box<? extends Number> box) {
+        return first(box.lists()).size();
+    }
+
+    /** The target gives the lambda the parameter type List<String> */
+    public static String lambdaOverAParameterizedTarget() {
+        return apply(strings -> strings.isEmpty() ? "" : strings.get(0));
+    }
 }

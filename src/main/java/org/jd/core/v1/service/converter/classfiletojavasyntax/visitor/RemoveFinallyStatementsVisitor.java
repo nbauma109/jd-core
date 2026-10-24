@@ -184,6 +184,10 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
         Statements finallyStatements = (Statements)ts.getFinallyStatements();
 
         if (finallyStatements != null) {
+            // The statements of a 'finally' are not the end of a block which the 'finally' of an enclosing 'try' is copied at
+            int enclosingStatementCountToRemove = statementCountToRemove;
+
+            statementCountToRemove = 0;
             switch (finallyStatements.size()) {
                 case 0:
                     break;
@@ -196,6 +200,7 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
                     }
                     break;
             }
+            statementCountToRemove = enclosingStatementCountToRemove;
 
             if (statementCountInFinally == 0 && !finallyStatements.isEmpty()) {
                 lastFinallyStatementIsATryStatement = finallyStatements.getLast().isTryStatement();

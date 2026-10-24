@@ -211,6 +211,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
 
         // the flag set by the 'catch' is the one the 'finally' tests: the 'finally' is the one of the loop, not of one of its iterations
         assertTrue(source, source.contains("try { while (true) { try { return future.get(); } catch (InterruptedException e) { interrupted = true; } } } finally {"));
+        // the 'finally' of the inner 'try' keeps what it does when the 'finally' of the outer one is copied after it
+        assertTrue(source, source.contains("finally { if (!satisfied) lock.unlock(); }") || source.contains("finally { if (!satisfied) { lock.unlock(); } }"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

@@ -22,4 +22,52 @@ public class FinallyAroundALoop {
             }
         }
     }
+
+    /** The shape of Guava's Monitor.enterWhenUninterruptibly with a timeout: the 'finally' releases the lock if the guard was not satisfied */
+    public static boolean enterWhenSatisfied(Future<Boolean> guard, Future<Boolean> other, java.util.concurrent.locks.Lock lock, boolean fair, long timeoutNanos)
+            throws ExecutionException {
+        boolean interrupted = Thread.interrupted();
+
+        try {
+            if (fair || !lock.tryLock()) {
+                long remainingNanos = timeoutNanos;
+
+                while (true) {
+                    try {
+                        if (lock.tryLock(remainingNanos, java.util.concurrent.TimeUnit.NANOSECONDS)) {
+                            break;
+                        }
+                        return false;
+                    } catch (InterruptedException interrupt) {
+                        interrupted = true;
+                        remainingNanos = remainingNanos - 1;
+                    }
+                }
+            }
+            boolean satisfied = false;
+
+            try {
+                while (true) {
+                    try {
+                        if (guard.get()) {
+                            satisfied = true;
+                        } else {
+                            satisfied = other.get();
+                        }
+                        return satisfied;
+                    } catch (InterruptedException interrupt) {
+                        interrupted = true;
+                    }
+                }
+            } finally {
+                if (!satisfied) {
+                    lock.unlock();
+                }
+            }
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
 }

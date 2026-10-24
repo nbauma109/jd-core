@@ -779,48 +779,40 @@ public final class ControlFlowGraphLoopReducer {
     }
 
     private static BasicBlock recheckEndBlock(Loop loop, BasicBlock start, Set<BasicBlock> members, BasicBlock end) {
-        boolean flag;
-        BasicBlock newEnd;
-        do {
-            flag = !members.containsAll(end.getPredecessors());
+        if (!members.containsAll(end.getPredecessors())) {
+            return end;
+        }
 
-            if (flag) {
-                break;
+        // Search new 'end' block
+        BasicBlock newEnd = searchOtherExit(members, end);
+
+        if (newEnd == null) {
+            return end;
+        }
+
+        if (end.getFromOffset() >= newEnd.getFromOffset()) {
+            if (isReturnKeptBeforeTheUpdateOfTheOuterLoop(start, members, end, newEnd)) {
+                members.add(end);
+                loop.setExitKept(end);
+                return newEnd;
             }
+            return end;
+        }
 
-            // Search new 'end' block
-            newEnd = searchOtherExit(members, end);
+        // The other exit goes back to an enclosing loop (the update of the enclosing loop, i.e. 'continue outer'): the 'end'
+        // block follows the loop, it is not part of it. A 'return' or a 'throw' is kept in the loop when the update is copied by
+        // several jumps (it is inlined before each 'continue'), unless the loop goes back to the condition of a 'do ... while'.
+        if (isUpdateOfEnclosingLoop(start, newEnd)
+         && (newEnd.getType() == TYPE_CONDITIONAL_BRANCH || !end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW) || newEnd.getPredecessors().size() < 2)) {
+            return end;
+        }
 
-            if (newEnd == null) {
-                break;
-            }
-
-            if (end.getFromOffset() >= newEnd.getFromOffset()) {
-                if (isReturnKeptBeforeTheUpdateOfTheOuterLoop(start, members, end, newEnd)) {
-                    members.add(end);
-                    loop.setExitKept(end);
-                    end = newEnd;
-                }
-                break;
-            }
-
-            // The other exit goes back to an enclosing loop (the update of the enclosing loop, i.e. 'continue outer'): the 'end'
-            // block follows the loop, it is not part of it. A 'return' or a 'throw' is kept in the loop when the update is copied by
-            // several jumps (it is inlined before each 'continue'), unless the loop goes back to the condition of a 'do ... while'.
-            if (isUpdateOfEnclosingLoop(start, newEnd)
-             && (newEnd.getType() == TYPE_CONDITIONAL_BRANCH || !end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW) || newEnd.getPredecessors().size() < 2)) {
-                break;
-            }
-
-            // Replace 'end' block
-            if (!end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW) && (!end.matchType(GROUP_SINGLE_SUCCESSOR) || end.getNext() != newEnd)) {
-                break;
-            }
-            members.add(end);
-            end = newEnd;
-        } while (false);
-
-        return end;
+        // Replace 'end' block
+        if (!end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW) && (!end.matchType(GROUP_SINGLE_SUCCESSOR) || end.getNext() != newEnd)) {
+            return end;
+        }
+        members.add(end);
+        return newEnd;
     }
 
     private static BasicBlock reduceLoop(Loop loop) {

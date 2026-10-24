@@ -683,7 +683,7 @@ public class ControlFlowGraphMaker {
                     while (iterator.hasNext()) {
                         predecessor = iterator.next();
 
-                        // The jump back of a loop which is in the 'try' ('try { while (true) { ... } } finally { ... }') goes on with the loop, not with the 'try'
+                        // The jump back of a loop which is in the 'try' of a 'finally' goes on with the loop, not with the 'try'
                         if (!start.contains(predecessor) && !(aroundALoop && startPc <= predecessor.getFromOffset() && predecessor.getFromOffset() < endPc)) {
                             predecessor.replace(start, tcf);
                             tcfPredecessors.add(predecessor);

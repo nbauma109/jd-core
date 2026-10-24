@@ -154,4 +154,10 @@ public class InferenceLimits {
         return Collector.of(InferenceLimits::createNumbers, (accumulated, element) -> accumulated.add((Number) element), (first, second) -> first,
                 accumulated -> new ArrayList<Object>(accumulated));
     }
+
+    /** The type variable of the result is not bounded by what the factory requires */
+    public static <T> Collector<T, ?, List<T>> boundedFactoryOfAVariable(java.util.function.Function<Number, T> mapper) {
+        return Collector.of(InferenceLimits::createNumbers, (accumulated, element) -> accumulated.add(1), (first, second) -> first,
+                accumulated -> accumulated.stream().map(mapper).toList());
+    }
 }

@@ -2582,13 +2582,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
             TypeArgument argument = arguments.get(index++);
 
-            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds) {
-                for (Type bound : withBounds.getTypeBounds()) {
-                    if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
-                            && !(argument instanceof GenericType) && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument))) {
-                        return false;
-                    }
-                }
+            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds && !satisfiesTheBound(argument, withBounds.getTypeBounds())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** A type variable in scope satisfies it by its own bounds, any other type by what it is */
+    private boolean satisfiesTheBound(TypeArgument argument, BaseType bounds) {
+        if (argument instanceof GenericType variable) {
+            return satisfiesBounds(variable, bounds);
+        }
+        for (Type bound : bounds) {
+            if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
+                    && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument))) {
+                return false;
             }
         }
         return true;

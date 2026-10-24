@@ -2565,12 +2565,33 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (accumulatesTheElementsThemselves(accumulator) && resultArguments.size() == 1 && !resultArguments.get(0).equals(element)) {
             return;
         }
-        if (returnsItsTypeVariablesInOrder(typeMaker.makeMethodTypes(factory.getInternalTypeName(), factory.getName(), factory.getDescriptor()), resultArguments.size())) {
+        TypeMaker.MethodTypes factoryTypes = typeMaker.makeMethodTypes(factory.getInternalTypeName(), factory.getName(), factory.getDescriptor());
+
+        if (returnsItsTypeVariablesInOrder(factoryTypes, resultArguments.size()) && satisfyTheBounds(factoryTypes.getTypeParameters(), resultArguments)) {
             TypeArguments arguments = new TypeArguments();
 
             arguments.addAll(resultArguments);
             factory.setNonWildcardTypeArguments(singleOrList(arguments));
         }
+    }
+
+    /** The type arguments are within the declared bounds of the type variables ('&lt;E extends Number&gt;' is no 'Object'): javac rejects a witness which is not */
+    private boolean satisfyTheBounds(BaseTypeParameter typeParameters, List<TypeArgument> arguments) {
+        int index = 0;
+
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            TypeArgument argument = arguments.get(index++);
+
+            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds) {
+                for (Type bound : withBounds.getTypeBounds()) {
+                    if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
+                            && !(argument instanceof GenericType) && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /** 'List::add', or '(accumulated, element) -> accumulated.add(element)': what is accumulated is the element which the collector gets */

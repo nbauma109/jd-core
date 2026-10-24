@@ -144,4 +144,14 @@ public class InferenceLimits {
     public static int lambdaOverAnInheritingTarget() {
         return applyInherited(strings -> strings.isEmpty() ? "" : strings.get(0), String::length);
     }
+
+    static <E extends Number> ArrayList<E> createNumbers() {
+        return new ArrayList<>();
+    }
+
+    /** The factory has a bound which the element type of the result does not satisfy */
+    public static Collector<Object, ?, List<Object>> boundedFactory() {
+        return Collector.of(InferenceLimits::createNumbers, (accumulated, element) -> accumulated.add((Number) element), (first, second) -> first,
+                accumulated -> new ArrayList<Object>(accumulated));
+    }
 }

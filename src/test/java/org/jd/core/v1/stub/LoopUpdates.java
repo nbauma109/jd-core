@@ -42,4 +42,28 @@ public class LoopUpdates {
         }
         return stored;
     }
+
+    /** The shape of Guava's CharMatcher.removeFrom: the inner loop breaks to the outer one, which only advances the position and the spread */
+    public static String removeFrom(String string, java.util.function.IntPredicate matcher, int first) {
+        char[] chars = string.toCharArray();
+        int pos = first;
+        int spread = 1;
+
+        OUT:
+        while (true) {
+            pos++;
+            while (true) {
+                if (pos == chars.length) {
+                    break OUT;
+                }
+                if (matcher.test(chars[pos])) {
+                    break;
+                }
+                chars[pos - spread] = chars[pos];
+                pos++;
+            }
+            spread++;
+        }
+        return new String(chars, 0, pos - spread);
+    }
 }

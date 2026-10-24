@@ -10,6 +10,7 @@ import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.BoundedBindings;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.InferenceLimits;
+import org.jd.core.v1.stub.InitializerLocals;
 import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.LoopUpdates;
 import org.jd.core.v1.stub.SynchronizedReturns;
@@ -145,6 +146,11 @@ public class GuavaPatternsTest extends AbstractJdTest {
         // each outer 'for' keeps its update, or its loop would never end
         assertFalse(source, source.contains("; )"));
         assertTrue(source, source.contains("++)"));
+        // the position and the spread of CharMatcher.removeFrom: 'spread++' follows the inner loop, which the outer one goes on with
+        String method = source.substring(source.indexOf("removeFrom("));
+        assertTrue(method, method.indexOf("spread++") > method.indexOf("matcher.test"));
+        assertFalse(method, method.contains("spread++; continue;"));
+        assertEquals(method, 1, method.split("return new String", -1).length - 1);
     }
 
     @Test
@@ -182,6 +188,16 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertFalse(source, source.contains("::<String>create"));
         assertFalse(source, source.contains("(List)box.lists()") || source.contains("(List) box.lists()"));
         assertFalse(source, source.contains("(Bounded<Number>)"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testLocalClassOfAnInitializerUsedOnlyByALambda() throws Exception {
+        String internalClassName = InitializerLocals.class.getName().replace('.', '/');
+        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        // the lambda is written after the initializer which holds the class: it is the initializer which declares it
+        assertTrue(printed, printed.replaceAll("\\s+", " ").contains("class OfTheStaticInitializer"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

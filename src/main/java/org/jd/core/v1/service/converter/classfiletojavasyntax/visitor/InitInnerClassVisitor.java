@@ -652,7 +652,19 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         @Override
         public void visit(BodyDeclaration declaration) {
             bodyDeclaration = (ClassFileBodyDeclaration)declaration;
-            safeAcceptListDeclaration(bodyDeclaration.getMethodDeclarations());
+
+            // The methods of the lambdas come after the method which declares the lambda ('<clinit>' is written after them): an instance of a
+            // local class in a lambda is seen from the method which holds the class, which declares it
+            List<ClassFileConstructorOrMethodDeclaration> methods = bodyDeclaration.getMethodDeclarations();
+
+            if (methods != null) {
+                safeAcceptListDeclaration(methods.stream().filter(method -> !isLambdaMethod(method)).toList());
+                safeAcceptListDeclaration(methods.stream().filter(UpdateNewExpressionVisitor::isLambdaMethod).toList());
+            }
+        }
+
+        private static boolean isLambdaMethod(ClassFileConstructorOrMethodDeclaration method) {
+            return method.getMethod().isSynthetic() && method.getMethod().getName().startsWith("lambda$");
         }
 
         @Override

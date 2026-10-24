@@ -6,7 +6,6 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
-import org.apache.bcel.Const;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.classfile.MethodParameter;
 import org.apache.bcel.classfile.MethodParameters;

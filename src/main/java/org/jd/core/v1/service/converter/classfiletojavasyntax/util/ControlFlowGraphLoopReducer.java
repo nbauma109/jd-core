@@ -701,11 +701,6 @@ public final class ControlFlowGraphLoopReducer {
         return basicBlock.matchType(TYPE_END|TYPE_RETURN|TYPE_RET|TYPE_LOOP_END|TYPE_LOOP_START|TYPE_INFINITE_GOTO|TYPE_JUMP) || searchZoneIndexes.get(basicBlock.getIndex());
     }
 
-    /**
-     * @return true if 'basicBlock' goes back to a loop which encloses the loop starting at 'start': either directly (the
-     *         condition of the enclosing loop is at its start, e.g. javac) or through the condition of the enclosing loop which
-     *         follows it (e.g. ECJ), or if it is the condition of an enclosing 'do ... while'
-     */
     /** The block is written after the body of the loop, not in it ('continue outer' in the body of the loop is not this) */
     private static boolean isAfterTheMembers(Set<BasicBlock> members, BasicBlock basicBlock) {
         return members.stream().allMatch(member -> member.getToOffset() <= basicBlock.getFromOffset());
@@ -727,6 +722,11 @@ public final class ControlFlowGraphLoopReducer {
         return false;
     }
 
+    /**
+     * @return true if 'basicBlock' goes back to a loop which encloses the loop starting at 'start': either directly (the
+     *         condition of the enclosing loop is at its start, e.g. javac) or through the condition of the enclosing loop which
+     *         follows it (e.g. ECJ), or if it is the condition of an enclosing 'do ... while'
+     */
     private static boolean isUpdateOfEnclosingLoop(BasicBlock start, BasicBlock basicBlock) {
         int startOffset = start.getFromOffset();
 
@@ -769,6 +769,15 @@ public final class ControlFlowGraphLoopReducer {
         return successor != end && !members.contains(successor) ? successor : null;
     }
 
+    /**
+     * The loop is left by a 'return' (the code which follows the outer loop) and by the update of the outer loop, which is written after the
+     * loop but before that 'return': the loop ends where the outer loop goes on, and the 'return' stays in the loop.
+     */
+    private static boolean isReturnKeptBeforeTheUpdateOfTheOuterLoop(BasicBlock start, Set<BasicBlock> members, BasicBlock end, BasicBlock newEnd) {
+        return newEnd.matchType(GROUP_SINGLE_SUCCESSOR) && newEnd.getNext().getFromOffset() < start.getFromOffset()
+            && end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW) && !goesBackBefore(Set.of(end), start) && isAfterTheMembers(members, newEnd);
+    }
+
     private static BasicBlock recheckEndBlock(Loop loop, BasicBlock start, Set<BasicBlock> members, BasicBlock end) {
         boolean flag;
         BasicBlock newEnd;
@@ -787,11 +796,7 @@ public final class ControlFlowGraphLoopReducer {
             }
 
             if (end.getFromOffset() >= newEnd.getFromOffset()) {
-                // The loop is left by a 'return' (the code which follows the outer loop) and by the update of the outer loop, which comes
-                // before it: the loop ends where the outer loop goes on, the 'return' stays in the loop
-                // ('while (true) { ... if (done) return x; ... } update;')
-                if (newEnd.matchType(GROUP_SINGLE_SUCCESSOR) && newEnd.getNext().getFromOffset() < start.getFromOffset() && end.matchType(TYPE_RETURN|TYPE_RETURN_VALUE|TYPE_THROW)
-                 && !goesBackBefore(Set.of(end), start) && isAfterTheMembers(members, newEnd)) {
+                if (isReturnKeptBeforeTheUpdateOfTheOuterLoop(start, members, end, newEnd)) {
                     members.add(end);
                     loop.setExitKept(end);
                     end = newEnd;

@@ -8,6 +8,7 @@ import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.stub.GuavaOuter;
 import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.BoundedBindings;
+import org.jd.core.v1.stub.FinallyAroundALoop;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.InferenceLimits;
 import org.jd.core.v1.stub.InitializerLocals;
@@ -198,6 +199,17 @@ public class GuavaPatternsTest extends AbstractJdTest {
 
         // the lambda is written after the initializer which holds the class: it is the initializer which declares it
         assertTrue(printed, printed.replaceAll("\\s+", " ").contains("class OfTheStaticInitializer"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testFinallyAroundALoopWhoseCatchSetsTheFlagOfTheFinally() throws Exception {
+        String internalClassName = FinallyAroundALoop.class.getName().replace('.', '/');
+        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // the flag set by the 'catch' is the one the 'finally' tests: the 'finally' is the one of the loop, not of one of its iterations
+        assertTrue(source, source.contains("try { while (true) { try { return future.get(); } catch (InterruptedException e) { interrupted = true; } } } finally {"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

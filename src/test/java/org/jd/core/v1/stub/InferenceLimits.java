@@ -212,4 +212,19 @@ public class InferenceLimits {
     public static Collector<Integer, ?, List<String>> finisherWithAHiddenVariable() {
         return Collector.of(NumberBuilder::new, NumberBuilder::add, (first, second) -> first, NumberBuilder::finish);
     }
+
+    public static class Pair2<K, V> {
+        V get() {
+            return null;
+        }
+    }
+
+    public static class Swap<K, V> extends Pair2<V, Object> {
+    }
+
+    /** The returned variable is the one of the superclass which declares the method, not the unrelated one of the receiver */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static int inheritedReturnVariable(Swap<String, Value> swap) {
+        return ((Value) ((Pair2) swap).get()).answer();
+    }
 }

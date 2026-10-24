@@ -1622,8 +1622,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * cast to the erased class is redundant when the receiver's type argument is that very class.
      */
     private boolean isCastToTypeArgumentOfReceiver(ObjectType castType, ClassFileMethodInvocationExpression call) {
-        if (!(call.getExpression().getType() instanceof ObjectType receiverType)
-                || !(receiverType.getTypeArguments() instanceof TypeArguments receiverArguments)) {
+        if (!(call.getExpression().getType() instanceof ObjectType receiverType) || receiverType.getTypeArguments() == null) {
             return false;
         }
         TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(call.getInternalTypeName(), call.getName(), call.getDescriptor());
@@ -1633,7 +1632,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             // a type variable of the method, which may hide the one of the class, is inferred from the arguments, not from the receiver
             return false;
         }
-        TypeTypes typeTypes = typeMaker.makeTypeTypes(receiverType.getInternalName());
+        // The returned variable is the one of the class which declares the method, seen through the parameterization of the receiver
+        ObjectType declaring = parameterizationOfDeclaringInterface(receiverType, call.getInternalTypeName());
+
+        if (declaring == null || !(declaring.getTypeArguments() instanceof TypeArguments receiverArguments)) {
+            return false;
+        }
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(call.getInternalTypeName());
         BaseTypeParameter declared = typeTypes == null ? null : typeTypes.getTypeParameters();
 
         if (declared == null || !declared.isList() || declared.size() != receiverArguments.size()) {

@@ -303,6 +303,19 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
     }
 
+    /**
+     * The type arguments of the receiver seen as the class which declares the method ('Swap&lt;String, Value&gt;' is a 'Pair&lt;Value, Object&gt;' for a
+     * 'Pair' method): the type variables of the declaring class are not the ones of the receiver, whatever they are named.
+     */
+    private BaseTypeArgument typeArgumentsOfTheDeclaringClass(ObjectType receiverType, String declaringInternalName) {
+        if (receiverType.getTypeArguments() == null || receiverType.getInternalName().equals(declaringInternalName)) {
+            return receiverType.getTypeArguments();
+        }
+        ObjectType declaring = typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(declaringInternalName), receiverType);
+
+        return declaring != null && declaring.getTypeArguments() != null ? declaring.getTypeArguments() : receiverType.getTypeArguments();
+    }
+
     private void populateBindingsFromReturnType(Map<String, TypeArgument> bindings, Type returnType, Type returnExpressionType, Map<String, BaseType> typeBounds) {
         if (!TYPE_OBJECT.equals(returnType) && returnExpressionType != null) {
             populateBindingsWithTypeArgumentVisitor.init(contextualTypeBounds, bindings, typeBounds, returnType);
@@ -945,7 +958,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                             typeArguments = getTypeArgumentVisitor.getTypeArguments();
                         }
                     } else if (expressionType instanceof ObjectType ot) {
-                        typeArguments = ot.getTypeArguments();
+                        typeArguments = typeArgumentsOfTheDeclaringClass(ot, mie.getInternalTypeName());
                     }
 
                     Type t = mie.getType();

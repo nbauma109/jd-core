@@ -2150,13 +2150,28 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return IntStream.range(0, types.size()).filter(i -> i != except).boxed().flatMap(i -> types.get(i).findTypeParametersInType().stream()).collect(Collectors.toSet());
     }
 
-    /** A type variable of the method which only the lambda decides: the first type arguments of a functional interface are its parameters (Function&lt;F, R&gt;, BiFunction&lt;A, B, R&gt;). */
-    private static boolean isFreeInTheParameters(LambdaIdentifiersExpression lambda, ObjectType functionalType, Set<String> methodVariables, Set<String> others) {
+    /**
+     * A type variable of the method which only the lambda decides: the first type arguments of a functional interface are its parameters
+     * (Function&lt;F, R&gt;, BiFunction&lt;A, B, R&gt;), unless the functional method says otherwise ('Fn&lt;R, A&gt;' declares 'R apply(A a)').
+     */
+    private boolean isFreeInTheParameters(LambdaIdentifiersExpression lambda, ObjectType functionalType, Set<String> methodVariables, Set<String> others) {
         List<TypeArgument> functionalArguments = toTypeArgumentList(functionalType.getTypeArguments());
 
-        return functionalArguments.subList(0, Math.min(lambda.getParameterNames().size(), functionalArguments.size())).stream()
-                .anyMatch(argument -> upperBoundOrSelf(argument) instanceof GenericType variable && variable.getDimension() == 0 && methodVariables.contains(variable.getName())
-                        && !others.contains(variable.getName()));
+        return isFreeVariable(functionalArguments.subList(0, Math.min(lambda.getParameterNames().size(), functionalArguments.size())), methodVariables, others)
+                && !functionalMethodTakesParameterizedTypes(lambda, functionalType);
+    }
+
+    private static boolean isFreeVariable(List<? extends TypeArgument> types, Set<String> methodVariables, Set<String> others) {
+        return types.stream().anyMatch(argument -> upperBoundOrSelf(argument) instanceof GenericType variable && variable.getDimension() == 0
+                && methodVariables.contains(variable.getName()) && !others.contains(variable.getName()));
+    }
+
+    /** The functional method takes a parameterized type, whatever the first type arguments are ('R apply(List&lt;String&gt; a)'): an erased one would contradict it */
+    private boolean functionalMethodTakesParameterizedTypes(LambdaIdentifiersExpression lambda, ObjectType functionalType) {
+        String[] method = singleAbstractMethodFinder == null ? new String[0] : singleAbstractMethodFinder.find(functionalType.getInternalName());
+
+        return method.length > 0 && functionalParameterTypes(functionalType, method).stream().limit(lambda.getParameterNames().size())
+                .anyMatch(parameterType -> upperBoundOrSelf(parameterType) instanceof ObjectType objectType && objectType.getTypeArguments() != null);
     }
 
     /**
@@ -2218,7 +2233,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (methodTypes == null || methodTypes.getParameterTypes() == null) {
             return List.of();
         }
-        ObjectType declaring = targetType.getTypeArguments() == null ? null : parameterizationOfDeclaringInterface(targetType, method[0]);
+        ObjectType declaring = parameterizationOfDeclaringInterface(targetType, method[0]);
         TypeTypes typeTypes = declaring == null || declaring.getTypeArguments() == null ? null : typeMaker.makeTypeTypes(method[0]);
         boolean bound = typeTypes != null && typeTypes.getTypeParameters() != null;
         List<TypeArgument> typeArguments = bound ? toTypeArgumentList(declaring.getTypeArguments()) : List.of();

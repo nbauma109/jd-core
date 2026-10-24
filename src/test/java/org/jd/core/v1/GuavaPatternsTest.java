@@ -195,6 +195,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertFalse(source, source.contains("(List strings)") || source.contains("(List xs)"));
         assertTrue(source, source.contains("applyFn(strings ->"));
         assertTrue(source, source.contains("applyListFn(strings ->"));
+        assertTrue(source, source.contains("optionalFn(strings ->"));
+        assertTrue(source, source.contains("applyInherited(strings ->"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

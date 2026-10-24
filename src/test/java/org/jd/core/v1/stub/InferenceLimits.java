@@ -123,4 +123,25 @@ public class InferenceLimits {
     public static int lambdaOverANonGenericTarget() {
         return applyListFn(strings -> strings.isEmpty() ? "" : strings.get(0), String::length);
     }
+
+    static <R> java.util.Optional<R> optionalFn(Fn<R, List<String>> function) {
+        return java.util.Optional.of(function.apply(new ArrayList<>()));
+    }
+
+    /** A call read as a receiver: the parameter of the functional method is the second type argument, which is no variable of the method */
+    public static boolean lambdaOfAReceiverOverAParameterizedSecondArgument() {
+        return optionalFn(strings -> strings.size()).isPresent();
+    }
+
+    public interface InheritedListFn extends java.util.function.Function<List<String>, String> {
+    }
+
+    static <R> R applyInherited(InheritedListFn function, java.util.function.Function<String, R> mapper) {
+        return mapper.apply(function.apply(new ArrayList<>()));
+    }
+
+    /** The functional method is inherited from an interface the target extends with a parameterized type */
+    public static int lambdaOverAnInheritingTarget() {
+        return applyInherited(strings -> strings.isEmpty() ? "" : strings.get(0), String::length);
+    }
 }

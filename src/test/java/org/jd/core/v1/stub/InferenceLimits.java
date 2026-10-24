@@ -97,4 +97,17 @@ public class InferenceLimits {
     public static String lambdaOverAParameterizedTarget() {
         return apply(strings -> strings.isEmpty() ? "" : strings.get(0));
     }
+
+    public interface Fn<R, A> {
+        R apply(A argument);
+    }
+
+    static <R> R applyFn(Fn<R, List<String>> function) {
+        return function.apply(new ArrayList<>());
+    }
+
+    /** The parameter of the functional method is the second type argument of the target */
+    public static String lambdaOverAParameterizedSecondArgument() {
+        return applyFn(strings -> strings.isEmpty() ? "" : strings.get(0));
+    }
 }

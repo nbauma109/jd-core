@@ -2187,22 +2187,42 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (argument instanceof LambdaIdentifiersExpression lambda && lambda.getParameterNames() != null && !lambda.getParameterNames().isEmpty()
                     && lambda.getParameterTypes() != null && lambda.getParameterTypes().size() == lambda.getParameterNames().size()
                     && lambda.getParameterTypes().stream().allMatch(this::isRawGenericType)
-                    && !targetGivesTheParameterTypes(lambda, declared)
+                    && !targetGivesTheParameterTypes(declared)
                     && (rawArgument || castsWhatItTakesOutOfItsParameters(lambda))) {
                 lambda.setExplicitParameterTypes(true);
             }
         }
     }
 
-    /** 'Function&lt;List&lt;String&gt;, R&gt;': the functional type has the parameterized type of the parameters, which erased types would contradict */
-    private static boolean targetGivesTheParameterTypes(LambdaIdentifiersExpression lambda, Type declared) {
-        if (!(declared instanceof ObjectType functionalType) || functionalType.getTypeArguments() == null) {
+    /**
+     * 'Fn&lt;R, List&lt;String&gt;&gt;' for 'R apply(A a)': the parameters of the functional method, seen through the type arguments of the
+     * target, are the parameterized types which erased ones would contradict.
+     */
+    private boolean targetGivesTheParameterTypes(Type declared) {
+        if (!(declared instanceof ObjectType targetType) || targetType.getTypeArguments() == null || singleAbstractMethodFinder == null) {
             return false;
         }
-        List<TypeArgument> functionalArguments = toTypeArgumentList(functionalType.getTypeArguments());
+        String[] method = singleAbstractMethodFinder.find(targetType.getInternalName());
 
-        return functionalArguments.subList(0, Math.min(lambda.getParameterNames().size(), functionalArguments.size())).stream()
-                .anyMatch(argument -> upperBoundOrSelf(argument) instanceof ObjectType parameterType && parameterType.getTypeArguments() != null);
+        if (method.length == 0) {
+            return false;
+        }
+        ObjectType declaring = parameterizationOfDeclaringInterface(targetType, method[0]);
+        TypeTypes typeTypes = typeMaker.makeTypeTypes(method[0]);
+        TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(method[0], method[1], method[2]);
+
+        if (declaring == null || declaring.getTypeArguments() == null || typeTypes == null || typeTypes.getTypeParameters() == null
+                || methodTypes == null || methodTypes.getParameterTypes() == null) {
+            return false;
+        }
+        List<TypeArgument> typeArguments = toTypeArgumentList(declaring.getTypeArguments());
+
+        for (Type parameterType : methodTypes.getParameterTypes()) {
+            if (upperBoundOrSelf(bindTypeVariables(parameterType, typeTypes.getTypeParameters(), typeArguments)) instanceof ObjectType bound && bound.getTypeArguments() != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A generic class without type arguments: what a lambda's bytecode knows of its parameter. */

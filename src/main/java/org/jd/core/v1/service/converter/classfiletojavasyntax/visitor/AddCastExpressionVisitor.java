@@ -2199,7 +2199,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * target, are the parameterized types which erased ones would contradict.
      */
     private boolean targetGivesTheParameterTypes(Type declared) {
-        if (!(declared instanceof ObjectType targetType) || targetType.getTypeArguments() == null || singleAbstractMethodFinder == null) {
+        if (!(declared instanceof ObjectType targetType) || singleAbstractMethodFinder == null) {
             return false;
         }
         String[] method = singleAbstractMethodFinder.find(targetType.getInternalName());
@@ -2207,18 +2207,20 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (method.length == 0) {
             return false;
         }
-        ObjectType declaring = parameterizationOfDeclaringInterface(targetType, method[0]);
-        TypeTypes typeTypes = typeMaker.makeTypeTypes(method[0]);
         TypeMaker.MethodTypes methodTypes = typeMaker.makeMethodTypes(method[0], method[1], method[2]);
 
-        if (declaring == null || declaring.getTypeArguments() == null || typeTypes == null || typeTypes.getTypeParameters() == null
-                || methodTypes == null || methodTypes.getParameterTypes() == null) {
+        if (methodTypes == null || methodTypes.getParameterTypes() == null) {
             return false;
         }
-        List<TypeArgument> typeArguments = toTypeArgumentList(declaring.getTypeArguments());
+        // An interface with no type argument (or none of its own) declares the parameterized types itself
+        ObjectType declaring = targetType.getTypeArguments() == null ? null : parameterizationOfDeclaringInterface(targetType, method[0]);
+        TypeTypes typeTypes = declaring == null || declaring.getTypeArguments() == null ? null : typeMaker.makeTypeTypes(method[0]);
+        List<TypeArgument> typeArguments = typeTypes == null || typeTypes.getTypeParameters() == null ? List.of() : toTypeArgumentList(declaring.getTypeArguments());
 
         for (Type parameterType : methodTypes.getParameterTypes()) {
-            if (upperBoundOrSelf(bindTypeVariables(parameterType, typeTypes.getTypeParameters(), typeArguments)) instanceof ObjectType bound && bound.getTypeArguments() != null) {
+            Type seen = typeArguments.isEmpty() ? parameterType : bindTypeVariables(parameterType, typeTypes.getTypeParameters(), typeArguments);
+
+            if (upperBoundOrSelf(seen) instanceof ObjectType bound && bound.getTypeArguments() != null) {
                 return true;
             }
         }

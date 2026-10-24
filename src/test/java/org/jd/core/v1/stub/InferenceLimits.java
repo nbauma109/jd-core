@@ -110,4 +110,17 @@ public class InferenceLimits {
     public static String lambdaOverAParameterizedSecondArgument() {
         return applyFn(strings -> strings.isEmpty() ? "" : strings.get(0));
     }
+
+    public interface ListFn {
+        String apply(List<String> strings);
+    }
+
+    static <R> R applyListFn(ListFn function, java.util.function.Function<String, R> mapper) {
+        return mapper.apply(function.apply(new ArrayList<>()));
+    }
+
+    /** The interface has no type argument: it declares the parameterized parameter type itself */
+    public static int lambdaOverANonGenericTarget() {
+        return applyListFn(strings -> strings.isEmpty() ? "" : strings.get(0), String::length);
+    }
 }

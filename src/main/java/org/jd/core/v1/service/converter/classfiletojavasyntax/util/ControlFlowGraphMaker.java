@@ -660,11 +660,13 @@ public class ControlFlowGraphMaker {
 
             if (startPc != handlerPc && (handlePcMarks[handlerPc] != 'T' || startPc <= map[handlePcToStartPc[handlerPc]].getFromOffset())) {
                 int catchType = codeException.getCatchType();
-                String key = makeShortKey(codeException);
+                int protectedEndPc = endOfFinallyAroundALoop(codeExceptions, codeException, map[startPc]);
+                String key = startPc + "-" + protectedEndPc;
                 BasicBlock tcf = cache.get(key);
 
                 if (tcf == null) {
-                    int endPc = codeException.getEndPC();
+                    int endPc = protectedEndPc;
+                    boolean aroundALoop = endPc != codeException.getEndPC();
                     // Check 'endPc'
                     BasicBlock start = map[startPc];
 
@@ -681,7 +683,8 @@ public class ControlFlowGraphMaker {
                     while (iterator.hasNext()) {
                         predecessor = iterator.next();
 
-                        if (!start.contains(predecessor)) {
+                        // The jump back of a loop which is in the 'try' of a 'finally' goes on with the loop, not with the 'try'
+                        if (!start.contains(predecessor) && !(aroundALoop && startPc <= predecessor.getFromOffset() && predecessor.getFromOffset() < endPc)) {
                             predecessor.replace(start, tcf);
                             tcfPredecessors.add(predecessor);
                             iterator.remove();
@@ -758,6 +761,30 @@ public class ControlFlowGraphMaker {
         return false;
     }
 
+    /**
+     * 'try { while (true) { try { ... } catch (E e) { ... } } } finally { ... }': the 'finally' protects the loop, and a second area, the one
+     * of the 'catch', which ends with the jump back to the start of the loop; the 'try' of the 'finally' protects all of them.
+     *
+     * @return the end of the area the 'finally' protects with that of the loop, or the end of the area of the given exception
+     */
+    private static int endOfFinallyAroundALoop(CodeException[] codeExceptions, CodeException codeException, BasicBlock start) {
+        int end = codeException.getEndPC();
+
+        if (codeException.getCatchType() != 0) {
+            return end;
+        }
+        int extendedEnd = end;
+
+        for (CodeException other : codeExceptions) {
+            if (other.getCatchType() == 0 && other.getHandlerPC() == codeException.getHandlerPC() && other.getStartPC() > codeException.getStartPC()
+             && other.getEndPC() > extendedEnd && start.getPredecessors().stream().anyMatch(predecessor ->
+                    other.getStartPC() <= predecessor.getFromOffset() && predecessor.getFromOffset() < other.getEndPC())) {
+                extendedEnd = other.getEndPC();
+            }
+        }
+        return extendedEnd;
+    }
+
     public static String makeShortKey(CodeException ce) {
         return ce.getStartPC() + "-" + ce.getEndPC();
     }
@@ -774,6 +801,10 @@ public class ControlFlowGraphMaker {
             int comp = ce1.getStartPC() - ce2.getStartPC();
             if (comp == 0) {
                 comp = ce1.getEndPC() - ce2.getEndPC();
+            }
+            if (comp == 0) {
+                // The 'catch' is inside the 'try' of a 'finally' with the same area
+                comp = Boolean.compare(ce1.getCatchType() == 0, ce2.getCatchType() == 0);
             }
             return comp;
         }

@@ -1,0 +1,147 @@
+package org.jd.core.v1.stub;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.ToIntFunction;
+import java.util.stream.Collector;
+
+/** Calls whose source depends on the type arguments the bytecode does not keep: the bytecode casts must not be turned into something javac rejects */
+public class InferenceLimits {
+    public static class Value {
+        int answer() {
+            return 42;
+        }
+    }
+
+    public static class Box<E> {
+        List<List<E>> lists() {
+            return new ArrayList<>();
+        }
+    }
+
+    static <E> ArrayList<E> create() {
+        return new ArrayList<>();
+    }
+
+    static <T> int count(List<T> list, ToIntFunction<T> size) {
+        return list.size() + size.applyAsInt(list.get(0));
+    }
+
+    /** Reading through '? super Value' gives an Object: the cast is the source's */
+    public static int lowerBounded(Map<String, ? super Value> values) {
+        return ((Value) values.get("key")).answer();
+    }
+
+    /** The finisher changes the element type: the accumulator is not an ArrayList of the result's elements */
+    public static Collector<Integer, ?, List<String>> mapped() {
+        return Collector.of(InferenceLimits::create, ArrayList::add, (first, second) -> first, accumulated -> accumulated.stream().map(Object::toString).toList());
+    }
+
+    /** The lambda needs the type of the list's elements: the argument is not raw */
+    public static int lambdaOverCaptures(Box<? extends Number> box) {
+        return count(box.lists(), elements -> elements.size());
+    }
+
+    public static class Pair<K, V> {
+        @SuppressWarnings("unchecked")
+        <V> V pick(Object value) {
+            return (V) value;
+        }
+    }
+
+    /** The type variable of the method hides the one of the class: it is inferred from the argument, the receiver says nothing of it */
+    public static int hiddenByTheMethod(Pair<String, Value> pair, Object value) {
+        return ((Value) pair.pick(value)).answer();
+    }
+
+    public static class Bounded<T extends Number & Runnable> {
+        int accepted;
+
+        void accept(T value) {
+            accepted += value.hashCode() & 1;
+        }
+    }
+
+    /** The bound of the wildcard alone does not satisfy the bounds of the variable of the class */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static void severalBounds(Bounded<? extends Number> bounded, Number number) {
+        ((Bounded) bounded).accept(number);
+    }
+
+    /** A method reference needs the type of the elements of the list */
+    public static int referenceOverCaptures(Box<? extends Number> box) {
+        return count(box.lists(), List::size);
+    }
+
+    /** The same with a lambda which adds the element itself */
+    public static Collector<Integer, ?, List<String>> mappedByALambda() {
+        return Collector.of(InferenceLimits::create, (accumulated, element) -> accumulated.add(element), (first, second) -> first,
+                accumulated -> accumulated.stream().map(Object::toString).toList());
+    }
+
+    static <T> T first(List<T> values) {
+        return values.get(0);
+    }
+
+    static <R> R apply(java.util.function.Function<List<String>, R> function) {
+        return function.apply(new ArrayList<>());
+    }
+
+    /** The result is read: a raw argument would make it an Object */
+    public static int resultOfAnInvocationWhichIsReadAsAReceiver(Box<? extends Number> box) {
+        return first(box.lists()).size();
+    }
+
+    /** The target gives the lambda the parameter type List<String> */
+    public static String lambdaOverAParameterizedTarget() {
+        return apply(strings -> strings.isEmpty() ? "" : strings.get(0));
+    }
+
+    public interface Fn<R, A> {
+        R apply(A argument);
+    }
+
+    static <R> R applyFn(Fn<R, List<String>> function) {
+        return function.apply(new ArrayList<>());
+    }
+
+    /** The parameter of the functional method is the second type argument of the target */
+    public static String lambdaOverAParameterizedSecondArgument() {
+        return applyFn(strings -> strings.isEmpty() ? "" : strings.get(0));
+    }
+
+    public interface ListFn {
+        String apply(List<String> strings);
+    }
+
+    static <R> R applyListFn(ListFn function, java.util.function.Function<String, R> mapper) {
+        return mapper.apply(function.apply(new ArrayList<>()));
+    }
+
+    /** The interface has no type argument: it declares the parameterized parameter type itself */
+    public static int lambdaOverANonGenericTarget() {
+        return applyListFn(strings -> strings.isEmpty() ? "" : strings.get(0), String::length);
+    }
+
+    static <R> java.util.Optional<R> optionalFn(Fn<R, List<String>> function) {
+        return java.util.Optional.of(function.apply(new ArrayList<>()));
+    }
+
+    /** A call read as a receiver: the parameter of the functional method is the second type argument, which is no variable of the method */
+    public static boolean lambdaOfAReceiverOverAParameterizedSecondArgument() {
+        return optionalFn(strings -> strings.size()).isPresent();
+    }
+
+    public interface InheritedListFn extends java.util.function.Function<List<String>, String> {
+    }
+
+    static <R> R applyInherited(InheritedListFn function, java.util.function.Function<String, R> mapper) {
+        return mapper.apply(function.apply(new ArrayList<>()));
+    }
+
+    /** The functional method is inherited from an interface the target extends with a parameterized type */
+    public static int lambdaOverAnInheritingTarget() {
+        return applyInherited(strings -> strings.isEmpty() ? "" : strings.get(0), String::length);
+    }
+}

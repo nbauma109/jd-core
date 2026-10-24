@@ -72,6 +72,12 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
                 i--;
             } else if (lastStatement.isContinueStatement() || lastStatement.isBreakStatement()) {
                 i--;
+            } else if (lastStatement instanceof SynchronizedStatement synchronizedStatement && endsAbruptly(synchronizedStatement.getStatements())) {
+                // When a synchronized block of the try returns, the copy of the finally statements is not after the block but in it,
+                // before its return. A block which completes normally is itself the copy of a finally block.
+                statementCountToRemove = 0;
+                i--;
+                synchronizedStatement.getStatements().accept(this);
             } else {
                 WhileStatement whileStatement = getInfiniteWhileStatement(lastStatement);
 
@@ -130,6 +136,15 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
         }
     }
 
+    private static boolean endsAbruptly(BaseStatement statement) {
+        if (statement.size() == 0) {
+            return false;
+        }
+        Statement last = statement.getLast();
+
+        return last.isReturnExpressionStatement() || last.isReturnStatement() || last.isThrowStatement() || last.isContinueStatement() || last.isBreakStatement();
+    }
+
     private static WhileStatement getInfiniteWhileStatement(BaseStatement statement) {
         if (statement.isLabelStatement()) {
             statement = ((LabelStatement)statement).statement();
@@ -169,6 +184,10 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
         Statements finallyStatements = (Statements)ts.getFinallyStatements();
 
         if (finallyStatements != null) {
+            // The statements of a 'finally' are not the end of a block which the 'finally' of an enclosing 'try' is copied at
+            int enclosingStatementCountToRemove = statementCountToRemove;
+
+            statementCountToRemove = 0;
             switch (finallyStatements.size()) {
                 case 0:
                     break;
@@ -181,6 +200,7 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
                     }
                     break;
             }
+            statementCountToRemove = enclosingStatementCountToRemove;
 
             if (statementCountInFinally == 0 && !finallyStatements.isEmpty()) {
                 lastFinallyStatementIsATryStatement = finallyStatements.getLast().isTryStatement();

@@ -2757,6 +2757,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 || ownerTypes.getTypeParameters() == null) {
             return null;
         }
+        if (methodTypes.getTypeParameters() != null && identifiersOf(methodTypes.getTypeParameters()).stream().anyMatch(identifiersOf(ownerTypes.getTypeParameters())::contains)) {
+            // a type variable of the method hides the one of the class: what the method returns says nothing of the class
+            return null;
+        }
         BaseTypeArgument arguments = argumentsBoundByUnifying(ownerTypes.getTypeParameters(), returned, resultType);
 
         return arguments == null ? null : owner.createType(arguments);

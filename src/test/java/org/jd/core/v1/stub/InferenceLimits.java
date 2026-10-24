@@ -197,4 +197,19 @@ public class InferenceLimits {
     public static int shadowedByTheMethod(MultiBounded<?> box, List<List<Integer>> values) {
         return box.count(values, elements -> elements.size());
     }
+
+    public static class NumberBuilder<T extends Number> {
+        void add(Integer value) {
+            // nothing to keep
+        }
+
+        <T> List<T> finish() {
+            return new ArrayList<>();
+        }
+    }
+
+    /** The finisher declares a type variable with the name of the one of its class */
+    public static Collector<Integer, ?, List<String>> finisherWithAHiddenVariable() {
+        return Collector.of(NumberBuilder::new, NumberBuilder::add, (first, second) -> first, NumberBuilder::finish);
+    }
 }

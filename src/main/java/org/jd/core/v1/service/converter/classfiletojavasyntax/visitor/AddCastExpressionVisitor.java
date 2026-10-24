@@ -968,12 +968,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         // as-is, because 't' lands in the '? super T' position; '? extends R' only captures the return side.
         Set<String> capturedTypeParameterNames = capturedTypeParameterNames(receiverType, typeTypes);
 
-        // A type variable of the method with the name of one of the class hides it: its arguments are not constrained by the receiver
-        TypeMaker.MethodTypes declaredTypes = typeMaker.makeMethodTypes(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
-
-        if (declaredTypes != null && declaredTypes.getTypeParameters() != null) {
-            capturedTypeParameterNames.removeAll(identifiersOf(declaredTypes.getTypeParameters()));
-        }
+        removeTheTypeVariablesOfTheMethod(capturedTypeParameterNames, expression);
         if (capturedTypeParameterNames.isEmpty()) {
             return null;
         }
@@ -991,6 +986,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return null;
+    }
+
+    /** A type variable of the method with the name of one of the class hides it: its arguments are not constrained by the receiver */
+    private void removeTheTypeVariablesOfTheMethod(Set<String> names, MethodInvocationExpression expression) {
+        TypeMaker.MethodTypes declaredTypes = typeMaker.makeMethodTypes(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+
+        if (declaredTypes != null && declaredTypes.getTypeParameters() != null) {
+            names.removeAll(identifiersOf(declaredTypes.getTypeParameters()));
+        }
     }
 
     /** The type variables whose receiver type argument is an unbounded or extends wildcard, matched by position. */

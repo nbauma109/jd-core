@@ -73,4 +73,10 @@ public class InferenceLimits {
     public static int referenceOverCaptures(Box<? extends Number> box) {
         return count(box.lists(), List::size);
     }
+
+    /** The same with a lambda which adds the element itself */
+    public static Collector<Integer, ?, List<String>> mappedByALambda() {
+        return Collector.of(InferenceLimits::create, (accumulated, element) -> accumulated.add(element), (first, second) -> first,
+                accumulated -> accumulated.stream().map(Object::toString).toList());
+    }
 }

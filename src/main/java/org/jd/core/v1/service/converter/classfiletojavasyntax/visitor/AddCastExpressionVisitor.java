@@ -2489,7 +2489,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> resultArguments = toTypeArgumentList(resultType.getTypeArguments());
 
         // 'List::add' accumulates the elements themselves: a finisher which changes their type ('Collector<Integer, ?, List<String>>') says nothing about them
-        if (isProperMethodReference(accumulator) && resultArguments.size() == 1 && !resultArguments.get(0).equals(element)) {
+        if (accumulatesTheElementsThemselves(accumulator) && resultArguments.size() == 1 && !resultArguments.get(0).equals(element)) {
             return;
         }
         if (returnsItsTypeVariablesInOrder(typeMaker.makeMethodTypes(factory.getInternalTypeName(), factory.getName(), factory.getDescriptor()), resultArguments.size())) {
@@ -2498,6 +2498,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             arguments.addAll(resultArguments);
             factory.setNonWildcardTypeArguments(singleOrList(arguments));
         }
+    }
+
+    /** 'List::add', or '(accumulated, element) -> accumulated.add(element)': what is accumulated is the element which the collector gets */
+    private static boolean accumulatesTheElementsThemselves(Expression accumulator) {
+        if (isProperMethodReference(accumulator)) {
+            return true;
+        }
+        return accumulator instanceof LambdaIdentifiersExpression lambda && lambda.getParameterNames().size() == 2
+            && lambda.getStatements() instanceof LambdaExpressionStatement body && body.getExpression() instanceof MethodInvocationExpression call
+            && call.getParameters() instanceof LocalVariableReferenceExpression argument && argument.getName().equals(lambda.getParameterNames().get(1));
     }
 
     /** @return the call of a static factory a lambda returns ('() -&gt; TreeMultiset.create(c)'), or the reference to one ('LinkedHashMultiset::create'); null if the supplier is neither */

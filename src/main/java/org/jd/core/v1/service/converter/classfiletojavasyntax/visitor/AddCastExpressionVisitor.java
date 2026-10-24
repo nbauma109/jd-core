@@ -968,6 +968,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         // as-is, because 't' lands in the '? super T' position; '? extends R' only captures the return side.
         Set<String> capturedTypeParameterNames = capturedTypeParameterNames(receiverType, typeTypes);
 
+        // A type variable of the method with the name of one of the class hides it: its arguments are not constrained by the receiver
+        TypeMaker.MethodTypes declaredTypes = typeMaker.makeMethodTypes(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+
+        if (declaredTypes != null && declaredTypes.getTypeParameters() != null) {
+            capturedTypeParameterNames.removeAll(identifiersOf(declaredTypes.getTypeParameters()));
+        }
         if (capturedTypeParameterNames.isEmpty()) {
             return null;
         }
@@ -2577,12 +2583,33 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** The type arguments are within the declared bounds of the type variables ('&lt;E extends Number&gt;' is no 'Object'): javac rejects a witness which is not */
     private boolean satisfyTheBounds(BaseTypeParameter typeParameters, List<TypeArgument> arguments) {
+        Map<String, TypeArgument> substitution = new HashMap<>();
         int index = 0;
 
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
-            TypeArgument argument = arguments.get(index++);
+            substitution.put(typeParameter.getIdentifier(), arguments.get(index++));
+        }
+        for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : typeParameters) {
+            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds
+                    && !satisfiesTheBound(substitution.get(typeParameter.getIdentifier()), withBounds.getTypeBounds(), substitution)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
-            if (typeParameter instanceof TypeParameterWithTypeBounds withBounds && !satisfiesTheBound(argument, withBounds.getTypeBounds())) {
+    /** A type variable in scope satisfies it by its own bounds, any other type by what it is; a bound which is another type variable of the factory is its argument */
+    private boolean satisfiesTheBound(TypeArgument argument, BaseType bounds, Map<String, TypeArgument> substitution) {
+        for (Type declaredBound : bounds) {
+            Type bound = declaredBound instanceof GenericType variable && substitution.get(variable.getName()) instanceof Type substituted ? substituted : declaredBound;
+
+            if (argument instanceof GenericType variable) {
+                if (!satisfiesBounds(variable, bound == declaredBound ? bounds : bound)) {
+                    return false;
+                }
+            } else if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
+                    && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument)
+                            && hasTheParameterizationOfTheBound(objectBound, objectArgument))) {
                 return false;
             }
         }

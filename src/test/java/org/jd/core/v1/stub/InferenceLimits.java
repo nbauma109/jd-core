@@ -171,4 +171,30 @@ public class InferenceLimits {
         return Collector.of(InferenceLimits::createStrings, (accumulated, element) -> accumulated.add("x"), (first, second) -> first,
                 accumulated -> accumulated.stream().map(Object::hashCode).toList());
     }
+
+    static <K extends CharSequence, V extends K> java.util.HashMap<K, V> createDependent() {
+        return new java.util.HashMap<>();
+    }
+
+    /** The bound of a type variable of the factory is another one: Integer is no String */
+    public static Collector<Integer, ?, java.util.Map<String, Integer>> dependentBoundsOfTheFactory() {
+        return Collector.of(InferenceLimits::createDependent, (accumulated, element) -> accumulated.put("key", "value"), (first, second) -> first,
+                accumulated -> {
+                    java.util.Map<String, Integer> lengths = new java.util.HashMap<>();
+
+                    accumulated.forEach((key, value) -> lengths.put(key.toString(), value.length()));
+                    return lengths;
+                });
+    }
+
+    public static class MultiBounded<T extends Number & Runnable> {
+        <T> int count(List<T> values, java.util.function.ToIntFunction<T> size) {
+            return values.size() + size.applyAsInt(values.get(0));
+        }
+    }
+
+    /** A type variable of the method has the name of the one of the class, which has several bounds */
+    public static int shadowedByTheMethod(MultiBounded<?> box, List<List<Integer>> values) {
+        return box.count(values, elements -> elements.size());
+    }
 }

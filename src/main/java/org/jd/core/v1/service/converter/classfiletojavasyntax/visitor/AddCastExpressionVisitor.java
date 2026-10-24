@@ -2596,11 +2596,23 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (Type bound : bounds) {
             if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
-                    && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument))) {
+                    && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument)
+                            && hasTheParameterizationOfTheBound(objectBound, objectArgument))) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** 'Comparable&lt;String&gt;' is no bound of an Integer, which is a raw Comparable and a Comparable&lt;Integer&gt; */
+    private boolean hasTheParameterizationOfTheBound(ObjectType bound, ObjectType argument) {
+        if (bound.getTypeArguments() == null) {
+            return true;
+        }
+        ObjectType seen = bound.getInternalName().equals(argument.getInternalName()) ? argument
+                : typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(bound.getInternalName()), argument);
+
+        return seen == null || seen.getTypeArguments() == null || haveCompatibleTypeArguments(bound, seen);
     }
 
     /** 'List::add', or '(accumulated, element) -> accumulated.add(element)': what is accumulated is the element which the collector gets */

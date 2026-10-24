@@ -160,4 +160,15 @@ public class InferenceLimits {
         return Collector.of(InferenceLimits::createNumbers, (accumulated, element) -> accumulated.add(1), (first, second) -> first,
                 accumulated -> accumulated.stream().map(mapper).toList());
     }
+
+    static <E extends Comparable<String>> ArrayList<E> createStrings() {
+        return new ArrayList<>();
+    }
+
+    /** The factory has a parameterized bound which Integer, a raw Comparable, does not satisfy */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static Collector<Integer, ?, List<Integer>> parameterizedBoundOfTheFactory() {
+        return Collector.of(InferenceLimits::createStrings, (accumulated, element) -> accumulated.add("x"), (first, second) -> first,
+                accumulated -> accumulated.stream().map(Object::hashCode).toList());
+    }
 }

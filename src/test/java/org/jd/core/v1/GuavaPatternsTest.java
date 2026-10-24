@@ -11,6 +11,7 @@ import org.jd.core.v1.stub.BoundedBindings;
 import org.jd.core.v1.stub.FinallyAroundALoop;
 import org.jd.core.v1.stub.GuavaSub;
 import org.jd.core.v1.stub.InferenceLimits;
+import org.jd.core.v1.stub.InheritedGenericField;
 import org.jd.core.v1.stub.InitializerLocals;
 import org.jd.core.v1.stub.LocalClassPlacement;
 import org.jd.core.v1.stub.LoopUpdates;
@@ -193,6 +194,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertFalse(source, source.contains("<String>create"));
         assertFalse(source, source.contains("<Object>createNumbers"));
         assertFalse(source, source.contains("<T>createNumbers"));
+        assertFalse(source, source.contains("<Integer>createStrings"));
         assertFalse(source, source.contains("(List)box.lists()") || source.contains("(List) box.lists()"));
         assertFalse(source, source.contains("(Bounded<Number>)"));
         assertFalse(source, source.contains("first((List)") || source.contains("first((List) "));
@@ -224,6 +226,15 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertTrue(source, source.contains("try { while (true) { try { return future.get(); } catch (InterruptedException e) { interrupted = true; } } } finally {"));
         // the 'finally' of the inner 'try' keeps what it does when the 'finally' of the outer one is copied after it
         assertTrue(source, source.contains("finally { if (!satisfied) lock.unlock(); }") || source.contains("finally { if (!satisfied) { lock.unlock(); } }"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
+    }
+
+    @Test
+    public void testFieldOfAGenericGrandparentIsReachedThroughTheParameterizedOwner() throws Exception {
+        String internalClassName = InheritedGenericField.class.getName().replace('.', '/');
+        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+
+        assertTrue(printed, printed.replaceAll("\\s+", " ").contains("A<K, V>)this).value") || printed.replaceAll("\\s+", " ").contains("A<K, V>) this).value"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 

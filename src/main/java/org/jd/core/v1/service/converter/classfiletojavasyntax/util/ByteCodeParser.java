@@ -2743,7 +2743,17 @@ public class ByteCodeParser {
 
         return typeTypes != null && typeTypes.getSuperType() != null && typeTypes.getSuperType().getInternalName().equals(owner.getInternalName())
             ? new SuperExpression(thisExpression.getLineNumber(), thisExpression.getType())
-            : new CastExpression(thisExpression.getLineNumber(), owner, thisExpression);
+            : new CastExpression(thisExpression.getLineNumber(), parameterizedOwner(thisType, owner), thisExpression);
+    }
+
+    /** The owner as the class sees it, with its type arguments ('A&lt;K, V&gt;' for the 'A&lt;K, V&gt;' a 'B&lt;K, V&gt;' extends): a raw cast makes the field an Object */
+    private ObjectType parameterizedOwner(ObjectType thisType, ObjectType owner) {
+        if (owner.getTypeArguments() != null || thisType.getTypeArguments() == null) {
+            return owner;
+        }
+        ObjectType parameterized = typeMaker.searchSuperParameterizedType(typeMaker.makeFromInternalTypeName(owner.getInternalName()), thisType);
+
+        return parameterized != null && parameterized.getTypeArguments() != null ? parameterized : owner;
     }
 
     /**

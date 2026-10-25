@@ -21,6 +21,9 @@ import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.NEW;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public final class EnclosingMethods {
     private EnclosingMethods() {
@@ -51,15 +54,43 @@ public final class EnclosingMethods {
         return enclosingMethod != null && enclosingMethod.getEnclosingMethodIndex() == 0;
     }
 
-    /** A local class is only created by the initializer which declares it: the static initializer of the outer class, when its '<clinit>' or one of the lambdas it declares creates it */
+    /**
+     * A local class is only created by the initializer which declares it, or by the code of the local classes that initializer creates: the static
+     * initializer of the outer class, when its '<clinit>', one of the lambdas it declares, or a method of a local class created that way, creates it
+     */
     public static boolean isCreatedByTheStaticInitializer(ClassFile classFile, ClassFile outerClassFile) {
-        ConstantPoolGen constants = new ConstantPoolGen(outerClassFile.getConstantPool());
-        String className = classFile.getInternalTypeName().replace('/', '.');
+        return isCreatedByTheStaticInitializer(classFile, outerClassFile, new HashSet<>());
+    }
 
-        for (Method method : outerClassFile.getMethods()) {
+    private static boolean isCreatedByTheStaticInitializer(ClassFile classFile, ClassFile outerClassFile, Set<String> visited) {
+        if (!visited.add(classFile.getInternalTypeName())) {
+            return false;
+        }
+        if (createsIn(outerClassFile, classFile, true)) {
+            return true;
+        }
+        List<ClassFile> innerClassFiles = outerClassFile.getInnerClassFiles();
+
+        if (innerClassFiles != null) {
+            for (ClassFile other : innerClassFiles) {
+                if (other != classFile && isDeclaredInAnInitializer(other) && createsIn(other, classFile, false)
+                        && isCreatedByTheStaticInitializer(other, outerClassFile, visited)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** @param initializerOnly only the static initializer and its lambdas count, else every method of the class */
+    private static boolean createsIn(ClassFile holder, ClassFile created, boolean initializerOnly) {
+        ConstantPoolGen constants = new ConstantPoolGen(holder.getConstantPool());
+        String className = created.getInternalTypeName().replace('/', '.');
+
+        for (Method method : holder.getMethods()) {
             Code code = method.getCode();
 
-            if (code != null && (Const.STATIC_INITIALIZER_NAME.equals(method.getName()) || method.getName().startsWith("lambda$static$"))) {
+            if (code != null && (!initializerOnly || Const.STATIC_INITIALIZER_NAME.equals(method.getName()) || method.getName().startsWith("lambda$static$"))) {
                 for (InstructionHandle handle : new InstructionList(code.getCode())) {
                     if (handle.getInstruction() instanceof NEW creation && creation.getLoadClassType(constants).getClassName().equals(className)) {
                         return true;

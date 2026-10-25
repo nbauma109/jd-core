@@ -29,9 +29,11 @@ import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 import org.jd.core.v1.util.DefaultList;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -106,11 +108,20 @@ public class RecordPatternIfVisitorTest {
         return list;
     }
 
-    /** @param recordComponents the names of the components of the record 'p.R', none if it is no record */
+    /** @param recordComponents the accessors of the components of the record 'p.R', of the type 'int' but 'o' which is an 'Object'; none if it is no record */
     private static Statement rewrite(IfStatement ifStatement, String... recordComponents) {
+        List<ClassMetadata.Component> components = new ArrayList<>();
+
+        for (String name : recordComponents) {
+            components.add(new ClassMetadata.Component(name, "o".equals(name) ? "Ljava/lang/Object;" : "I"));
+        }
+        return rewrite(ifStatement, components);
+    }
+
+    private static Statement rewrite(IfStatement ifStatement, List<ClassMetadata.Component> recordComponents) {
         Statements statements = statements(ifStatement);
 
-        new RecordPatternIfVisitor(name -> List.of(recordComponents)).visit(statements);
+        new RecordPatternIfVisitor(name -> recordComponents).visit(statements);
         return statements.getFirst();
     }
 
@@ -270,5 +281,14 @@ public class RecordPatternIfVisitorTest {
         IfStatement ifStatement = ifInstanceOf(statements(new LocalVariableDeclarationStatement(RECORD, declarator("r1", variable(RECORD, "r"))), matchExceptionTry(tryStatements)));
 
         assertSame(ifStatement, rewrite(ifStatement, "x"));
+    }
+
+    @Test
+    public void testComponentWhichIsBoxedIsNoPatternOfItsType() {
+        // 'record R(Integer x)' matched with 'int x' converts the component: the pattern would not compile
+        IfStatement ifStatement = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
+
+        assertSame(ifStatement, rewrite(ifStatement, List.of(new ClassMetadata.Component("x", "Ljava/lang/Integer;"))));
+        assertRewritten(rewrite(ifStatement, List.of(new ClassMetadata.Component("x", "I"))), "x");
     }
 }

@@ -87,22 +87,25 @@ public final class ClassMetadata {
         return false;
     }
 
-    /** @return the names of the components of the record, in the order of its declaration; none if the class is not a record or is unknown */
-    public static List<String> recordComponentNames(Loader loader, String internalName) {
+    /** A component of a record: the name of its accessor and the descriptor of its type */
+    public record Component(String name, String descriptor) {}
+
+    /** @return the components of the record, in the order of its declaration; none if the class is not a record or is unknown */
+    public static List<Component> recordComponents(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
 
         if (javaClass == null || !RECORD.equals(internalNameOf(javaClass.getSuperclassName()))) {
             return Collections.emptyList();
         }
 
-        List<String> names = new ArrayList<>();
+        List<Component> components = new ArrayList<>();
 
         for (Field field : javaClass.getFields()) {
             if (!field.isStatic()) {
-                names.add(field.getName());
+                components.add(new Component(field.getName(), field.getSignature()));
             }
         }
-        return names;
+        return components;
     }
 
     private static String internalNameOf(String className) {

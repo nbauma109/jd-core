@@ -334,4 +334,28 @@ public class VineflowerRegressions {
         }
         return null;
     }
+
+    static class Other {
+        String added() {
+            return "other";
+        }
+    }
+
+    @SuppressWarnings({ "java:S1172", "java:S1854" }) // the parameter of the local class has the name of the variable, and the first value is replaced
+    public String nameShadowedByALocalClass() {
+        Putter named = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+
+        class Holder {
+            String of(Other named) {
+                return named.added();
+            }
+        }
+
+        named = new Putter();
+        return named.put("x") + new Holder().of(new Other());
+    }
 }

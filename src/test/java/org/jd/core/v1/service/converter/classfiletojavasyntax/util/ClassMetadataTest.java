@@ -71,14 +71,15 @@ public class ClassMetadataTest {
 
     @Test
     public void testComponentsOfARecord() {
-        assertEquals(List.of("first", "second"), ClassMetadata.recordComponentNames(LOADER, Pair.class.getName().replace('.', '/')));
+        assertEquals(List.of(new ClassMetadata.Component("first", "I"), new ClassMetadata.Component("second", "Ljava/lang/String;")),
+                ClassMetadata.recordComponents(LOADER, Pair.class.getName().replace('.', '/')));
     }
 
     @Test
     public void testTypeWhichIsNoRecord() {
-        assertEquals(Collections.emptyList(), ClassMetadata.recordComponentNames(LOADER, "java/util/ArrayList"));
-        assertEquals(Collections.emptyList(), ClassMetadata.recordComponentNames(LOADER, "no/such/Class"));
-        assertEquals(Collections.emptyList(), ClassMetadata.recordComponentNames(LOADER, null));
-        assertEquals(Collections.emptyList(), ClassMetadata.recordComponentNames(null, "java/util/ArrayList"));
+        assertEquals(Collections.emptyList(), ClassMetadata.recordComponents(LOADER, "java/util/ArrayList"));
+        assertEquals(Collections.emptyList(), ClassMetadata.recordComponents(LOADER, "no/such/Class"));
+        assertEquals(Collections.emptyList(), ClassMetadata.recordComponents(LOADER, null));
+        assertEquals(Collections.emptyList(), ClassMetadata.recordComponents(null, "java/util/ArrayList"));
     }
 }

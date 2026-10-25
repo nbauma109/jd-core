@@ -11,17 +11,23 @@ import org.apache.bcel.generic.Type;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.ConstructorDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.Declaration;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
@@ -147,6 +153,50 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         MemberUseSearch(String variableName, Set<String> members) {
             this.variableName = variableName;
             this.members = members;
+        }
+
+        /** A method of a local or anonymous class which declares a variable of this name uses its own, not the one of the enclosing method */
+        @Override
+        public void visit(MethodDeclaration declaration) {
+            if (!declaresVariable(declaration)) {
+                super.visit(declaration);
+            }
+        }
+
+        @Override
+        public void visit(ConstructorDeclaration declaration) {
+            if (!declaresVariable(declaration)) {
+                super.visit(declaration);
+            }
+        }
+
+        private boolean declaresVariable(Declaration declaration) {
+            boolean[] declared = new boolean[1];
+
+            declaration.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(FormalParameter parameter) {
+                    declared[0] |= variableName.equals(parameter.getName());
+                }
+
+                @Override
+                public void visit(LocalVariableDeclarator declarator) {
+                    declared[0] |= variableName.equals(declarator.getName());
+                }
+
+                @Override
+                public void visit(TryStatement.CatchClause catchClause) {
+                    declared[0] |= variableName.equals(catchClause.getName());
+                    super.visit(catchClause);
+                }
+
+                @Override
+                public void visit(ForEachStatement statement) {
+                    declared[0] |= variableName.equals(statement.getName());
+                    super.visit(statement);
+                }
+            });
+            return declared[0];
         }
 
         @Override

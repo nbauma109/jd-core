@@ -73,15 +73,15 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
     /** The variable which holds a component and the name of the accessor which gives it */
     private record Component(String variable, String accessor, String temporary) {}
 
-    /** The names of the components of a record, in the order of its declaration, none when the type is no record */
-    private final Function<String, List<String>> recordComponentNames;
+    /** The components of a record, in the order of its declaration, none when the type is no record */
+    private final Function<String, List<ClassMetadata.Component>> recordComponents;
 
     public RecordPatternIfVisitor(Loader loader) {
-        this(internalName -> ClassMetadata.recordComponentNames(loader, internalName));
+        this(internalName -> ClassMetadata.recordComponents(loader, internalName));
     }
 
-    public RecordPatternIfVisitor(Function<String, List<String>> recordComponentNames) {
-        this.recordComponentNames = recordComponentNames;
+    public RecordPatternIfVisitor(Function<String, List<ClassMetadata.Component>> recordComponents) {
+        this.recordComponents = recordComponents;
     }
 
     @Override
@@ -124,10 +124,11 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
 
         Extraction extraction = extract(tryBody, recordVariable);
 
-        // The accessors are the ones of all the components of the record, in the order of its declaration
-        List<String> names = recordComponentNames.apply(instanceOf.getInstanceOfType().getInternalName());
+        // The accessors are the ones of all the components of the record, in the order of its declaration, and the variables have the types of the
+        // components: a pattern does not convert (boxing and unboxing are no part of it)
+        List<ClassMetadata.Component> expected = recordComponents.apply(instanceOf.getInstanceOfType().getInternalName());
 
-        if (extraction.components().isEmpty() || !extraction.accessors().equals(names)) {
+        if (extraction.components().isEmpty() || !extraction.bound().equals(expected)) {
             return null;
         }
 
@@ -152,7 +153,7 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
     /** The components which the first statements of the 'try' bind: 'int i = r1.x(), x = i;' one each, up to the first statement which is none */
     private static Extraction extract(Statements tryBody, String recordVariable) {
         List<Pattern> components = new ArrayList<>();
-        List<String> accessors = new ArrayList<>();
+        List<ClassMetadata.Component> bound = new ArrayList<>();
         List<String> temporaries = new ArrayList<>();
         int index = 0;
 
@@ -163,16 +164,16 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
                 break;
             }
             components.add(new TypePattern(declaration.getType(), component.variable()));
-            accessors.add(component.accessor());
+            bound.add(new ClassMetadata.Component(component.accessor(), declaration.getType().getDescriptor()));
             if (component.temporary() != null) {
                 temporaries.add(component.temporary());
             }
             index++;
         }
-        return new Extraction(components, accessors, temporaries, index);
+        return new Extraction(components, bound, temporaries, index);
     }
 
-    private record Extraction(List<Pattern> components, List<String> accessors, List<String> temporaries, int end) {}
+    private record Extraction(List<Pattern> components, List<ClassMetadata.Component> bound, List<String> temporaries, int end) {}
 
     /** @return the name of the variable and the name of the accessor of the component which are bound by 'T tmp = record.accessor(), name = tmp;', null if it is no binding */
     private static Component component(LocalVariableDeclarationStatement declaration, String recordVariable) {

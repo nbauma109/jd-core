@@ -2625,21 +2625,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return true;
     }
 
-    /** A type variable in scope satisfies it by its own bounds, any other type by what it is */
-    private boolean satisfiesTheBound(TypeArgument argument, BaseType bounds) {
-        if (argument instanceof GenericType variable) {
-            return satisfiesBounds(variable, bounds);
-        }
-        for (Type bound : bounds) {
-            if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
-                    && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument)
-                            && hasTheParameterizationOfTheBound(objectBound, objectArgument))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     /** 'Comparable&lt;String&gt;' is no bound of an Integer, which is a raw Comparable and a Comparable&lt;Integer&gt; */
     private boolean hasTheParameterizationOfTheBound(ObjectType bound, ObjectType argument) {
         if (bound.getTypeArguments() == null) {

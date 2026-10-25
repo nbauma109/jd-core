@@ -98,7 +98,10 @@ public class InitEnumVisitor extends AbstractJavaSyntaxVisitor {
                         && Utils.isEmpty(parameters)
                         && Utils.isEmpty(declaration.getStatements());
 
-        if (syntheticConstructor || implicitEnumDefaultConstructor) {
+        if ((declaration.getFlags() & Declaration.FLAG_ANONYMOUS) != 0 && !Utils.isEmpty(declaration.getStatements())) {
+            // Instance initializer of an enum constant body ('A {{ init(); }}'): printed as a block
+            declaration.setFlags(Declaration.FLAG_ANONYMOUS);
+        } else if (syntheticConstructor || implicitEnumDefaultConstructor) {
             declaration.setFlags(ACC_SYNTHETIC);
         } else {
             declaration.setFlags(0);

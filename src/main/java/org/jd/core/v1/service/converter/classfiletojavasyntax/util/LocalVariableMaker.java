@@ -232,7 +232,10 @@ public class LocalVariableMaker {
                     descriptor = localVariable.getSignature();
                     name = localVariable.getName();
                     if (descriptor.charAt(descriptor.length() - 1) == ';') {
-                        lv = new ObjectLocalVariable(typeMaker, index, startPc, typeMaker.makeFromDescriptor(descriptor), name);
+                        Type variableType = typeMaker.makeFromDescriptor(descriptor);
+                        // 'this' and the parameters are in scope from the first instruction: only a local variable is declared by its initializer
+                        boolean local = startPc > 0;
+                        lv = new ObjectLocalVariable(typeMaker, index, startPc, local ? anonymousClassToSuperType(variableType) : variableType, name);
                     } else {
                         int dimension = TypeMaker.countDimension(descriptor);
 
@@ -259,6 +262,29 @@ public class LocalVariableMaker {
                 }
             }
         }
+    }
+
+    /**
+     * 'var printer = new Object() {...}': the type of the variable is the anonymous class, which has no name. An instance of it is created as
+     * an instance of its interface or of its superclass.
+     */
+    private Type anonymousClassToSuperType(Type type) {
+        if (type instanceof ObjectType objectType && objectType.getDimension() == 0) {
+            String internalName = objectType.getInternalName();
+            int start = internalName.lastIndexOf('$') + 1;
+
+            if (start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit)) {
+                TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(internalName);
+
+                if (typeTypes != null) {
+                    if (typeTypes.getInterfaces() != null && typeTypes.getInterfaces().size() == 1 && typeTypes.getInterfaces().getFirst() instanceof ObjectType interfaceType) {
+                        return interfaceType;
+                    }
+                    return typeTypes.getSuperType() != null ? typeTypes.getSuperType() : ObjectType.TYPE_OBJECT;
+                }
+            }
+        }
+        return type;
     }
 
     private static boolean containsWildcardTypeArgument(BaseTypeArgument typeArguments) {

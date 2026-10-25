@@ -53,7 +53,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.ControlF
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileBreakContinueStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileIfStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
@@ -511,7 +513,8 @@ public class StatementMaker {
             Expression selector,
             Type selectorType,
             List<BasicBlock.SwitchCase> switchCases,
-            List<ParsedRuleGroup> parsedGroups) {
+            List<ParsedRuleGroup> parsedGroups,
+            TypeSwitchContext typeSwitch) {
 
         Type resultType = null;
         List<SwitchExpression.Rule> rules = new ArrayList<>(parsedGroups.size());
@@ -519,12 +522,18 @@ public class StatementMaker {
         for (ParsedRuleGroup group : parsedGroups) {
             List<SwitchExpression.Label> labels = new ArrayList<>();
 
-            if (group.defaultCase()) {
+            if (group.defaultCase() && group.toIndexExclusive() - group.fromIndexInclusive() == 1) {
                 labels.add(SwitchExpression.DEFAULT_LABEL);
             } else {
                 for (int k = group.fromIndexInclusive(); k < group.toIndexExclusive(); k++) {
-                    labels.add(new SwitchExpression.ExpressionLabel(makeLabelExpression(selectorType, switchCases.get(k))));
+                    labels.add(switchCases.get(k).isDefaultCase() ? SwitchExpression.DEFAULT_LABEL
+                            : new SwitchExpression.ExpressionLabel(switchLabelExpression(typeSwitch, group.patternVariable(), selectorType, switchCases.get(k))));
                 }
+            }
+
+            // 'case null, default': the default comes last
+            if (labels.remove(SwitchExpression.DEFAULT_LABEL)) {
+                labels.add(SwitchExpression.DEFAULT_LABEL);
             }
 
             if (group.result() != null) {
@@ -581,6 +590,10 @@ public class StatementMaker {
         }
 
         Expression selector = switchStatement.getCondition();
+        TypeSwitchContext typeSwitch = selector instanceof ClassFileTypeSwitchExpression typeSwitchExpression ? selectTypeSwitchOperand(typeSwitchExpression, statements, switchStatement) : null;
+        if (typeSwitch != null) {
+            selector = typeSwitch.operand();
+        }
         Type selectorType = selector.getType();
         BasicBlock join = basicBlock.getNext();
 
@@ -589,14 +602,19 @@ public class StatementMaker {
         switchCases.sort(SWITCH_CASE_COMPARATOR);
 
         if (ByteCodeUtil.isSwitchExpressionJoin(join)
-                && tryMakeSwitchExpression(watchdog, switchCases, selector, selectorType, entryStack, statements, jumps)) {
+                && tryMakeSwitchExpression(watchdog, switchCases, selector, selectorType, entryStack, statements, jumps, typeSwitch)) {
             keepSelectorTemporaryOfSwitchExpression(selectorTemporary, selectorAssignment);
+            removeTypeSwitchSynthetics(typeSwitch);
             // The join block is processed by parseSwitch, outside the switch-depth scope
             return;
         }
 
-        makeSwitchBlocks(watchdog, switchCases, switchStatement, selectorType, entryStack, jumps);
+        makeSwitchBlocks(watchdog, switchCases, switchStatement, selectorType, entryStack, jumps, typeSwitch);
         keepSelectorTemporaryIfReferenced(switchStatement, selectorTemporary, selectorAssignment);
+        removeTypeSwitchSynthetics(typeSwitch);
+        if (typeSwitch != null) {
+            addEmptyDefaultToTypeSwitch(switchStatement);
+        }
 
         int size = statements.size();
 
@@ -674,6 +692,130 @@ public class StatementMaker {
         stack.push(switchExpression);
     }
 
+    /** The 'switch' with patterns being built: the call which selects the case, its operand and the temporary which holds the operand */
+    private record TypeSwitchContext(ClassFileTypeSwitchExpression expression, Expression operand, AbstractLocalVariable temporary, List<AbstractLocalVariable> synthetics) {}
+
+    /**
+     * 'switch (o) { case Integer i -> ... }' is compiled to 'Object tmp = o; Objects.requireNonNull(o); int index = 0; switch (typeSwitch(tmp, index))':
+     * the 'switch' is on the operand, without the statements which prepare the call.
+     */
+    private TypeSwitchContext selectTypeSwitchOperand(ClassFileTypeSwitchExpression typeSwitch, Statements statements, SwitchStatement switchStatement) {
+        Expression operand = typeSwitch.getSelector();
+        AbstractLocalVariable temporary = null;
+        List<AbstractLocalVariable> synthetics = new ArrayList<>();
+        int index = statements.size() - 1;
+
+        // 'int index = 0;'
+        if (typeSwitch.getRestartIndex() instanceof ClassFileLocalVariableReferenceExpression restart && index > 0
+                && isAssignmentTo(statements.get(index - 1), restart.getLocalVariable())) {
+            statements.remove(--index);
+            synthetics.add(restart.getLocalVariable());
+        }
+
+        // 'Object tmp = o;'
+        if (operand instanceof ClassFileLocalVariableReferenceExpression reference && index > 0 && isAssignmentTo(statements.get(index - 1), reference.getLocalVariable())) {
+            temporary = reference.getLocalVariable();
+            operand = statements.get(index - 1).getExpression().getRightExpression();
+            statements.remove(--index);
+            synthetics.add(temporary);
+
+            // 'Objects.requireNonNull(o);'
+            if (index > 0 && isRequireNonNull(statements.get(index - 1))) {
+                statements.remove(--index);
+            }
+        }
+
+        switchStatement.setCondition(operand);
+        return new TypeSwitchContext(typeSwitch, operand, temporary, synthetics);
+    }
+
+    /**
+     * A 'switch' statement with patterns has to cover all the values: the 'default' which only leaves the 'switch' is no case for the byte code, but
+     * it is for the source.
+     */
+    private static void addEmptyDefaultToTypeSwitch(SwitchStatement switchStatement) {
+        boolean hasDefault = switchStatement.getBlocks().stream().anyMatch(block ->
+                block instanceof SwitchStatement.LabelBlock labelBlock && labelBlock.getLabel() == SwitchStatement.DEFAULT_LABEL
+                || block instanceof SwitchStatement.MultiLabelsBlock multiLabelsBlock && multiLabelsBlock.getLabels().contains(SwitchStatement.DEFAULT_LABEL));
+
+        if (!hasDefault) {
+            Statements statements = new Statements();
+
+            statements.add(BreakStatement.BREAK);
+            switchStatement.getBlocks().add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, statements));
+        }
+    }
+
+    /** The cases have been built: nothing refers to the temporary which held the operand, nor to the restart index */
+    private void removeTypeSwitchSynthetics(TypeSwitchContext typeSwitch) {
+        if (typeSwitch != null) {
+            typeSwitch.synthetics().forEach(localVariableMaker::removeLocalVariable);
+        }
+    }
+
+    private static boolean isAssignmentTo(Statement statement, AbstractLocalVariable localVariable) {
+        Expression expression = statement.getExpression();
+
+        return expression != null && expression.isBinaryOperatorExpression() && "=".equals(expression.getOperator())
+                && expression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression left && left.getLocalVariable() == localVariable;
+    }
+
+    private static boolean isRequireNonNull(Statement statement) {
+        Expression expression = statement.getExpression();
+
+        return expression != null && expression.isMethodInvocationExpression() && "requireNonNull".equals(expression.getName())
+                && "java/util/Objects".equals(expression.getInternalTypeName());
+    }
+
+    /** 'case Integer i': the variable is bound by the first statement of the case, 'Integer i = (Integer) tmp;' */
+    private static AbstractLocalVariable extractPatternBinding(TypeSwitchContext typeSwitch, Statements caseStatements) {
+        if (typeSwitch == null || typeSwitch.temporary() == null || caseStatements.isEmpty()) {
+            return null;
+        }
+
+        Expression expression = caseStatements.getFirst().getExpression();
+
+        if (expression != null && expression.isBinaryOperatorExpression() && "=".equals(expression.getOperator())
+                && expression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression left) {
+            Expression value = expression.getRightExpression();
+
+            if (value.isCastExpression()) {
+                value = value.getExpression();
+            }
+            if (value instanceof ClassFileLocalVariableReferenceExpression source && source.getLocalVariable() == typeSwitch.temporary()) {
+                caseStatements.remove(0);
+                left.getLocalVariable().setDeclared(true);
+                return left.getLocalVariable();
+            }
+        }
+        return null;
+    }
+
+    /** The label of the case which is selected by an index of the labels of a 'switch' with patterns: a pattern (named later), 'null', a string or an integer */
+    private static Expression switchLabelExpression(TypeSwitchContext typeSwitch, AbstractLocalVariable patternVariable, Type selectorType, BasicBlock.SwitchCase switchCase) {
+        if (typeSwitch == null || switchCase.getStringValue() != null) {
+            return makeLabelExpression(selectorType, switchCase);
+        }
+
+        int value = switchCase.getValue();
+        List<Object> labels = typeSwitch.expression().getLabels();
+        Object label = value >= 0 && value < labels.size() ? labels.get(value) : null;
+
+        if (value == -1) {
+            return new NullExpression(UNKNOWN_LINE_NUMBER, ObjectType.TYPE_UNDEFINED_OBJECT);
+        }
+        if (label instanceof ObjectType type) {
+            return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), type, patternVariable);
+        }
+        if (label instanceof String string) {
+            return new StringConstantExpression(UNKNOWN_LINE_NUMBER, string);
+        }
+        if (label instanceof Integer integer) {
+            return new IntegerConstantExpression(TYPE_INT, integer);
+        }
+        return makeLabelExpression(selectorType, switchCase);
+    }
+
     private static Expression makeLabelExpression(Type selectorType, BasicBlock.SwitchCase switchCase) {
         if (switchCase.getStringValue() != null) {
             return new StringConstantExpression(UNKNOWN_LINE_NUMBER, switchCase.getStringValue());
@@ -682,7 +824,7 @@ public class StatementMaker {
     }
 
     private boolean tryMakeSwitchExpression(WatchDog watchdog, List<BasicBlock.SwitchCase> switchCases, Expression selector,
-            Type selectorType, DefaultStack<Expression> entryStack, Statements statements, Statements jumps) {
+            Type selectorType, DefaultStack<Expression> entryStack, Statements statements, Statements jumps, TypeSwitchContext typeSwitch) {
         List<ParsedRuleGroup> parsedGroups = new ArrayList<>();
 
         for (int i = 0, len = switchCases.size(); i < len; i++) {
@@ -699,26 +841,28 @@ public class StatementMaker {
             stack.copy(entryStack);
             makeStatements(watchdog, target, subStatements, jumps);
             replacePreOperatorWithPostOperator(subStatements);
+            AbstractLocalVariable patternVariable = extractPatternBinding(typeSwitch, subStatements);
 
             Expression ruleResult = null;
 
-            if (stack.size() == 1) {
+            // The operands which precede the 'switch' ('System.out' of 'System.out.println(switch (i) {...})') stay on the stack
+            if (stack.size() == entryStack.size() + 1) {
                 ruleResult = stack.pop();
                 if (!subStatements.isEmpty() && isBreak(subStatements.getLast())) {
                     subStatements.removeLast();
                 }
-            } else if (stack.size() != 0) {
-                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, null));
+            } else if (stack.size() != entryStack.size()) {
+                parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, null, patternVariable));
                 return false;
             }
 
-            parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult));
+            parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult, patternVariable));
 
             i = j - 1;
         }
 
         SwitchExpression switchExpression =
-                buildSwitchExpression(selector.getLineNumber(), selector, selectorType, switchCases, parsedGroups);
+                buildSwitchExpression(selector.getLineNumber(), selector, selectorType, switchCases, parsedGroups, typeSwitch);
 
         statements.remove(statements.size() - 1);
 
@@ -728,7 +872,7 @@ public class StatementMaker {
     }
 
     private void makeSwitchBlocks(WatchDog watchdog, List<BasicBlock.SwitchCase> switchCases, SwitchStatement switchStatement,
-            Type selectorType, DefaultStack<Expression> entryStack, Statements jumps) {
+            Type selectorType, DefaultStack<Expression> entryStack, Statements jumps, TypeSwitchContext typeSwitch) {
         List<SwitchStatement.Block> blocks = switchStatement.getBlocks();
 
         for (int i = 0, len = switchCases.size(); i < len; i++) {
@@ -745,28 +889,35 @@ public class StatementMaker {
             stack.copy(entryStack);
             makeStatements(watchdog, bb, subStatements, jumps);
             replacePreOperatorWithPostOperator(subStatements);
+            AbstractLocalVariable patternVariable = extractPatternBinding(typeSwitch, subStatements);
 
-            blocks.add(makeSwitchBlock(sc, subStatements, switchCases, selectorType, i, j));
+            blocks.add(makeSwitchBlock(sc, subStatements, switchCases, selectorType, i, j, typeSwitch, patternVariable));
 
             i = j - 1;
         }
     }
 
     private static SwitchStatement.Block makeSwitchBlock(BasicBlock.SwitchCase sc, Statements subStatements,
-            List<BasicBlock.SwitchCase> switchCases, Type selectorType, int i, int j) {
-        if (sc.isDefaultCase()) {
+            List<BasicBlock.SwitchCase> switchCases, Type selectorType, int i, int j, TypeSwitchContext typeSwitch, AbstractLocalVariable patternVariable) {
+        if (sc.isDefaultCase() && j == i + 1) {
             return new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, subStatements);
         }
         if (j == i + 1) {
             SwitchStatement.Label label =
-                    new SwitchStatement.ExpressionLabel(makeLabelExpression(selectorType, sc));
+                    new SwitchStatement.ExpressionLabel(switchLabelExpression(typeSwitch, patternVariable, selectorType, sc));
             return new SwitchStatement.LabelBlock(label, subStatements);
         }
 
         DefaultList<SwitchStatement.Label> labels = new DefaultList<>(j - i);
 
         for (int k = i; k < j; k++) {
-            labels.add(new SwitchStatement.ExpressionLabel(makeLabelExpression(selectorType, switchCases.get(k))));
+            labels.add(switchCases.get(k).isDefaultCase() ? SwitchStatement.DEFAULT_LABEL
+                    : new SwitchStatement.ExpressionLabel(switchLabelExpression(typeSwitch, patternVariable, selectorType, switchCases.get(k))));
+        }
+
+        // 'case null, default': the default comes last
+        if (labels.remove(SwitchStatement.DEFAULT_LABEL)) {
+            labels.add(SwitchStatement.DEFAULT_LABEL);
         }
 
         return new SwitchStatement.MultiLabelsBlock(labels, subStatements);

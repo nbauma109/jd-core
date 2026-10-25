@@ -105,6 +105,16 @@ public class AutoboxingVisitor extends AbstractUpdateExpressionVisitor {
         }
     }
 
+    /** 'Boolean.valueOf(test);' is a statement which discards the box: without the call, the test alone would be no statement */
+    @Override
+    public void visit(org.jd.core.v1.model.javasyntax.statement.ExpressionStatement statement) {
+        if (isBoxingMethod(statement.getExpression()) || isUnboxingMethod(statement.getExpression())) {
+            safeAccept(statement.getExpression());
+        } else {
+            super.visit(statement);
+        }
+    }
+
     @Override
     protected Expression updateExpression(Expression expression) {
         if (isJavaLangMethodInvocation(expression)) {

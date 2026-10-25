@@ -70,7 +70,8 @@ public final class ByteCodeUtil {
             opcode = code[nextOffset] & 0xFF;
         }
 
-        return isSwitchExpressionJoinOpcode(opcode);
+        // The value of the 'switch' is consumed by the join, e.g. the argument of a call: 'System.out.println(switch (o) {...})'
+        return isSwitchExpressionJoinOpcode(opcode) || getMinDepth(basicBlock) < 0;
     }
 
     public static int searchNextOpcode(final BasicBlock basicBlock, final int maxOffset) {

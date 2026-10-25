@@ -38,6 +38,9 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final AutoboxingVisitor autoboxingVisitor;
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
     private final WidenedFloatConstantVisitor widenedFloatConstantVisitor = new WidenedFloatConstantVisitor();
+    private final AnonymousClassVarVisitor anonymousClassVarVisitor;
+    private final EmptyThenWithPatternVisitor emptyThenWithPatternVisitor = new EmptyThenWithPatternVisitor();
+    private final RecordPatternIfVisitor recordPatternIfVisitor = new RecordPatternIfVisitor();
     private final HoistUndeclaredLocalVariablesVisitor hoistUndeclaredLocalVariablesVisitor = new HoistUndeclaredLocalVariablesVisitor();
 
     private TypeDeclaration typeDeclaration;
@@ -51,6 +54,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker, loader);
         this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker, loader);
         this.autoboxingVisitor = new AutoboxingVisitor(typeMaker);
+        this.anonymousClassVarVisitor = new AnonymousClassVarVisitor(typeMaker);
     }
 
     @Override
@@ -89,6 +93,12 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             disableVarArgsExpansionVisitor.visit(declaration);
             // Print the double constants which widen a float as float literals
             widenedFloatConstantVisitor.visit(declaration);
+            // Declare 'var' the variables which hold an instance of an anonymous class and use its own members
+            anonymousClassVarVisitor.visit(declaration);
+            // Negate the test of an 'if' whose 'then' is empty because of a pattern variable
+            emptyThenWithPatternVisitor.visit(declaration);
+            // Turn back the lowered form of 'if (r instanceof R(int x, Object o))' to the record pattern
+            recordPatternIfVisitor.visit(declaration);
         }
     }
 

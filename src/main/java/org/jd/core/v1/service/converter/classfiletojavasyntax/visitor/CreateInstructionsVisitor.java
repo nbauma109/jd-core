@@ -27,6 +27,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.BooleanReturnRewriter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ByteCodeWriter;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ControlFlowGraphReducer;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InstanceOfPatternBinding;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ExceptionUtil;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.StatementMaker;
@@ -44,7 +45,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
     private final FixHoistedCatchThrowVisitor fixHoistedCatchThrowVisitor = new FixHoistedCatchThrowVisitor();
     private final FixMissingNullGuardVisitor fixMissingNullGuardVisitor = new FixMissingNullGuardVisitor();
     private final BooleanReturnRewriter booleanReturnRewriter = new BooleanReturnRewriter();
-
+    private final ResolveInstanceOfPatternVisitor resolveInstanceOfPatternVisitor = new ResolveInstanceOfPatternVisitor();
     public CreateInstructionsVisitor(TypeMaker typeMaker) {
         this.typeMaker = typeMaker;
     }
@@ -126,6 +127,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
             boolean reduced = false;
             for (ControlFlowGraphReducer controlFlowGraphReducer : preferredReducers) {
                 try {
+                    controlFlowGraphReducer.setInstanceOfPatterns(InstanceOfPatternBinding.isSupportedBy(classFile.getMajorVersion()));
                     if (controlFlowGraphReducer.reduce(method)) {
                         if (comd.getStatements() instanceof Statements stmts) {
                             if (stmts.isEmpty()) {
@@ -157,6 +159,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                 methodStatements.accept(fixHoistedCatchThrowVisitor);
                 methodStatements.accept(fixMissingNullGuardVisitor);
                 methodStatements.accept(booleanReturnRewriter);
+                methodStatements.accept(resolveInstanceOfPatternVisitor);
             }
         }
 

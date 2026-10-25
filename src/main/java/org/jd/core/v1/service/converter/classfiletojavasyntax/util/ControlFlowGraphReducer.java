@@ -225,8 +225,15 @@ public abstract class ControlFlowGraphReducer {
     }
 
 
+    private boolean instanceOfPatterns;
+
+    /** @param instanceOfPatterns whether the byte code of the method is the one of Java 16+, which binds the variable of 'x instanceof T v' */
+    public void setInstanceOfPatterns(boolean instanceOfPatterns) {
+        this.instanceOfPatterns = instanceOfPatterns;
+    }
+
     private void reduceGotoLoop(Method method, boolean splitReturns) {
-        controlFlowGraph = new ControlFlowGraphMaker().make(method);
+        controlFlowGraph = new ControlFlowGraphMaker(instanceOfPatterns).make(method);
         ControlFlowGraphGotoReducer.reduce(controlFlowGraph, splitReturns);
         ControlFlowGraphLoopReducer.reduce(controlFlowGraph, pruneSharedLoopCode());
     }

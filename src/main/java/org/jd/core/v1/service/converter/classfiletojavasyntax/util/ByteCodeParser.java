@@ -87,7 +87,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileCmpExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileMonitorEnterStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileMonitorExitStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
@@ -100,6 +102,7 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -229,10 +232,18 @@ public class ByteCodeParser {
         int opcode;
         int lineNumber;
         int offset = fromOffset;
+        Map<Integer, InstanceOfPatternBinding> bindings = findPatternBindings(code);
         while (offset < toOffset) {
             int startOffset = offset;
             opcode = code[offset] & 255;
             lineNumber = cfg.getLineNumber(offset);
+
+            Integer skippedLength = skippedInstructionLengths.get(offset);
+            if (skippedLength != null) {
+                // 'aload; checkcast; astore' which binds the variable of 'o instanceof T v'
+                offset += skippedLength;
+                continue;
+            }
 
             switch (opcode) {
                 case NOP:
@@ -998,7 +1009,17 @@ public class ByteCodeParser {
                     if (type1 == null) {
                         type1 = PrimitiveTypeUtil.getPrimitiveTypeFromDescriptor(typeName);
                     }
-                    stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
+                    InstanceOfPatternBinding binding = bindings.get(startOffset);
+                    if (binding != null && stack.peek().isLocalVariableReferenceExpression()) {
+                        expression1 = stack.pop();
+                        valueRef = new CastExpression(lineNumber, type1, expression1, true, true);
+                        localVariable = getLocalVariableInAssignment(binding.storeIndex(), binding.storeEndOffset(), valueRef);
+                        localVariable.setAssigned(true);
+                        localVariable.setDeclared(true);
+                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, expression1, rawQualifiedInstanceOfType(type1), localVariable));
+                    } else {
+                        stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
+                    }
                     break;
                 case MONITORENTER:
                     statements.add(new ClassFileMonitorEnterStatement(stack.pop()));
@@ -1336,6 +1357,20 @@ public class ByteCodeParser {
         }
     }
 
+    private byte[] patternBindingsCode;
+    private Map<Integer, InstanceOfPatternBinding> patternBindings = Map.of();
+    private final Map<Integer, Integer> skippedInstructionLengths = new HashMap<>();
+
+    private Map<Integer, InstanceOfPatternBinding> findPatternBindings(byte[] code) {
+        if (patternBindingsCode != code) {
+            patternBindingsCode = code;
+            patternBindings = InstanceOfPatternBinding.isSupportedBy(majorVersion) ? InstanceOfPatternBinding.find(code) : Map.of();
+            skippedInstructionLengths.clear();
+            patternBindings.values().forEach(binding -> skippedInstructionLengths.putAll(binding.skippedInstructions(code)));
+        }
+        return patternBindings;
+    }
+
     private static void parseILOAD(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable) {
         if (! statements.isEmpty()) {
             Expression expression = statements.getLast().getExpression();
@@ -1619,6 +1654,26 @@ public class ByteCodeParser {
         BootstrapMethod bootstrapMethod = attributeBootstrapMethods.getBootstrapMethods()[constantMemberRef.getClassIndex()];
         int[] bootstrapArguments = bootstrapMethod.getBootstrapArguments();
 
+        if ("typeSwitch".equals(indyMethodName) && indyParameters instanceof Expressions switchParameters && switchParameters.size() == 2) {
+            // 'switch' with patterns: its labels are the arguments of the bootstrap method
+            List<Object> labels = new ArrayList<>(bootstrapArguments.length);
+
+            for (int bootstrapArgument : bootstrapArguments) {
+                Constant labelConstant = constants.getConstant(bootstrapArgument);
+
+                if (labelConstant instanceof ConstantClass) {
+                    labels.add(typeMaker.makeFromDescriptorOrInternalTypeName(constants.getConstantString(bootstrapArgument, CONSTANT_Class)));
+                } else if (labelConstant instanceof ConstantString) {
+                    labels.add(constants.getConstantString(bootstrapArgument, CONSTANT_String));
+                } else if (labelConstant instanceof ConstantInteger constantInteger) {
+                    labels.add(constantInteger.getBytes());
+                } else {
+                    labels.add(null);
+                }
+            }
+            stack.push(new ClassFileTypeSwitchExpression(lineNumber, indyMethodName, switchParameters.get(0), switchParameters.get(1), labels, indyParameters));
+            return;
+        }
         if ("makeConcatWithConstants".equals(indyMethodName)) {
             // Create Java 9+ string concatenation
             String recipe = constants.getConstantString(bootstrapArguments[0], CONSTANT_String);

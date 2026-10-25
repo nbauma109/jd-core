@@ -60,12 +60,13 @@ import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeParameterWithTypeBounds;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
-import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileClassDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMemberDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileStaticInitializerDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileEnumDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileInterfaceDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFormalParameter;
@@ -92,7 +93,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.apache.bcel.Const.ACC_SYNTHETIC;
+import static org.apache.bcel.Const.ACC_STATIC;import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.declaration.Declaration.FLAG_ANONYMOUS;
 
 public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
@@ -643,7 +644,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         private ClassFileBodyDeclaration bodyDeclaration;
         private ClassFile classFile;
         private final Map<String, String> finalLocalVariableNameMap = new HashMap<>();
-        private final DefaultList<ClassFileClassDeclaration> localClassDeclarations = new DefaultList<>();
+        private final DefaultList<ClassFileTypeDeclaration> localClassDeclarations = new DefaultList<>();
         private final Set<NewExpression> newExpressions = new HashSet<>();
         private int lineNumber;
 
@@ -750,8 +751,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     if (lineNumber == Expression.UNKNOWN_LINE_NUMBER && !localClassDeclarations.isEmpty()) {
                         iterator.previous();
 
-                        for (TypeDeclaration typeDeclaration : localClassDeclarations) {
-                            iterator.add(new TypeDeclarationStatement(typeDeclaration));
+                        for (ClassFileTypeDeclaration typeDeclaration : localClassDeclarations) {
+                            iterator.add(new TypeDeclarationStatement((TypeDeclaration) typeDeclaration));
                         }
 
                         localClassDeclarations.clear();
@@ -768,18 +769,44 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
+        /** A local enum, record or interface is never created with 'new': its uses are static references ('Local.CONSTANT') and declarations */
+        @Override
+        public void visit(ObjectTypeReferenceExpression expression) {
+            declareLocalTypeWithoutInstances(expression.getObjectType());
+        }
+
+        @Override
+        public void visit(LocalVariableDeclarationStatement statement) {
+            if (statement.getType() instanceof ObjectType type) {
+                declareLocalTypeWithoutInstances(type);
+            }
+            super.visit(statement);
+        }
+
         /** A local class which is only used as the superclass of an anonymous class or as a class literal is still to be declared */
         private void declareLocalClassOfType(ObjectType type) {
-            if (type.getQualifiedName() == null && type.getName() != null
-                    && bodyDeclaration.getInnerTypeDeclaration(type.getInternalName()) instanceof ClassFileClassDeclaration cfcd
-                    && enclosingBodyDeclaration(type.getInternalName()) == null) {
-                declareLocalClass(cfcd, type.getInternalName());
+            if (type.getQualifiedName() == null && type.getName() != null && enclosingBodyDeclaration(type.getInternalName()) == null) {
+                ClassFileTypeDeclaration cftd = bodyDeclaration.getInnerTypeDeclaration(type.getInternalName());
+
+                if (cftd != null) {
+                    declareLocalClass(cftd, type.getInternalName());
+                }
             }
         }
 
-        private void declareLocalClass(ClassFileClassDeclaration cfcd, String internalName) {
-            cfcd.setFlags(cfcd.getFlags() & ~ACC_SYNTHETIC);
-            localClassDeclarations.add(cfcd);
+        /** A local enum or interface has no instance created by 'new': the first use declares it (a local class or record is declared where it is created) */
+        private void declareLocalTypeWithoutInstances(ObjectType type) {
+            ClassFileTypeDeclaration cftd = bodyDeclaration.getInnerTypeDeclaration(type.getInternalName());
+
+            if (cftd instanceof ClassFileEnumDeclaration || cftd instanceof ClassFileInterfaceDeclaration) {
+                declareLocalClassOfType(type);
+            }
+        }
+
+        private void declareLocalClass(ClassFileTypeDeclaration cftd, String internalName) {
+            // A local enum, record or interface is implicitly static: no explicit modifier
+            cftd.setFlags(cftd.getFlags() & ~(ACC_SYNTHETIC | ACC_STATIC));
+            localClassDeclarations.add(cftd);
             bodyDeclaration.removeInnerType(internalName);
         }
 
@@ -803,12 +830,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     if (enclosing != null) {
                         cfbd = enclosing;
                     } else if (typeDeclaration != null && typeDeclaration.isClassDeclaration()) {
-                        ClassFileClassDeclaration cfcd = (ClassFileClassDeclaration) typeDeclaration;
-                        cfbd = (ClassFileBodyDeclaration) cfcd.getBodyDeclaration();
+                        cfbd = (ClassFileBodyDeclaration) typeDeclaration.getBodyDeclaration();
 
                         if (type.getQualifiedName() == null && type.getName() != null) {
                             // Local class
-                            declareLocalClass(cfcd, internalName);
+                            declareLocalClass(typeDeclaration, internalName);
                             lineNumber = ne.getLineNumber();
                         }
                     }
@@ -1123,7 +1149,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         placeInNestedStatements((Statements) statements);
                         statements.accept(this);
                     } else {
-                        ClassFileClassDeclaration declaration = localClassDeclarations.get(0);
+                        ClassFileTypeDeclaration declaration = localClassDeclarations.get(0);
 
                         searchFirstLineNumberVisitor.init();
                         statements.accept(searchFirstLineNumberVisitor);
@@ -1134,14 +1160,14 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
                         if (declaration.getFirstLineNumber() <= firstLineNumber) {
                             Statements list = new Statements();
-                            Iterator<ClassFileClassDeclaration> declarationIterator = localClassDeclarations.iterator();
+                            Iterator<ClassFileTypeDeclaration> declarationIterator = localClassDeclarations.iterator();
 
-                            list.add(new TypeDeclarationStatement(declaration));
+                            list.add(new TypeDeclarationStatement((TypeDeclaration) declaration));
                             declarationIterator.next();
                             declarationIterator.remove();
 
                             while (declarationIterator.hasNext() && (declaration = declarationIterator.next()).getFirstLineNumber() <= firstLineNumber) {
-                                list.add(new TypeDeclarationStatement(declaration));
+                                list.add(new TypeDeclarationStatement((TypeDeclaration) declaration));
                                 declarationIterator.remove();
                             }
 
@@ -1162,7 +1188,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
             /** A local class is declared in the innermost block which holds all its uses (it may capture the variables of that block) */
             private void placeInNestedStatements(Statements root) {
-                for (ClassFileClassDeclaration declaration : new ArrayList<>(localClassDeclarations)) {
+                for (ClassFileTypeDeclaration declaration : new ArrayList<>(localClassDeclarations)) {
                     String internalName = declaration.getInternalTypeName();
 
                     if (isUsedByOtherPendingDeclaration(declaration)) {
@@ -1190,16 +1216,16 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         user = users.get(0);
                     }
                     if (target != null && target != root && target.contains(user)) {
-                        target.add(target.indexOf(user), new TypeDeclarationStatement(declaration));
+                        target.add(target.indexOf(user), new TypeDeclarationStatement((TypeDeclaration) declaration));
                         localClassDeclarations.remove(declaration);
                     }
                 }
             }
 
             /** A pending declaration is placed later, wherever its own uses are: the class it needs must stay visible to all (superclass, interfaces, body) */
-            private boolean isUsedByOtherPendingDeclaration(ClassFileClassDeclaration declaration) {
+            private boolean isUsedByOtherPendingDeclaration(ClassFileTypeDeclaration declaration) {
                 return localClassDeclarations.stream()
-                        .anyMatch(other -> other != declaration && countUses(new TypeDeclarationStatement(other), declaration.getInternalTypeName()) > 0);
+                        .anyMatch(other -> other != declaration && countUses(new TypeDeclarationStatement((TypeDeclaration) other), declaration.getInternalTypeName()) > 0);
             }
 
             private List<Statement> usersOf(Statements list, String internalName) {
@@ -1233,8 +1259,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             public void visit(Statements list) {
                 if (!localClassDeclarations.isEmpty() && !list.isEmpty()) {
                     ListIterator<Statement> statementIterator = list.listIterator();
-                    Iterator<ClassFileClassDeclaration> declarationIterator = localClassDeclarations.iterator();
-                    ClassFileClassDeclaration declaration = declarationIterator.next();
+                    Iterator<ClassFileTypeDeclaration> declarationIterator = localClassDeclarations.iterator();
+                    ClassFileTypeDeclaration declaration = declarationIterator.next();
 
                     Statement statement;
                     while (statementIterator.hasNext()) {
@@ -1249,7 +1275,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
 
                         while (declaration.getFirstLineNumber() <= firstLineNumber) {
                             statementIterator.previous();
-                            statementIterator.add(new TypeDeclarationStatement(declaration));
+                            statementIterator.add(new TypeDeclarationStatement((TypeDeclaration) declaration));
                             statementIterator.next();
                             declarationIterator.remove();
 

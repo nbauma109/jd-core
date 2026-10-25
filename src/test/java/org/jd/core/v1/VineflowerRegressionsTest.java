@@ -44,6 +44,28 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("(n < 1.0D - n || n > 3.0D) ? ((n < 5.0D)) : ((n > 2.0D))"));
         assertTrue(source.contains("(n < 1.0D - n && n > 3.0D) ? ((n < 5.0D)) : ((n > 2.0D))"));
 
+
+        // The initializer of the body of an enum constant
+        assertTrue(source.contains("System.out.println(\"A\");"));
+
+        // Local enum, interface and record are declared in the method
+        assertTrue(source.contains("enum Type {"));
+        assertTrue(source.contains("interface Named {"));
+        assertTrue(source.contains("record Point(int x, int y) {}"));
+
+        // The anonymous class is only reachable through 'var', unless the call is made on a member of its super type
+        assertTrue(source.contains("var printer = new Object() {"));
+        assertTrue(source.contains("Object object = new Object() {"));
+
+        // 'instanceof' patterns, whatever the shape of the test
+        assertTrue(source.contains("accept(o, (o instanceof String s && s.length() > 5));"));
+        assertTrue(source.contains("boolean b = (o instanceof String s && s.length() > 5);"));
+        assertTrue(source.contains("(o instanceof String s) ? s.isEmpty() : false"));
+        assertTrue(source.contains("if (!(o instanceof String s))"));
+
+        // The call which discards a box stays
+        assertTrue(source.contains("Boolean.valueOf("));
+
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }

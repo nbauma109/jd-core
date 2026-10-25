@@ -1,0 +1,74 @@
+/*  1:  0 */ package org.jd.core.v1.stub;
+/*  2:  0 */ 
+/*  3:  0 */ import java.util.function.Supplier;
+/*  4:  0 */ 
+/*  5:  0 */ public class SwitchPatternMatching {
+/*  6:  0 */   Object field;
+/*  7:  0 */   
+/*  8:  0 */   String expression(Object o) {
+/*  9:  9 */     return switch (o) {
+/* 10: 10 */         case Integer i -> Integer.toString(i);
+/* 11: 11 */         case String s -> s;
+/* 12: 12 */         default -> "other";
+/* 13:  0 */       };
+/* 14:  0 */   }
+/* 15:  0 */   
+/* 16:  0 */   String ofCall(Supplier<Object> supplier) {
+/* 17: 17 */     return switch (supplier.get()) {
+/* 18: 18 */         case Integer i -> Integer.toString(i);
+/* 19: 19 */         case String s -> s;
+/* 20: 20 */         default -> "other";
+/* 21:  0 */       };
+/* 22:  0 */   }
+/* 23:  0 */   
+/* 24:  0 */   String ofField() {
+/* 25: 25 */     return switch (this.field) {
+/* 26: 26 */         case Integer i -> Integer.toString(i);
+/* 27: 27 */         default -> null;
+/* 28:  0 */       };
+/* 29:  0 */   }
+/* 30:  0 */   
+/* 31:  0 */   void nullAndDefault(Object o) {
+/* 32: 32 */     System.out.println(switch (o) {
+/* 33: 33 */           case Integer i -> Integer.toString(i);
+/* 34: 34 */           case null, default -> "null";
+/* 35:  0 */         });
+/* 36:  0 */   }
+/* 37:  0 */   
+/* 38:  0 */   void statement(Object o) {
+/* 39: 39 */     switch (o) {
+/* 40:  0 */       case Integer i:
+/* 41: 41 */         System.out.println(Integer.toString(i));
+/* 42:  0 */         break;
+/* 43:  0 */       case String s:
+/* 44: 44 */         System.out.println(s);
+/* 45:  0 */         break;
+/* 46:  0 */       default:
+/* 47:  0 */         break;
+/* 48:  0 */     } 
+/* 49:  0 */   }
+/* 50:  0 */   
+/* 51:  0 */   void plainSwitchAsArgument(int i) {
+/* 52: 51 */     System.out.println(switch (i) {
+/* 53: 52 */           case 1 -> "one";
+/* 54: 53 */           case 2 -> "two";
+/* 55: 54 */           default -> "many";
+/* 56:  0 */         });
+/* 57:  0 */   }
+/* 58:  0 */   
+/* 59:  0 */   void recordPatternOfRecord(Point point) {
+/* 60: 61 */     if (point instanceof Point(int x, Object o)) {
+/* 61: 62 */       System.out.println(x);
+/* 62: 63 */       System.out.println(o);
+/* 63:  0 */     } 
+/* 64:  0 */   }
+/* 65:  0 */   
+/* 66:  0 */   void recordPatternOfObject(Object object) {
+/* 67: 68 */     if (object instanceof Point(int x, Object o)) {
+/* 68: 69 */       System.out.println(x);
+/* 69: 70 */       System.out.println(o);
+/* 70:  0 */     } 
+/* 71:  0 */   }
+/* 72:  0 */   
+/* 73:  0 */   record Point(int x, Object o) {}
+/* 74:  0 */ }

@@ -19,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.type.BaseTypeParameter;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 
+import java.util.List;
 import java.util.Map;
 
 public class ClassFileMethodDeclaration extends MethodDeclaration implements ClassFileConstructorOrMethodDeclaration {
@@ -29,6 +30,7 @@ public class ClassFileMethodDeclaration extends MethodDeclaration implements Cla
     private final Map<String, TypeArgument> bindings;
     private final Map<String, BaseType> typeBounds;
     private int firstLineNumber;
+    private List<Type> capturedParameterTypes;
 
     public ClassFileMethodDeclaration(
             ClassFileBodyDeclaration bodyDeclaration, ClassFile classFile, Method method, String name,
@@ -117,5 +119,17 @@ public class ClassFileMethodDeclaration extends MethodDeclaration implements Cla
     @Override
     public String toString() {
         return "ClassFileMethodDeclaration{" + name + " " + descriptor + ", firstLineNumber=" + firstLineNumber + "}";
+    }
+
+    /**
+     * The types, in the enclosing method, of the variables captured by this method when it is the body of a lambda:
+     * the synthetic method itself only knows their erasure.
+     */
+    public List<Type> getCapturedParameterTypes() {
+        return capturedParameterTypes;
+    }
+
+    public void setCapturedParameterTypes(List<Type> capturedParameterTypes) {
+        this.capturedParameterTypes = capturedParameterTypes;
     }
 }

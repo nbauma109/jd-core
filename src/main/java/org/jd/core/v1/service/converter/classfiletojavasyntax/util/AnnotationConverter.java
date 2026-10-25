@@ -31,8 +31,12 @@ import org.jd.core.v1.model.javasyntax.reference.ElementValuePair;
 import org.jd.core.v1.model.javasyntax.reference.ElementValuePairs;
 import org.jd.core.v1.model.javasyntax.reference.ElementValues;
 import org.jd.core.v1.model.javasyntax.reference.ExpressionElementValue;
+import org.jd.core.v1.model.javasyntax.reference.TypeUseAnnotationReference;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
+import org.jd.core.v1.model.javasyntax.type.Type;
+
+import java.util.List;
 
 public class AnnotationConverter implements ElementValueVisitor {
     private final TypeMaker typeMaker;
@@ -62,6 +66,26 @@ public class AnnotationConverter implements ElementValueVisitor {
         }
 
         return aral;
+    }
+
+    /**
+     * Adds marker annotations (given by descriptor) to the references: the type annotations of the type of a declaration, which the printer writes
+     * inside the type ('java.lang.@Nullable String', '@Nullable T', 'String @Nullable []'). One that is also an annotation of the declaration is in
+     * both attributes of the class file: the printer writes it once when it can.
+     */
+    public BaseAnnotationReference withMarkers(BaseAnnotationReference references, List<String> markerDescriptors, Type type) {
+        if (markerDescriptors.isEmpty() || type == null) {
+            return references;
+        }
+        AnnotationReferences<AnnotationReference> all = new AnnotationReferences<>();
+
+        if (references instanceof AnnotationReference reference) {
+            all.add(reference);
+        } else if (references != null) {
+            all.addAll(((AnnotationReferences<AnnotationReference>) references).getList());
+        }
+        markerDescriptors.forEach(descriptor -> all.add(new TypeUseAnnotationReference(typeMaker.makeFromDescriptor(descriptor))));
+        return all.size() == 1 ? all.getFirst() : all;
     }
 
     protected BaseAnnotationReference convert(AnnotationEntry[] as) {

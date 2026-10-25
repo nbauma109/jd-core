@@ -37,6 +37,7 @@ import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LongConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
@@ -235,7 +236,7 @@ public abstract class AbstractUpdateExpressionVisitor extends AbstractJavaSyntax
     @Override
     public void visit(MethodInvocationExpression expression) {
         Expression newExpression = updateExpression(expression.getExpression());
-        if (!newExpression.getType().isPrimitiveType()) {
+        if (!newExpression.getType().isPrimitiveType() || newExpression instanceof NoExpression) {
             expression.setExpression(newExpression);
         }
         if (expression.getParameters() != null) {

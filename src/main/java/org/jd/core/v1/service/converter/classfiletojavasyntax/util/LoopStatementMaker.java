@@ -33,8 +33,11 @@ import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.TypeArguments;
 import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.WildcardSuperTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.WildcardTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
@@ -900,6 +903,16 @@ public final class LoopStatementMaker {
         return statement;
     }
 
+    private static boolean isIterable(TypeMaker typeMaker, Type type) {
+        return type instanceof ObjectType objectType && typeMaker.isRawTypeAssignable(ObjectType.TYPE_ITERABLE, objectType);
+    }
+
+    /** The 'iterator()' of a collection may return a subtype of the interface ('UnmodifiableIterator') */
+    private static boolean isIterator(TypeMaker typeMaker, String internalName) {
+        return "java/util/Iterator".equals(internalName)
+            || typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName("java/util/Iterator"), typeMaker.makeFromInternalTypeName(internalName));
+    }
+
     private static Statement makeForEachList(
             Map<String, BaseType> typeBounds, LocalVariableMaker localVariableMaker, Statements statements,
             Expression condition, Statements subStatements) {
@@ -918,7 +931,9 @@ public final class LoopStatementMaker {
 
         MethodInvocationExpression mie = (MethodInvocationExpression)condition;
 
-        if (!"hasNext".equals(mie.getName()) || !"java/util/Iterator".equals(mie.getInternalTypeName()) ||
+        TypeMaker typeMaker = localVariableMaker.getTypeMaker();
+
+        if (!"hasNext".equals(mie.getName()) || !isIterator(typeMaker, mie.getInternalTypeName()) ||
                 !mie.getExpression().isLocalVariableReferenceExpression()) {
             return null;
         }
@@ -937,7 +952,7 @@ public final class LoopStatementMaker {
 
         mie = (MethodInvocationExpression)boe.getRightExpression();
 
-        if (!"iterator".equals(mie.getName()) || !"()Ljava/util/Iterator;".equals(mie.getDescriptor())) {
+        if (!"iterator".equals(mie.getName()) || !mie.getDescriptor().startsWith("()L") || !isIterator(typeMaker, mie.getDescriptor().substring(3, mie.getDescriptor().length() - 1))) {
             return null;
         }
         if (((ClassFileLocalVariableReferenceExpression)boe.getLeftExpression()).getLocalVariable() != syntheticIterator) {
@@ -948,6 +963,10 @@ public final class LoopStatementMaker {
 
         if (list.isCastExpression()) {
             list = list.getExpression();
+        }
+        if (!"()Ljava/util/Iterator;".equals(mie.getDescriptor()) && !isIterable(typeMaker, list.getType())) {
+            // a custom 'iterator()' of something which is not an Iterable is no enhanced for statement
+            return null;
         }
 
         // String s = (String)i$.next();
@@ -969,7 +988,7 @@ public final class LoopStatementMaker {
         mie = (MethodInvocationExpression)expression;
 
         if (!"next".equals(mie.getName()) ||
-                !"java/util/Iterator".equals(mie.getInternalTypeName()) ||
+                !isIterator(typeMaker, mie.getInternalTypeName()) ||
                 !mie.getExpression().isLocalVariableReferenceExpression()) {
             return null;
         }
@@ -1012,7 +1031,7 @@ public final class LoopStatementMaker {
                     ClassFileNewExpression ne = (ClassFileNewExpression) list;
                     ne.setType(listType.createType(item.getType()));
                 } else {
-                    list = new CastExpression(TYPE_ITERABLE.createType(item.getType()), list);
+                    list = new CastExpression(TYPE_ITERABLE.createType(iterableElementType(item.getType())), list);
                 }
             } else {
                 CreateTypeFromTypeArgumentVisitor visitor2 = new CreateTypeFromTypeArgumentVisitor();
@@ -1060,6 +1079,22 @@ public final class LoopStatementMaker {
         }
 
         return new ClassFileForEachStatement(item, list, subStatements);
+    }
+
+    /** The elements of 'Set&lt;Entry&lt;K, CAP&gt;&gt;' are not the 'Entry&lt;K, ? extends V&gt;' of the loop variable, but extend it */
+    private static BaseTypeArgument iterableElementType(Type itemType) {
+        if (itemType instanceof ObjectType itemObjectType && itemType.getDimension() == 0 && itemObjectType.getTypeArguments() != null) {
+            BaseTypeArgument arguments = itemObjectType.getTypeArguments();
+
+            if (arguments instanceof TypeArguments list ? list.stream().anyMatch(LoopStatementMaker::isWildcard) : isWildcard(arguments)) {
+                return new WildcardExtendsTypeArgument(itemObjectType);
+            }
+        }
+        return itemType;
+    }
+
+    private static boolean isWildcard(BaseTypeArgument argument) {
+        return argument instanceof WildcardExtendsTypeArgument || argument instanceof WildcardSuperTypeArgument || argument instanceof WildcardTypeArgument;
     }
 
     private static Type getGenericFieldType(LocalVariableMaker localVariableMaker, FieldReferenceExpression field) {

@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_CLASS;
+import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_OBJECT;
 import static org.jd.core.v1.model.javasyntax.type.ObjectType.TYPE_CLASS_WILDCARD;
 
 public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisitor {
@@ -109,7 +110,23 @@ public class PopulateBindingsWithTypeArgumentVisitor implements TypeArgumentVisi
     }
 
     private static boolean equals(BaseType bt1, BaseType bt2) {
-        return bt2 == null || bt2.equals(bt1);
+        // same-named variables with bounds 'Comparable<?>' (class) and 'Comparable' (method) are compatible
+        // no bounds and 'extends Object' are the same
+        return bt2 == null || bt2.equals(bt1) || bt1 == null && TYPE_OBJECT.equals(bt2)
+                || bt1 instanceof ObjectType objectType1 && bt2 instanceof ObjectType objectType2 && objectType1.rawEquals(objectType2)
+                    && (isRawOrUnbounded(objectType1) || isRawOrUnbounded(objectType2));
+    }
+
+    /** 'Comparable' and 'Comparable&lt;?&gt;' accept every parameterization, unlike 'Comparable&lt;String&gt;' */
+    private static boolean isRawOrUnbounded(ObjectType type) {
+        BaseTypeArgument arguments = type.getTypeArguments();
+
+        if (arguments == null) {
+            return true;
+        }
+        return arguments.isTypeArgumentList()
+                ? arguments.getTypeArgumentList().stream().allMatch(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT::equals)
+                : WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT.equals(arguments.getTypeArgumentFirst());
     }
 
     protected TypeArgument checkTypeClassCheckDimensionAndReturnCurrentAsTypeArgument(GenericType type) {

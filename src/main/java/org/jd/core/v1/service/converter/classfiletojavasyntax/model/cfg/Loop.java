@@ -17,6 +17,8 @@ public class Loop {
     private BasicBlock start;
     private final Set<BasicBlock> members;
     private BasicBlock end;
+    /** The block which follows the enclosing loop and which this loop keeps: it ends with a 'return' written in this loop */
+    private BasicBlock exitKept;
 
     public Loop(BasicBlock start, Set<BasicBlock> members, BasicBlock end) {
         this.start = start;
@@ -46,6 +48,14 @@ public class Loop {
 
     public void setEnd(BasicBlock end) {
         this.end = end;
+    }
+
+    public BasicBlock getExitKept() {
+        return exitKept;
+    }
+
+    public void setExitKept(BasicBlock exitKept) {
+        this.exitKept = exitKept;
     }
 
     public void updateEnclosingLoop() {

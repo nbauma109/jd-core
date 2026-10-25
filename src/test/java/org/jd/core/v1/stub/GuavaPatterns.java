@@ -1,0 +1,1706 @@
+/*
+ * Copyright (c) 2026 Nicolas Baumann (@nbauma109), with Claude Sonnet 5.5.
+ * This project is distributed under the GPLv3 license.
+ * This is a Copyleft license that gives the user the right to use,
+ * copy and modify the code freely for non-commercial purposes.
+ */
+
+package org.jd.core.v1.stub;
+
+import java.util.stream.Stream;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collector;
+
+/** Shapes which made Guava 33.7.2 decompile to code which did not print or did not recompile. */
+@SuppressWarnings({"unchecked", "rawtypes", "java:S1172", "java:S119", "java:S1488", "java:S2133", "java:S1130", "java:S1117"})
+public class GuavaPatterns {
+    int modCount;
+
+    /** A class declared in an anonymous class writes a field of the anonymous class */
+    public Iterator<String> anonymousWithInnerClass() {
+        return new Iterator<String>() {
+            int expectedModCount = modCount;
+            String toRemove;
+
+            class Entry {
+                String node = "a";
+
+                String setValue(String value) {
+                    expectedModCount = modCount;
+                    if (toRemove == node) {
+                        toRemove = value;
+                    }
+                    return node;
+                }
+            }
+
+            @Override
+            public boolean hasNext() {
+                return new Entry().setValue("b") != null;
+            }
+
+            @Override
+            public String next() {
+                return toRemove;
+            }
+        };
+    }
+
+    /** An anonymous class declared in an anonymous class calls a method of the outer one */
+    public Iterable<String> anonymousInAnonymous() {
+        return new Iterable<String>() {
+            boolean compatible(Object value) {
+                return value != null;
+            }
+
+            @Override
+            public Iterator<String> iterator() {
+                return new Iterator<String>() {
+                    @Override
+                    public boolean hasNext() {
+                        return compatible("x") && compatible(this);
+                    }
+
+                    @Override
+                    public String next() {
+                        return "next";
+                    }
+                };
+            }
+        };
+    }
+
+    abstract static class Cut<C extends Comparable> implements Comparable<Cut<C>> {
+        final C endpoint;
+
+        Cut(C endpoint) {
+            this.endpoint = endpoint;
+        }
+
+        static <C extends Comparable> Cut<C> belowAll() {
+            return new Cut<C>(null) {
+            };
+        }
+
+        static <C extends Comparable> Cut<C> belowValue(C endpoint) {
+            return new Cut<C>(endpoint) {
+            };
+        }
+
+        @Override
+        public int compareTo(Cut<C> other) {
+            return 0;
+        }
+    }
+
+    static final class Bounds<C extends Comparable> {
+        final Cut<C> lowerBound;
+        final Cut<C> upperBound;
+
+        private Bounds(Cut<C> lowerBound, Cut<C> upperBound) {
+            this.lowerBound = lowerBound;
+            this.upperBound = upperBound;
+        }
+
+        static <C extends Comparable<?>> Bounds<C> create(Cut<C> lowerBound, Cut<C> upperBound) {
+            return new Bounds<C>(lowerBound, upperBound);
+        }
+
+        /** The type variable of a generic method which is bound to the bound of a type variable of the caller */
+        public static <C extends Comparable<?>> Bounds<C> lessThan(C endpoint) {
+            return create(Cut.belowAll(), Cut.belowValue(endpoint));
+        }
+    }
+
+    /** A local class which creates instances of itself */
+    public static <T> Iterator<T> localClassCreatingItself(T value) {
+        class Local implements Iterator<T> {
+            private final boolean last;
+
+            Local(boolean last) {
+                this.last = last;
+            }
+
+            Local trySplit() {
+                return last ? null : new Local(true);
+            }
+
+            @Override
+            public boolean hasNext() {
+                return !last && value != null;
+            }
+
+            @Override
+            public T next() {
+                return value;
+            }
+        }
+        return new Local(false).trySplit();
+    }
+
+    /** The empty varargs array of the characteristics follows a lambda with a block body */
+    public static <T> Collector<T, ?, List<T>> blockLambdaThenEmptyVarargs(Supplier<List<T>> supplier) {
+        return Collector.of(supplier, (list, item) -> list.add(item), (first, second) -> {
+            first.addAll(second);
+            return first;
+        });
+    }
+
+    public static <T> Collector<T, ?, List<T>> expressionLambdaThenEmptyVarargs(Supplier<List<T>> supplier) {
+        return Collector.of(supplier, (list, item) -> list.add(item), (first, second) -> first);
+    }
+
+    static <T, K> void merge(Map<K, T> map, K key, T value, BinaryOperator<T> mergeFunction) {
+        map.merge(key, value, mergeFunction);
+    }
+
+    /** Both lambdas capture variables of the method */
+    public static <T, K, M extends Map<K, T>> Collector<T, ?, M> capturingLambdas(Function<? super T, ? extends K> keyFunction,
+            BinaryOperator<T> mergeFunction, Supplier<M> supplier) {
+        return Collector.of(
+                supplier,
+                (map, input) ->
+                        merge(
+                                map,
+                                keyFunction.apply(input),
+                                input,
+                                mergeFunction),
+                (first, second) -> {
+                    for (Map.Entry<K, T> entry : second.entrySet()) {
+                        merge(first, entry.getKey(), entry.getValue(), mergeFunction);
+                    }
+                    return first;
+                });
+    }
+
+    abstract static class Indexed<T> implements Iterator<T> {
+        final Iterator<T> from;
+        long index;
+
+        Indexed(Iterator<T> from, long index) {
+            this.from = from;
+            this.index = index;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return from.hasNext();
+        }
+    }
+
+    /** A local class which captures a variable and whose constructor takes a long */
+    public static Iterator<String> localClassWithLongParameter(Iterator<String> source, Function<String, String> function) {
+        class Splitr extends Indexed<String> {
+            Splitr(Iterator<String> from, long index) {
+                super(from, index);
+            }
+
+            @Override
+            public String next() {
+                return function.apply(from.next()) + index++;
+            }
+        }
+        return new Splitr(source, 0L);
+    }
+
+    /** The generic signature of the constructor of an inner class leaves out the outer instance */
+    class GenericInner<X> {
+        final List<X> items;
+
+        GenericInner(List<X> items) {
+            this.items = items;
+        }
+
+        int size() {
+            return items.size() + modCount;
+        }
+    }
+
+    public int genericInner(String first) {
+        List<String> items = new ArrayList<>();
+        items.add(first);
+        return new GenericInner<>(items).size();
+    }
+
+    static class NumberBounded<X extends Number> {
+        NumberBounded(Number number) {
+        }
+    }
+
+    /** The type argument of the created class is known: the constructor parameter is a Number, not a X */
+    public static <U extends Number> NumberBounded<Integer> knownTypeArgument(U number) {
+        return new NumberBounded<Integer>(number) {
+        };
+    }
+
+    /** An anonymous class with a method which only looks like an override: no diamond */
+    public static ArrayList<String> overloadInAnonymousClass() {
+        return new ArrayList<String>() {
+            public boolean add(Integer number) {
+                return add(String.valueOf(number));
+            }
+        };
+    }
+
+    interface Element<E> {
+        E self();
+    }
+
+    static class Matrix<T extends Element<T>> {
+        Matrix(T[][] data, boolean copy) {
+        }
+    }
+
+    static class Decomposition<T extends Element<T>> {
+        Decomposition(Matrix<T> matrix) {
+        }
+    }
+
+    /** The type argument of an argument created from an array of the type variable, which is bounded by itself */
+    public static <T extends Element<T>> Decomposition<T> decompose(T[][] data) {
+        return new Decomposition<T>(new Matrix<T>(data, false));
+    }
+
+    static <T> T first(List<? extends List<? extends T>> values) {
+        return values.get(0).get(0);
+    }
+
+    /** The wildcard which faces the type variable is nested: the cast is needed to get a String */
+    public static String firstOfWildcards(List<List<?>> values) {
+        return (String) first(values);
+    }
+
+    static class RawBox<T> {
+        T content;
+
+        T get() {
+            return content;
+        }
+    }
+
+    static RawBox rawBox() {
+        return new RawBox();
+    }
+
+    /** What a raw receiver which is a method call returns is erased */
+    public static String fromRawFactory() {
+        return (String) rawBox().get();
+    }
+
+    abstract static class Getter<T> {
+        abstract T get(T value);
+    }
+
+    /** The bridge method get(Object) belongs to get(String): the other get is a new method, there is no diamond */
+    public static Getter<String> getterWithAnotherOverload() {
+        return new Getter<String>() {
+            @Override
+            String get(String value) {
+                return value;
+            }
+
+            String get(Integer value) {
+                return String.valueOf(value);
+            }
+        };
+    }
+
+    static class Box<T> {
+        final T content;
+
+        Box(T content) {
+            this.content = content;
+        }
+    }
+
+    static <T> Box<List<T>> wrap(List<T> values) {
+        return new Box<List<T>>(values);
+    }
+
+    /** The type variable which is captured is nested in the returned type */
+    public static Box<List<String>> wrapped(List<?> values) {
+        return (Box<List<String>>) (Box<?>) wrap(values);
+    }
+
+    interface Adapter2<T> {
+        T get();
+    }
+
+    static class Comparing<X extends Comparable<String>> implements Adapter2<X> {
+        Comparing(X value) {
+        }
+
+        @Override
+        public X get() {
+            return null;
+        }
+    }
+
+    /** The bounds Comparable<Integer> and Comparable<String> have the same raw type */
+    public static <U extends Comparable<Integer>> Adapter2<U> comparing(U value) {
+        return (Adapter2<U>) (Adapter2) new Comparing(value);
+    }
+
+    static boolean isOk() {
+        return modCounter > 0;
+    }
+
+    static boolean await(boolean reentrant) throws InterruptedException {
+        return reentrant;
+    }
+
+    static void signal() {
+        modCounter++;
+    }
+
+    static int modCounter;
+
+    /** A finally block which contains a try and a finally, and which reads the variables set in the try block */
+    public static boolean nestedFinally(ReentrantLock lock, boolean reentrant) throws InterruptedException {
+        boolean satisfied = false;
+        boolean threw = true;
+        try {
+            satisfied = isOk() || await(reentrant);
+            threw = false;
+            return satisfied;
+        } finally {
+            if (!satisfied) {
+                try {
+                    if (threw && !reentrant) {
+                        signal();
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    static boolean satisfiedNow() {
+        return modCounter < 0;
+    }
+
+    static boolean awaitNanos(long nanos, boolean reentrant) {
+        return reentrant && nanos > 0;
+    }
+
+    static long remainingNanos(long start, long timeout) {
+        return timeout - start;
+    }
+
+    /** The second operand of the '||' has a ternary operator as an argument, and the result is stored before it is returned */
+    public static boolean orWithTernaryArgument(long start, long timeout, boolean reentrant) {
+        boolean satisfied = satisfiedNow() || awaitNanos((start == 0L) ? timeout : remainingNanos(start, timeout), reentrant);
+        return satisfied;
+    }
+
+    final boolean fair = modCounter > 5;
+    final ReentrantLock lock = new ReentrantLock();
+
+    /** A labeled block left by a 'break', then a try with a finally which contains a try and a finally (Guava's Monitor.enterWhen) */
+    public boolean labeledBlockThenNestedFinally(long time, TimeUnit unit) throws InterruptedException {
+        final long timeoutNanos = unit.toNanos(time);
+        final ReentrantLock lock = this.lock;
+        boolean reentrant = lock.isHeldByCurrentThread();
+        long startTime = 0L;
+
+        locked:
+        {
+            if (!fair) {
+                if (Thread.interrupted()) {
+                    throw new InterruptedException();
+                }
+                if (lock.tryLock()) {
+                    break locked;
+                }
+            }
+            startTime = System.nanoTime();
+            if (!lock.tryLock(time, unit)) {
+                return false;
+            }
+        }
+
+        boolean satisfied = false;
+        boolean threw = true;
+        try {
+            satisfied = satisfiedNow() || awaitNanos((startTime == 0L) ? timeoutNanos : remainingNanos(startTime, timeoutNanos), reentrant);
+            threw = false;
+            return satisfied;
+        } finally {
+            if (!satisfied) {
+                try {
+                    if (threw && !reentrant) {
+                        signal();
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+        }
+    }
+
+    static GuavaPatterns of(Type[] bounds) {
+        return new GuavaPatterns();
+    }
+
+    boolean isSubtypeOf(Type type) {
+        return type != null;
+    }
+
+    final Type runtimeType = null;
+
+    /** The cast is the receiver of a call whose result is the argument of another call: it must not be typed as the parameter (an array) */
+    public boolean castReceiverInArgument(Type supertype) {
+        return runtimeType.equals(supertype) || of(((TypeVariable<?>) runtimeType).getBounds()).isSubtypeOf(supertype);
+    }
+
+    static class Monitor2 {
+        abstract static class Guard {
+            final Monitor2 monitor;
+
+            Guard(Monitor2 monitor) {
+                this.monitor = monitor;
+            }
+
+            abstract boolean isSatisfied();
+        }
+    }
+
+    final Monitor2 monitor2 = new Monitor2();
+
+    /** The first parameter of the constructor of the static nested class is of the type of its outer class: it is not an outer instance */
+    final class IsGuard extends Monitor2.Guard {
+        IsGuard() {
+            super(monitor2);
+        }
+
+        @Override
+        boolean isSatisfied() {
+            return modCount == 0;
+        }
+    }
+
+    abstract static class Ord<T> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Ord<C> natural() {
+            return null;
+        }
+    }
+
+    /** E is not a Comparable: the type variable of 'natural' cannot be inferred from the type of the variable */
+    public static <E> Ord<E> naturalOrder(Iterable<? extends E> elements) {
+        Ord<E> naturalOrder = (Ord<E>) Ord.natural();
+        return naturalOrder;
+    }
+
+    static <E> List<E> copyOf(java.util.Comparator<? super E> comparator, Iterable<? extends E> elements) {
+        return null;
+    }
+
+    /** The array of the arguments of a varargs call, of a type variable which has a bound, is not cast */
+    public static <E extends Comparable<? super E>> List<E> twoOf(E first, E second) {
+        return copyOf(null, Arrays.asList(first, second));
+    }
+
+    /** An anonymous class in a static generic method does not see the type variable of the class: nor does the argument of requireNonNull */
+    public static <K, V> Comparator<K> byValue(final Map<K, V> map, final Comparator<? super V> valueComparator) {
+        return new Comparator<K>() {
+            @Override
+            public int compare(K left, K right) {
+                return valueComparator.compare(Objects.requireNonNull(map.get(left)), Objects.requireNonNull(map.get(right)));
+            }
+        };
+    }
+
+    static final class ArrayItr<E> {
+        /** The type variable of the class is not visible to its static fields */
+        static final ArrayItr<Object> EMPTY = new ArrayItr<>(new Object[0], 0);
+        final E[] array;
+
+        ArrayItr(E[] array, int position) {
+            this.array = array;
+        }
+    }
+
+    /** A primitive cannot be cast to a type variable: its box is */
+    @SuppressWarnings("unchecked")
+    public static <T> T defaultValue(Class<T> type) {
+        if (type == char.class) {
+            return (T) Character.valueOf('\0');
+        }
+        if (type == int.class) {
+            return (T) Integer.valueOf(0);
+        }
+        return null;
+    }
+
+    /** The counter of the first loop is still used by the second one, which does not initialize it */
+    public static int counterSharedByTwoLoops(byte[] input, int off, int len) {
+        int h1 = 1;
+        int i;
+        for (i = 0; i + 4 <= len; i += 4) {
+            h1 = h1 * 31 + input[off + i];
+        }
+        int k1 = 0;
+        for (int shift = 0; i < len; i++, shift += 8) {
+            k1 ^= input[off + i] << shift;
+        }
+        return h1 ^ k1;
+    }
+
+    public static class GraphBuilder<N, V> {
+        static <N, V> GraphBuilder<N, V> from(java.util.Map<N, V> graph) {
+            return new GraphBuilder<>();
+        }
+
+        GraphBuilder<N, V> expectedNodeCount(int count) {
+            return this;
+        }
+
+        <N1 extends N, V1 extends V> java.util.Map<N1, V1> build() {
+            return new java.util.HashMap<>();
+        }
+    }
+
+    /** The variable is declared with the type of a ternary of generic calls whose own type variables are not bound */
+    public static <N, V> java.util.Map<N, V> inducedSubgraph(java.util.Map<N, V> graph, Iterable<? extends N> nodes) {
+        java.util.Map<N, V> subgraph = (nodes instanceof java.util.Collection)
+                ? GraphBuilder.from(graph).expectedNodeCount(((java.util.Collection<?>) nodes).size()).build()
+                : GraphBuilder.from(graph).build();
+        for (N node : nodes) {
+            subgraph.put(node, null);
+        }
+        return subgraph;
+    }
+
+    public abstract static class FactorySet<E> extends java.util.AbstractSet<E> {
+        static <E> FactorySet<E> of(E element) {
+            return null;
+        }
+
+        static <E> FactorySet<E> of(E element1, E element2) {
+            return null;
+        }
+    }
+
+    /** 'Set.of(E)' and 'Set.of(E...)' are not inherited by the static factories of a set */
+    public static FactorySet<String> factoryOfOne(String value) {
+        return FactorySet.of(value);
+    }
+
+    public static class OrderedBuilder<N, E> {
+        java.util.List<N> nodeOrder;
+
+        @SuppressWarnings("unchecked")
+        private <N1 extends N, E1 extends E> OrderedBuilder<N1, E1> cast() {
+            return (OrderedBuilder<N1, E1>) this;
+        }
+
+        /** The field of another builder is declared with the type variables of its class, which that builder binds differently */
+        public <N1 extends N> OrderedBuilder<N1, E> nodeOrder(java.util.List<N1> order) {
+            OrderedBuilder<N1, E> newBuilder = cast();
+            newBuilder.nodeOrder = java.util.Objects.requireNonNull(order);
+            return newBuilder;
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    static <C extends Comparable> java.util.Comparator<C> naturalComparator() {
+        return (java.util.Comparator<C>) java.util.Comparator.naturalOrder();
+    }
+
+    /** A bounded type variable of a generic method is inferred from its bound, never from the wildcard target type */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static <E> java.util.Comparator<E> comparatorOf(java.util.SortedSet<E> set) {
+        java.util.Comparator<? super E> result = set.comparator();
+        if (result == null) {
+            result = (java.util.Comparator<? super E>) naturalComparator();
+        }
+        return (java.util.Comparator<E>) result;
+    }
+
+    /** The local class captures a variable of the loop: it is declared in the block of its only use */
+    public static Object localClassInLoop(java.util.Iterator<java.util.Map.Entry<String, String>> iterator) {
+        while (iterator.hasNext()) {
+            final java.util.Map.Entry<String, String> entry = iterator.next();
+            if (entry.getValue() != null) {
+                final class EntryView {
+                    String key() {
+                        return entry.getKey();
+                    }
+                }
+                return new EntryView();
+            }
+        }
+        return null;
+    }
+
+    public abstract static class Wrapper<V> {
+        abstract class Coll extends java.util.AbstractCollection<V> {
+            java.util.List<V> delegate() {
+                return null;
+            }
+
+            class It implements java.util.Iterator<V> {
+                final java.util.Iterator<V> iterator;
+
+                It() {
+                    this.iterator = delegate().iterator();
+                }
+
+                It(java.util.Iterator<V> iterator) {
+                    this.iterator = iterator;
+                }
+
+                public boolean hasNext() {
+                    return iterator.hasNext();
+                }
+
+                public V next() {
+                    return iterator.next();
+                }
+            }
+        }
+
+        class ListColl extends Coll {
+            java.util.List<V> listDelegate() {
+                return null;
+            }
+
+            public java.util.Iterator<V> iterator() {
+                return new ListIt();
+            }
+
+            public int size() {
+                return 0;
+            }
+
+            /** The outer instance is stored in 'this$1' and the constructor passes it on to the inner superclass */
+            private final class ListIt extends Coll.It {
+                ListIt() {
+                }
+
+                ListIt(int index) {
+                    super(listDelegate().listIterator(index));
+                }
+            }
+        }
+    }
+
+    interface Terminator {
+        void exit(int status);
+    }
+
+    static final class Exiter implements Thread.UncaughtExceptionHandler {
+        private final Terminator terminator;
+
+        Exiter(Terminator terminator) {
+            this.terminator = terminator;
+        }
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable exception) {
+            terminator.exit(1);
+        }
+    }
+
+    /** The receiver of the bound method reference is no outer instance of the static nested class */
+    public static Thread.UncaughtExceptionHandler systemExit() {
+        return new Exiter(Runtime.getRuntime()::exit);
+    }
+
+    static final class Bound<C> {
+    }
+
+    static final class Interval<C> {
+        final Bound<C> lowerBound = null;
+    }
+
+    abstract static class KeyedEntry<A, B> implements java.util.Map.Entry<A, B> {
+        @Override
+        public A getKey() {
+            return null;
+        }
+    }
+
+    static final class IntervalEntry<K, V> extends KeyedEntry<Interval<K>, V> {
+        @Override
+        public V getValue() {
+            return null;
+        }
+
+        @Override
+        public V setValue(V value) {
+            return value;
+        }
+    }
+
+    /** The value of the entry is an IntervalEntry whose key is read through the erased class of the bytecode cast */
+    public static <K> Bound<K> lowerBoundOfFirst(java.util.NavigableMap<Bound<K>, IntervalEntry<K, String>> entries) {
+        java.util.Map.Entry<Bound<K>, IntervalEntry<K, String>> first = entries.firstEntry();
+        return first.getValue().getKey().lowerBound;
+    }
+
+    static final class Fluent<E> {
+        static <E> Fluent<E> from(Iterable<E> iterable) {
+            return new Fluent<>();
+        }
+
+        static <E> Fluent<E> from(Fluent<E> fluent) {
+            return fluent;
+        }
+
+        static <E> Fluent<E> from(E[] elements) {
+            return new Fluent<>();
+        }
+
+        <T> Fluent<T> transform(java.util.function.Function<? super E, T> function) {
+            return new Fluent<>();
+        }
+
+        java.util.List<E> toList() {
+            return null;
+        }
+    }
+
+    static final class Pending<V> {
+        final String name;
+
+        Pending(String name) {
+            this.name = name;
+        }
+    }
+
+    /** The argument is cast to the parameterized type of the overload, a raw one would make the call unchecked */
+    public static java.util.List<String> namesOf(java.util.List<Pending<?>> pendings) {
+        return Fluent.from(pendings).transform(pending -> pending.name).toList();
+    }
+
+    /** The type of a variable initialized by a ternary with null is the one of the call */
+    public static <T extends Comparable<?>> Object endpointOf(Wrapper2<T> range) {
+        T endpoint = range.has() ? range.end() : null;
+        return endpoint;
+    }
+
+    static final class Wrapper2<C extends Comparable<?>> {
+        boolean has() {
+            return true;
+        }
+
+        C end() {
+            return null;
+        }
+    }
+
+    enum AlwaysTrue implements java.util.function.Predicate<Object> {
+        INSTANCE;
+
+        @Override
+        public boolean test(Object object) {
+            return true;
+        }
+
+        @SuppressWarnings("unchecked")
+        <T> java.util.function.Predicate<T> withNarrowedType() {
+            return (java.util.function.Predicate<T>) this;
+        }
+    }
+
+    abstract static class Base<E> {
+    }
+
+    static final class Regular<E> extends Base<E> {
+        static final Regular<Object> EMPTY = new Regular<>();
+    }
+
+    /** The unchecked cast of a shared instance to the type of the method is in the source, not in the bytecode */
+    @SuppressWarnings("unchecked")
+    public static <E> Base<E> emptyBase() {
+        return (Base<E>) Regular.EMPTY;
+    }
+
+    abstract static class Order<T> implements java.util.Comparator<T> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Order<C> natural() {
+            return null;
+        }
+
+        Order(java.util.Comparator<? super T> comparator) {
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        static <E> java.util.Comparator<? super E> orNatural(java.util.Comparator<? super E> comparator) {
+            if (comparator != null) {
+                return comparator;
+            }
+            return (java.util.Comparator<E>) natural();
+        }
+    }
+
+    abstract static class SubOrder<E> extends Order<E> {
+        /** A bounded type variable cannot be inferred from the type variable of a wildcard target */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        SubOrder() {
+            this((java.util.Comparator) natural());
+        }
+
+        SubOrder(java.util.Comparator<? super E> comparator) {
+            super(comparator);
+        }
+    }
+
+    interface Ranges<K, V> {
+        java.util.Map<java.util.List<K>, V> asMap();
+    }
+
+    /** The elements of the entry set extend the type of the loop variable: the iterable is cast to the wildcard type */
+    public static <K, V> void collectEntries(Ranges<K, ? extends V> ranges, java.util.List<Object> out) {
+        for (java.util.Map.Entry<java.util.List<K>, ? extends V> entry : ranges.asMap().entrySet()) {
+            out.add(entry.getKey());
+            out.add(entry.getValue());
+        }
+    }
+
+    abstract static class OneWayIterator<E> implements java.util.Iterator<E> {
+        @Override
+        public final void remove() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    abstract static class OneWayCollection<E> extends java.util.AbstractCollection<E> {
+        @Override
+        public abstract OneWayIterator<E> iterator();
+    }
+
+    /** The collection returns a subtype of Iterator, which a for-each statement iterates all the same */
+    public static int sizes(OneWayCollection<OneWayCollection<String>> collections) {
+        int total = 0;
+        for (OneWayCollection<String> collection : collections) {
+            total += collection.size();
+        }
+        return total;
+    }
+
+    /** 'tryAdvance(i -> ...)' of an OfInt spliterator is ambiguous between a Consumer and an IntConsumer */
+    public static <T> boolean advanceIndexed(java.util.Spliterator.OfInt delegate, java.util.function.IntFunction<T> function, java.util.function.Consumer<? super T> action) {
+        return delegate.tryAdvance((java.util.function.IntConsumer) i -> action.accept(function.apply(i)));
+    }
+
+    static final class FlatMapper<In, Out, S extends java.util.Spliterator<Out>> {
+        S prefix;
+        java.util.function.Function<In, S> function;
+        java.util.Spliterator<In> from;
+
+        /** The bytecode casts the result of the function to the erasure of S, which is its bound */
+        boolean advance() {
+            return from.tryAdvance(element -> prefix = function.apply(element));
+        }
+    }
+
+    /** The local class is only used by an anonymous subclass and by a class literal */
+    public static String detectOwner() {
+        class LocalClass<T> {
+        }
+        Class<?> subclass = new LocalClass<String>() {
+        }.getClass();
+        return LocalClass.class == subclass.getSuperclass() ? "same" : "other";
+    }
+
+    static final class AllOf<T> {
+        AllOf(java.util.List<? extends java.util.function.Predicate<? super T>> components) {
+        }
+    }
+
+    @SafeVarargs
+    static <T> java.util.List<T> copyOf(T... array) {
+        return new java.util.ArrayList<>(java.util.Arrays.asList(array));
+    }
+
+    /** The type arguments of the instance are written: they cannot be inferred from the target and from the generic call at once */
+    @SafeVarargs
+    public static <T> AllOf<T> allOf(java.util.function.Predicate<? super T>... components) {
+        return new AllOf<T>(copyOf(components));
+    }
+
+    static final java.lang.invoke.MethodHandle LENGTH;
+
+    static {
+        try {
+            LENGTH = java.lang.invoke.MethodHandles.lookup().findVirtual(String.class, "length", java.lang.invoke.MethodType.methodType(int.class));
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /** A signature polymorphic call is typed by its call site: the result is cast to the returned type */
+    public static int lengthOf(String value) {
+        try {
+            return (int) LENGTH.invokeExact(value);
+        } catch (Throwable throwable) {
+            throw new IllegalStateException(throwable);
+        }
+    }
+
+    static final java.lang.invoke.MethodHandle UPDATE;
+
+    static {
+        java.lang.invoke.MethodHandle handle = null;
+        try {
+            handle = java.lang.invoke.MethodHandles.lookup().findVirtual(java.util.zip.Checksum.class, "update",
+                    java.lang.invoke.MethodType.methodType(void.class, java.nio.ByteBuffer.class));
+        } catch (ReflectiveOperationException e) {
+            // no handle
+        }
+        UPDATE = handle;
+    }
+
+    /** A signature polymorphic call which returns void is a statement */
+    public static boolean updateChecksum(java.util.zip.Checksum checksum, java.nio.ByteBuffer buffer) {
+        if (UPDATE != null) {
+            try {
+                UPDATE.invokeExact(checksum, buffer);
+                return true;
+            } catch (Throwable throwable) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class Boundary<T extends Comparable> {
+        @SuppressWarnings("rawtypes")
+        static <T extends Comparable> Boundary<T> belowAll() {
+            return null;
+        }
+    }
+
+    static final class Window<C extends Comparable<?>> {
+        Boundary<C> next;
+
+        /** Nothing infers the type argument of a generic call compared with something: it is written */
+        boolean isBelowAll() {
+            return next == Boundary.<C>belowAll();
+        }
+
+        /** The field is declared by an anonymous class of the generic class */
+        Runnable watcher() {
+            return new Runnable() {
+                Boundary<C> last;
+
+                @Override
+                public void run() {
+                    if (last == Boundary.<C>belowAll()) {
+                        return;
+                    }
+                    last = next;
+                }
+            };
+        }
+    }
+
+    interface Stoppable {
+        void stop();
+    }
+
+    static final class StaticHolder {
+        private final Runnable action;
+
+        StaticHolder(Runnable action) {
+            this.action = action;
+        }
+    }
+
+    /** The receiver of the method reference is no outer instance of the static class which receives the reference */
+    public static StaticHolder holderOf(Thread thread) {
+        return new StaticHolder(thread::start);
+    }
+
+    /** The local class is created in a block but also used as the type of a variable after it */
+    public static Object localClassUsedAsType(boolean flag) {
+        class Marker {
+        }
+        Marker marker = null;
+        if (flag) {
+            marker = new Marker();
+        }
+        return marker;
+    }
+
+    static final class NestedBox<T> {
+        T content;
+    }
+
+    static <T> T unboxNested(NestedBox<? extends java.util.List<? extends T>> wrapper) {
+        return wrapper.content.get(0);
+    }
+
+    /** The captured variable has a wildcard nested in its type argument: the lambda keeps its type */
+    public static String firstOf(NestedBox<java.util.List<?>> wrapper) {
+        java.util.function.Supplier<String> supplier = () -> (String) unboxNested(wrapper);
+        return supplier.get();
+    }
+
+    /** The outer instance is the qualifier, and the first argument of the constructor: it is written once */
+    public static <K, V> Object qualifiedCreation(GuavaOuter<K, V> outer, K key, V value) {
+        return outer.new Wrapped(key, value);
+    }
+
+    static final class ArrayBox<T> {
+    }
+
+    static <T> ArrayBox<T[]> wrapAll(java.util.List<T> values) {
+        return new ArrayBox<>();
+    }
+
+    /** The captured variable is the component of an array argument: the unchecked cast stays */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static ArrayBox<String[]> wrappedArrays(java.util.List<?> values) {
+        return (ArrayBox<String[]>) (ArrayBox) wrapAll(values);
+    }
+
+    static class MirrorHolder<K, V> {
+        private MirrorHolder<V, K> inverse;
+
+        K check(K key) {
+            return key;
+        }
+    }
+
+    static final class MirrorView<K, V> extends MirrorHolder<K, V> {
+        /** A private field of the superclass is reached through super */
+        V checkInverse(V value) {
+            return super.inverse.check(value);
+        }
+    }
+
+    static final class Settings<K, V> {
+        java.util.function.Function<? super K, ? super V> mapper;
+
+        @SuppressWarnings("unchecked")
+        <K1 extends K, V1 extends V> Settings<K1, V1> mapping(java.util.function.Function<? super K1, ? super V1> function) {
+            Settings<K1, V1> me = (Settings<K1, V1>) this;
+            me.mapper = java.util.Objects.requireNonNull(function);
+            return me;
+        }
+    }
+
+    /** A list of a wildcard type is not a list of the concrete type: the source casts it (unchecked) */
+    @SuppressWarnings("unchecked")
+    public static <R> void addUnchecked(java.util.List<java.util.List<R>> sink, java.util.List<? extends R> cell) {
+        sink.add((java.util.List<R>) cell);
+    }
+
+    static class GrandParent {
+        int shadowed = 1;
+    }
+
+    static class Parent extends GrandParent {
+        int shadowed = 2;
+    }
+
+    static final class Child extends Parent {
+        /** The field of the grandparent is hidden by the one of the parent: it is reached through a cast */
+        int grandParentField() {
+            return ((GrandParent) this).shadowed;
+        }
+    }
+
+    /** The local class is created in a block but also tested with instanceof after it */
+    public static boolean localClassTestedLater(boolean flag, Object value) {
+        class Probe {
+        }
+        Object probe = value;
+        if (flag) {
+            probe = new Probe();
+        }
+        return probe instanceof Probe;
+    }
+
+    static final class Slot<T> {
+        java.util.List<T> items;
+        java.util.function.Supplier<T> supplier;
+    }
+
+    /** A value of a wildcard type is assigned to the field of another instance */
+    @SuppressWarnings("unchecked")
+    public static <T> Slot<T> fillSlot(Slot<T> slot, java.util.List<? extends T> source) {
+        slot.items = (java.util.List<T>) source;
+        return slot;
+    }
+
+    /** The value of a generic call is assigned to the field of another instance */
+    public static <T> Slot<T> fillSlotFromCall(Slot<T> slot) {
+        slot.items = java.util.Collections.emptyList();
+        return slot;
+    }
+
+
+    /** The local class is created in a block but also used as the component type of an array after it */
+    public static Object localClassArrayLater(boolean flag) {
+        class Cell {
+        }
+        Object result = null;
+        if (flag) {
+            result = new Cell();
+        }
+        return result != null ? result : new Cell[1];
+    }
+
+    static class Crate<C> {
+    }
+
+    interface Factory {
+        default <C extends Comparable<C>> Crate<C> make() {
+            return new Crate<>();
+        }
+    }
+
+    static final class FactoryImpl implements Factory {
+    }
+
+    /** The method is declared by an interface of the receiver class */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <E> Crate<E> makeFromInterface(FactoryImpl factory) {
+        return (Crate) factory.make();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <E> Crate<E> makeFromDeclaringInterface(Factory factory) {
+        return (Crate) factory.make();
+    }
+
+    static int transform(int value) {
+        return value + 1;
+    }
+
+    /** The second loop reads the variable it assigns in its initializer */
+    public static int loopsReadingTheirVariable(int count) {
+        int i;
+        int total = 0;
+        for (i = 0; i < count; i++) {
+            total += i;
+        }
+        for (i = transform(i); i < count * 2; i++) {
+            total += i;
+        }
+        return total;
+    }
+
+    /** The local exception is thrown in a block but also caught after it */
+    public static boolean localExceptionCaughtLater(boolean flag) {
+        class Failure extends Exception {
+            private static final long serialVersionUID = 1L;
+        }
+        try {
+            if (flag) {
+                throw new Failure();
+            }
+        } catch (Failure e) {
+            return true;
+        }
+        return false;
+    }
+
+    /** The local class is created in a block but also the type of the variable of an enhanced for after it */
+    public static int localClassLoopedLater(boolean flag, java.util.List<Object> values) {
+        class Item {
+        }
+        Object created = null;
+        if (flag) {
+            created = new Item();
+        }
+        int count = created == null ? 0 : 1;
+        for (Object value : values) {
+            if (value instanceof Item) {
+                count++;
+            }
+        }
+        java.util.List<Item> items = new java.util.ArrayList<>();
+        for (Item item : items) {
+            count += item.hashCode();
+        }
+        return count;
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class Pin<C extends Comparable> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Pin<C> below() {
+            return null;
+        }
+    }
+
+    static final class Pinned<C extends Comparable<?>> {
+        Pin<C> last;
+
+        /** The type variable of the generic method has the name, but not the bound, of the one of the class */
+        Runnable watcher() {
+            return new Runnable() {
+                @Override
+                public void run() {
+                    if (last == Pin.<C>below()) {
+                        return;
+                    }
+                }
+            };
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class Span<C extends Comparable> {
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class SpanEntry<K extends Comparable, V> {
+        SpanEntry(Span<K> span, V value) {
+        }
+    }
+
+    /** The argument is a Span of a type variable bounded by 'Comparable&lt;?&gt;', the class needs a raw 'Comparable': no cast */
+    public static <K extends Comparable<?>, V> SpanEntry<K, V> newSpanEntry(Span<K> span, V value) {
+        SpanEntry<K, V> entry = new SpanEntry<>(span, value);
+        return entry;
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static <K extends Comparable, V> java.util.Map<Span<K>, SpanEntry<K, V>> copySpans(java.util.Map<Span<K>, ? extends V> source) {
+        java.util.Map<Span<K>, SpanEntry<K, V>> target = new java.util.HashMap<>();
+        for (java.util.Map.Entry<Span<K>, ? extends V> entry : source.entrySet()) {
+            target.put(entry.getKey(), new SpanEntry<>(entry.getKey(), entry.getValue()));
+        }
+        return target;
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class SpanMap<K extends Comparable, V> {
+        @SuppressWarnings("rawtypes")
+        private static final class Slot<K extends Comparable, V> {
+            Slot(Span<K> span, V value) {
+            }
+        }
+
+        private final java.util.Map<Span<K>, Slot<K, V>> slots;
+
+        private SpanMap(java.util.Map<Span<K>, Slot<K, V>> slots) {
+            this.slots = slots;
+        }
+
+        /** The nested class and the generic method both declare K */
+        @SuppressWarnings("rawtypes")
+        static <K extends Comparable, V> SpanMap<K, V> copyOf(java.util.Map<Span<K>, ? extends V> source) {
+            java.util.Map<Span<K>, Slot<K, V>> target = new java.util.HashMap<>();
+            for (java.util.Map.Entry<Span<K>, ? extends V> entry : source.entrySet()) {
+                target.put(entry.getKey(), new Slot<>(entry.getKey(), entry.getValue()));
+            }
+            return new SpanMap<>(target);
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    abstract static class Ranking<T> implements java.util.Comparator<T> {
+        @SuppressWarnings("rawtypes")
+        static <C extends Comparable> Ranking<C> natural() {
+            return null;
+        }
+
+        <S extends T> Ranking<S> reverse() {
+            return null;
+        }
+    }
+
+    static final class Descending<E> {
+        /** 'S extends T' is bounded by the Comparable of the receiver, E is not */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        java.util.Comparator<? super E> comparator() {
+            return (java.util.Comparator) Ranking.natural().reverse();
+        }
+    }
+
+    abstract static class KeyOrder<T> {
+        static <T> KeyOrder<T> from(java.util.Comparator<T> comparator) {
+            return null;
+        }
+
+        <F extends T> KeyOrder<java.util.Map.Entry<F, ?>> onKeys() {
+            return null;
+        }
+
+        <E extends T> java.util.List<E> sortedCopy(Iterable<E> elements) {
+            return null;
+        }
+    }
+
+    /** The receiver is a standalone expression: javac infers F as the capture of '? super K', the source gives K */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <K, V> java.util.Collection<java.util.Map.Entry<K, V>> sortedByKeys(java.util.Comparator<? super K> comparator, java.util.Collection<java.util.Map.Entry<K, V>> entries) {
+        return (java.util.Collection) KeyOrder.from(comparator).<K>onKeys().sortedCopy(entries);
+    }
+
+    static final class Accumulating<K, V> {
+        Accumulating<K, V> put(K key, V value) {
+            return this;
+        }
+
+        Accumulating<K, V> combine(Accumulating<K, V> other) {
+            return this;
+        }
+
+        java.util.Map<K, V> build() {
+            return null;
+        }
+    }
+
+    /** The accumulator type of the collector is only inferred from the supplier: it is written */
+    public static <T, K, V> java.util.stream.Collector<T, ?, java.util.Map<K, V>> toAccumulated(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return java.util.stream.Collector.of(Accumulating<K, V>::new, (accumulating, input) -> accumulating.put(keyFunction.apply(input), valueFunction.apply(input)),
+                Accumulating::combine, Accumulating::build);
+    }
+
+    public static <T, K, V> java.util.stream.Collector<T, ?, java.util.Map<K, V>> toAccumulatedByLambda(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return java.util.stream.Collector.of(() -> new Accumulating<K, V>(), (accumulating, input) -> accumulating.put(keyFunction.apply(input), valueFunction.apply(input)),
+                Accumulating::combine, Accumulating::build);
+    }
+
+    static final class KeyedAccumulator<K extends Enum<K>, V> {
+        void put(K key, V value) {
+            java.util.Objects.requireNonNull(key, "key");
+        }
+    }
+
+    /** The variable keeps the type variable of the key, not the Enum its erasure is */
+    public static <T, K extends Enum<K>, V> java.util.function.BiConsumer<KeyedAccumulator<K, V>, T> keyedAccumulation(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return (accumulator, input) -> {
+            K key = keyFunction.apply(input);
+            V value = valueFunction.apply(input);
+            accumulator.put(java.util.Objects.requireNonNull(key, "key"), java.util.Objects.requireNonNull(value, "value"));
+        };
+    }
+
+    static final class Gathering<E> {
+        static <E> Gathering<E> create() {
+            return new Gathering<>();
+        }
+
+        Gathering<E> add(E element) {
+            return this;
+        }
+
+        Gathering<E> merge(Gathering<E> other) {
+            return this;
+        }
+
+        java.util.List<E> toList() {
+            return null;
+        }
+    }
+
+    /** The accumulator comes from a call of a generic method: it is written */
+    public static <E> java.util.stream.Collector<E, ?, java.util.List<E>> gathering() {
+        return java.util.stream.Collector.of(Gathering::<E>create, Gathering::add, Gathering::merge, Gathering::toList);
+    }
+
+    public static <E> java.util.stream.Collector<E, ?, java.util.List<E>> gatheringByLambda() {
+        return java.util.stream.Collector.of(() -> Gathering.<E>create(), Gathering::add, Gathering::merge, state -> state.toList());
+    }
+
+    abstract static class EnumCollecting<E> {
+    }
+
+    static <E extends Enum<E>> EnumCollecting<E> enumCollecting() {
+        return null;
+    }
+
+    /** No E extends Enum<E> is an Enum<?> */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static final EnumCollecting<Enum<?>> ENUM_COLLECTING = (EnumCollecting) enumCollecting();
+
+    static <T, K, U, M extends java.util.Map<K, U>> java.util.stream.Collector<T, ?, M> toMapOf(
+            java.util.function.Function<? super T, ? extends K> keyFunction, java.util.function.Function<? super T, ? extends U> valueFunction,
+            java.util.function.Supplier<M> mapFactory) {
+        return java.util.stream.Collectors.toMap(keyFunction, valueFunction, (first, second) -> first, mapFactory);
+    }
+
+    /** The map supplied to the collector: a diamond infers nothing of its type arguments, they are written */
+    public static <T, K, V> java.util.stream.Collector<T, ?, java.util.SortedMap<K, V>> toSorted(
+            java.util.Comparator<? super K> comparator, java.util.function.Function<? super T, ? extends K> keyFunction,
+            java.util.function.Function<? super T, ? extends V> valueFunction) {
+        return java.util.stream.Collectors.collectingAndThen(
+                java.util.stream.Collectors.toMap(keyFunction, valueFunction, (first, second) -> first, () -> new java.util.TreeMap<K, V>(comparator)),
+                java.util.Collections::unmodifiableSortedMap);
+    }
+
+    @SafeVarargs
+    static <K, V> java.util.Map<K, V> mapOfExactEntries(java.util.Map.Entry<K, V>... entries) {
+        return null;
+    }
+
+    /** The array of entries of wildcard types is passed to a method taking entries of the types of the result: the source casts it */
+    @SafeVarargs
+    @SuppressWarnings("unchecked")
+    public static <K, V> java.util.Map<K, V> mapOfWildcardEntries(java.util.Map.Entry<? extends K, ? extends V>... entries) {
+        java.util.Map.Entry<K, V>[] exactEntries = (java.util.Map.Entry<K, V>[]) entries;
+        return mapOfExactEntries(exactEntries);
+    }
+
+    static final class Token<T> {
+        Token<? super T> supertypeOf(Class<? super T> type) {
+            return null;
+        }
+    }
+
+    /** The T of a receiver of wildcard type is a capture: a Class&lt;? super T&gt; is no argument of the method, the source casts it to a raw type */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static <T> Token<? super T> supertypeOfBound(Token<? super T> bound, Class<? super T> type) {
+        return (Token<? super T>) bound.supertypeOf((Class) type);
+    }
+
+    static <K, V> java.util.Map.Entry<K, V> pairOf(K key, V value) {
+        return null;
+    }
+
+    /** The argument is an Entry&lt;R, V&gt;, which a '? super Entry&lt;R, V&gt;' takes as it is */
+    public static <R, V> boolean accepts(java.util.function.Predicate<? super java.util.Map.Entry<R, V>> predicate, R key, V value) {
+        return predicate.test(pairOf(key, value));
+    }
+
+    /** The collection is cast to the erased list, then given to a method which takes lambdas */
+    @SuppressWarnings("unchecked")
+    public static <V1, V2> java.util.List<V2> transformValues(java.util.Collection<V1> values, java.util.function.Function<? super V1, V2> function) {
+        return mapAll((java.util.List<V1>) values, v1 -> function.apply(v1));
+    }
+
+    static <A, B> java.util.List<B> mapAll(java.util.List<A> list, java.util.function.Function<? super A, ? extends B> function) {
+        return null;
+    }
+
+    static <T, V> java.util.stream.Collector<T, ?, java.util.List<V>> gatherAll(
+            java.util.function.Function<? super T, ? extends Stream<? extends V>> valuesFunction, java.util.function.Supplier<java.util.List<V>> factory) {
+        return null;
+    }
+
+    /** The Stream the function returns is not cast to the raw Stream: V would be inferred as Object */
+    public static <T, V> java.util.stream.Collector<T, ?, java.util.List<V>> flatteningCollector(
+            java.util.function.Function<? super T, ? extends Stream<? extends V>> valuesFunction) {
+        return gatherAll(input -> valuesFunction.apply(input).peek(java.util.Objects::requireNonNull), java.util.ArrayList::new);
+    }
+
+    static <A, B> java.util.Spliterator<B> flatSpliterator(java.util.Spliterator<A> from, java.util.function.Function<? super A, java.util.Spliterator<B>> function) {
+        return null;
+    }
+
+    /** The lambda returns a Spliterator&lt;? extends T&gt; where the call is to produce a Spliterator&lt;T&gt;: the source casts it */
+    @SuppressWarnings("unchecked")
+    public static <T> Stream<T> concatSpliterators(java.util.List<java.util.Spliterator<? extends T>> spliterators) {
+        return java.util.stream.StreamSupport.<T>stream(flatSpliterator(spliterators.spliterator(), spliterator -> (java.util.Spliterator<T>) spliterator), false);
+    }
+
+    static final class Holder<V> {
+        final java.util.List<V> values;
+
+        Holder(java.util.List<V> values) {
+            this.values = values;
+        }
+
+        /** The V of the constructor is the U of the expected type, not the V of this class */
+        <U> Holder<U> derive(java.util.ArrayList<U> list) {
+            Holder<U> derived = new Holder<>(list);
+            return derived;
+        }
+    }
+
+    static final class Cell2<T> {
+        Cell2<?> inner;
+    }
+
+    /** The result of the lambda is cast to its own wildcard type, or the elements of the list would be captures */
+    @SuppressWarnings("java:S6204") // collect(Collectors.toList()) is the pattern the decompiler must keep compiling
+    public static java.util.List<Cell2<?>> innerCells(java.util.List<Cell2<?>> cells) {
+        return cells.stream().map(cell -> (Cell2<?>) cell.inner).collect(java.util.stream.Collectors.toList());
+    }
+
+    static final class Columns<C, V> {
+        V column(C columnKey) {
+            return null;
+        }
+
+        boolean containsColumn(Object key) {
+            return false;
+        }
+
+        /** The key, an Object, is cast to the type variable the method takes: nothing in the bytecode, the source has an unchecked cast */
+        @SuppressWarnings("unchecked")
+        V get(Object key) {
+            return containsColumn(key) ? column(java.util.Objects.requireNonNull((C) key)) : null;
+        }
+    }
+
+    static final class SneakyThrower<T extends Throwable> {
+        @SuppressWarnings("unchecked")
+        private Error throwIt(Throwable throwable) throws T {
+            throw (T) throwable;
+        }
+
+        /** The instance has a type argument which is no checked exception, or the call throws the Throwable the variable is erased to */
+        static Error sneakyThrow(Throwable throwable) {
+            throw new SneakyThrower<Error>().throwIt(throwable);
+        }
+    }
+
+    /** The bound is an Error: RuntimeException is no argument for it, and the raw instance throws an unchecked type */
+    static final class ErrorThrower<T extends Error> {
+        @SuppressWarnings("unchecked")
+        private Error throwIt(Throwable throwable) throws T {
+            throw (T) throwable;
+        }
+
+        static Error rethrow(Throwable throwable) {
+            throw new ErrorThrower<Error>().throwIt(throwable);
+        }
+    }
+
+    interface Successors<N> {
+        java.util.Set<N> successors(N node);
+    }
+
+    static final class NodePair<T> {
+        T nodeU() {
+            return null;
+        }
+    }
+
+    abstract static class NodeGraph<N> implements Successors<N> {
+        /** The node of a NodePair&lt;?&gt; is a capture, the source casts it to the N the method takes */
+        @SuppressWarnings("unchecked")
+        boolean hasSuccessors(Object object) {
+            NodePair<?> pair = (NodePair<?>) object;
+            return !this.successors((N) pair.nodeU()).isEmpty();
+        }
+    }
+
+    /** The ground type of the target is Supplier&lt;T&gt;: the lambda returns a T, not the Object it is erased to */
+    @SuppressWarnings("unchecked")
+    public static <T> java.util.function.Supplier<? super T> superSupplier(Object o) {
+        return () -> (T) o;
+    }
+
+    /** A reference to the constructor is a use of the local class, as is a new instance: the declaration stays before both */
+    public static Object localClassReferencedByConstructor(boolean flag) {
+        class Local {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Local();
+        }
+        java.util.function.Supplier<Object> supplier = Local::new;
+        return first == null ? supplier.get() : first;
+    }
+
+    /** The superclass of a local class stays visible to it, though the only other use of the superclass is in a block */
+    public static Object localClassWithLocalSubclass(boolean flag) {
+        class Base {
+        }
+        Object first = null;
+
+        if (flag) {
+            first = new Base();
+        }
+        class Child extends Base {
+        }
+        return first == null ? new Child() : first;
+    }
+
+    /** Several uses in a block, of a class that captures a variable of that block: the class is declared in the block, before the first use */
+    public static int localClassUsedTwiceInABlock(boolean flag) {
+        if (flag) {
+            final int base = 3;
+
+            class Adder {
+                int add(int value) {
+                    return value + base;
+                }
+            }
+            int first = new Adder().add(1);
+            int second = new Adder().add(2);
+
+            return first + second;
+        }
+        return 0;
+    }
+
+    static class HiddenFieldBase {
+        int count = 1;
+    }
+
+    /** Both classes have a field 'count': the one of the superclass is reached by 'super' */
+    @SuppressWarnings("java:S2387") // the shadowing is what the stub is about
+    static class HiddenFieldDerived extends HiddenFieldBase {
+        int count = 2;
+
+        int both() {
+            return count + super.count;
+        }
+    }
+
+    static class FieldA {
+        int x = 1;
+    }
+
+    static class FieldB extends FieldA {
+        int x = 2;
+    }
+
+    /** The field of a class two levels up, hidden by the fields of the classes between: 'super' would reach the one of FieldB */
+    @SuppressWarnings("java:S2387") // the shadowing is what the stub is about
+    static class FieldC extends FieldB {
+        int x = 3;
+
+        int viaTheGrandparent() {
+            return ((FieldA) this).x;
+        }
+    }
+
+    interface FactoryOf<X> {
+        <C extends X> java.util.List<C> make();
+    }
+
+    /** The bound of the type variable of the method is a type variable of the interface, which the class gives an argument */
+    static class NumberFactory implements FactoryOf<Number> {
+        @Override
+        public <C extends Number> java.util.List<C> make() {
+            return new java.util.ArrayList<>();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <E> java.util.List<E> viaFactory(NumberFactory factory) {
+        return (java.util.List<E>) (java.util.List<?>) factory.make();
+    }
+
+    /** A local variable of the bound of a type variable which is assigned again does not become a variable of that type */
+    static <T extends Number> Number reassigned(T value, Number other) {
+        Number number = value;
+
+        number = other;
+        return number;
+    }
+}

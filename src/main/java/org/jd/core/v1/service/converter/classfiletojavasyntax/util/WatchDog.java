@@ -31,7 +31,17 @@ public class WatchDog {
         }
     }
 
-    protected static class Link {
+    /** @return the links walked so far, to give back with {@link #restore} */
+    public Set<Link> snapshot() {
+        return new HashSet<>(links);
+    }
+
+    /** Forgets the links which were walked since the snapshot: a shared tail is walked again by another branch */
+    public void restore(Set<Link> snapshot) {
+        links.retainAll(snapshot);
+    }
+
+    public static class Link {
         private final int parentIndex;
         private final int childIndex;
 

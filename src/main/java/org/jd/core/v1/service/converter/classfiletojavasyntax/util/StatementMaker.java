@@ -75,13 +75,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Predicate;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
-import static org.apache.bcel.Const.ASTORE;
 import static org.apache.bcel.Const.GOTO;
 import static org.apache.bcel.Const.MAJOR_1_7;
 import static org.apache.bcel.Const.MAJOR_1_8;
@@ -388,6 +389,7 @@ public class StatementMaker {
                 parseByteCode(basicBlock, statements);
                 break;
             case TYPE_TERNARY_OPERATOR:
+                Set<WatchDog.Link> walkedBeforeTernary = watchdog.snapshot();
                 watchdog.check(basicBlock, basicBlock.getCondition());
                 makeStatements(watchdog, basicBlock.getCondition(), statements, jumps);
                 condition = stack.pop();
@@ -402,6 +404,11 @@ public class StatementMaker {
                 stack.push(parseTernaryOperator(basicBlock.getFirstLineNumber(), condition, exp1, exp2));
                 watchdog.check(basicBlock, basicBlock.getNext());
                 makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
+                // A ternary operator which is the shared tail of several branches (a boolean 'return a == b') is walked once per branch
+                // (the links inside the arms and the tail too: they are reset to be parsed again, and walked again)
+                watchdog.restore(walkedBeforeTernary);
+                makeParsableAgain(basicBlock.getSub1(), basicBlock.getNext());
+                makeParsableAgain(basicBlock.getSub2(), basicBlock.getNext());
                 break;
             case TYPE_LOOP:
                 parseLoop(watchdog, basicBlock, statements, jumps);
@@ -459,6 +466,15 @@ public class StatementMaker {
             subStatements.add(new ReturnExpressionStatement(stack.pop()));
         }
         return subStatements;
+    }
+
+    /** The byte code of the blocks of a branch of a ternary operator is parsed again when the operator, a shared tail, is walked once more */
+    private static void makeParsableAgain(BasicBlock branch, BasicBlock continuation) {
+        Set<BasicBlock> visited = new HashSet<>();
+
+        for (BasicBlock block = branch; block != null && block != continuation && block.matchType(TYPE_STATEMENTS) && visited.add(block); block = block.getNext()) {
+            block.setByteCodeParsed(false);
+        }
     }
 
     protected Expression makeExpression(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
@@ -596,7 +612,10 @@ public class StatementMaker {
         return switchCases.stream().anyMatch(switchCase -> switchCase.getStringValue() != null);
     }
 
-    /** The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch (s)'. */
+    /**
+     * The 'switch' on the hash code of a string, compiled by ECJ, is a 'switch' on this string: 'switch ((str = s).hashCode())' -&gt; 'switch
+     * (s)'.
+     */
     private void selectString(SwitchStatement switchStatement) {
         Expression selector = switchStatement.getCondition();
 
@@ -817,11 +836,7 @@ public class StatementMaker {
                 int offset = bb.getFromOffset();
                 byte[] code = bb.getControlFlowGraph().getMethod().getCode().getCode();
 
-                if (code[offset] == ASTORE) {
-                    offset += 2;
-                } else {
-                    offset++;    // POP, ASTORE_1 ... ASTORE_3
-                }
+                offset += ByteCodeParser.lengthOfExceptionStore(code, offset);
 
                 AbstractLocalVariable exception = localVariableMaker.getExceptionLocalVariable(index, offset, ot);
 
@@ -1856,11 +1871,7 @@ public class StatementMaker {
         int offset = bb.getFromOffset();
         byte[] code = bb.getControlFlowGraph().getMethod().getCode().getCode();
 
-        if (code[offset] == ASTORE) {
-            offset += 2;
-        } else {
-            offset++;    // POP, ASTORE_1 ... ASTORE_3
-        }
+        offset += ByteCodeParser.lengthOfExceptionStore(code, offset);
 
         if (bb != null && bb.getNext().getPredecessors().size() > 1) {
             bb.getNext().getPredecessors().remove(bb);

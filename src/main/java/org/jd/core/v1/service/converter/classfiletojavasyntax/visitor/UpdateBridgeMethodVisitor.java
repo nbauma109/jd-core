@@ -25,9 +25,11 @@ import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.SuperExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
@@ -111,7 +113,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         if (exp.isFieldReferenceExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp);
 
-            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : receiverOfInheritedField(mie1.getParameters().getFirst(), fre.getInternalTypeName());
 
             return new FieldReferenceExpression(mie1.getLineNumber(), fre.getType(), expression, fre.getInternalTypeName(), fre.getName(), fre.getDescriptor());
         }
@@ -163,7 +165,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         } else if (exp.isPostOperatorExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : receiverOfInheritedField(mie1.getParameters().getFirst(), fre.getInternalTypeName());
 
             return new PostOperatorExpression(
                     mie1.getLineNumber(),
@@ -172,7 +174,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         } else if (exp.isPreOperatorExpression()) {
             FieldReferenceExpression fre = getFieldReferenceExpression(exp.getExpression());
 
-            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : mie1.getParameters().getFirst();
+            expression = parameterTypesCount == 0 ? atCallSite(fre.getExpression(), mie1) : receiverOfInheritedField(mie1.getParameters().getFirst(), fre.getInternalTypeName());
 
             return new PreOperatorExpression(
                     mie1.getLineNumber(),
@@ -183,6 +185,20 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
         }
 
         return expression;
+    }
+
+    /** The accessor of a private field of a superclass, called on 'this': the field is reached by 'super.' */
+    private Expression receiverOfInheritedField(Expression receiver, String fieldClassName) {
+        if (receiver.isThisExpression() && receiver.getType() instanceof ObjectType thisType && !thisType.getInternalName().equals(fieldClassName)
+                && typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName(fieldClassName), thisType)) {
+            // (when it is the direct superclass: otherwise an intermediate class may hide the field, the cast names the owner)
+            TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(thisType.getInternalName());
+
+            return typeTypes != null && typeTypes.getSuperType() != null && typeTypes.getSuperType().getInternalName().equals(fieldClassName)
+                ? new SuperExpression(receiver.getLineNumber(), receiver.getType())
+                : new CastExpression(receiver.getLineNumber(), typeMaker.makeFromInternalTypeName(fieldClassName), receiver);
+        }
+        return receiver;
     }
 
     /**

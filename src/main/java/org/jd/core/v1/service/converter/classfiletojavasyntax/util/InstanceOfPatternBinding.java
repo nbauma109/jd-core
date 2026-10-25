@@ -74,11 +74,18 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         while (offset < end) {
             int opcode = code[offset] & 255;
-            int length = opcode == ALOAD || opcode == ASTORE ? 2 : opcode == CHECKCAST ? 3 : 1;
+            int length = instructionLength(opcode);
             lengths.put(offset, length);
             offset += length;
         }
         return lengths;
+    }
+
+    private static int instructionLength(int opcode) {
+        if (opcode == CHECKCAST) {
+            return 3;
+        }
+        return opcode == ALOAD || opcode == ASTORE ? 2 : 1;
     }
 
     private static InstanceOfPatternBinding match(byte[] code, int instanceOfOffset) {

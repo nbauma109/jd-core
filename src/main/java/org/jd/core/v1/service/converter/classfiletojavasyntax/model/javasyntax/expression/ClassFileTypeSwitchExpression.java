@@ -19,6 +19,7 @@ import java.util.List;
  * the index of the label which matches. The labels are the arguments of the bootstrap method: types ({@link org.jd.core.v1.model.javasyntax.type.Type}),
  * strings, integers, or null when unknown.
  */
+@SuppressWarnings("java:S110") // the call has to be a method invocation: the visitors which look for the calls and their arguments find it
 public class ClassFileTypeSwitchExpression extends ClassFileMethodInvocationExpression {
     private static final ObjectType SWITCH_BOOTSTRAPS = new ObjectType("java/lang/runtime/SwitchBootstraps", "java.lang.runtime.SwitchBootstraps", "SwitchBootstraps");
 

@@ -97,7 +97,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             anonymousClassVarVisitor.visit(declaration);
             // Negate the test of an 'if' whose 'then' is empty because of a pattern variable
             emptyThenWithPatternVisitor.visit(declaration);
-            // Turn back the lowered form of 'if (r instanceof R(int x, Object o))' to the record pattern
+            // Turn back the lowered form of the record pattern of an 'if' to the pattern
             recordPatternIfVisitor.visit(declaration);
         }
     }

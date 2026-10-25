@@ -18,8 +18,4 @@ public record ParsedRuleGroup(
             Statements statements,
             Expression result,
             AbstractLocalVariable patternVariable) {
-
-    public ParsedRuleGroup(boolean defaultCase, int fromIndexInclusive, int toIndexExclusive, Statements statements, Expression result) {
-        this(defaultCase, fromIndexInclusive, toIndexExclusive, statements, result, null);
-    }
 }

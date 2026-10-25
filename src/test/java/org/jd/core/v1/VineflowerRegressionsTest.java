@@ -59,9 +59,27 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // 'instanceof' patterns, whatever the shape of the test
         assertTrue(source.contains("accept(o, (o instanceof String s && s.length() > 5));"));
-        assertTrue(source.contains("boolean b = (o instanceof String s && s.length() > 5);"));
+        assertTrue(source.contains("boolean matches = (o instanceof String s && s.length() > 5);"));
         assertTrue(source.contains("(o instanceof String s) ? s.isEmpty() : false"));
         assertTrue(source.contains("if (!(o instanceof String s))"));
+
+        // The increment which precedes the 'break' is evaluated by every iteration, not once before the loop
+        assertTrue(source.contains("while (i > 10 &&"));
+        assertTrue(source.contains("++i != 15)"));
+
+        // 'var' for an anonymous class of a field or of an interface
+        assertTrue(source.contains("var holder = new Object() {"));
+        assertTrue(source.contains("var runner = new Runnable() {"));
+
+        // Several patterns, a chain of tests and a pattern which is negated before a 'throw'
+        assertTrue(source.contains("a instanceof String s && b instanceof String t && s.equals(t)"));
+        assertTrue(source.contains("if (o instanceof Integer i)"));
+        assertTrue(source.contains("throw new IllegalArgumentException();"));
+        assertTrue(source.contains("if (o instanceof String)"));
+
+        // A float which is widened to a double where a double is expected
+        assertTrue(source.contains("double local = 0.2F;"));
+        assertTrue(source.contains("local = 0.3F;"));
 
         // The call which discards a box stays
         assertTrue(source.contains("Boolean.valueOf("));

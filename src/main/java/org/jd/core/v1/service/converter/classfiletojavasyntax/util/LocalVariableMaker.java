@@ -211,6 +211,25 @@ public class LocalVariableMaker {
         return typeMaker;
     }
 
+    private AbstractLocalVariable createLocalVariable(LocalVariable localVariable, int index, int startPc) {
+        String descriptor = localVariable.getSignature();
+        String name = localVariable.getName();
+
+        if (descriptor.charAt(descriptor.length() - 1) == ';') {
+            Type variableType = typeMaker.makeFromDescriptor(descriptor);
+            // 'this' and the parameters are in scope from the first instruction: only a local variable is declared by its initializer
+            boolean local = startPc > 0;
+            return new ObjectLocalVariable(typeMaker, index, startPc, local ? anonymousClassToSuperType(variableType) : variableType, name);
+        }
+
+        int dimension = TypeMaker.countDimension(descriptor);
+
+        if (dimension == 0) {
+            return new PrimitiveLocalVariable(index, startPc, PrimitiveType.getPrimitiveType(descriptor.charAt(0)), name);
+        }
+        return new ObjectLocalVariable(typeMaker, index, startPc, typeMaker.makeFromSignature(descriptor.substring(dimension)).createType(dimension), name);
+    }
+
     protected void initLocalVariablesFromAttributes(Method method) {
         Code code = method.getCode();
 
@@ -221,33 +240,12 @@ public class LocalVariableMaker {
             if (localVariableTable != null) {
                 boolean staticFlag = (method.getAccessFlags() & ACC_STATIC) != 0;
 
-                int index;
-                int startPc;
-                String descriptor;
-                String name;
-                AbstractLocalVariable lv;
                 for (LocalVariable localVariable : localVariableTable.getLocalVariableTable()) {
-                    index = localVariable.getIndex();
-                    startPc = !staticFlag && index==0 ? 0 : localVariable.getStartPC();
-                    descriptor = localVariable.getSignature();
-                    name = localVariable.getName();
-                    if (descriptor.charAt(descriptor.length() - 1) == ';') {
-                        Type variableType = typeMaker.makeFromDescriptor(descriptor);
-                        // 'this' and the parameters are in scope from the first instruction: only a local variable is declared by its initializer
-                        boolean local = startPc > 0;
-                        lv = new ObjectLocalVariable(typeMaker, index, startPc, local ? anonymousClassToSuperType(variableType) : variableType, name);
-                    } else {
-                        int dimension = TypeMaker.countDimension(descriptor);
+                    int index = localVariable.getIndex();
+                    int startPc = !staticFlag && index==0 ? 0 : localVariable.getStartPC();
 
-                        if (dimension == 0) {
-                            lv = new PrimitiveLocalVariable(index, startPc, PrimitiveType.getPrimitiveType(descriptor.charAt(0)), name);
-                        } else {
-                            lv = new ObjectLocalVariable(typeMaker, index, startPc, typeMaker.makeFromSignature(descriptor.substring(dimension)).createType(dimension), name);
-                        }
-                    }
-
-                    localVariableSet.add(index, lv);
-                    names.add(name);
+                    localVariableSet.add(index, createLocalVariable(localVariable, index, startPc));
+                    names.add(localVariable.getName());
                 }
             }
 

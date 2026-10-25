@@ -34,9 +34,7 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
     public void visit(SwitchStatement statement) {
         List<SwitchStatement.Block> blocks = statement.getBlocks();
 
-        for (int i = 0; i < blocks.size(); i++) {
-            blocks.set(i, resolve(blocks.get(i)));
-        }
+        blocks.replaceAll(ResolveInstanceOfPatternVisitor::resolve);
         super.visit(statement);
     }
 
@@ -45,20 +43,8 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                 && label.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern) {
             return new SwitchStatement.LabelBlock(new SwitchStatement.PatternLabel(pattern(pattern)), labelBlock.getWhenCondition(), labelBlock.getStatements());
         }
-        if (block instanceof SwitchStatement.MultiLabelsBlock multiLabelsBlock && multiLabelsBlock.getLabels().stream().anyMatch(EXPRESSION_PATTERN)) {
-            List<SwitchStatement.Label> labels = new ArrayList<>();
-
-            for (SwitchStatement.Label label : multiLabelsBlock.getLabels()) {
-                labels.add(label instanceof SwitchStatement.ExpressionLabel expressionLabel && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern
-                        ? new SwitchStatement.PatternLabel(pattern(pattern)) : label);
-            }
-            return new SwitchStatement.MultiLabelsBlock(labels, multiLabelsBlock.getWhenCondition(), multiLabelsBlock.getStatements());
-        }
         return block;
     }
-
-    private static final java.util.function.Predicate<SwitchStatement.Label> EXPRESSION_PATTERN =
-            label -> label instanceof SwitchStatement.ExpressionLabel expressionLabel && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression;
 
     private static boolean hasUnresolvedLabel(List<SwitchExpression.Label> labels) {
         return labels.stream().anyMatch(label -> label instanceof SwitchExpression.ExpressionLabel expressionLabel

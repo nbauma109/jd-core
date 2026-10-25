@@ -15,4 +15,10 @@ public class SwitchPatternMatchingTest extends AbstractJdTest {
     public void testJAVAC21() throws Exception {
         test("/jar/SwitchPatternMatching-JAVAC-21.jar", "org/jd/core/v1/stub/SwitchPatternMatching", "/txt/SwitchPatternMatching.txt", "21");
     }
+
+    /** ECJ compiles the same switches, without the record patterns whose lowered form is not the one of javac */
+    @Test
+    public void testECJ21() throws Exception {
+        test("/jar/SwitchPatternMatching-ECJ-21.jar", "org/jd/core/v1/stub/SwitchPatternMatchingEcj", "/txt/SwitchPatternMatchingEcj.txt", "21");
+    }
 }

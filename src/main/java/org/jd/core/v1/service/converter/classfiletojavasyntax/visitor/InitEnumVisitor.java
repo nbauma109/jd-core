@@ -92,20 +92,24 @@ public class InitEnumVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        // Hide compiler-generated enum default constructor while keeping explicit constructors.
+        declaration.setFlags(constructorFlags(declaration, parameters, syntheticConstructor));
+    }
+
+    /**
+     * Hides the compiler-generated enum default constructor while keeping the explicit constructors, and keeps the instructions of the instance
+     * initializer of the body of an enum constant, which is printed as a block.
+     */
+    private static int constructorFlags(ConstructorDeclaration declaration, FormalParameters parameters, boolean syntheticConstructor) {
+        if ((declaration.getFlags() & Declaration.FLAG_ANONYMOUS) != 0 && !Utils.isEmpty(declaration.getStatements())) {
+            return Declaration.FLAG_ANONYMOUS;
+        }
+
         boolean implicitEnumDefaultConstructor =
                 "(Ljava/lang/String;I)V".equals(declaration.getDescriptor())
                         && Utils.isEmpty(parameters)
                         && Utils.isEmpty(declaration.getStatements());
 
-        if ((declaration.getFlags() & Declaration.FLAG_ANONYMOUS) != 0 && !Utils.isEmpty(declaration.getStatements())) {
-            // Instance initializer of an enum constant body ('A {{ init(); }}'): printed as a block
-            declaration.setFlags(Declaration.FLAG_ANONYMOUS);
-        } else if (syntheticConstructor || implicitEnumDefaultConstructor) {
-            declaration.setFlags(ACC_SYNTHETIC);
-        } else {
-            declaration.setFlags(0);
-        }
+        return syntheticConstructor || implicitEnumDefaultConstructor ? ACC_SYNTHETIC : 0;
     }
 
     @Override

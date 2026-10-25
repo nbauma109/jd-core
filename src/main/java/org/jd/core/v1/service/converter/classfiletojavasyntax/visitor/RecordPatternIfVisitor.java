@@ -56,7 +56,7 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         while (iterator.hasNext()) {
             Statement statement = iterator.next();
 
-            if (statement instanceof IfStatement ifStatement && !(statement instanceof IfElseStatement)) {
+            if (statement instanceof IfStatement ifStatement) {
                 IfStatement rewritten = rewrite(ifStatement);
 
                 if (rewritten != null) {
@@ -107,8 +107,11 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         Statements body = new Statements();
 
         body.addAll(tryBody.subList(index, tryBody.size()));
-        return new IfStatement(new InstanceOfExpression(instanceOf.getLineNumber(), instanceOf.getExpression(),
-                new RecordPattern(instanceOf.getInstanceOfType(), components, null)), body);
+
+        Expression condition = new InstanceOfExpression(instanceOf.getLineNumber(), instanceOf.getExpression(),
+                new RecordPattern(instanceOf.getInstanceOfType(), components, null));
+
+        return ifStatement instanceof IfElseStatement ifElse ? new IfElseStatement(condition, body, ifElse.getElseStatements()) : new IfStatement(condition, body);
     }
 
     /** @return the name of the component which is bound by the declaration of 'T tmp = record.accessor(), name = tmp;', null if it is no binding */
@@ -118,7 +121,7 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         if (declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator single) {
             declarators.add(single);
         } else {
-            declaration.getLocalVariableDeclarators().forEach(d -> declarators.add((LocalVariableDeclarator) d));
+            declaration.getLocalVariableDeclarators().forEach(declarators::add);
         }
         if (declarators.isEmpty() || declarators.size() > 2 || !isAccessorCall(declarators.get(0), recordVariable)) {
             return null;

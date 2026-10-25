@@ -114,8 +114,8 @@ public class VineflowerRegressions {
     }
 
     public void patternInLocal(Object o) {
-        boolean b = o instanceof String s && s.length() > 5;
-        System.out.println(b);
+        boolean matches = o instanceof String s && s.length() > 5;
+        System.out.println(matches);
     }
 
     public boolean patternInTernary(Object o) {
@@ -132,5 +132,130 @@ public class VineflowerRegressions {
     @SuppressWarnings("unused")
     public void discardedBox(int n) {
         Boolean.valueOf(n < 5 && n > 0);
+    }
+
+    public void whileWithBreak(int i) {
+        while (i > 10) {
+            i++;
+
+            if (i == 15) {
+                break;
+            }
+
+            System.out.println(0);
+        }
+    }
+
+    private double widenedField = 0.2F;
+
+    @SuppressWarnings("unused")
+    public void floatsInContexts() {
+        double local = 0.2F;
+        local = 0.3F;
+        java.util.function.DoubleSupplier supplier = () -> 0.2F;
+        System.out.println(local + supplier.getAsDouble() + widenedField);
+    }
+
+    public void varWithAField() {
+        var holder = new Object() {
+            int count = 1;
+        };
+        holder.count++;
+        System.out.println(holder.count);
+    }
+
+    public void varOfAnInterface() {
+        var runner = new Runnable() {
+            @Override
+            public void run() {
+                extra();
+            }
+
+            void extra() {
+                System.out.println("extra");
+            }
+        };
+        runner.run();
+        runner.extra();
+    }
+
+    public int chainOfPatterns(Object o) {
+        if (o instanceof String s) {
+            return s.length();
+        } else if (o instanceof Integer i) {
+            return i;
+        }
+        return -1;
+    }
+
+    public boolean twoPatterns(Object a, Object b) {
+        return a instanceof String s && b instanceof String t && s.equals(t);
+    }
+
+    public boolean negatedPatternWithThrow(Object o) {
+        if (!(o instanceof String s)) {
+            throw new IllegalArgumentException();
+        }
+        return s.isEmpty();
+    }
+
+    public String notAPattern(Object o) {
+        if (o instanceof String) {
+            return o.toString();
+        }
+        return null;
+    }
+
+    @SuppressWarnings("java:S107") // many parameters: the pattern variable is stored with a wide index
+    public boolean manyLocals(int a, int b, int c, int d, Object o) {
+        if (o instanceof String s) {
+            return s.length() > a + b + c + d;
+        }
+        return false;
+    }
+
+    public void anonymousClassNeedsNoVar() {
+        Object unused = new Object() {
+            int field;
+
+            void method() {
+                field++;
+            }
+        };
+        System.out.println(unused);
+    }
+
+    public void tryWhichIsNotAMatchException(Object o) {
+        if (o instanceof String) {
+            try {
+                System.out.println(o);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
+    public void tryWithFinally(Object o) {
+        if (o instanceof String) {
+            try {
+                System.out.println(o);
+            } finally {
+                System.out.println("finally");
+            }
+        }
+    }
+
+    public void tryWhichRethrowsAThrowable(Object o) {
+        if (o instanceof String) {
+            try {
+                System.out.println(o);
+            } catch (Throwable t) {
+                throw new IllegalStateException(t.toString(), t);
+            }
+        }
+    }
+
+    public boolean negatedTernaryOfPatterns(Object o) {
+        return !(o instanceof String s) || s.isEmpty();
     }
 }

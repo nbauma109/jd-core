@@ -13,6 +13,17 @@ public class VineflowerRegressions {
         return 0.2F;
     }
 
+    private double a;
+    private double b;
+
+    public void chainedWidenedFloat() {
+        a = b = 0.2F;
+    }
+
+    public double widenedFloatFieldAsValue() {
+        return a = 0.2F;
+    }
+
     public String switchExpression(int i) {
         return switch (i) {
             case 1 -> "1";

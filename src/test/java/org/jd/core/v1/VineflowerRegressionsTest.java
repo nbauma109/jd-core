@@ -29,6 +29,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // 'double x = 0.2F' is folded into 0.20000000298023224D by the compiler
         assertTrue(source.contains("return 0.2F;"));
         assertFalse(source.contains("0.20000000298023224"));
+        // ... also when the value of the assignment is used (the double occupies two slots of the stack)
+        assertTrue(source.contains("this.a = this.b = 0.2F;"));
+        assertTrue(source.contains("return this.a = 0.2F;"));
 
         // The result of a switch expression is yielded by the arrow, not after a 'break'
         assertTrue(source.contains("default -> \"Unknown\";"));

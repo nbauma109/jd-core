@@ -37,6 +37,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final AddCastExpressionVisitor addCastExpressionVisitor;
     private final AutoboxingVisitor autoboxingVisitor;
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
+    private final WidenedFloatConstantVisitor widenedFloatConstantVisitor = new WidenedFloatConstantVisitor();
     private final HoistUndeclaredLocalVariablesVisitor hoistUndeclaredLocalVariablesVisitor = new HoistUndeclaredLocalVariablesVisitor();
 
     private TypeDeclaration typeDeclaration;
@@ -86,6 +87,8 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             autoboxingVisitor.visit(declaration);
             // Disable varargs expansion for array literals
             disableVarArgsExpansionVisitor.visit(declaration);
+            // Print the double constants which widen a float as float literals
+            widenedFloatConstantVisitor.visit(declaration);
         }
     }
 

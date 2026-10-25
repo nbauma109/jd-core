@@ -62,7 +62,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsCodec() throws Exception {
-        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", "1.22.1");
+        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", "1.23.0");
     }
 
     @Test
@@ -110,10 +110,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJodaTime() throws Exception {
-        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.14.3");
+        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.15.0");
 
         String source = Files.readString(Paths.get(
-                "target/joda-time/joda-time-2.14.3/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
+                "target/joda-time/joda-time-2.15.0/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
         int classStart = source.indexOf("static class TimeZoneOffset");
         int methodStart = source.indexOf("public int parseInto(", classStart);
         int methodEnd = source.indexOf("private int digitCount(", methodStart);
@@ -129,7 +129,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJSoup() throws Exception {
-        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.23.1");
+        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.23.2");
     }
 
     @Test

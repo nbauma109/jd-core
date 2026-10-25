@@ -28,7 +28,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // 'double x = 0.2F' is folded into 0.20000000298023224D by the compiler
         assertTrue(source.contains("return 0.2F;"));
-        assertFalse(source.contains("0.20000000298023224"));
+        // ... but not where it would change the boxed type or the selected overload
+        assertTrue(source.contains("return 0.20000000298023224D;"));
+        assertTrue(source.contains("which(0.20000000298023224D)"));
         // ... also when the value of the assignment is used (the double occupies two slots of the stack)
         assertTrue(source.contains("this.a = this.b = 0.2F;"));
         assertTrue(source.contains("return this.a = 0.2F;"));

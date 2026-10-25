@@ -24,6 +24,22 @@ public class VineflowerRegressions {
         return a = 0.2F;
     }
 
+    public Object boxedDouble() {
+        return 0.20000000298023224D;
+    }
+
+    public String overloaded() {
+        return which(0.20000000298023224D);
+    }
+
+    private String which(float f) {
+        return "float";
+    }
+
+    private String which(double d) {
+        return "double";
+    }
+
     public String switchExpression(int i) {
         return switch (i) {
             case 1 -> "1";

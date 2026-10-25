@@ -23,6 +23,9 @@ import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.generic.ISTORE;
+import org.apache.bcel.generic.Instruction;
+import org.apache.bcel.generic.InstructionList;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AbstractNopDeclarationVisitor;
@@ -159,6 +162,8 @@ public class ByteCodeParser {
     private final Set<String> fieldNamesInScope = new HashSet<>();
     private final Set<String> enclosingTypeNames = new HashSet<>();
     private final ClassFile classFile;
+    /** The method being parsed (the local 'method' of a block is the one of its graph) */
+    private final Method ownMethod;
     private final AbstractTypeParametersToTypeArgumentsBinder typeParametersToTypeArgumentsBinder;
     private final BootstrapMethods attributeBootstrapMethods;
     private final ClassFileBodyDeclaration bodyDeclaration;
@@ -184,6 +189,7 @@ public class ByteCodeParser {
         }
         this.attributeBootstrapMethods = classFile.getAttribute(ATTR_BOOTSTRAP_METHODS);
         this.bodyDeclaration = bodyDeclaration;
+        this.ownMethod = comd.getMethod();
         this.returnedType = comd.getReturnedType();
         this.exceptionTypes = comd.getExceptionTypes();
         this.typeBounds = comd.getTypeBounds();
@@ -1654,7 +1660,8 @@ public class ByteCodeParser {
         BootstrapMethod bootstrapMethod = attributeBootstrapMethods.getBootstrapMethods()[constantMemberRef.getClassIndex()];
         int[] bootstrapArguments = bootstrapMethod.getBootstrapArguments();
 
-        if ("typeSwitch".equals(indyMethodName) && indyParameters instanceof Expressions switchParameters && switchParameters.size() == 2) {
+        if ("typeSwitch".equals(indyMethodName) && indyParameters instanceof Expressions switchParameters && switchParameters.size() == 2
+                && !isRestartIndexReassigned(switchParameters.get(1))) {
             // 'switch' with patterns: its labels are the arguments of the bootstrap method
             List<Object> labels = new ArrayList<>(bootstrapArguments.length);
 
@@ -1761,6 +1768,26 @@ public class ByteCodeParser {
         if (indyParameters instanceof Expressions e) {
             stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1));
         }
+    }
+
+    /**
+     * A guard ('case String s when s.isEmpty()') sets the restart index and jumps back to the call which selects the case: the switch is then a loop
+     * which is not rebuilt, the method is left undecompiled rather than with the wrong case selected.
+     */
+    private boolean isRestartIndexReassigned(Expression restartIndex) {
+        if (!(restartIndex instanceof ClassFileLocalVariableReferenceExpression reference)) {
+            // ECJ passes the constant 0 when there is no guard: nothing can change it
+            return !restartIndex.isIntegerConstantExpression();
+        }
+
+        int stores = 0;
+
+        for (Instruction instruction : new InstructionList(ownMethod.getCode().getCode()).getInstructions()) {
+            if (instruction instanceof ISTORE store && store.getIndex() == reference.getLocalVariable().getIndex()) {
+                stores++;
+            }
+        }
+        return stores > 1;
     }
 
     private static boolean isSyntheticMethodReferenceNullCheck(Expression expression, DefaultStack<Expression> stack) {

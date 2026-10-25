@@ -314,4 +314,14 @@ public class VineflowerRegressions {
         };
         return putter.put("x");
     }
+
+    @SuppressWarnings("java:S1172") // the overload has the arity of the inherited method
+    public String callOfTheInheritedOverload() {
+        Putter putter = new Putter() {
+            public String put(String s) {
+                return "string";
+            }
+        };
+        return putter.put((Object) "x");
+    }
 }

@@ -263,4 +263,12 @@ public class RecordPatternIfVisitorTest {
             assertSame(ifStatement, rewrite(ifStatement, "x"));
         }
     }
+
+    @Test
+    public void testTemporaryOfAComponentWhichIsStillUsedIsKept() {
+        Statements tryStatements = statements(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), new ExpressionStatement(variable(PrimitiveType.TYPE_INT, "i")));
+        IfStatement ifStatement = ifInstanceOf(statements(new LocalVariableDeclarationStatement(RECORD, declarator("r1", variable(RECORD, "r"))), matchExceptionTry(tryStatements)));
+
+        assertSame(ifStatement, rewrite(ifStatement, "x"));
+    }
 }

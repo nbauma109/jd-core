@@ -7,15 +7,18 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 
 /**
  * 'if (i > 10 && ++i != 15)': the 'iinc' of the second operand of a test is a statement of the byte code, which has to be evaluated by the
- * test: the first use of the variable in the operand, in the order of the evaluation, becomes '++i'.
+ * test: the first use of the variable in the operand, in the order of the evaluation, becomes '++i'. That use must be a value: '++i' is not
+ * the operand of another increment or the target of an assignment, the statement is kept then.
  */
 public final class FoldIncrementIntoConditionVisitor {
 
@@ -30,7 +33,7 @@ public final class FoldIncrementIntoConditionVisitor {
         }
         operand.accept(firstUse);
 
-        if (firstUse.found == null) {
+        if (firstUse.found == null || firstUse.blocked) {
             return null;
         }
         operand.accept(new AbstractUpdateExpressionVisitor() {
@@ -52,6 +55,8 @@ public final class FoldIncrementIntoConditionVisitor {
     private static final class FirstUse extends AbstractJavaSyntaxVisitor {
         private final AbstractLocalVariable localVariable;
         private Expression found;
+        /** The first use is the operand of an increment or the target of an assignment: it cannot be '++i' */
+        private boolean blocked;
 
         FirstUse(AbstractLocalVariable localVariable) {
             this.localVariable = localVariable;
@@ -59,9 +64,49 @@ public final class FoldIncrementIntoConditionVisitor {
 
         @Override
         public void visit(LocalVariableReferenceExpression expression) {
-            if (found == null && expression instanceof ClassFileLocalVariableReferenceExpression reference && reference.getLocalVariable() == localVariable) {
+            if (found == null && isTheVariable(expression)) {
                 found = expression;
             }
+        }
+
+        @Override
+        public void visit(PreOperatorExpression expression) {
+            if (found == null && isIncrement(expression.getOperator()) && isTheVariable(expression.getExpression())) {
+                found = expression.getExpression();
+                blocked = true;
+            }
+            super.visit(expression);
+        }
+
+        @Override
+        public void visit(PostOperatorExpression expression) {
+            if (found == null && isIncrement(expression.getOperator()) && isTheVariable(expression.getExpression())) {
+                found = expression.getExpression();
+                blocked = true;
+            }
+            super.visit(expression);
+        }
+
+        @Override
+        public void visit(BinaryOperatorExpression expression) {
+            if (found == null && isAssignment(expression.getOperator()) && isTheVariable(expression.getLeftExpression())) {
+                found = expression.getLeftExpression();
+                blocked = true;
+            }
+            super.visit(expression);
+        }
+
+        private boolean isTheVariable(Expression expression) {
+            return expression instanceof ClassFileLocalVariableReferenceExpression reference && reference.getLocalVariable() == localVariable;
+        }
+
+        private static boolean isIncrement(String operator) {
+            return "++".equals(operator) || "--".equals(operator);
+        }
+
+        /** '=' and the compound assignments, not the comparisons which end with '=' too */
+        private static boolean isAssignment(String operator) {
+            return operator.endsWith("=") && !"==".equals(operator) && !"!=".equals(operator) && !"<=".equals(operator) && !">=".equals(operator);
         }
     }
 }

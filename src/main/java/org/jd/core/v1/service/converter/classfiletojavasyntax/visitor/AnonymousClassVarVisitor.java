@@ -117,7 +117,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
                 if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
                     // not declared by the type which the anonymous class extends: the variable needs the type of the class to call it
-                    members.add(m.getName());
+                    // A method is identified by its name and descriptor: a call of the inherited overload does not need the type of the class
+                    members.add(m.getName() + m.getSignature());
                 }
             }
         }
@@ -150,7 +151,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(MethodInvocationExpression expression) {
-            if (isVariable(expression.getExpression()) && members.contains(expression.getName())) {
+            if (isVariable(expression.getExpression()) && members.contains(expression.getName() + expression.getDescriptor())) {
                 found = true;
             }
             super.visit(expression);

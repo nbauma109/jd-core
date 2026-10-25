@@ -79,6 +79,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // ... or of an overload of an inherited method: a call has to select the overload of the anonymous class
         assertTrue(source.contains("var v = new Object() {"));
         assertTrue(source.contains("var putter = new Putter() {"));
+        // ... but not when the call is the one of the inherited overload
+        assertTrue(source.contains("Putter putter = new Putter() {"));
     }
 
     @Test

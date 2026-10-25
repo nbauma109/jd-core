@@ -202,6 +202,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
         assertFalse(source, source.contains("<Object>createNumbers"));
         assertFalse(source, source.contains("<T>createNumbers"));
         assertFalse(source, source.contains("<Integer>createStrings"));
+        assertFalse(source, source.contains("((RunnableNumbers)box)") || source.contains("((InferenceLimits.RunnableNumbers)box)"));
         assertFalse(source, source.contains("swap.get().answer()"));
         assertFalse(source, source.contains("NumberBuilder<String>::new"));
         assertFalse(source, source.contains("<String, Integer>createDependent") || source.contains("<String,Integer>createDependent"));

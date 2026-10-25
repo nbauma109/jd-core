@@ -234,4 +234,15 @@ public class InferenceLimits {
     public static int inheritedReturnVariable(Swap<String, Value> swap) {
         return ((Value) ((Pair2) swap).get()).answer();
     }
+
+    public static class RunnableNumbers<T extends Number & Runnable> {
+        int consume(java.util.function.ToIntFunction<T> function) {
+            return 0;
+        }
+    }
+
+    /** The lambda gets its parameter type from the target: a raw receiver would make it an Object */
+    public static int functionalArgumentOfACapture(RunnableNumbers<?> box) {
+        return box.consume(number -> number.intValue());
+    }
 }

@@ -980,7 +980,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Type unboundType = unboundTypeIterator.next();
             Expression argument = parameterIterator.next();
 
-            if (!argument.isNullExpression() && referencesClassTypeParameter(unboundType, capturedTypeParameterNames)) {
+            // A lambda or a method reference takes the types of its parameters from its target: a raw receiver would make them Object
+            if (!argument.isNullExpression() && !(argument instanceof LambdaIdentifiersExpression || isProperMethodReference(argument))
+                    && referencesClassTypeParameter(unboundType, capturedTypeParameterNames)) {
                 return buildCaptureCastType(receiverType, typeTypes, classTypeParameterBounds);
             }
         }

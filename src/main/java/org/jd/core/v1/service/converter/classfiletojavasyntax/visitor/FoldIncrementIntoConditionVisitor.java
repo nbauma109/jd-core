@@ -12,13 +12,15 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 
 /**
  * 'if (i > 10 && ++i != 15)': the 'iinc' of the second operand of a test is a statement of the byte code, which has to be evaluated by the
  * test: the first use of the variable in the operand, in the order of the evaluation, becomes '++i'. That use must be a value: '++i' is not
- * the operand of another increment or the target of an assignment, the statement is kept then.
+ * the operand of another increment or the target of an assignment, and it executes whenever the statement did: the statement is kept
+ * if the use is in the right operand of '&&' or '||' or in a branch of a ternary operator.
  */
 public final class FoldIncrementIntoConditionVisitor {
 
@@ -55,8 +57,10 @@ public final class FoldIncrementIntoConditionVisitor {
     private static final class FirstUse extends AbstractJavaSyntaxVisitor {
         private final AbstractLocalVariable localVariable;
         private Expression found;
-        /** The first use is the operand of an increment or the target of an assignment: it cannot be '++i' */
+        /** The first use is the operand of an increment, the target of an assignment or only evaluated sometimes: it cannot be '++i' */
         private boolean blocked;
+        /** The number of operands which are only evaluated sometimes, around the expression which is visited */
+        private int conditional;
 
         FirstUse(AbstractLocalVariable localVariable) {
             this.localVariable = localVariable;
@@ -66,6 +70,7 @@ public final class FoldIncrementIntoConditionVisitor {
         public void visit(LocalVariableReferenceExpression expression) {
             if (found == null && isTheVariable(expression)) {
                 found = expression;
+                blocked = conditional > 0;
             }
         }
 
@@ -93,7 +98,23 @@ public final class FoldIncrementIntoConditionVisitor {
                 found = expression.getLeftExpression();
                 blocked = true;
             }
-            super.visit(expression);
+            if ("&&".equals(expression.getOperator()) || "||".equals(expression.getOperator())) {
+                expression.getLeftExpression().accept(this);
+                conditional++;
+                expression.getRightExpression().accept(this);
+                conditional--;
+            } else {
+                super.visit(expression);
+            }
+        }
+
+        @Override
+        public void visit(TernaryOperatorExpression expression) {
+            expression.getCondition().accept(this);
+            conditional++;
+            expression.getTrueExpression().accept(this);
+            expression.getFalseExpression().accept(this);
+            conditional--;
         }
 
         private boolean isTheVariable(Expression expression) {

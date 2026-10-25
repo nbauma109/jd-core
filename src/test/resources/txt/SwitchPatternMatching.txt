@@ -165,5 +165,16 @@
 /* 165:   0 */       };
 /* 166:   0 */   }
 /* 167:   0 */   
-/* 168:   0 */   record Point(int x, Object o) {}
-/* 169:   0 */ }
+/* 168:   0 */   void unconditionalPatternStatement(String string) {
+/* 169: 171 */     switch (string) {
+/* 170:   0 */       case "x":
+/* 171: 173 */         System.out.println("x");
+/* 172:   0 */         break;
+/* 173:   0 */       case String t:
+/* 174: 176 */         System.out.println(t);
+/* 175:   0 */         break;
+/* 176:   0 */     } 
+/* 177:   0 */   }
+/* 178:   0 */   
+/* 179:   0 */   record Point(int x, Object o) {}
+/* 180:   0 */ }

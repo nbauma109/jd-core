@@ -6,7 +6,9 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
 import org.apache.bcel.classfile.Code;
+import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
 import org.apache.bcel.classfile.Method;
@@ -62,15 +64,16 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     public static Map<Integer, InstanceOfPatternBinding> find(Method method) {
         Code code = method.getCode();
 
-        return find(code.getCode(), parameterSlots(method), code.getLocalVariableTable());
+        return find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool());
     }
 
     /**
      * @param parameterSlots number of slots of 'this' and of the parameters: they are no variable which a pattern declares
      * @param variables the local variable table, null when the class has no debug information: a pattern declares a variable whose scope starts at its 'astore'
+     * @param constants the constants of the class, null to ignore the type of the variable: the variable is declared with the type of the pattern
      * @return the bindings, by the offset of their 'instanceof'
      */
-    public static Map<Integer, InstanceOfPatternBinding> find(byte[] code, int parameterSlots, LocalVariableTable variables) {
+    public static Map<Integer, InstanceOfPatternBinding> find(byte[] code, int parameterSlots, LocalVariableTable variables, ConstantPool constants) {
         Map<Integer, InstanceOfPatternBinding> bindings = new HashMap<>();
         boolean[] starts = instructionStarts(code);
 
@@ -78,12 +81,23 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             if (starts[p] && (code[p] & 255) == INSTANCEOF && starts[p + 3] && (code[p + 3] & 255) == IFEQ) {
                 InstanceOfPatternBinding binding = match(code, starts, p);
 
-                if (binding != null && declaresNewVariable(binding, parameterSlots, variables)) {
+                if (binding != null && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))) {
                     bindings.put(p, binding);
                 }
             }
         }
         return bindings;
+    }
+
+    /** @return the descriptor of the class of the 'instanceof' at 'p', null when the constants are not known */
+    private static String castDescriptor(byte[] code, int p, ConstantPool constants) {
+        if (constants == null) {
+            return null;
+        }
+
+        String name = constants.getConstantString((code[p + 1] & 255) << 8 | code[p + 2] & 255, Const.CONSTANT_Class);
+
+        return name.startsWith("[") ? name : "L" + name + ";";
     }
 
     private static int parameterSlots(Method method) {
@@ -111,7 +125,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     }
 
     /** An assignment to a parameter or to a variable which exists already ('if (o instanceof String) s = (String) o;') is no pattern */
-    private static boolean declaresNewVariable(InstanceOfPatternBinding binding, int parameterSlots, LocalVariableTable variables) {
+    private static boolean declaresNewVariable(InstanceOfPatternBinding binding, int parameterSlots, LocalVariableTable variables, String patternDescriptor) {
         if (binding.storeIndex() < parameterSlots) {
             return false;
         }
@@ -121,7 +135,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         for (LocalVariable variable : variables.getLocalVariableTable()) {
             if (variable.getIndex() == binding.storeIndex()) {
                 if (variable.getStartPC() == binding.storeEndOffset()) {
-                    return true;
+                    // 'Object s = (String) o;' declares a variable which is not the one of the pattern 'o instanceof String s'
+                    return patternDescriptor == null || patternDescriptor.equals(variable.getSignature());
                 }
                 if (variable.getStartPC() <= binding.storeOffset() && binding.storeOffset() < variable.getStartPC() + variable.getLength()) {
                     // The variable exists before the store: it is assigned, not declared

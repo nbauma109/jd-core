@@ -324,4 +324,14 @@ public class VineflowerRegressions {
         };
         return putter.put((Object) "x");
     }
+
+    @SuppressWarnings("java:S1854") // the first value of 's' is the cast which has to stay
+    public Object declaredTypeIsNotThePatternType(Object o) {
+        if (o instanceof String) {
+            Object s = (String) o;
+            s = new Object();
+            return s;
+        }
+        return null;
+    }
 }

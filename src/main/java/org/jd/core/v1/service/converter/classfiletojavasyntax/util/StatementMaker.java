@@ -777,7 +777,7 @@ public class StatementMaker {
      */
     private static void addEmptyDefaultToTypeSwitch(SwitchStatement switchStatement) {
         boolean hasDefault = switchStatement.getBlocks().stream().anyMatch(block ->
-                block instanceof SwitchStatement.LabelBlock labelBlock && labelBlock.getLabel() == SwitchStatement.DEFAULT_LABEL
+                block instanceof SwitchStatement.LabelBlock labelBlock && (labelBlock.getLabel() == SwitchStatement.DEFAULT_LABEL || isUnconditional(labelBlock.getLabel()))
                 || block instanceof SwitchStatement.MultiLabelsBlock multiLabelsBlock && multiLabelsBlock.getLabels().contains(SwitchStatement.DEFAULT_LABEL));
 
         if (!hasDefault) {
@@ -786,6 +786,12 @@ public class StatementMaker {
             statements.add(BreakStatement.BREAK);
             switchStatement.getBlocks().add(new SwitchStatement.LabelBlock(SwitchStatement.DEFAULT_LABEL, statements));
         }
+    }
+
+    /** An unconditional pattern matches every value: a default beside it is rejected by the compiler */
+    private static boolean isUnconditional(SwitchStatement.Label label) {
+        return label instanceof SwitchStatement.ExpressionLabel expressionLabel
+                && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern && pattern.isUnconditional();
     }
 
     /** The cases have been built: nothing refers to the temporary which held the operand, nor to the restart index */
@@ -846,7 +852,7 @@ public class StatementMaker {
 
         if (patternVariable != null && switchCase.isDefaultCase()) {
             // 'case String s' on a string selector is the default of the byte code
-            return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), patternVariable.getType(), patternVariable);
+            return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), patternVariable.getType(), patternVariable, true);
         }
 
         int value = switchCase.getValue();

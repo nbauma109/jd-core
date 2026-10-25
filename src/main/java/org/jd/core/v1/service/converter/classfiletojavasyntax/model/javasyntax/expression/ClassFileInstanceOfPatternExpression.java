@@ -17,10 +17,21 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariabl
  */
 public class ClassFileInstanceOfPatternExpression extends InstanceOfExpression {
     private final AbstractLocalVariable localVariable;
+    private final boolean unconditional;
 
     public ClassFileInstanceOfPatternExpression(int lineNumber, Expression expression, Type instanceOfType, AbstractLocalVariable localVariable) {
+        this(lineNumber, expression, instanceOfType, localVariable, false);
+    }
+
+    /** @param unconditional the label of a 'switch' which matches every value: 'case String s' on a string, which has no default beside it */
+    public ClassFileInstanceOfPatternExpression(int lineNumber, Expression expression, Type instanceOfType, AbstractLocalVariable localVariable, boolean unconditional) {
         super(lineNumber, expression, instanceOfType);
         this.localVariable = localVariable;
+        this.unconditional = unconditional;
+    }
+
+    public boolean isUnconditional() {
+        return unconditional;
     }
 
     public AbstractLocalVariable getLocalVariable() {

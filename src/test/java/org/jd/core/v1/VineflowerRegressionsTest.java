@@ -101,6 +101,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // An assignment to a parameter is no pattern variable, the increment of a test is evaluated before the first use of the variable
         assertTrue(source.contains("s = (String)o;"));
+        // ... nor a variable which is declared with another type than the pattern
+        assertTrue(source.contains("Object s = (String)o;"));
         assertTrue(source.contains("++i * 2 <= i)"));
 
         // A field which hides the one of the super type does not need 'var'

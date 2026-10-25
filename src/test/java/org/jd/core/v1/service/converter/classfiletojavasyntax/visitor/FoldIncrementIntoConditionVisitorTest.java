@@ -12,6 +12,7 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
@@ -81,5 +82,25 @@ public class FoldIncrementIntoConditionVisitorTest {
 
             assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
         }
+    }
+
+    @Test
+    public void testUseWhichIsEvaluatedSometimesIsNotFolded() {
+        Expression flag = variable(J);
+
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(flag, "||", binary(variable(I), ">", two())), I, "++"));
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(flag, "&&", binary(variable(I), ">", two())), I, "++"));
+        assertNull(FoldIncrementIntoConditionVisitor.fold(new TernaryOperatorExpression(1, PrimitiveType.TYPE_BOOLEAN, flag, binary(variable(I), ">", two()), flag), I, "++"));
+    }
+
+    @Test
+    public void testUseWhichIsAlwaysEvaluatedIsFolded() {
+        Expression left = binary(variable(I), ">", two());
+        Expression operand = binary(left, "||", binary(variable(J), ">", two()));
+
+        assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
+        Expression ternary = new TernaryOperatorExpression(1, PrimitiveType.TYPE_BOOLEAN, binary(variable(I), ">", two()), variable(J), variable(J));
+
+        assertSame(ternary, FoldIncrementIntoConditionVisitor.fold(ternary, I, "++"));
     }
 }

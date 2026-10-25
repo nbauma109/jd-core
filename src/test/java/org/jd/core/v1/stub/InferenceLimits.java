@@ -237,7 +237,7 @@ public class InferenceLimits {
 
     public static class RunnableNumbers<T extends Number & Runnable> {
         int consume(java.util.function.ToIntFunction<T> function) {
-            return 0;
+            return function == null ? 0 : 1;
         }
     }
 

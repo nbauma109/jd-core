@@ -1323,6 +1323,9 @@ public class ByteCodeParser {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_MATH), StringConstants.JAVA_LANG_MATH, "E", "D"));
                 } else if (Double.compare(d, Math.PI) == 0) {
                     stack.push(new FieldReferenceExpression(lineNumber, TYPE_DOUBLE, new ObjectTypeReferenceExpression(lineNumber, ObjectType.TYPE_MATH), StringConstants.JAVA_LANG_MATH, "PI", "D"));
+                } else if (isWidenedFloatWithShorterLiteral(d)) {
+                    // 'double x = 0.2F' is folded by the compiler into 0.20000000298023224D
+                    stack.push(new FloatConstantExpression(lineNumber, (float)d));
                 } else {
                     stack.push(new DoubleConstantExpression(lineNumber, d));
                 }
@@ -1334,6 +1337,11 @@ public class ByteCodeParser {
             default:
                 break;
         }
+    }
+
+    private static boolean isWidenedFloatWithShorterLiteral(double d) {
+        float f = (float)d;
+        return Double.compare(f, d) == 0 && d != Math.rint(d) && Float.toString(f).length() < Double.toString(d).length();
     }
 
     private static void parseILOAD(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable) {

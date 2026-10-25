@@ -704,6 +704,9 @@ public class StatementMaker {
 
             if (stack.size() == 1) {
                 ruleResult = stack.pop();
+                if (!subStatements.isEmpty() && isBreak(subStatements.getLast())) {
+                    subStatements.removeLast();
+                }
             } else if (stack.size() != 0) {
                 parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, null));
                 return false;

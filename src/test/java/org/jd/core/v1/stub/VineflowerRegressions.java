@@ -21,6 +21,7 @@ public class VineflowerRegressions {
         };
     }
 
+    @SuppressWarnings("java:S9435") // the negated condition is the pattern under test
     public boolean negatedAnd(double n) {
         return !((n < 1.0 - n) && n > 3) ? n < 5.0 : n > 2;
     }

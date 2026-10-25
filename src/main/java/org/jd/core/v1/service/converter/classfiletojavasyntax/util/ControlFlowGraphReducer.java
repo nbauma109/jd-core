@@ -795,7 +795,6 @@ public abstract class ControlFlowGraphReducer {
         BasicBlock next = basicBlock.getNext();
         BasicBlock branch = basicBlock.getBranch();
 
-        ControlFlowGraph cfg = basicBlock.getControlFlowGraph();
         // 'basicBlock' may already be a compound condition ('a && b'): keep its structure instead of flattening it
         BasicBlock condition = createLeftInverseCondition(basicBlock);
 

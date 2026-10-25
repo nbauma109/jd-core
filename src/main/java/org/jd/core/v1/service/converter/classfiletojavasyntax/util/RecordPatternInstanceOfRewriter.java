@@ -78,18 +78,11 @@ public final class RecordPatternInstanceOfRewriter {
             return false;
         }
 
-        boolean hasFollowingFalseReturn = false;
-        if (index == statements.size()) {
-            hasFollowingFalseReturn = false;
-        } else if (index + 1 == statements.size()) {
-            Statement followingStatement = statements.get(index);
-            if (!followingStatement.isReturnExpressionStatement() || !isFalseExpression(followingStatement.getExpression())) {
-                return false;
-            }
-            hasFollowingFalseReturn = true;
-        } else {
+        int following = followingFalseReturn(statements, index);
+        if (following < 0) {
             return false;
         }
+        boolean hasFollowingFalseReturn = following == 1;
 
         BaseStatement tryStatements = tryStatement.getTryStatements();
         Expression guardExpression = normalizeRecordPatternGuardExpression(extractRecordPatternGuardExpression(tryStatements));
@@ -125,6 +118,18 @@ public final class RecordPatternInstanceOfRewriter {
         statements.add(new ReturnExpressionStatement(condition.getLineNumber(), rewrittenCondition));
 
         return true;
+    }
+
+    /** @return 0 if nothing follows the 'if', 1 if only 'return false;' follows it, -1 if other statements do */
+    private static int followingFalseReturn(Statements statements, int index) {
+        if (index == statements.size()) {
+            return 0;
+        }
+        if (index + 1 == statements.size()) {
+            Statement followingStatement = statements.get(index);
+            return followingStatement.isReturnExpressionStatement() && isFalseExpression(followingStatement.getExpression()) ? 1 : -1;
+        }
+        return -1;
     }
 
     /** @return the type of the test if it is a record, null otherwise */

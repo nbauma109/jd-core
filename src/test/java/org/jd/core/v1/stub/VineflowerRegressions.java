@@ -288,4 +288,30 @@ public class VineflowerRegressions {
         };
         return base.n;
     }
+
+    static class Putter {
+        public String put(Object o) {
+            return String.valueOf(o);
+        }
+    }
+
+    @SuppressWarnings({ "java:S1172", "java:S1206", "java:S2162" }) // the overload of 'equals' is what the call below needs
+    public boolean overloadOfEquals() {
+        var v = new Object() {
+            public boolean equals(String s) {
+                return true;
+            }
+        };
+        return v.equals("x");
+    }
+
+    @SuppressWarnings("java:S1172") // the overload has the arity of the inherited method
+    public String overloadWithTheArityOfAnInheritedMethod() {
+        var putter = new Putter() {
+            public String put(String s) {
+                return "string";
+            }
+        };
+        return putter.put("x");
+    }
 }

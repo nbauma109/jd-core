@@ -50,7 +50,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
-    private static final Set<String> OBJECT_METHODS = Set.of("toString", "equals", "hashCode", "clone", "finalize");
+    /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
+    private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", "clone()Ljava/lang/Object;", "finalize()V");
 
     @Override
     public void visit(Statements statements) {
@@ -95,6 +96,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return search.found;
     }
 
+    /** A method of the anonymous class which overrides a method of its super type: the type of the super type is enough to call it */
+    private boolean isInherited(Method method, String superInternalName) {
+        if (OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
+            return true;
+        }
+        if (ClassMetadata.isLoadable(loader, superInternalName)) {
+            return ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature());
+        }
+        // The super type cannot be read: the types which are known to the type maker
+        return typeMaker.matchCount(superInternalName, method.getName(), Type.getArgumentTypes(method.getSignature()).length, false) > 0;
+    }
+
     private Set<String> addedMembers(ClassFileBodyDeclaration body, String superInternalName) {
         Set<String> members = new HashSet<>();
 
@@ -102,8 +115,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             for (ClassFileConstructorOrMethodDeclaration method : body.getMethodDeclarations()) {
                 Method m = method.getMethod();
 
-                if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !OBJECT_METHODS.contains(m.getName())
-                        && typeMaker.matchCount(superInternalName, m.getName(), Type.getArgumentTypes(m.getSignature()).length, false) == 0) {
+                if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
                     // not declared by the type which the anonymous class extends: the variable needs the type of the class to call it
                     members.add(m.getName());
                 }

@@ -76,6 +76,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // 'var' for an anonymous class of a field or of an interface
         assertTrue(source.contains("var holder = new Object() {"));
         assertTrue(source.contains("var runner = new Runnable() {"));
+        // ... or of an overload of an inherited method: a call has to select the overload of the anonymous class
+        assertTrue(source.contains("var v = new Object() {"));
+        assertTrue(source.contains("var putter = new Putter() {"));
     }
 
     @Test

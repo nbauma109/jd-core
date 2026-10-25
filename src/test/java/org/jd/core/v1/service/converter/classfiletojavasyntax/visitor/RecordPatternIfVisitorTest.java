@@ -11,6 +11,7 @@ import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.Expressions;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
@@ -74,13 +75,26 @@ public class RecordPatternIfVisitorTest {
         return new ExpressionStatement(variable(PrimitiveType.TYPE_INT, "body"));
     }
 
-    private static TryStatement matchExceptionTry(Statements tryStatements) {
-        Statements handler = new Statements();
-        handler.add(new ThrowStatement(new NewExpression(1, MATCH_EXCEPTION, "(Ljava/lang/String;Ljava/lang/Throwable;)V", false, false)));
+    private static final ObjectType STRING = new ObjectType("java/lang/String", "java.lang.String", "String");
 
+    /** 'new MatchException(e.toString(), e)' */
+    private static NewExpression matchException(String message, String cause) {
+        NewExpression newExpression = new NewExpression(1, MATCH_EXCEPTION, "(Ljava/lang/String;Ljava/lang/Throwable;)V", false, false);
+
+        newExpression.setParameters(new Expressions(
+                new MethodInvocationExpression(STRING, variable(THROWABLE, message), "java/lang/Throwable", "toString", "()Ljava/lang/String;", null),
+                variable(THROWABLE, cause)));
+        return newExpression;
+    }
+
+    private static TryStatement tryCatching(Expression thrown, Statements tryStatements) {
         DefaultList<TryStatement.CatchClause> catchClauses = new DefaultList<>();
-        catchClauses.add(new TryStatement.CatchClause(1, THROWABLE, "e", handler));
+        catchClauses.add(new TryStatement.CatchClause(1, THROWABLE, "e", statements(new ThrowStatement(thrown))));
         return new TryStatement(tryStatements, catchClauses, null);
+    }
+
+    private static TryStatement matchExceptionTry(Statements tryStatements) {
+        return tryCatching(matchException("e", "e"), tryStatements);
     }
 
     private static Statements statements(Statement... statements) {
@@ -220,5 +234,33 @@ public class RecordPatternIfVisitorTest {
         assertSame(noRecord, rewrite(noRecord));
         assertSame(otherAccessor, rewrite(otherAccessor, "y"));
         assertSame(missingComponent, rewrite(missingComponent, "x", "o"));
+    }
+
+    @Test
+    public void testRecordVariableWhichIsStillUsedIsKept() {
+        Statements tryStatements = statements(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), new ExpressionStatement(variable(RECORD, "r1")));
+        IfStatement used = ifInstanceOf(statements(new LocalVariableDeclarationStatement(RECORD, declarator("r1", variable(RECORD, "r"))), matchExceptionTry(tryStatements)));
+        IfStatement usedInElse = new IfElseStatement(new InstanceOfExpression(1, variable(RECORD, "r"), RECORD),
+                lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")), statements(new ExpressionStatement(variable(RECORD, "r1"))));
+
+        assertSame(used, rewrite(used, "x"));
+        assertSame(usedInElse, rewrite(usedInElse, "x"));
+    }
+
+    @Test
+    public void testExceptionWhichIsNotTheOneOfTheExtraction() {
+        Statements tryStatements = statements(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x"), body());
+        NewExpression withoutArguments = new NewExpression(1, MATCH_EXCEPTION, "()V", false, false);
+        TryStatement[] tries = {
+            tryCatching(withoutArguments, tryStatements),
+            tryCatching(matchException("other", "e"), tryStatements),
+            tryCatching(matchException("e", "other"), tryStatements)
+        };
+
+        for (TryStatement tryStatement : tries) {
+            IfStatement ifStatement = ifInstanceOf(statements(new LocalVariableDeclarationStatement(RECORD, declarator("r1", variable(RECORD, "r"))), tryStatement));
+
+            assertSame(ifStatement, rewrite(ifStatement, "x"));
+        }
     }
 }

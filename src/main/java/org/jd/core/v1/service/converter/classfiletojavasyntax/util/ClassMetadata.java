@@ -10,6 +10,7 @@ import org.apache.bcel.classfile.ClassFormatException;
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.Field;
 import org.apache.bcel.classfile.JavaClass;
+import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.api.loader.Loader;
 
 import java.io.ByteArrayInputStream;
@@ -48,6 +49,38 @@ public final class ClassMetadata {
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {
             if (declaresField(loader, internalNameOf(interfaceName), fieldName, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return true if the class can be read */
+    public static boolean isLoadable(Loader loader, String internalName) {
+        return internalName != null && parse(loader, internalName) != null;
+    }
+
+    /** @return true if the class, one of its superclasses or one of its interfaces declares a method of this name and descriptor */
+    public static boolean declaresMethod(Loader loader, String internalName, String name, String descriptor) {
+        return declaresMethod(loader, internalName, name, descriptor, new HashSet<>());
+    }
+
+    private static boolean declaresMethod(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return false;
+        }
+        for (Method method : javaClass.getMethods()) {
+            if (method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+                return true;
+            }
+        }
+        if (declaresMethod(loader, internalNameOf(javaClass.getSuperclassName()), name, descriptor, visited)) {
+            return true;
+        }
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            if (declaresMethod(loader, internalNameOf(interfaceName), name, descriptor, visited)) {
                 return true;
             }
         }

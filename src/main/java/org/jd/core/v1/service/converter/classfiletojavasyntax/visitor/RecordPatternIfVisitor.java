@@ -10,6 +10,7 @@ import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -18,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.pattern.Pattern;
 import org.jd.core.v1.model.javasyntax.pattern.RecordPattern;
 import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
+import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
@@ -51,6 +53,20 @@ import java.util.function.Function;
 public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
     private static final String MATCH_EXCEPTION = "java/lang/MatchException";
     private static final String THROWABLE = "java/lang/Throwable";
+
+    private static boolean references(String variableName, BaseStatement statements) {
+        boolean[] found = new boolean[1];
+
+        if (statements != null) {
+            statements.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(LocalVariableReferenceExpression expression) {
+                    found[0] |= variableName.equals(expression.getName());
+                }
+            });
+        }
+        return found[0];
+    }
 
     /** The variable which holds a component and the name of the accessor which gives it */
     private record Component(String variable, String accessor) {}
@@ -131,6 +147,11 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
 
         body.addAll(tryBody.subList(index, tryBody.size()));
 
+        // A record pattern binds no variable for the record itself
+        if (references(recordVariable, body) || ifStatement instanceof IfElseStatement ifElse && references(recordVariable, ifElse.getElseStatements())) {
+            return null;
+        }
+
         Expression condition = new InstanceOfExpression(instanceOf.getLineNumber(), instanceOf.getExpression(),
                 new RecordPattern(instanceOf.getInstanceOfType(), components, null));
 
@@ -189,6 +210,16 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
 
         return type != null && THROWABLE.equals(type.getInternalName()) && catchClause.getStatements() instanceof Statements statements && statements.size() == 1
                 && statements.getFirst() instanceof ThrowStatement throwStatement && throwStatement.getExpression() instanceof NewExpression newExpression
-                && MATCH_EXCEPTION.equals(newExpression.getObjectType().getInternalName());
+                && MATCH_EXCEPTION.equals(newExpression.getObjectType().getInternalName()) && isMatchExceptionOf(catchClause.getName(), newExpression);
+    }
+
+    /** 'new MatchException(e.toString(), e)': the exception of the extraction of the components, as javac writes it */
+    private static boolean isMatchExceptionOf(String exceptionName, NewExpression newExpression) {
+        BaseExpression parameters = newExpression.getParameters();
+
+        return parameters != null && parameters.size() == 2
+                && parameters.getFirst() instanceof MethodInvocationExpression message && "toString".equals(message.getName())
+                && message.getExpression() instanceof LocalVariableReferenceExpression thrown && exceptionName.equals(thrown.getName())
+                && parameters.getLast() instanceof LocalVariableReferenceExpression cause && exceptionName.equals(cause.getName());
     }
 }

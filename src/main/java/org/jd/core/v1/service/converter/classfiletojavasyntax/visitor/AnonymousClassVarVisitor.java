@@ -8,6 +8,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.Type;
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
@@ -26,6 +27,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
 import java.util.HashSet;
@@ -40,9 +42,11 @@ import java.util.Set;
  */
 public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
+    private final Loader loader;
 
-    public AnonymousClassVarVisitor(TypeMaker typeMaker) {
+    public AnonymousClassVarVisitor(TypeMaker typeMaker, Loader loader) {
         this.typeMaker = typeMaker;
+        this.loader = loader;
     }
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
@@ -109,7 +113,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             AbstractJavaSyntaxVisitor fieldNames = new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(FieldDeclarator declarator) {
-                    members.add(declarator.getName());
+                    // A field which hides the one of the super type is not the one which 'holder.field' refers to
+                    if (!ClassMetadata.declaresField(loader, superInternalName, declarator.getName())) {
+                        members.add(declarator.getName());
+                    }
                 }
             };
             for (ClassFileFieldDeclaration field : body.getFieldDeclarations()) {

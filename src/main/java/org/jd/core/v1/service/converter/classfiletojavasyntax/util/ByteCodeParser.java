@@ -232,7 +232,7 @@ public class ByteCodeParser {
         int opcode;
         int lineNumber;
         int offset = fromOffset;
-        Map<Integer, InstanceOfPatternBinding> bindings = findPatternBindings(code);
+        Map<Integer, InstanceOfPatternBinding> bindings = findPatternBindings(method, code);
         while (offset < toOffset) {
             int startOffset = offset;
             opcode = code[offset] & 255;
@@ -1361,10 +1361,10 @@ public class ByteCodeParser {
     private Map<Integer, InstanceOfPatternBinding> patternBindings = Map.of();
     private final Map<Integer, Integer> skippedInstructionLengths = new HashMap<>();
 
-    private Map<Integer, InstanceOfPatternBinding> findPatternBindings(byte[] code) {
+    private Map<Integer, InstanceOfPatternBinding> findPatternBindings(Method method, byte[] code) {
         if (patternBindingsCode != code) {
             patternBindingsCode = code;
-            patternBindings = InstanceOfPatternBinding.isSupportedBy(majorVersion) ? InstanceOfPatternBinding.find(code) : Map.of();
+            patternBindings = InstanceOfPatternBinding.isSupportedBy(majorVersion) ? InstanceOfPatternBinding.find(method) : Map.of();
             skippedInstructionLengths.clear();
             patternBindings.values().forEach(binding -> skippedInstructionLengths.putAll(binding.skippedInstructions(code)));
         }

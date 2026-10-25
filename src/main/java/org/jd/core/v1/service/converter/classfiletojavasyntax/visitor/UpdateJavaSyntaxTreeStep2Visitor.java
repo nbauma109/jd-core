@@ -40,7 +40,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final WidenedFloatConstantVisitor widenedFloatConstantVisitor = new WidenedFloatConstantVisitor();
     private final AnonymousClassVarVisitor anonymousClassVarVisitor;
     private final EmptyThenWithPatternVisitor emptyThenWithPatternVisitor = new EmptyThenWithPatternVisitor();
-    private final RecordPatternIfVisitor recordPatternIfVisitor = new RecordPatternIfVisitor();
+    private final RecordPatternIfVisitor recordPatternIfVisitor;
     private final HoistUndeclaredLocalVariablesVisitor hoistUndeclaredLocalVariablesVisitor = new HoistUndeclaredLocalVariablesVisitor();
 
     private TypeDeclaration typeDeclaration;
@@ -54,7 +54,8 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker, loader);
         this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker, loader);
         this.autoboxingVisitor = new AutoboxingVisitor(typeMaker);
-        this.anonymousClassVarVisitor = new AnonymousClassVarVisitor(typeMaker);
+        this.anonymousClassVarVisitor = new AnonymousClassVarVisitor(typeMaker, loader);
+        this.recordPatternIfVisitor = new RecordPatternIfVisitor(loader);
     }
 
     @Override

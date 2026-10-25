@@ -6,35 +6,62 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
+import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 
 /**
  * 'if (i > 10 && ++i != 15)': the 'iinc' of the second operand of a test is a statement of the byte code, which has to be evaluated by the
- * test: the first use of the variable in the operand becomes '++i'.
+ * test: the first use of the variable in the operand, in the order of the evaluation, becomes '++i'.
  */
-public class FoldIncrementIntoConditionVisitor extends AbstractUpdateExpressionVisitor {
-    private final AbstractLocalVariable localVariable;
-    private final String operator;
-    private boolean folded;
+public final class FoldIncrementIntoConditionVisitor {
 
-    public FoldIncrementIntoConditionVisitor(AbstractLocalVariable localVariable, String operator) {
-        this.localVariable = localVariable;
-        this.operator = operator;
-    }
+    private FoldIncrementIntoConditionVisitor() {}
 
-    public boolean isFolded() {
-        return folded;
-    }
+    /** @return the operand where the first use of the variable is '++i' or '--i', null if the operand does not use the variable */
+    public static Expression fold(Expression operand, AbstractLocalVariable localVariable, String operator) {
+        FirstUse firstUse = new FirstUse(localVariable);
 
-    @Override
-    public Expression updateExpression(Expression expression) {
-        if (!folded && expression instanceof ClassFileLocalVariableReferenceExpression reference && reference.getLocalVariable() == localVariable) {
-            folded = true;
+        if (operand instanceof ClassFileLocalVariableReferenceExpression reference && reference.getLocalVariable() == localVariable) {
             return new PreOperatorExpression(reference.getLineNumber(), operator, reference);
         }
-        return expression;
+        operand.accept(firstUse);
+
+        if (firstUse.found == null) {
+            return null;
+        }
+        operand.accept(new AbstractUpdateExpressionVisitor() {
+            private boolean replaced;
+
+            @Override
+            protected Expression updateExpression(Expression expression) {
+                if (!replaced && expression == firstUse.found) {
+                    replaced = true;
+                    return new PreOperatorExpression(expression.getLineNumber(), operator, expression);
+                }
+                return expression;
+            }
+        });
+        return operand;
+    }
+
+    /** The visits go through the operands in the order of their evaluation: left before right, the arguments one after the other */
+    private static final class FirstUse extends AbstractJavaSyntaxVisitor {
+        private final AbstractLocalVariable localVariable;
+        private Expression found;
+
+        FirstUse(AbstractLocalVariable localVariable) {
+            this.localVariable = localVariable;
+        }
+
+        @Override
+        public void visit(LocalVariableReferenceExpression expression) {
+            if (found == null && expression instanceof ClassFileLocalVariableReferenceExpression reference && reference.getLocalVariable() == localVariable) {
+                found = expression;
+            }
+        }
     }
 }

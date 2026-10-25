@@ -93,6 +93,13 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("if (o instanceof Integer i)"));
         assertTrue(source.contains("throw new IllegalArgumentException();"));
         assertTrue(source.contains("if (o instanceof String)"));
+
+        // An assignment to a parameter is no pattern variable, the increment of a test is evaluated before the first use of the variable
+        assertTrue(source.contains("s = (String)o;"));
+        assertTrue(source.contains("++i * 2 <= i)"));
+
+        // A field which hides the one of the super type does not need 'var'
+        assertTrue(source.contains("ShadowedBase base = new ShadowedBase() {"));
     }
 
     @Test

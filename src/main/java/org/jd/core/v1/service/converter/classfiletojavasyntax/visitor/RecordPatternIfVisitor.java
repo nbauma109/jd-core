@@ -6,6 +6,7 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
+import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
@@ -25,10 +26,12 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.function.Function;
 
 /**
  * javac compiles 'if (r instanceof R(int x, Object o)) { body }' to
@@ -49,6 +52,17 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
     private static final String MATCH_EXCEPTION = "java/lang/MatchException";
     private static final String THROWABLE = "java/lang/Throwable";
 
+    /** The names of the components of a record, in the order of its declaration, null when the type is no record */
+    private final Function<String, List<String>> recordComponentNames;
+
+    public RecordPatternIfVisitor(Loader loader) {
+        this(internalName -> ClassMetadata.recordComponentNames(loader, internalName));
+    }
+
+    public RecordPatternIfVisitor(Function<String, List<String>> recordComponentNames) {
+        this.recordComponentNames = recordComponentNames;
+    }
+
     @Override
     public void visit(Statements statements) {
         ListIterator<Statement> iterator = statements.listIterator();
@@ -68,7 +82,7 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    private static IfStatement rewrite(IfStatement ifStatement) {
+    private IfStatement rewrite(IfStatement ifStatement) {
         if (!(ifStatement.getCondition() instanceof InstanceOfExpression instanceOf) || !(ifStatement.getStatements() instanceof Statements thenStatements)
                 || thenStatements.isEmpty() || !(thenStatements.getLast() instanceof TryStatement tryStatement) || !isMatchExceptionTry(tryStatement)
                 || !(tryStatement.getTryStatements() instanceof Statements tryBody)) {
@@ -89,18 +103,24 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
 
         // 'int i = r1.x(), x = i;': one component each
         List<Pattern> components = new ArrayList<>();
+        List<String> accessors = new ArrayList<>();
         int index = 0;
 
         while (index < tryBody.size() && tryBody.get(index) instanceof LocalVariableDeclarationStatement declaration) {
-            String name = componentName(declaration, recordVariable);
+            String[] component = component(declaration, recordVariable);
 
-            if (name == null) {
+            if (component == null) {
                 break;
             }
-            components.add(new TypePattern(declaration.getType(), name));
+            components.add(new TypePattern(declaration.getType(), component[0]));
+            accessors.add(component[1]);
             index++;
         }
-        if (components.isEmpty()) {
+
+        // The accessors are the ones of all the components of the record, in the order of its declaration
+        List<String> names = recordComponentNames.apply(instanceOf.getInstanceOfType().getInternalName());
+
+        if (components.isEmpty() || !accessors.equals(names)) {
             return null;
         }
 
@@ -114,8 +134,8 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         return ifStatement instanceof IfElseStatement ifElse ? new IfElseStatement(condition, body, ifElse.getElseStatements()) : new IfStatement(condition, body);
     }
 
-    /** @return the name of the component which is bound by the declaration of 'T tmp = record.accessor(), name = tmp;', null if it is no binding */
-    private static String componentName(LocalVariableDeclarationStatement declaration, String recordVariable) {
+    /** @return the name of the variable and the name of the accessor of the component which are bound by 'T tmp = record.accessor(), name = tmp;', null if it is no binding */
+    private static String[] component(LocalVariableDeclarationStatement declaration, String recordVariable) {
         List<LocalVariableDeclarator> declarators = new ArrayList<>();
 
         if (declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator single) {
@@ -126,10 +146,12 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         if (declarators.isEmpty() || declarators.size() > 2 || !isAccessorCall(declarators.get(0), recordVariable)) {
             return null;
         }
+        String accessor = ((MethodInvocationExpression) ((ExpressionVariableInitializer) declarators.get(0).getVariableInitializer()).getExpression()).getName();
+
         if (declarators.size() == 1) {
-            return declarators.get(0).getName();
+            return new String[] {declarators.get(0).getName(), accessor};
         }
-        return isSameExpression(declarators.get(1), declarators.get(0).getName()) ? declarators.get(1).getName() : null;
+        return isSameExpression(declarators.get(1), declarators.get(0).getName()) ? new String[] {declarators.get(1).getName(), accessor} : null;
     }
 
     private static boolean isAccessorCall(LocalVariableDeclarator declarator, String recordVariable) {

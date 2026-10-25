@@ -175,7 +175,7 @@ public final class ByteCodeUtil {
         };
     }
 
-    private static int computeNextOffset(final byte[] code, int offset, int opcode) {
+    static int computeNextOffset(final byte[] code, int offset, int opcode) {
         switch (opcode) {
             case BIPUSH, LDC,
                  ILOAD, LLOAD, FLOAD, DLOAD, ALOAD,

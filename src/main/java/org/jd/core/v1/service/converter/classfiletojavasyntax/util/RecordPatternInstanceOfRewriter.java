@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
@@ -57,7 +58,8 @@ public final class RecordPatternInstanceOfRewriter {
 
     private RecordPatternInstanceOfRewriter() {}
 
-    public static boolean rewrite(Expression condition, Statements thenStatements, Statements statements, int index) {
+    /** @param isRecord tells whether a type (by its internal name) is a record: an accessor-like call on another type is no component */
+    public static boolean rewrite(Expression condition, Statements thenStatements, Statements statements, int index, Predicate<String> isRecord) {
         if (!(condition instanceof InstanceOfExpression instanceOfExpression)) {
             return false;
         }
@@ -66,7 +68,7 @@ public final class RecordPatternInstanceOfRewriter {
         if (instanceOfType == null && instanceOfExpression.getPattern() != null) {
             instanceOfType = instanceOfExpression.getPattern().type();
         }
-        if (instanceOfType == null) {
+        if (instanceOfType == null || !isRecord.test(instanceOfType.getInternalName())) {
             return false;
         }
 

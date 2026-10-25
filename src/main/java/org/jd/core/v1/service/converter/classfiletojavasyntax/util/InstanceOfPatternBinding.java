@@ -6,6 +6,14 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.classfile.Code;
+import org.apache.bcel.classfile.LocalVariable;
+import org.apache.bcel.classfile.LocalVariableTable;
+import org.apache.bcel.classfile.Method;
+import org.apache.bcel.generic.ClassGenException;
+import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.Type;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,20 +58,79 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return majorVersion >= MIN_MAJOR_VERSION && ENABLED.get();
     }
 
-    /** @return the bindings, by the offset of their 'instanceof' */
-    public static Map<Integer, InstanceOfPatternBinding> find(byte[] code) {
+    /** @return the bindings of the method, by the offset of their 'instanceof' */
+    public static Map<Integer, InstanceOfPatternBinding> find(Method method) {
+        Code code = method.getCode();
+
+        return find(code.getCode(), parameterSlots(method), code.getLocalVariableTable());
+    }
+
+    /**
+     * @param parameterSlots number of slots of 'this' and of the parameters: they are no variable which a pattern declares
+     * @param variables the local variable table, null when the class has no debug information: a pattern declares a variable whose scope starts at its 'astore'
+     * @return the bindings, by the offset of their 'instanceof'
+     */
+    public static Map<Integer, InstanceOfPatternBinding> find(byte[] code, int parameterSlots, LocalVariableTable variables) {
         Map<Integer, InstanceOfPatternBinding> bindings = new HashMap<>();
+        boolean[] starts = instructionStarts(code);
 
         for (int p = 1; p + 6 < code.length; p++) {
-            if ((code[p] & 255) == INSTANCEOF && (code[p + 3] & 255) == IFEQ) {
-                InstanceOfPatternBinding binding = match(code, p);
+            if (starts[p] && (code[p] & 255) == INSTANCEOF && starts[p + 3] && (code[p + 3] & 255) == IFEQ) {
+                InstanceOfPatternBinding binding = match(code, starts, p);
 
-                if (binding != null) {
+                if (binding != null && declaresNewVariable(binding, parameterSlots, variables)) {
                     bindings.put(p, binding);
                 }
             }
         }
         return bindings;
+    }
+
+    private static int parameterSlots(Method method) {
+        int slots = method.isStatic() ? 0 : 1;
+
+        for (Type type : Type.getArgumentTypes(method.getSignature())) {
+            slots += type.getSize();
+        }
+        return slots;
+    }
+
+    /** The offsets where an instruction starts: a byte which looks like an opcode may be the operand of another instruction */
+    private static boolean[] instructionStarts(byte[] code) {
+        boolean[] starts = new boolean[code.length + 1];
+
+        try {
+            for (int position : new InstructionList(code).getInstructionPositions()) {
+                starts[position] = true;
+            }
+        } catch (ClassGenException e) {
+            // The byte code cannot be decoded: no instruction is trusted
+            return new boolean[code.length + 1];
+        }
+        return starts;
+    }
+
+    /** An assignment to a parameter or to a variable which exists already ('if (o instanceof String) s = (String) o;') is no pattern */
+    private static boolean declaresNewVariable(InstanceOfPatternBinding binding, int parameterSlots, LocalVariableTable variables) {
+        if (binding.storeIndex() < parameterSlots) {
+            return false;
+        }
+        if (variables == null) {
+            return true;
+        }
+        for (LocalVariable variable : variables.getLocalVariableTable()) {
+            if (variable.getIndex() == binding.storeIndex()) {
+                if (variable.getStartPC() == binding.storeEndOffset()) {
+                    return true;
+                }
+                if (variable.getStartPC() <= binding.storeOffset() && binding.storeOffset() < variable.getStartPC() + variable.getLength()) {
+                    // The variable exists before the store: it is assigned, not declared
+                    return false;
+                }
+            }
+        }
+        // No variable is named by the store: the compiler's own temporary, for example the one of a record pattern
+        return true;
     }
 
     /** @return the offsets of the instructions which only bind the variable, with their lengths */
@@ -88,16 +155,16 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return opcode == ALOAD || opcode == ASTORE ? 2 : 1;
     }
 
-    private static InstanceOfPatternBinding match(byte[] code, int instanceOfOffset) {
+    private static InstanceOfPatternBinding match(byte[] code, boolean[] starts, int instanceOfOffset) {
         // The operand of 'instanceof' is a local variable
-        int operandIndex = loadedIndex(code, instanceOfOffset - 1, true);
+        int operandIndex = operandIndex(code, starts, instanceOfOffset);
         if (operandIndex < 0) {
             return null;
         }
 
         int offset = instanceOfOffset + 6;
         int loadLength = (code[offset] & 255) == ALOAD ? 2 : 1;
-        if (loadedIndex(code, offset, false) != operandIndex || offset + loadLength + 3 >= code.length) {
+        if (loadedIndex(code, offset) != operandIndex || offset + loadLength + 3 >= code.length) {
             return null;
         }
 
@@ -123,17 +190,23 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return new InstanceOfPatternBinding(storeIndex, storeOffset, storeOffset + storeLength, offset, loadLength + 3 + storeLength);
     }
 
-    /** @return the index of the local variable which is loaded by the instruction at 'offset' (or which ends at 'offset' when 'ends' is set), -1 if it is no load */
-    private static int loadedIndex(byte[] code, int offset, boolean ends) {
-        if (offset < 0 || offset >= code.length) {
-            return -1;
-        }
-        int opcode = code[offset] & 255;
-        if (opcode >= ALOAD_0 && opcode <= ALOAD_3) {
+    /** @return the index of the local variable which is loaded by the instruction which precedes 'instanceof', -1 if it is no load */
+    private static int operandIndex(byte[] code, boolean[] starts, int instanceOfOffset) {
+        int previous = instanceOfOffset - 1;
+        int opcode = code[previous] & 255;
+
+        if (starts[previous] && opcode >= ALOAD_0 && opcode <= ALOAD_3) {
             return opcode - ALOAD_0;
         }
-        if (ends) {
-            return offset >= 1 && (code[offset - 1] & 255) == ALOAD ? code[offset] & 255 : -1;
+        return previous >= 1 && starts[previous - 1] && (code[previous - 1] & 255) == ALOAD ? opcode : -1;
+    }
+
+    /** @return the index of the local variable which is loaded by the instruction at 'offset', -1 if it is no load */
+    private static int loadedIndex(byte[] code, int offset) {
+        int opcode = code[offset] & 255;
+
+        if (opcode >= ALOAD_0 && opcode <= ALOAD_3) {
+            return opcode - ALOAD_0;
         }
         return opcode == ALOAD && offset + 1 < code.length ? code[offset + 1] & 255 : -1;
     }

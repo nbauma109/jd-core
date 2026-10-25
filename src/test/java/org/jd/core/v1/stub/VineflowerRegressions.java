@@ -258,4 +258,34 @@ public class VineflowerRegressions {
     public boolean negatedTernaryOfPatterns(Object o) {
         return !(o instanceof String s) || s.isEmpty();
     }
+
+    public String assignmentToAParameter(Object o, String s) {
+        if (o instanceof String) {
+            s = (String) o;
+        }
+        return s;
+    }
+
+    public void incrementIsEvaluatedBeforeTheFirstUse(int i) {
+        while (i > 0) {
+            i++;
+
+            if (i * 2 > i) {
+                break;
+            }
+
+            System.out.println(i);
+        }
+    }
+
+    static class ShadowedBase {
+        public int n = 1;
+    }
+
+    public int fieldWhichHidesTheOneOfTheSuperType() {
+        ShadowedBase base = new ShadowedBase() {
+            public int n = 2;
+        };
+        return base.n;
+    }
 }

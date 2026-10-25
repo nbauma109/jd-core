@@ -185,7 +185,7 @@ public class ControlFlowGraphMaker {
         // The 'astore' which binds the variable of 'x instanceof T v' is no statement
         Set<Integer> patternStoreOffsets = new HashSet<>();
         if (instanceOfPatterns) {
-            InstanceOfPatternBinding.find(code).values().forEach(binding -> patternStoreOffsets.add(binding.storeOffset()));
+            InstanceOfPatternBinding.find(method).values().forEach(binding -> patternStoreOffsets.add(binding.storeOffset()));
         }
         int opcode;
         for (int offset=0; offset<length; offset++) {

@@ -31,6 +31,8 @@ import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.util.DefaultList;
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -90,10 +92,11 @@ public class RecordPatternIfVisitorTest {
         return list;
     }
 
-    private static Statement rewrite(IfStatement ifStatement) {
+    /** @param recordComponents the names of the components of the record 'p.R', none if it is no record */
+    private static Statement rewrite(IfStatement ifStatement, String... recordComponents) {
         Statements statements = statements(ifStatement);
 
-        new RecordPatternIfVisitor().visit(statements);
+        new RecordPatternIfVisitor(name -> recordComponents.length == 0 ? null : List.of(recordComponents)).visit(statements);
         return statements.getFirst();
     }
 
@@ -121,14 +124,14 @@ public class RecordPatternIfVisitorTest {
 
     @Test
     public void testRecordVariableCopy() {
-        Statement rewritten = rewrite(ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), twoDeclarators(ObjectType.TYPE_OBJECT, "r1", "o", "o1", "o"))));
+        Statement rewritten = rewrite(ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), twoDeclarators(ObjectType.TYPE_OBJECT, "r1", "o", "o1", "o"))), "x", "o");
 
         assertRewritten(rewritten, "x", "o");
     }
 
     @Test
     public void testSingleDeclarator() {
-        assertRewritten(rewrite(ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")))), "x");
+        assertRewritten(rewrite(ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x"))), "x"), "x");
     }
 
     @Test
@@ -136,7 +139,7 @@ public class RecordPatternIfVisitorTest {
         Statements tryStatements = statements(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), body());
         IfStatement ifStatement = new IfStatement(new InstanceOfExpression(1, variable(RECORD, "r"), RECORD, "r1", false), statements(matchExceptionTry(tryStatements)));
 
-        assertRewritten(rewrite(ifStatement), "x");
+        assertRewritten(rewrite(ifStatement, "x"), "x");
     }
 
     @Test
@@ -144,7 +147,7 @@ public class RecordPatternIfVisitorTest {
         Statements elseStatements = statements(body());
         IfStatement ifStatement = new IfElseStatement(new InstanceOfExpression(1, variable(RECORD, "r"), RECORD),
                 lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")), elseStatements);
-        Statement rewritten = rewrite(ifStatement);
+        Statement rewritten = rewrite(ifStatement, "x");
 
         assertTrue(rewritten instanceof IfElseStatement);
         assertSame(elseStatements, ((IfElseStatement) rewritten).getElseStatements());
@@ -156,7 +159,7 @@ public class RecordPatternIfVisitorTest {
         Statements inner = statements(ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x"))));
         Statement outer = new IfStatement(variable(PrimitiveType.TYPE_BOOLEAN, "flag"), inner);
 
-        assertRewritten(((Statements) rewrite((IfStatement) outer).getStatements()).getFirst(), "x");
+        assertRewritten(((Statements) rewrite((IfStatement) outer, "x").getStatements()).getFirst(), "x");
     }
 
     @Test
@@ -170,7 +173,7 @@ public class RecordPatternIfVisitorTest {
         Statement badSecondDeclarator = ifInstanceOf(lowered(declarationWithSecondDeclaratorOfAnotherVariable()));
 
         for (Statement statement : new Statement[] {condition, emptyThen, noTry, noRecordVariable, withoutComponents, otherVariable, badSecondDeclarator}) {
-            assertSame(statement, rewrite((IfStatement) statement));
+            assertSame(statement, rewrite((IfStatement) statement, "x"));
         }
     }
 
@@ -204,7 +207,18 @@ public class RecordPatternIfVisitorTest {
         for (TryStatement tryStatement : tries) {
             IfStatement ifStatement = ifInstanceOf(statements(new LocalVariableDeclarationStatement(RECORD, declarator("r1", variable(RECORD, "r"))), tryStatement));
 
-            assertSame(ifStatement, rewrite(ifStatement));
+            assertSame(ifStatement, rewrite(ifStatement, "x"));
         }
+    }
+
+    @Test
+    public void testTypeWhichIsNoRecordOrWhoseAccessorsDifferIsNoRecordPattern() {
+        IfStatement noRecord = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "length", "n")));
+        IfStatement otherAccessor = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
+        IfStatement missingComponent = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
+
+        assertSame(noRecord, rewrite(noRecord));
+        assertSame(otherAccessor, rewrite(otherAccessor, "y"));
+        assertSame(missingComponent, rewrite(missingComponent, "x", "o"));
     }
 }

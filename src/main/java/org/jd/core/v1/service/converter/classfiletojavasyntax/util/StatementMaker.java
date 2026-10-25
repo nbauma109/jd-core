@@ -596,13 +596,7 @@ public class StatementMaker {
             return null;
         }
 
-        FoldIncrementIntoConditionVisitor visitor = new FoldIncrementIntoConditionVisitor(reference.getLocalVariable(), increment.getOperator());
-        Expression folded = visitor.updateExpression(operand);
-
-        if (folded == operand) {
-            operand.accept(visitor);
-        }
-        return visitor.isFolded() ? folded : null;
+        return FoldIncrementIntoConditionVisitor.fold(operand, reference.getLocalVariable(), increment.getOperator());
     }
 
     protected void parseSwitch(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
@@ -768,7 +762,7 @@ public class StatementMaker {
             synthetics.add(temporary);
 
             // 'Objects.requireNonNull(o);'
-            if (index > 0 && isRequireNonNull(statements.get(index - 1))) {
+            if (index > 0 && isRequireNonNull(statements.get(index - 1), operand)) {
                 statements.remove(--index);
             }
         }
@@ -808,11 +802,13 @@ public class StatementMaker {
                 && expression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression left && left.getLocalVariable() == localVariable;
     }
 
-    private static boolean isRequireNonNull(Statement statement) {
+    /** The null check of the operand of the switch: 'dup' copies the operand, so the argument is the very expression which is copied to the temporary */
+    private static boolean isRequireNonNull(Statement statement, Expression operand) {
         Expression expression = statement.getExpression();
 
         return expression != null && expression.isMethodInvocationExpression() && "requireNonNull".equals(expression.getName())
-                && "java/util/Objects".equals(expression.getInternalTypeName());
+                && "java/util/Objects".equals(expression.getInternalTypeName())
+                && expression.getParameters() != null && expression.getParameters().size() == 1 && expression.getParameters().getFirst() == operand;
     }
 
     /** 'case Integer i': the variable is bound by the first statement of the case, 'Integer i = (Integer) tmp;' */
@@ -1189,6 +1185,12 @@ public class StatementMaker {
         });
     }
 
+    private boolean isRecord(String internalName) {
+        TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(internalName);
+
+        return typeTypes != null && typeTypes.getSuperType() != null && "java/lang/Record".equals(typeTypes.getSuperType().getInternalName());
+    }
+
     protected void parseIf(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
         BasicBlock condition = basicBlock.getCondition();
 
@@ -1238,7 +1240,7 @@ public class StatementMaker {
             int index = statements.size();
             makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
 
-            if (RecordPatternInstanceOfRewriter.rewrite(cond, subStatements, statements, index)) {
+            if (RecordPatternInstanceOfRewriter.rewrite(cond, subStatements, statements, index, this::isRecord)) {
                 return;
             }
 

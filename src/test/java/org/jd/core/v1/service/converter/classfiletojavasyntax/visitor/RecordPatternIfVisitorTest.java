@@ -50,22 +50,22 @@ public class RecordPatternIfVisitorTest {
         return new LocalVariableDeclarator(1, name, new ExpressionVariableInitializer(value));
     }
 
-    private static Expression accessor(String record, String name, Type type) {
-        return new MethodInvocationExpression(type, variable(RECORD, record), "p/R", name, "()V", null);
+    private static Expression accessor(String recordName, String name, Type type) {
+        return new MethodInvocationExpression(type, variable(RECORD, recordName), "p/R", name, "()V", null);
     }
 
     /** 'int i = r1.x(), x = i;' */
-    private static Statement twoDeclarators(Type type, String record, String accessor, String temporary, String name) {
+    private static Statement twoDeclarators(Type type, String recordName, String accessor, String temporary, String name) {
         LocalVariableDeclarators declarators = new LocalVariableDeclarators(2);
 
-        declarators.add(declarator(temporary, accessor(record, accessor, type)));
+        declarators.add(declarator(temporary, accessor(recordName, accessor, type)));
         declarators.add(declarator(name, variable(type, temporary)));
         return new LocalVariableDeclarationStatement(type, declarators);
     }
 
     /** 'int x = r1.x();' */
-    private static Statement oneDeclarator(Type type, String record, String accessor, String name) {
-        return new LocalVariableDeclarationStatement(type, declarator(name, accessor(record, accessor, type)));
+    private static Statement oneDeclarator(Type type, String recordName, String accessor, String name) {
+        return new LocalVariableDeclarationStatement(type, declarator(name, accessor(recordName, accessor, type)));
     }
 
     private static Statement body() {

@@ -526,9 +526,14 @@ public class StatementMaker {
             if (group.defaultCase() && group.toIndexExclusive() - group.fromIndexInclusive() == 1 && group.patternVariable() == null) {
                 labels.add(SwitchExpression.DEFAULT_LABEL);
             } else {
+                PatternBinding binding = typeSwitch == null ? null : new PatternBinding(typeSwitch, group.patternVariable());
+
                 for (int k = group.fromIndexInclusive(); k < group.toIndexExclusive(); k++) {
-                    labels.add(switchCases.get(k).isDefaultCase() && group.patternVariable() == null ? SwitchExpression.DEFAULT_LABEL
-                            : new SwitchExpression.ExpressionLabel(switchLabelExpression(typeSwitch == null ? null : new PatternBinding(typeSwitch, group.patternVariable()), selectorType, switchCases.get(k))));
+                    if (switchCases.get(k).isDefaultCase() && group.patternVariable() == null) {
+                        labels.add(SwitchExpression.DEFAULT_LABEL);
+                    } else {
+                        labels.add(new SwitchExpression.ExpressionLabel(switchLabelExpression(binding, selectorType, switchCases.get(k))));
+                    }
                 }
             }
 
@@ -568,31 +573,36 @@ public class StatementMaker {
     private Expression makeSecondOperand(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
         int size = statements.size();
         Expression operand = makeExpression(watchdog, basicBlock, statements, jumps);
+        boolean folded = true;
 
-        while (statements.size() > size) {
-            Statement statement = statements.get(size);
-            Expression expression = statement.isExpressionStatement() ? statement.getExpression() : null;
+        while (folded && statements.size() > size) {
+            Expression increment = statements.get(size).isExpressionStatement() ? statements.get(size).getExpression() : null;
+            Expression foldedOperand = increment == null ? null : foldIncrement(increment, operand);
 
-            if (expression == null || !(expression.isPostOperatorExpression() || expression.isPreOperatorExpression())
-                    || !("++".equals(expression.getOperator()) || "--".equals(expression.getOperator()))
-                    || !(expression.getExpression() instanceof ClassFileLocalVariableReferenceExpression reference)) {
-                break;
+            folded = foldedOperand != null;
+            if (folded) {
+                operand = foldedOperand;
+                statements.remove(size);
             }
-
-            FoldIncrementIntoConditionVisitor visitor = new FoldIncrementIntoConditionVisitor(reference.getLocalVariable(), expression.getOperator());
-            Expression folded = visitor.updateExpression(operand);
-
-            if (folded == operand) {
-                operand.accept(visitor);
-            } else {
-                operand = folded;
-            }
-            if (!visitor.isFolded()) {
-                break;
-            }
-            statements.remove(size);
         }
         return operand;
+    }
+
+    /** @return the operand where the first use of the variable of the increment 'i++' is '++i', null if the statement is no increment of a variable of the operand */
+    private static Expression foldIncrement(Expression increment, Expression operand) {
+        if (!(increment.isPostOperatorExpression() || increment.isPreOperatorExpression())
+                || !("++".equals(increment.getOperator()) || "--".equals(increment.getOperator()))
+                || !(increment.getExpression() instanceof ClassFileLocalVariableReferenceExpression reference)) {
+            return null;
+        }
+
+        FoldIncrementIntoConditionVisitor visitor = new FoldIncrementIntoConditionVisitor(reference.getLocalVariable(), increment.getOperator());
+        Expression folded = visitor.updateExpression(operand);
+
+        if (folded == operand) {
+            operand.accept(visitor);
+        }
+        return visitor.isFolded() ? folded : null;
     }
 
     protected void parseSwitch(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps) {
@@ -727,10 +737,10 @@ public class StatementMaker {
         stack.push(switchExpression);
     }
 
-    /** The 'switch' with patterns being built: the call which selects the case, its operand and the temporary which holds the operand */
     /** The variable of the pattern of a case ('case Integer i'): null if the case binds none */
     private record PatternBinding(TypeSwitchContext typeSwitch, AbstractLocalVariable variable) {}
 
+    /** The 'switch' with patterns being built: the call which selects the case, its operand and the temporary which holds the operand */
     private record TypeSwitchContext(ClassFileTypeSwitchExpression expression, Expression operand, AbstractLocalVariable temporary, List<AbstractLocalVariable> synthetics) {}
 
     /**
@@ -892,7 +902,7 @@ public class StatementMaker {
 
             Expression ruleResult = null;
 
-            // The operands which precede the 'switch' ('System.out' of 'System.out.println(switch (i) {...})') stay on the stack
+            // The operands which precede the switch, such as the stream of a print, stay on the stack
             if (stack.size() == entryStack.size() + 1) {
                 ruleResult = stack.pop();
                 if (!subStatements.isEmpty() && isBreak(subStatements.getLast())) {

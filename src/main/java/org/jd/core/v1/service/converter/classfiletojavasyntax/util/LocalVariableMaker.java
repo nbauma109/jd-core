@@ -267,22 +267,26 @@ public class LocalVariableMaker {
      * an instance of its interface or of its superclass.
      */
     private Type anonymousClassToSuperType(Type type) {
-        if (type instanceof ObjectType objectType && objectType.getDimension() == 0) {
-            String internalName = objectType.getInternalName();
-            int start = internalName.lastIndexOf('$') + 1;
-
-            if (start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit)) {
-                TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(internalName);
-
-                if (typeTypes != null) {
-                    if (typeTypes.getInterfaces() != null && typeTypes.getInterfaces().size() == 1 && typeTypes.getInterfaces().getFirst() instanceof ObjectType interfaceType) {
-                        return interfaceType;
-                    }
-                    return typeTypes.getSuperType() != null ? typeTypes.getSuperType() : ObjectType.TYPE_OBJECT;
-                }
-            }
+        if (!(type instanceof ObjectType objectType) || objectType.getDimension() != 0 || !isAnonymousClassName(objectType.getInternalName())) {
+            return type;
         }
-        return type;
+
+        TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(objectType.getInternalName());
+
+        if (typeTypes == null) {
+            return type;
+        }
+        if (typeTypes.getInterfaces() != null && typeTypes.getInterfaces().size() == 1 && typeTypes.getInterfaces().getFirst() instanceof ObjectType interfaceType) {
+            return interfaceType;
+        }
+        return typeTypes.getSuperType() != null ? typeTypes.getSuperType() : ObjectType.TYPE_OBJECT;
+    }
+
+    /** The name of an anonymous class ends with the number after the last '$' */
+    private static boolean isAnonymousClassName(String internalName) {
+        int start = internalName.lastIndexOf('$') + 1;
+
+        return start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit);
     }
 
     private static boolean containsWildcardTypeArgument(BaseTypeArgument typeArguments) {

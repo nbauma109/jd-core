@@ -15,6 +15,7 @@ import org.jd.core.v1.api.loader.Loader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -53,12 +54,12 @@ public final class ClassMetadata {
         return false;
     }
 
-    /** @return the names of the components of the record, in the order of its declaration; null if the class is not a record or is unknown */
+    /** @return the names of the components of the record, in the order of its declaration; none if the class is not a record or is unknown */
     public static List<String> recordComponentNames(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
 
         if (javaClass == null || !RECORD.equals(internalNameOf(javaClass.getSuperclassName()))) {
-            return null;
+            return Collections.emptyList();
         }
 
         List<String> names = new ArrayList<>();

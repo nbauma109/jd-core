@@ -64,11 +64,8 @@ public final class RecordPatternInstanceOfRewriter {
             return false;
         }
 
-        Type instanceOfType = instanceOfExpression.getInstanceOfType();
-        if (instanceOfType == null && instanceOfExpression.getPattern() != null) {
-            instanceOfType = instanceOfExpression.getPattern().type();
-        }
-        if (instanceOfType == null || !isRecord.test(instanceOfType.getInternalName())) {
+        Type instanceOfType = recordType(instanceOfExpression, isRecord);
+        if (instanceOfType == null) {
             return false;
         }
 
@@ -128,6 +125,16 @@ public final class RecordPatternInstanceOfRewriter {
         statements.add(new ReturnExpressionStatement(condition.getLineNumber(), rewrittenCondition));
 
         return true;
+    }
+
+    /** @return the type of the test if it is a record, null otherwise */
+    private static Type recordType(InstanceOfExpression instanceOfExpression, Predicate<String> isRecord) {
+        Type type = instanceOfExpression.getInstanceOfType();
+
+        if (type == null && instanceOfExpression.getPattern() != null) {
+            type = instanceOfExpression.getPattern().type();
+        }
+        return type != null && isRecord.test(type.getInternalName()) ? type : null;
     }
 
     private static TryStatement extractSyntheticRecordPatternTryStatement(Statements thenStatements) {

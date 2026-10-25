@@ -52,7 +52,10 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
     private static final String MATCH_EXCEPTION = "java/lang/MatchException";
     private static final String THROWABLE = "java/lang/Throwable";
 
-    /** The names of the components of a record, in the order of its declaration, null when the type is no record */
+    /** The variable which holds a component and the name of the accessor which gives it */
+    private record Component(String variable, String accessor) {}
+
+    /** The names of the components of a record, in the order of its declaration, none when the type is no record */
     private final Function<String, List<String>> recordComponentNames;
 
     public RecordPatternIfVisitor(Loader loader) {
@@ -107,13 +110,13 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         int index = 0;
 
         while (index < tryBody.size() && tryBody.get(index) instanceof LocalVariableDeclarationStatement declaration) {
-            String[] component = component(declaration, recordVariable);
+            Component component = component(declaration, recordVariable);
 
             if (component == null) {
                 break;
             }
-            components.add(new TypePattern(declaration.getType(), component[0]));
-            accessors.add(component[1]);
+            components.add(new TypePattern(declaration.getType(), component.variable()));
+            accessors.add(component.accessor());
             index++;
         }
 
@@ -135,7 +138,7 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** @return the name of the variable and the name of the accessor of the component which are bound by 'T tmp = record.accessor(), name = tmp;', null if it is no binding */
-    private static String[] component(LocalVariableDeclarationStatement declaration, String recordVariable) {
+    private static Component component(LocalVariableDeclarationStatement declaration, String recordVariable) {
         List<LocalVariableDeclarator> declarators = new ArrayList<>();
 
         if (declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator single) {
@@ -149,9 +152,9 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         String accessor = ((MethodInvocationExpression) ((ExpressionVariableInitializer) declarators.get(0).getVariableInitializer()).getExpression()).getName();
 
         if (declarators.size() == 1) {
-            return new String[] {declarators.get(0).getName(), accessor};
+            return new Component(declarators.get(0).getName(), accessor);
         }
-        return isSameExpression(declarators.get(1), declarators.get(0).getName()) ? new String[] {declarators.get(1).getName(), accessor} : null;
+        return isSameExpression(declarators.get(1), declarators.get(0).getName()) ? new Component(declarators.get(1).getName(), accessor) : null;
     }
 
     private static boolean isAccessorCall(LocalVariableDeclarator declarator, String recordVariable) {

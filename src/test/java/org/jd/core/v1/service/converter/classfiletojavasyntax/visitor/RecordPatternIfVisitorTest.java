@@ -96,7 +96,7 @@ public class RecordPatternIfVisitorTest {
     private static Statement rewrite(IfStatement ifStatement, String... recordComponents) {
         Statements statements = statements(ifStatement);
 
-        new RecordPatternIfVisitor(name -> recordComponents.length == 0 ? null : List.of(recordComponents)).visit(statements);
+        new RecordPatternIfVisitor(name -> List.of(recordComponents)).visit(statements);
         return statements.getFirst();
     }
 

@@ -81,8 +81,8 @@ final class TypeSwitchParser {
     }
 
     /**
-     * A guard ('case String s when s.isEmpty()') sets the restart index and jumps back before the call which selects the case: the switch is then a
-     * loop which is not rebuilt. javac reuses the slot of the index for the next switch, whose initialization is no such store.
+     * A guard ('case String s when s.isEmpty()') sets the restart index and jumps back before the call which selects the case, from a place which follows it: the switch is then a
+     * loop which is not rebuilt, unlike a loop which ends before the call. javac reuses the slot of the index for the next switch, whose initialization is no such store.
      */
     private boolean isRestartIndexReassigned(Expression restartIndex, int invokeOffset) {
         if (!(restartIndex instanceof ClassFileLocalVariableReferenceExpression reference)) {
@@ -94,7 +94,8 @@ final class TypeSwitchParser {
 
         for (int i = 0; i < handles.length - 1; i++) {
             if (handles[i].getInstruction() instanceof ISTORE store && store.getIndex() == reference.getLocalVariable().getIndex()
-                    && handles[i + 1].getInstruction() instanceof GotoInstruction jump && jump.getTarget().getPosition() < invokeOffset) {
+                    && handles[i + 1].getInstruction() instanceof GotoInstruction jump && jump.getTarget().getPosition() < invokeOffset
+                    && handles[i + 1].getPosition() > invokeOffset) {
                 return true;
             }
         }

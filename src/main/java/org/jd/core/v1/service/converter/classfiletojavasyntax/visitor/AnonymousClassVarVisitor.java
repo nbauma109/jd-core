@@ -240,7 +240,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         private boolean isVariable(Expression expression) {
-            return expression instanceof LocalVariableReferenceExpression reference && variableName.equals(reference.getName());
+            // A local class or an anonymous class reaches the variable by a captured field, which is named like the variable
+            return expression instanceof LocalVariableReferenceExpression reference && variableName.equals(reference.getName())
+                    || expression instanceof FieldReferenceExpression field && variableName.equals(field.getName());
         }
     }
 }

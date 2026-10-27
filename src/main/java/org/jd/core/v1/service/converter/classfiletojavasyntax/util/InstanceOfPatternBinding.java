@@ -64,7 +64,29 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     public static Map<Integer, InstanceOfPatternBinding> find(Method method) {
         Code code = method.getCode();
 
-        return find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool());
+        Map<Integer, InstanceOfPatternBinding> bindings = find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool());
+        LocalVariable[] generics = code.getLocalVariableTypeTable() == null ? new LocalVariable[0] : code.getLocalVariableTypeTable().getLocalVariableTypeTable();
+
+        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics));
+        return bindings;
+    }
+
+    /**
+     * 'List&lt;String&gt; l = (List&lt;String&gt;) o;' is an unchecked cast which stays: 'o instanceof List&lt;String&gt; l' is legal only when the
+     * type of 'o' has type arguments too, as 'Collection&lt;String&gt; o' has.
+     *
+     * @param generics the entries of the local variable type table: the variables whose type has type arguments
+     */
+    private static boolean isUncheckedGeneric(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, LocalVariable[] generics) {
+        boolean variableIsGeneric = false;
+        boolean operandIsGeneric = false;
+        int operandIndex = loadedIndex(code, binding.firstSkippedOffset());
+
+        for (LocalVariable generic : generics) {
+            variableIsGeneric |= generic.getIndex() == binding.storeIndex() && generic.getStartPC() == binding.storeEndOffset();
+            operandIsGeneric |= generic.getIndex() == operandIndex && generic.getStartPC() <= instanceOfOffset && instanceOfOffset < generic.getStartPC() + generic.getLength();
+        }
+        return variableIsGeneric && !operandIsGeneric;
     }
 
     /**

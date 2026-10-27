@@ -337,6 +337,31 @@ public class VineflowerRegressions {
         return shadowed.added();
     }
 
+    public String uncheckedGenericCast(Object o) {
+        if (o instanceof java.util.List) {
+            @SuppressWarnings("unchecked")
+            java.util.List<String> strings = (java.util.List<String>) o;
+            return strings.get(0);
+        }
+        return null;
+    }
+
+    public int anonymousVariableCapturedByALocalClass() {
+        var captured = new Object() {
+            public int added() {
+                return 2;
+            }
+        };
+
+        class Capturing {
+            int value() {
+                return captured.added();
+            }
+        }
+
+        return new Capturing().value();
+    }
+
     static class Putter {
         public String put(Object o) {
             return String.valueOf(o);

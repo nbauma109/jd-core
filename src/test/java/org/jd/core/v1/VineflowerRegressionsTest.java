@@ -124,6 +124,10 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var base = new ShadowedBase() {"));
         // A public override of a protected method of Object is called through the anonymous type
         assertTrue(source.contains("var o = new Object() {"));
+        // A local class reaches the variable by a captured field
+        assertTrue(source.contains("var captured = new Object() {"));
+        // An unchecked cast to a generic type is no pattern: the test of 'o' has no type arguments
+        assertTrue(source.contains("if (o instanceof List) {"));
     }
 
     @Test

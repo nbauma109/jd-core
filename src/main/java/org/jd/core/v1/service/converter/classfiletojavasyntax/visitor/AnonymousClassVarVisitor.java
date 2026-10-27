@@ -123,6 +123,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return typeMaker.matchCount(superInternalName, method.getName(), Type.getArgumentTypes(method.getSignature()).length, false) > 0;
     }
 
+    private boolean overrides(Method method, String superInternalName) {
+        return OBJECT_METHODS.contains(method.getName() + method.getSignature())
+                || ClassMetadata.isLoadable(loader, superInternalName) && ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature());
+    }
+
     private Set<String> addedMembers(ClassFileBodyDeclaration body, String superInternalName) {
         Set<String> members = new HashSet<>();
 
@@ -133,7 +138,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
                     // not declared by the type which the anonymous class extends: the variable needs the type of the class to call it
                     // A method is identified by its name and descriptor: a call of the inherited overload does not need the type of the class
-                    members.add(m.getName() + m.getSignature());
+                    // An override which widens the access is called through the super type too, whose call is owned by the super type
+                    String signature = m.getName() + m.getSignature();
+
+                    members.add(overrides(m, superInternalName) ? hiddenField(body.getInternalTypeName(), signature) : signature);
                 }
             }
         }
@@ -216,16 +224,20 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(MethodInvocationExpression expression) {
-            if (isVariable(expression.getExpression()) && members.contains(expression.getName() + expression.getDescriptor())) {
+            if (isVariable(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())) {
                 found = true;
             }
             super.visit(expression);
         }
 
+        private boolean isAdded(String ownerInternalName, String name, String descriptor) {
+            return members.contains(name + descriptor) || members.contains(hiddenField(ownerInternalName, name + descriptor));
+        }
+
         /** 'v::added': the method reference is a use of the method, by the descriptor of the referenced method */
         @Override
         public void visit(MethodReferenceExpression expression) {
-            if (isVariable(expression.getExpression()) && members.contains(expression.getName() + expression.getDescriptor())) {
+            if (isVariable(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())) {
                 found = true;
             }
             super.visit(expression);

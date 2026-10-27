@@ -411,6 +411,25 @@ public class VineflowerRegressions {
         return null;
     }
 
+    static class ProtectedBase {
+        protected int widened() {
+            return 1;
+        }
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public int widenedOverrideCalledThroughTheSuperType() {
+        ProtectedBase base = new ProtectedBase() {
+            @Override
+            public int widened() {
+                return 2;
+            }
+        };
+        int n = base.widened();
+        base = new ProtectedBase();
+        return n + base.widened();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

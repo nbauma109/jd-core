@@ -148,7 +148,7 @@ public class InstanceOfPatternBindingTest {
     }
 
     /** Methods which javac compiles with the debug information, to read the bindings as the decompiler does */
-    @SuppressWarnings({ "unchecked", "java:S1172", "java:S1854", "java:S1481" })
+    @SuppressWarnings({ "unchecked", "java:S1172", "java:S1854", "java:S1481", "java:S1488" })
     static class Samples {
         String pattern(Object o) {
             if (o instanceof String) {

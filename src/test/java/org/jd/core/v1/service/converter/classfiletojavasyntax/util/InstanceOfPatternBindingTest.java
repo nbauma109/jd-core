@@ -7,12 +7,14 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Repository;
 import org.apache.bcel.classfile.Constant;
 import org.apache.bcel.classfile.ConstantClass;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
+import org.apache.bcel.classfile.Method;
 import org.junit.Test;
 
 import java.util.Map;
@@ -143,5 +145,108 @@ public class InstanceOfPatternBindingTest {
         assertEquals(1, InstanceOfPatternBinding.find(code, 0, sameType, pool).size());
         assertTrue(InstanceOfPatternBinding.find(code, 0, otherType, pool).isEmpty());
         assertEquals(1, InstanceOfPatternBinding.find(code, 0, otherType, null).size());
+    }
+
+    /** Methods which javac compiles with the debug information, to read the bindings as the decompiler does */
+    @SuppressWarnings({ "unchecked", "java:S1172", "java:S1854", "java:S1481" })
+    static class Samples {
+        String pattern(Object o) {
+            if (o instanceof String) {
+                String s = (String) o;
+                return s;
+            }
+            return null;
+        }
+
+        String assignedByBothBranches(Object o) {
+            String s;
+            if (o instanceof String) {
+                s = (String) o;
+            } else {
+                s = "fallback";
+            }
+            return s;
+        }
+
+        String reassigned(Object o) {
+            if (o instanceof String) {
+                String s = (String) o;
+                s = "other";
+                return s;
+            }
+            return null;
+        }
+
+        String ofAWildcard(java.util.Collection<?> o) {
+            if (o instanceof java.util.List) {
+                java.util.List<String> list = (java.util.List<String>) o;
+                return list.get(0);
+            }
+            return null;
+        }
+
+        String ofTheSameArguments(java.util.Collection<String> o) {
+            if (o instanceof java.util.List) {
+                java.util.List<String> list = (java.util.List<String>) o;
+                return list.get(0);
+            }
+            return null;
+        }
+
+        String ofARawOperand(Object o) {
+            if (o instanceof java.util.List) {
+                java.util.List<String> list = (java.util.List<String>) o;
+                return list.get(0);
+            }
+            return null;
+        }
+
+        String assignedByBothBranchesInALongSlot(Object o, long a, long b, long c) {
+            String s;
+            if (o instanceof String) {
+                s = (String) o;
+            } else {
+                s = "fallback";
+            }
+            return s;
+        }
+
+        String patternInALongSlot(Object o, long a, long b, long c) {
+            if (o instanceof String) {
+                String s = (String) o;
+                return s;
+            }
+            return null;
+        }
+
+        boolean negated(Object o) {
+            return !(o instanceof String s) || s.isEmpty();
+        }
+    }
+
+    private static int bindings(String method) throws ClassNotFoundException {
+        for (Method m : Repository.lookupClass(Samples.class).getMethods()) {
+            if (m.getName().equals(method)) {
+                return InstanceOfPatternBinding.find(m).size();
+            }
+        }
+        throw new IllegalArgumentException(method);
+    }
+
+    @Test
+    public void testBindingsOfCompiledMethods() throws ClassNotFoundException {
+        assertEquals(1, bindings("pattern"));
+        // 's' is declared before the test and assigned by both branches
+        assertEquals(0, bindings("assignedByBothBranches"));
+        // the variable is assigned again in its scope
+        assertEquals(0, bindings("reassigned"));
+        // the arguments have to be those of the operand
+        assertEquals(0, bindings("ofAWildcard"));
+        assertEquals(0, bindings("ofARawOperand"));
+        assertEquals(1, bindings("ofTheSameArguments"));
+        assertEquals(0, bindings("assignedByBothBranchesInALongSlot"));
+        assertEquals(1, bindings("patternInALongSlot"));
+        // a second range of the variable which no store starts is not an assignment
+        assertEquals(1, bindings("negated"));
     }
 }

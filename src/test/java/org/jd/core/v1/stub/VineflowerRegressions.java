@@ -375,19 +375,19 @@ public class VineflowerRegressions {
     }
 
     static class Holder {
-        Putter b;
+        Putter target;
     }
 
     @SuppressWarnings({ "java:S1854", "java:S1172" }) // the field of the holder is not the variable which is assigned afterwards
     public String fieldNamedLikeTheVariable(Holder h) {
-        Putter b = new Putter() {
+        Putter target = new Putter() {
             public String added() {
                 return "added";
             }
         };
-        String result = h.b.put("x");
-        b = new Putter();
-        return result + b.put("y");
+        String result = h.target.put("x");
+        target = new Putter();
+        return result + target.put("y");
     }
 
     public int anonymousVariableCapturedByALocalClass() {

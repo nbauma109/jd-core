@@ -136,7 +136,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("String s;"));
         assertTrue(source.contains("s = (String)o;"));
         // A field of another object which has the name of the variable is no use of it
-        assertTrue(source.contains("Putter b = new Putter() {"));
+        assertTrue(source.contains("Putter target = new Putter() {"));
     }
 
     @Test

@@ -60,6 +60,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
     private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", "clone()Ljava/lang/Object;", "finalize()V");
 
+    private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of("clone()Ljava/lang/Object;", "finalize()V");
+
     @Override
     public void visit(Statements statements) {
         ListIterator<Statement> iterator = statements.listIterator();
@@ -105,11 +107,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** A method of the anonymous class which overrides a method of its super type: the type of the super type is enough to call it */
     private boolean isInherited(Method method, String superInternalName) {
+        // A public override of a protected method (clone, finalize) can be called through the anonymous type only
+        boolean widens = method.isPublic() && PROTECTED_OBJECT_METHODS.contains(method.getName() + method.getSignature());
+
         if (OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
-            return true;
+            return !widens || ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature());
         }
         if (ClassMetadata.isLoadable(loader, superInternalName)) {
-            return ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature());
+            return method.isPublic()
+                    ? ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature())
+                    : ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature());
         }
         // The super type cannot be read: the types which are known to the type maker
         return typeMaker.matchCount(superInternalName, method.getName(), Type.getArgumentTypes(method.getSignature()).length, false) > 0;
@@ -133,8 +140,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             AbstractJavaSyntaxVisitor fieldNames = new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(FieldDeclarator declarator) {
-                    // A field which hides the one of the super type is not the one which 'holder.field' refers to
-                    if (!ClassMetadata.declaresField(loader, superInternalName, declarator.getName())) {
+                    // A field which hides the one of the super type is only referenced by the anonymous class as owner
+                    if (ClassMetadata.declaresField(loader, superInternalName, declarator.getName())) {
+                        members.add(hiddenField(body.getInternalTypeName(), declarator.getName()));
+                    } else {
                         members.add(declarator.getName());
                     }
                 }
@@ -144,6 +153,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return members;
+    }
+
+    private static String hiddenField(String ownerInternalName, String name) {
+        return "@" + ownerInternalName + "." + name;
     }
 
     private static final class MemberUseSearch extends AbstractJavaSyntaxVisitor {
@@ -219,7 +232,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(FieldReferenceExpression expression) {
-            if (isVariable(expression.getExpression()) && members.contains(expression.getName())) {
+            if (isVariable(expression.getExpression())
+                    && (members.contains(expression.getName()) || members.contains(hiddenField(expression.getInternalTypeName(), expression.getName())))) {
                 found = true;
             }
             super.visit(expression);

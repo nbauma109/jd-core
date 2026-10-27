@@ -62,10 +62,15 @@ public final class ClassMetadata {
 
     /** @return true if the class, one of its superclasses or one of its interfaces declares a method of this name and descriptor */
     public static boolean declaresMethod(Loader loader, String internalName, String name, String descriptor) {
-        return declaresMethod(loader, internalName, name, descriptor, new HashSet<>());
+        return declaresMethod(loader, internalName, name, descriptor, false, new HashSet<>());
     }
 
-    private static boolean declaresMethod(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+    /** @return true if the class, one of its superclasses or one of its interfaces declares a public method of this name and descriptor */
+    public static boolean declaresPublicMethod(Loader loader, String internalName, String name, String descriptor) {
+        return declaresMethod(loader, internalName, name, descriptor, true, new HashSet<>());
+    }
+
+    private static boolean declaresMethod(Loader loader, String internalName, String name, String descriptor, boolean publicOnly, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
 
         if (javaClass == null) {
@@ -73,15 +78,15 @@ public final class ClassMetadata {
         }
         for (Method method : javaClass.getMethods()) {
             // A private method is not inherited: the one of a subclass does not override it
-            if (!method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+            if (!method.isPrivate() && (!publicOnly || method.isPublic()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
                 return true;
             }
         }
-        if (declaresMethod(loader, internalNameOf(javaClass.getSuperclassName()), name, descriptor, visited)) {
+        if (declaresMethod(loader, internalNameOf(javaClass.getSuperclassName()), name, descriptor, publicOnly, visited)) {
             return true;
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {
-            if (declaresMethod(loader, internalNameOf(interfaceName), name, descriptor, visited)) {
+            if (declaresMethod(loader, internalNameOf(interfaceName), name, descriptor, publicOnly, visited)) {
                 return true;
             }
         }

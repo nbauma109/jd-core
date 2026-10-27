@@ -120,6 +120,10 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // A field which hides the one of the super type does not need 'var'
         assertTrue(source.contains("ShadowedBase base = new ShadowedBase() {"));
+        // ... unless the field is read through 'var', which makes the anonymous class the owner of the access
+        assertTrue(source.contains("var base = new ShadowedBase() {"));
+        // A public override of a protected method of Object is called through the anonymous type
+        assertTrue(source.contains("var o = new Object() {"));
     }
 
     @Test

@@ -289,6 +289,24 @@ public class VineflowerRegressions {
         return base.n;
     }
 
+    public int hiddenFieldReadThroughVar() {
+        var base = new ShadowedBase() {
+            public int n = 2;
+        };
+        return base.n;
+    }
+
+    @SuppressWarnings({ "java:S2975", "java:S1182" }) // the public override of the protected 'clone' is what the call below needs
+    public Object publicCloneCalledThroughVar() throws CloneNotSupportedException {
+        var o = new Object() {
+            @Override
+            public Object clone() {
+                return "ok";
+            }
+        };
+        return o.clone();
+    }
+
     static class Putter {
         public String put(Object o) {
             return String.valueOf(o);

@@ -176,5 +176,22 @@
 /* 176:   0 */     } 
 /* 177:   0 */   }
 /* 178:   0 */   
-/* 179:   0 */   record Point(int x, Object o) {}
-/* 180:   0 */ }
+/* 179:   0 */   void twoSwitchesReuseTheRestartIndex(Object a, Object b) {
+/* 180: 182 */     switch (a) {
+/* 181:   0 */       case String s:
+/* 182: 184 */         System.out.println(s);
+/* 183:   0 */         break;
+/* 184:   0 */       default:
+/* 185:   0 */         break;
+/* 186:   0 */     } 
+/* 187: 189 */     switch (b) {
+/* 188:   0 */       case Integer i:
+/* 189: 191 */         System.out.println(i);
+/* 190:   0 */         break;
+/* 191:   0 */       default:
+/* 192:   0 */         break;
+/* 193:   0 */     } 
+/* 194:   0 */   }
+/* 195:   0 */   
+/* 196:   0 */   record Point(int x, Object o) {}
+/* 197:   0 */ }

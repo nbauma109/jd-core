@@ -79,6 +79,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // ... or of an overload of an inherited method: a call has to select the overload of the anonymous class
         assertTrue(source.contains("var v = new Object() {"));
         assertTrue(source.contains("var putter = new Putter() {"));
+        // ... a private method of the super type is not overridden by the one of the class
+        assertTrue(source.contains("var base = new PrivateBase() {"));
         // ... or when another variable of the same name, the parameter of a local class, is the one which is used
         assertTrue(source.contains("Putter named = new Putter() {"));
         // ... but not when the call is the one of the inherited overload
@@ -100,6 +102,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("if (o instanceof Integer i)"));
         assertTrue(source.contains("throw new IllegalArgumentException();"));
         assertTrue(source.contains("if (o instanceof String)"));
+        // The test of 'this'
+        assertTrue(source.contains("this instanceof Derived derived"));
 
         // An assignment to a parameter is no pattern variable, the increment of a test is evaluated before the first use of the variable
         assertTrue(source.contains("s = (String)o;"));
@@ -109,6 +113,28 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // A field which hides the one of the super type does not need 'var'
         assertTrue(source.contains("ShadowedBase base = new ShadowedBase() {"));
+    }
+
+    @Test
+    public void testLambdaWhoseMethodIsNamedLikeTheBootstrapOfASwitch() throws Exception {
+        String source = decompile();
+
+        assertTrue(source.contains("return () -> o.toString() + n;") || source.contains("() ->"));
+        assertFalse(source.contains("SwitchBootstraps"));
+    }
+
+    @Test
+    public void testLabeledBreakOutOfALoopInASwitch() throws Exception {
+        String source = decompile();
+        String method = source.substring(source.indexOf("loopWhoseBreakJumpsOverTheCodeAfterTheLoop"));
+
+        method = method.substring(0, method.indexOf("after2"));
+
+        // The break of the loop goes to the code which follows the code after the loop, none of them is a tail of the loop
+        assertFalse(method.contains("throw null"));
+        assertTrue(method.contains("System.out.println(0);"));
+        assertTrue(method.contains("System.out.println(\"after\");"));
+        assertTrue(method.indexOf("System.out.println(0);") < method.indexOf("System.out.println(\"after\");"));
     }
 
     @Test

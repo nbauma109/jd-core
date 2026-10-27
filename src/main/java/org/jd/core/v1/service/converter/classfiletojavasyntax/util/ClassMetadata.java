@@ -72,7 +72,8 @@ public final class ClassMetadata {
             return false;
         }
         for (Method method : javaClass.getMethods()) {
-            if (method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+            // A private method is not inherited: the one of a subclass does not override it
+            if (!method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
                 return true;
             }
         }

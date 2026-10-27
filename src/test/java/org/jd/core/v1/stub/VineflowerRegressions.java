@@ -358,4 +358,63 @@ public class VineflowerRegressions {
         named = new Putter();
         return named.put("x") + new Holder().of(new Other());
     }
+
+    public void loopWhoseBreakJumpsOverTheCodeAfterTheLoop(int i) {
+        switch (i) {
+            case 0:
+                label: {
+                    for (int j = 0; j < 10; j++) {
+                        if (j == 3) {
+                            break label;
+                        }
+                    }
+
+                    System.out.println(0);
+                }
+                System.out.println("after");
+            case 1:
+                System.out.println(1);
+                break;
+            default:
+                break;
+        }
+
+        System.out.println("after2");
+    }
+
+    static class Derived extends VineflowerRegressions {
+        int n;
+    }
+
+    public int patternOfThis() {
+        if (this instanceof Derived) {
+            Derived derived = (Derived) this;
+            return derived.n;
+        }
+        return -1;
+    }
+
+    interface TypeSwitchLike {
+        String typeSwitch();
+    }
+
+    public TypeSwitchLike lambdaWhoseMethodIsNamedLikeTheBootstrap(Object o, int n) {
+        return () -> o.toString() + n;
+    }
+
+    static class PrivateBase {
+        @SuppressWarnings("unused")
+        private int value() {
+            return 1;
+        }
+    }
+
+    public int methodWhichIsNotOverriddenBecauseItIsPrivate() {
+        var base = new PrivateBase() {
+            public int value() {
+                return 2;
+            }
+        };
+        return base.value();
+    }
 }

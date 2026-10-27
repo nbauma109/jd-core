@@ -61,6 +61,29 @@ public class ClassMetadataTest {
         assertFalse(ClassMetadata.declaresMethod(LOADER, null, "size", "()I"));
     }
 
+    /** A class with a private method: the method of a subclass does not override it */
+    static class Hidden {
+        @SuppressWarnings("unused")
+        private int secret() {
+            return 1;
+        }
+
+        int visible() {
+            return 2;
+        }
+    }
+
+    static class Subclass extends Hidden {
+    }
+
+    @Test
+    public void testPrivateMethodIsNotInherited() {
+        String subclass = Subclass.class.getName().replace('.', '/');
+
+        assertFalse(ClassMetadata.declaresMethod(LOADER, subclass, "secret", "()I"));
+        assertTrue(ClassMetadata.declaresMethod(LOADER, subclass, "visible", "()I"));
+    }
+
     @Test
     public void testLoadable() {
         assertTrue(ClassMetadata.isLoadable(LOADER, "java/util/ArrayList"));

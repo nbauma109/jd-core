@@ -23,7 +23,6 @@ import org.apache.bcel.generic.InstructionList;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.Expressions;
-import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
 
@@ -49,11 +48,11 @@ final class TypeSwitchParser {
     }
 
     /** @return the call, null if the call site is not a switch with patterns which can be rebuilt */
-    ClassFileTypeSwitchExpression parse(ConstantPool constants, BootstrapMethod[] bootstrapMethods, int bootstrapIndex, String name, String descriptor,
+    ClassFileTypeSwitchExpression parse(ConstantPool constants, BootstrapMethod[] bootstrapMethods, int bootstrapIndex, String name,
             BaseExpression parameters, int lineNumber, int invokeOffset) {
         BootstrapMethod bootstrapMethod = bootstrapMethods[bootstrapIndex];
 
-        if (!"typeSwitch".equals(name) || !"(Ljava/lang/Object;I)I".equals(descriptor) || !isSwitchBootstrap(constants, bootstrapMethod)
+        if (!"typeSwitch".equals(name) || !isSwitchBootstrap(constants, bootstrapMethod)
                 || !(parameters instanceof Expressions switchParameters) || switchParameters.size() != 2
                 || isRestartIndexReassigned(switchParameters.get(1), invokeOffset)) {
             return null;

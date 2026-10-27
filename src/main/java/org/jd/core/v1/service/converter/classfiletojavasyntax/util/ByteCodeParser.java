@@ -102,7 +102,6 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -1635,18 +1634,7 @@ public class ByteCodeParser {
     }
 
     private void parseInvokeDynamic(Statements statements, DefaultStack<Expression> stack, ConstantPool constants, int lineNumber, int invokeOffset, int index) {
-        // Remove previous 'getClass()' or cast if exists
-        if (! statements.isEmpty()) {
-            Expression expression = statements.getLast().getExpression();
-
-            if (expression.isMethodInvocationExpression()) {
-                MethodInvocationExpression mie = (MethodInvocationExpression)expression;
-
-                if ("getClass".equals(mie.getName()) && "()Ljava/lang/Class;".equals(mie.getDescriptor()) && StringConstants.JAVA_LANG_OBJECT.equals(mie.getInternalTypeName())) {
-                    statements.removeLast();
-                }
-            }
-        }
+        removePreviousGetClass(statements);
 
         // Create expression
         ConstantCP constantMemberRef = constants.getConstant(index);
@@ -1661,24 +1649,37 @@ public class ByteCodeParser {
         int[] bootstrapArguments = bootstrapMethod.getBootstrapArguments();
 
         ClassFileTypeSwitchExpression typeSwitch = typeSwitchParser.parse(constants, attributeBootstrapMethods.getBootstrapMethods(), constantMemberRef.getClassIndex(),
-                indyMethodName, indyDescriptor, indyParameters, lineNumber, invokeOffset);
+                indyMethodName, indyParameters, lineNumber, invokeOffset);
 
         if (typeSwitch != null) {
             stack.push(typeSwitch);
-            return;
-        }
-        if ("makeConcatWithConstants".equals(indyMethodName)) {
+        } else if ("makeConcatWithConstants".equals(indyMethodName)) {
             // Create Java 9+ string concatenation
             String recipe = constants.getConstantString(bootstrapArguments[0], CONSTANT_String);
             stack.push(StringConcatenationUtil.create(recipe, indyParameters));
-            return;
-        }
-        if ("makeConcat".equals(indyMethodName)) {
+        } else if ("makeConcat".equals(indyMethodName)) {
             // Create Java 9+ string concatenation
             stack.push(StringConcatenationUtil.create(indyParameters));
+        } else {
+            parseLambdaOrMethodReference(stack, constants, lineNumber, indyMethodTypes, indyParameters, bootstrapArguments);
+        }
+    }
+
+    private void removePreviousGetClass(Statements statements) {
+        if (statements.isEmpty()) {
             return;
         }
+        // Remove previous 'getClass()' or cast if exists
+        Expression expression = statements.getLast().getExpression();
 
+        if (expression instanceof MethodInvocationExpression mie
+         && "getClass".equals(mie.getName()) && "()Ljava/lang/Class;".equals(mie.getDescriptor()) && StringConstants.JAVA_LANG_OBJECT.equals(mie.getInternalTypeName())) {
+            statements.removeLast();
+        }
+    }
+
+    private void parseLambdaOrMethodReference(DefaultStack<Expression> stack, ConstantPool constants, int lineNumber,
+            TypeMaker.MethodTypes indyMethodTypes, BaseExpression indyParameters, int[] bootstrapArguments) {
         ConstantMethodType cmt0 = constants.getConstant(bootstrapArguments[0]);
         String descriptor0 = constants.getConstantString(cmt0.getDescriptorIndex(), CONSTANT_Utf8);
         TypeMaker.MethodTypes methodTypes0 = typeMaker.makeMethodTypes(internalTypeName, null, descriptor0);
@@ -1691,47 +1692,11 @@ public class ByteCodeParser {
         String descriptor1 = constants.getConstantString(cnat1.getSignatureIndex(), CONSTANT_Utf8);
 
         if (typeName.equals(internalTypeName)) {
-            for (ClassFileConstructorOrMethodDeclaration methodDeclaration : bodyDeclaration.getMethodDeclarations()) {
-                if ((methodDeclaration.getFlags() & (ACC_SYNTHETIC|ACC_PRIVATE)) == (ACC_SYNTHETIC|ACC_PRIVATE) && methodDeclaration.getMethod().getName().equals(name1) && methodDeclaration.getMethod().getSignature().equals(descriptor1)) {
-                    // Create lambda expression
-                    ClassFileMethodDeclaration cfmd = (ClassFileMethodDeclaration)methodDeclaration;
-                    if (cfmd.getStatements() == null) {
-                        cfmd.setCapturedParameterTypes(capturedParameterTypes(indyParameters, (cfmd.getFlags() & ACC_STATIC) == 0));
-                        CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
-                        createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
-                    }
-                    MethodReferenceExpression arrayConstructorReference = tryMakeArrayConstructorReference(
-                        cfmd, lineNumber, indyMethodTypes, indyParameters, descriptor1);
-                    if (arrayConstructorReference != null) {
-                        stack.push(arrayConstructorReference);
-                        return;
-                    }
-                    List<String> lambdaParameterNames = prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount);
-                    BaseStatement lambdaStatements = prepareLambdaStatements(
-                            cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames);
-                    Map<String, String> lambdaParameterMapping = prepareUniqueLambdaParameterNames(lambdaParameterNames);
-                    if (!lambdaParameterMapping.isEmpty() && lambdaStatements != null) {
-                        renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
-                        lambdaStatements.accept(renameLocalVariablesVisitor);
-                    }
-                    // The invokedynamic call site's own "returned type" is the functional interface itself
-                    // (e.g. Supplier), not the SAM method's return type, so it is never a usable stand-in for
-                    // the lambda body's return type. The synthetic method's own declared return type is
-                    // sometimes narrower than Object (e.g. a stream .map(...) lambda whose synthetic method
-                    // javac compiled with the stream's actual inferred element type) and, when it is, is a
-                    // more precise cast-insertion target for the lambda body's return statements; otherwise
-                    // fall back to plain Object, matching this expression's pre-existing behavior.
-                    Type cfmdReturnedType = cfmd.getReturnedType();
-                    Type lambdaReturnedType = cfmdReturnedType != null && !ObjectType.TYPE_OBJECT.equals(cfmdReturnedType)
-                            ? cfmdReturnedType : ObjectType.TYPE_OBJECT;
-                    LambdaIdentifiersExpression lambda = new LambdaIdentifiersExpression(
-                            lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType,
-                            lambdaParameterNames,
-                            lambdaStatements);
-                    lambda.setParameterTypes(prepareLambdaParameterTypes(cfmd.getFormalParameters(), parameterCount));
-                    stack.push(lambda);
-                    return;
-                }
+            ClassFileMethodDeclaration cfmd = findLambdaMethod(name1, descriptor1);
+
+            if (cfmd != null) {
+                stack.push(createLambda(cfmd, lineNumber, indyMethodTypes, indyParameters, descriptor1, parameterCount));
+                return;
             }
         }
 
@@ -1754,6 +1719,52 @@ public class ByteCodeParser {
         if (indyParameters instanceof Expressions e) {
             stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1));
         }
+    }
+
+    private ClassFileMethodDeclaration findLambdaMethod(String name, String descriptor) {
+        for (ClassFileConstructorOrMethodDeclaration methodDeclaration : bodyDeclaration.getMethodDeclarations()) {
+            if ((methodDeclaration.getFlags() & (ACC_SYNTHETIC|ACC_PRIVATE)) == (ACC_SYNTHETIC|ACC_PRIVATE) && methodDeclaration.getMethod().getName().equals(name) && methodDeclaration.getMethod().getSignature().equals(descriptor)) {
+                return (ClassFileMethodDeclaration)methodDeclaration;
+            }
+        }
+        return null;
+    }
+
+    private Expression createLambda(ClassFileMethodDeclaration cfmd, int lineNumber, TypeMaker.MethodTypes indyMethodTypes, BaseExpression indyParameters,
+            String descriptor, int parameterCount) {
+        if (cfmd.getStatements() == null) {
+            cfmd.setCapturedParameterTypes(capturedParameterTypes(indyParameters, (cfmd.getFlags() & ACC_STATIC) == 0));
+            CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
+            createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
+        }
+        MethodReferenceExpression arrayConstructorReference = tryMakeArrayConstructorReference(cfmd, lineNumber, indyMethodTypes, indyParameters, descriptor);
+        if (arrayConstructorReference != null) {
+            return arrayConstructorReference;
+        }
+        List<String> lambdaParameterNames = prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount);
+        BaseStatement lambdaStatements = prepareLambdaStatements(
+                cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames);
+        Map<String, String> lambdaParameterMapping = prepareUniqueLambdaParameterNames(lambdaParameterNames);
+        if (!lambdaParameterMapping.isEmpty() && lambdaStatements != null) {
+            renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
+            lambdaStatements.accept(renameLocalVariablesVisitor);
+        }
+        // The invokedynamic call site's own "returned type" is the functional interface itself
+        // (e.g. Supplier), not the SAM method's return type, so it is never a usable stand-in for
+        // the lambda body's return type. The synthetic method's own declared return type is
+        // sometimes narrower than Object (e.g. a stream .map(...) lambda whose synthetic method
+        // javac compiled with the stream's actual inferred element type) and, when it is, is a
+        // more precise cast-insertion target for the lambda body's return statements; otherwise
+        // fall back to plain Object, matching this expression's pre-existing behavior.
+        Type cfmdReturnedType = cfmd.getReturnedType();
+        Type lambdaReturnedType = cfmdReturnedType != null && !ObjectType.TYPE_OBJECT.equals(cfmdReturnedType)
+                ? cfmdReturnedType : ObjectType.TYPE_OBJECT;
+        LambdaIdentifiersExpression lambda = new LambdaIdentifiersExpression(
+                lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType,
+                lambdaParameterNames,
+                lambdaStatements);
+        lambda.setParameterTypes(prepareLambdaParameterTypes(cfmd.getFormalParameters(), parameterCount));
+        return lambda;
     }
 
     private static boolean isSyntheticMethodReferenceNullCheck(Expression expression, DefaultStack<Expression> stack) {

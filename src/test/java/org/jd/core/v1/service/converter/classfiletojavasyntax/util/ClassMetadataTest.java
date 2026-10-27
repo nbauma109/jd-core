@@ -105,4 +105,14 @@ public class ClassMetadataTest {
         assertEquals(Collections.emptyList(), ClassMetadata.recordComponents(LOADER, null));
         assertEquals(Collections.emptyList(), ClassMetadata.recordComponents(null, "java/util/ArrayList"));
     }
+
+    @Test
+    public void testPublicMethodOfASuperclassOrOfAnInterface() {
+        assertTrue(ClassMetadata.declaresPublicMethod(LOADER, "java/util/ArrayList", "toString", "()Ljava/lang/String;"));
+        assertTrue(ClassMetadata.declaresPublicMethod(LOADER, "java/util/ArrayList", "size", "()I"));
+        // clone is protected in Object, finalize too
+        assertFalse(ClassMetadata.declaresPublicMethod(LOADER, "java/lang/Object", "finalize", "()V"));
+        assertTrue(ClassMetadata.declaresMethod(LOADER, "java/lang/Object", "finalize", "()V"));
+        assertFalse(ClassMetadata.declaresPublicMethod(LOADER, "no/such/Class", "toString", "()Ljava/lang/String;"));
+    }
 }

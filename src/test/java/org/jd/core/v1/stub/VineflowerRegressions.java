@@ -297,7 +297,7 @@ public class VineflowerRegressions {
     }
 
     @SuppressWarnings({ "java:S2975", "java:S1182" }) // the public override of the protected 'clone' is what the call below needs
-    public Object publicCloneCalledThroughVar() throws CloneNotSupportedException {
+    public Object publicCloneCalledThroughVar() {
         var o = new Object() {
             @Override
             public Object clone() {
@@ -305,6 +305,36 @@ public class VineflowerRegressions {
             }
         };
         return o.clone();
+    }
+
+    @SuppressWarnings({ "java:S1172", "java:S1481", "java:S1854" }) // the variables only shadow the one of the enclosing method
+    public int variablesOfAnInnerClassWhichShadowTheOneOfTheMethod() {
+        var shadowed = new Object() {
+            int added() {
+                return 1;
+            }
+        };
+        class Catching {
+            void run() {
+                try {
+                    Integer.parseInt("x");
+                } catch (NumberFormatException shadowed) {
+                    System.out.println(shadowed.getMessage());
+                }
+            }
+        }
+
+        class Iterating {
+            void run() {
+                for (String shadowed : new String[] { "a" }) {
+                    System.out.println(shadowed.length());
+                }
+            }
+        }
+
+        new Catching().run();
+        new Iterating().run();
+        return shadowed.added();
     }
 
     static class Putter {

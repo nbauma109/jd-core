@@ -346,6 +346,50 @@ public class VineflowerRegressions {
         return null;
     }
 
+    @SuppressWarnings("unchecked")
+    public String uncheckedCastOfAWildcard(java.util.Collection<?> o) {
+        if (o instanceof java.util.List) {
+            java.util.List<String> strings = (java.util.List<String>) o;
+            return strings.get(0);
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    public String checkedCastOfTheSameArguments(java.util.Collection<String> o) {
+        if (o instanceof java.util.List) {
+            java.util.List<String> strings = (java.util.List<String>) o;
+            return strings.get(0);
+        }
+        return null;
+    }
+
+    public String castAssignedInBothBranches(Object o) {
+        String s;
+        if (o instanceof String) {
+            s = (String) o;
+        } else {
+            s = "fallback";
+        }
+        return s;
+    }
+
+    static class Holder {
+        Putter b;
+    }
+
+    @SuppressWarnings({ "java:S1854", "java:S1172" }) // the field of the holder is not the variable which is assigned afterwards
+    public String fieldNamedLikeTheVariable(Holder h) {
+        Putter b = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        String result = h.b.put("x");
+        b = new Putter();
+        return result + b.put("y");
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -73,20 +73,32 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
     /**
      * 'List&lt;String&gt; l = (List&lt;String&gt;) o;' is an unchecked cast which stays: 'o instanceof List&lt;String&gt; l' is legal only when the
-     * type of 'o' has type arguments too, as 'Collection&lt;String&gt; o' has.
+     * type of 'o' has the same type arguments, as 'Collection&lt;String&gt; o' has.
      *
      * @param generics the entries of the local variable type table: the variables whose type has type arguments
      */
     private static boolean isUncheckedGeneric(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, LocalVariable[] generics) {
-        boolean variableIsGeneric = false;
-        boolean operandIsGeneric = false;
+        String variableArguments = null;
+        String operandArguments = null;
         int operandIndex = loadedIndex(code, binding.firstSkippedOffset());
 
         for (LocalVariable generic : generics) {
-            variableIsGeneric |= generic.getIndex() == binding.storeIndex() && generic.getStartPC() == binding.storeEndOffset();
-            operandIsGeneric |= generic.getIndex() == operandIndex && generic.getStartPC() <= instanceOfOffset && instanceOfOffset < generic.getStartPC() + generic.getLength();
+            if (generic.getIndex() == binding.storeIndex() && generic.getStartPC() == binding.storeEndOffset()) {
+                variableArguments = typeArguments(generic.getSignature());
+            }
+            if (generic.getIndex() == operandIndex && generic.getStartPC() <= instanceOfOffset && instanceOfOffset < generic.getStartPC() + generic.getLength()) {
+                operandArguments = typeArguments(generic.getSignature());
+            }
         }
-        return variableIsGeneric && !operandIsGeneric;
+        // 'Collection<?>' cannot be tested against 'List<String>': the arguments have to be the ones of the operand
+        return variableArguments != null && !variableArguments.equals(operandArguments);
+    }
+
+    /** @return the type arguments of a generic signature, 'Ljava/util/List&lt;Ljava/lang/String;&gt;;' gives '&lt;Ljava/lang/String;&gt;' */
+    private static String typeArguments(String signature) {
+        int start = signature.indexOf('<');
+
+        return start < 0 ? null : signature.substring(start, signature.lastIndexOf('>') + 1);
     }
 
     /**
@@ -108,7 +120,70 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 }
             }
         }
+        if (variables != null) {
+            // The variable of a pattern is declared by the test: a variable which the code assigns elsewhere is declared before it
+            Map<Integer, InstanceOfPatternBinding> candidates = new HashMap<>(bindings);
+
+            bindings.values().removeIf(binding -> isAssignedElsewhere(binding, candidates.values(), code, starts, variables));
+        }
         return bindings;
+    }
+
+    /**
+     * 'String s; if (o instanceof String) { s = (String) o; } else { s = "fallback"; } return s;': the range of 's' starts after the store of
+     * the first branch, as the one of a pattern does, and another range of the same name starts after a store which is none of a pattern.
+     */
+    private static boolean isAssignedElsewhere(InstanceOfPatternBinding binding, Iterable<InstanceOfPatternBinding> candidates, byte[] code, boolean[] starts,
+            LocalVariableTable variables) {
+        LocalVariable declared = null;
+
+        for (LocalVariable variable : variables.getLocalVariableTable()) {
+            if (variable.getIndex() == binding.storeIndex() && variable.getStartPC() == binding.storeEndOffset()) {
+                declared = variable;
+            }
+        }
+        if (declared == null) {
+            return false;
+        }
+        for (LocalVariable other : variables.getLocalVariableTable()) {
+            if (other != declared && other.getIndex() == declared.getIndex() && other.getName().equals(declared.getName()) && isEndOfAnotherStore(other.getStartPC(), declared.getIndex(), candidates, code, starts)) {
+                return true;
+            }
+        }
+        for (int p = 0; p < code.length; p++) {
+            if (starts[p] && p != binding.storeOffset() && storedIndex(code, p) == binding.storeIndex()
+                    && declared.getStartPC() <= p && p < declared.getStartPC() + declared.getLength()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return true if an 'astore' of the variable ends at the offset and is no store of a pattern */
+    private static boolean isEndOfAnotherStore(int offset, int index, Iterable<InstanceOfPatternBinding> candidates, byte[] code, boolean[] starts) {
+        for (InstanceOfPatternBinding candidate : candidates) {
+            if (candidate.storeIndex() == index && candidate.storeEndOffset() == offset) {
+                return false;
+            }
+        }
+        for (int length = 1; length <= 2; length++) {
+            int store = offset - length;
+
+            if (store >= 0 && starts[store] && storedIndex(code, store) == index && (code[store] & 255) == ASTORE == (length == 2)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return the index of the local variable which is stored by the instruction at 'offset', -1 if it is no 'astore' */
+    private static int storedIndex(byte[] code, int offset) {
+        int opcode = code[offset] & 255;
+
+        if (opcode >= ASTORE_0 && opcode <= ASTORE_3) {
+            return opcode - ASTORE_0;
+        }
+        return opcode == ASTORE && offset + 1 < code.length ? code[offset + 1] & 255 : -1;
     }
 
     /** @return the descriptor of the class of the 'instanceof' at 'p', null when the constants are not known */

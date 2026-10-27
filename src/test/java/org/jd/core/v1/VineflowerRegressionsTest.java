@@ -128,6 +128,15 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var captured = new Object() {"));
         // An unchecked cast to a generic type is no pattern: the test of 'o' has no type arguments
         assertTrue(source.contains("if (o instanceof List) {"));
+        // ... nor is the test of a wildcard against a type with arguments, while the arguments of the operand make the pattern legal
+        assertTrue(source.contains("uncheckedCastOfAWildcard"));
+        assertTrue(source.contains("if (o instanceof List<String> strings)"));
+        assertTrue(source.contains("List<String> strings = (List)o;"));
+        // A variable which is assigned by both branches is declared before the test
+        assertTrue(source.contains("String s;"));
+        assertTrue(source.contains("s = (String)o;"));
+        // A field of another object which has the name of the variable is no use of it
+        assertTrue(source.contains("Putter b = new Putter() {"));
     }
 
     @Test

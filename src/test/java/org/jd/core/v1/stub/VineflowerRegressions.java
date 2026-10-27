@@ -430,6 +430,15 @@ public class VineflowerRegressions {
         return n + base.widened();
     }
 
+    public int anonymousVariableOfALoop() {
+        int count = 0;
+
+        for (var counter = new Object() { int limit() { return 3; } }; counter.limit() > count; count++) {
+            System.out.println(count);
+        }
+        return count;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

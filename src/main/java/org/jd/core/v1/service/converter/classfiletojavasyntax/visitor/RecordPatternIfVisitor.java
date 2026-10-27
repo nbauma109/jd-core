@@ -189,8 +189,9 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         }
         String accessor = ((MethodInvocationExpression) ((ExpressionVariableInitializer) declarators.get(0).getVariableInitializer()).getExpression()).getName();
 
+        // javac holds the component in a temporary: 'int x = r.x();' alone is written by hand, and a 'try' around more than the extraction is meant
         if (declarators.size() == 1) {
-            return new Component(declarators.get(0).getName(), accessor, null);
+            return null;
         }
         return isSameExpression(declarators.get(1), declarators.get(0).getName()) ? new Component(declarators.get(1).getName(), accessor, declarators.get(0).getName()) : null;
     }

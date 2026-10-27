@@ -156,7 +156,10 @@ public class RecordPatternIfVisitorTest {
 
     @Test
     public void testSingleDeclarator() {
-        assertRewritten(rewrite(ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x"))), "x"), "x");
+        // javac holds the component in a temporary: a single declarator is written by hand, and its 'try' may surround more than the extraction
+        IfStatement ifStatement = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
+
+        assertSame(ifStatement, rewrite(ifStatement, "x"));
     }
 
     @Test
@@ -171,7 +174,7 @@ public class RecordPatternIfVisitorTest {
     public void testElseIsKept() {
         Statements elseStatements = statements(body());
         IfStatement ifStatement = new IfElseStatement(new InstanceOfExpression(1, variable(RECORD, "r"), RECORD),
-                lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")), elseStatements);
+                lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")), elseStatements);
         Statement rewritten = rewrite(ifStatement, "x");
 
         assertTrue(rewritten instanceof IfElseStatement);
@@ -181,7 +184,7 @@ public class RecordPatternIfVisitorTest {
 
     @Test
     public void testNestedStatementsAreVisited() {
-        Statements inner = statements(ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x"))));
+        Statements inner = statements(ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"))));
         Statement outer = new IfStatement(variable(PrimitiveType.TYPE_BOOLEAN, "flag"), inner);
 
         assertRewritten(((Statements) rewrite((IfStatement) outer, "x").getStatements()).getFirst(), "x");
@@ -238,9 +241,9 @@ public class RecordPatternIfVisitorTest {
 
     @Test
     public void testTypeWhichIsNoRecordOrWhoseAccessorsDifferIsNoRecordPattern() {
-        IfStatement noRecord = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "length", "n")));
-        IfStatement otherAccessor = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
-        IfStatement missingComponent = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
+        IfStatement noRecord = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "length", "i", "n")));
+        IfStatement otherAccessor = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")));
+        IfStatement missingComponent = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")));
 
         assertSame(noRecord, rewrite(noRecord));
         assertSame(otherAccessor, rewrite(otherAccessor, "y"));
@@ -252,7 +255,7 @@ public class RecordPatternIfVisitorTest {
         Statements tryStatements = statements(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), new ExpressionStatement(variable(RECORD, "r1")));
         IfStatement used = ifInstanceOf(statements(new LocalVariableDeclarationStatement(RECORD, declarator("r1", variable(RECORD, "r"))), matchExceptionTry(tryStatements)));
         IfStatement usedInElse = new IfElseStatement(new InstanceOfExpression(1, variable(RECORD, "r"), RECORD),
-                lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")), statements(new ExpressionStatement(variable(RECORD, "r1"))));
+                lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")), statements(new ExpressionStatement(variable(RECORD, "r1"))));
 
         assertSame(used, rewrite(used, "x"));
         assertSame(usedInElse, rewrite(usedInElse, "x"));
@@ -260,7 +263,7 @@ public class RecordPatternIfVisitorTest {
 
     @Test
     public void testExceptionWhichIsNotTheOneOfTheExtraction() {
-        Statements tryStatements = statements(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x"), body());
+        Statements tryStatements = statements(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x"), body());
         NewExpression withoutArguments = new NewExpression(1, MATCH_EXCEPTION, "()V", false, false);
         TryStatement[] tries = {
             tryCatching(withoutArguments, tryStatements),
@@ -286,7 +289,7 @@ public class RecordPatternIfVisitorTest {
     @Test
     public void testComponentWhichIsBoxedIsNoPatternOfItsType() {
         // 'record R(Integer x)' matched with 'int x' converts the component: the pattern would not compile
-        IfStatement ifStatement = ifInstanceOf(lowered(oneDeclarator(PrimitiveType.TYPE_INT, "r1", "x", "x")));
+        IfStatement ifStatement = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")));
 
         assertSame(ifStatement, rewrite(ifStatement, List.of(new ClassMetadata.Component("x", "Ljava/lang/Integer;"))));
         assertRewritten(rewrite(ifStatement, List.of(new ClassMetadata.Component("x", "I"))), "x");

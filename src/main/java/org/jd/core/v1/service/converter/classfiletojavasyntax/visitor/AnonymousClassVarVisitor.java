@@ -10,6 +10,10 @@ import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.Type;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.statement.ForStatement;
+import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
+import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.ConstructorDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.Declaration;
@@ -42,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * The type of an anonymous class cannot be written: 'var printer = new Object() { void println(String s) {...} }; printer.println("...")' is the
@@ -79,8 +84,36 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean isDeclaredWithVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
-        BaseLocalVariableDeclarator declarators = declaration.getLocalVariableDeclarators();
+        return needsVar(declaration.getLocalVariableDeclarators(), search -> {
+            for (int i = nextIndex; i < statements.size() && !search.found; i++) {
+                statements.get(i).accept(search);
+            }
+        });
+    }
 
+    /** 'for (var v = new Object() { int n; }; v.n > 0; v.n--)': the declaration of the loop is searched in its condition, its update and its body */
+    @Override
+    public void visit(ForStatement statement) {
+        LocalVariableDeclaration declaration = statement.getDeclaration();
+
+        if (declaration != null && needsVar(declaration.getLocalVariableDeclarators(), search -> {
+            for (Object node : new Object[] { statement.getCondition(), statement.getUpdate(), statement.getStatements() }) {
+                if (node instanceof BaseExpression expressions) {
+                    expressions.accept(search);
+                } else if (node instanceof BaseStatement statements) {
+                    statements.accept(search);
+                }
+            }
+        })) {
+            LocalVariableDeclaration var = new LocalVariableDeclaration(VAR, declaration.getLocalVariableDeclarators());
+
+            var.setFinal(declaration.isFinal());
+            statement.setDeclaration(var);
+        }
+        super.visit(statement);
+    }
+
+    private boolean needsVar(BaseLocalVariableDeclarator declarators, Consumer<MemberUseSearch> uses) {
         if (!(declarators instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0) {
             return false;
         }
@@ -100,9 +133,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
 
-        for (int i = nextIndex; i < statements.size() && !search.found; i++) {
-            statements.get(i).accept(search);
-        }
+        uses.accept(search);
         return search.found;
     }
 

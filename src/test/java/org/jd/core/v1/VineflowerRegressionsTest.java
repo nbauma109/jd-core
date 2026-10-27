@@ -118,6 +118,12 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("Object s = (String)o;"));
         assertTrue(source.contains("++i * 2 <= i)"));
 
+    }
+
+    @Test
+    public void testDeclarationsWhichStayAndGenericPatterns() throws Exception {
+        String source = decompile();
+
         // A field which hides the one of the super type does not need 'var'
         assertTrue(source.contains("ShadowedBase base = new ShadowedBase() {"));
         // ... unless the field is read through 'var', which makes the anonymous class the owner of the access

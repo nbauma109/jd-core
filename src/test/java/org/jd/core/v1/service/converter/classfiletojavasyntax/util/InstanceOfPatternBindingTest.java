@@ -219,6 +219,38 @@ public class InstanceOfPatternBindingTest {
             return null;
         }
 
+        String assignedByTwoCasts(Object a, Object b) {
+            String s;
+            if (a instanceof String) {
+                s = (String) a;
+            } else if (b instanceof String) {
+                s = (String) b;
+            } else {
+                return "fallback";
+            }
+            return s;
+        }
+
+        String twoSequentialPatterns(Object a, Object b) {
+            if (a instanceof String) {
+                String s = (String) a;
+                return s;
+            }
+            if (b instanceof String) {
+                String s = (String) b;
+                return s;
+            }
+            return null;
+        }
+
+        String ofAnArray(java.util.Collection<String>[] o) {
+            if (o instanceof java.util.List[]) {
+                java.util.List<String>[] lists = (java.util.List<String>[]) o;
+                return lists[0].get(0);
+            }
+            return null;
+        }
+
         boolean negated(Object o) {
             return !(o instanceof String s) || s.isEmpty();
         }
@@ -246,6 +278,9 @@ public class InstanceOfPatternBindingTest {
         assertEquals(1, bindings("ofTheSameArguments"));
         assertEquals(0, bindings("assignedByBothBranchesInALongSlot"));
         assertEquals(1, bindings("patternInALongSlot"));
+        assertEquals(0, bindings("assignedByTwoCasts"));
+        assertEquals(2, bindings("twoSequentialPatterns"));
+        assertEquals(1, bindings("ofAnArray"));
         // a second range of the variable which no store starts is not an assignment
         assertEquals(1, bindings("negated"));
     }

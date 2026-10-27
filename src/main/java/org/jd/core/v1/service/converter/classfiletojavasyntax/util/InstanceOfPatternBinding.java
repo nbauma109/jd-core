@@ -146,7 +146,10 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             return false;
         }
         for (LocalVariable other : variables.getLocalVariableTable()) {
-            if (other != declared && other.getIndex() == declared.getIndex() && other.getName().equals(declared.getName()) && isEndOfAnotherStore(other.getStartPC(), declared.getIndex(), candidates, code, starts)) {
+            if (other != declared && other.getIndex() == declared.getIndex() && other.getName().equals(declared.getName())
+                    && (isEndOfAnotherStore(other.getStartPC(), declared.getIndex(), candidates, code, starts)
+                    || !isEndOfPatternStore(other.getStartPC(), declared.getIndex(), candidates) && isLoaded(code, starts, other)
+                    && isDeclaredByAnotherPattern(binding, declared, candidates, variables))) {
                 return true;
             }
         }
@@ -159,12 +162,44 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return false;
     }
 
-    /** @return true if an 'astore' of the variable ends at the offset and is no store of a pattern */
-    private static boolean isEndOfAnotherStore(int offset, int index, Iterable<InstanceOfPatternBinding> candidates, byte[] code, boolean[] starts) {
+    /** The variable of 'if (a instanceof T) { s = (T) a; } else if (b instanceof T) { s = (T) b; }' is declared by two tests, no one of which declares it */
+    private static boolean isDeclaredByAnotherPattern(InstanceOfPatternBinding binding, LocalVariable declared, Iterable<InstanceOfPatternBinding> candidates,
+            LocalVariableTable variables) {
+        for (InstanceOfPatternBinding candidate : candidates) {
+            if (candidate != binding && candidate.storeIndex() == declared.getIndex()) {
+                for (LocalVariable variable : variables.getLocalVariableTable()) {
+                    if (variable.getIndex() == declared.getIndex() && variable.getStartPC() == candidate.storeEndOffset() && variable.getName().equals(declared.getName())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isEndOfPatternStore(int offset, int index, Iterable<InstanceOfPatternBinding> candidates) {
         for (InstanceOfPatternBinding candidate : candidates) {
             if (candidate.storeIndex() == index && candidate.storeEndOffset() == offset) {
-                return false;
+                return true;
             }
+        }
+        return false;
+    }
+
+    /** @return true if the variable is read in its range: a range which no pattern starts is the one of a variable which the code declares elsewhere */
+    private static boolean isLoaded(byte[] code, boolean[] starts, LocalVariable variable) {
+        for (int p = variable.getStartPC(); p < variable.getStartPC() + variable.getLength() && p < code.length; p++) {
+            if (starts[p] && loadedIndex(code, p) == variable.getIndex()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return true if an 'astore' of the variable ends at the offset and is no store of a pattern */
+    private static boolean isEndOfAnotherStore(int offset, int index, Iterable<InstanceOfPatternBinding> candidates, byte[] code, boolean[] starts) {
+        if (isEndOfPatternStore(offset, index, candidates)) {
+            return false;
         }
         for (int length = 1; length <= 2; length++) {
             int store = offset - length;

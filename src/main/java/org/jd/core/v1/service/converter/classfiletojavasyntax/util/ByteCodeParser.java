@@ -1018,7 +1018,7 @@ public class ByteCodeParser {
                         localVariable.setAssigned(true);
                         localVariable.setDeclared(true);
                         // The variable keeps its type arguments ('o instanceof List<String> list') when it has the class of the test
-                        Type patternType = localVariable.getType() instanceof ObjectType variableType && variableType.getDimension() == 0
+                        Type patternType = localVariable.getType() instanceof ObjectType variableType && variableType.getDimension() == type1.getDimension()
                                 && variableType.getInternalName().equals(type1.getInternalName()) ? variableType : rawQualifiedInstanceOfType(type1);
 
                         stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, expression1, patternType, localVariable));

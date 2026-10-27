@@ -390,6 +390,27 @@ public class VineflowerRegressions {
         return result + target.put("y");
     }
 
+    public String castAssignedByTwoTests(Object a, Object b) {
+        String s;
+        if (a instanceof String) {
+            s = (String) a;
+        } else if (b instanceof String) {
+            s = (String) b;
+        } else {
+            return "fallback";
+        }
+        return s;
+    }
+
+    @SuppressWarnings("unchecked")
+    public String genericArrayPattern(java.util.Collection<String>[] o) {
+        if (o instanceof java.util.List[]) {
+            java.util.List<String>[] lists = (java.util.List<String>[]) o;
+            return lists[0].get(0);
+        }
+        return null;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

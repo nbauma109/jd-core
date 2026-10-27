@@ -134,6 +134,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("List<String> strings = (List)o;"));
         // A variable which is assigned by both branches is declared before the test
         assertTrue(source.contains("String s;"));
+        assertTrue(source.contains("s = (String)b;"));
+        // The pattern of an array keeps the type arguments of its variable
+        assertTrue(source.contains("o instanceof List<String>[] lists"));
         assertTrue(source.contains("s = (String)o;"));
         // A field of another object which has the name of the variable is no use of it
         assertTrue(source.contains("Putter target = new Putter() {"));

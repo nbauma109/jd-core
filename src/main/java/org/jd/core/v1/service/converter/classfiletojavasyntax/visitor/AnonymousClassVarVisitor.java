@@ -131,37 +131,44 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private Set<String> addedMembers(ClassFileBodyDeclaration body, String superInternalName) {
         Set<String> members = new HashSet<>();
 
-        if (body.getMethodDeclarations() != null) {
-            for (ClassFileConstructorOrMethodDeclaration method : body.getMethodDeclarations()) {
-                Method m = method.getMethod();
-
-                if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
-                    // not declared by the type which the anonymous class extends: the variable needs the type of the class to call it
-                    // A method is identified by its name and descriptor: a call of the inherited overload does not need the type of the class
-                    // An override which widens the access is called through the super type too, whose call is owned by the super type
-                    String signature = m.getName() + m.getSignature();
-
-                    members.add(overrides(m, superInternalName) ? hiddenField(body.getInternalTypeName(), signature) : signature);
-                }
-            }
-        }
-        if (body.getFieldDeclarations() != null) {
-            AbstractJavaSyntaxVisitor fieldNames = new AbstractJavaSyntaxVisitor() {
-                @Override
-                public void visit(FieldDeclarator declarator) {
-                    // A field which hides the one of the super type is only referenced by the anonymous class as owner
-                    if (ClassMetadata.declaresField(loader, superInternalName, declarator.getName())) {
-                        members.add(hiddenField(body.getInternalTypeName(), declarator.getName()));
-                    } else {
-                        members.add(declarator.getName());
-                    }
-                }
-            };
-            for (ClassFileFieldDeclaration field : body.getFieldDeclarations()) {
-                field.getFieldDeclarators().accept(fieldNames);
-            }
-        }
+        addedMethods(body, superInternalName, members);
+        addedFields(body, superInternalName, members);
         return members;
+    }
+
+    private void addedMethods(ClassFileBodyDeclaration body, String superInternalName, Set<String> members) {
+        if (body.getMethodDeclarations() == null) {
+            return;
+        }
+        for (ClassFileConstructorOrMethodDeclaration method : body.getMethodDeclarations()) {
+            Method m = method.getMethod();
+
+            if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
+                // not declared by the type which the anonymous class extends: the variable needs the type of the class to call it
+                // A method is identified by its name and descriptor: a call of the inherited overload does not need the type of the class
+                // An override which widens the access is called through the super type too, whose call is owned by the super type
+                String signature = m.getName() + m.getSignature();
+
+                members.add(overrides(m, superInternalName) ? hiddenField(body.getInternalTypeName(), signature) : signature);
+            }
+        }
+    }
+
+    private void addedFields(ClassFileBodyDeclaration body, String superInternalName, Set<String> members) {
+        if (body.getFieldDeclarations() == null) {
+            return;
+        }
+        AbstractJavaSyntaxVisitor fieldNames = new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(FieldDeclarator declarator) {
+                // A field which hides the one of the super type is only referenced by the anonymous class as owner
+                members.add(ClassMetadata.declaresField(loader, superInternalName, declarator.getName())
+                        ? hiddenField(body.getInternalTypeName(), declarator.getName()) : declarator.getName());
+            }
+        };
+        for (ClassFileFieldDeclaration field : body.getFieldDeclarations()) {
+            field.getFieldDeclarators().accept(fieldNames);
+        }
     }
 
     private static String hiddenField(String ownerInternalName, String name) {

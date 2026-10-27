@@ -412,11 +412,6 @@ public final class ControlFlowGraphLoopReducer {
     }
 
 
-    /**
-     * A loop without condition ('while (true)') which is left by a 'break' to the code which follows it in an enclosing loop, and by a
-     * 'break' of this enclosing loop (to a block shared by several exits): the farthest exit is not the 'end' of this loop, it is the
-     * 'break' of the enclosing loop. The 'end' is the code which goes on with the enclosing loop.
-     */
     /** The blocks which can be reached from the block, the block included, without going through the blocks to avoid (the loop which is back reached by an enclosing loop) */
     private static Set<BasicBlock> reachableFrom(BasicBlock start, Set<BasicBlock> toAvoid) {
         Set<BasicBlock> reached = new HashSet<>();
@@ -436,6 +431,11 @@ public final class ControlFlowGraphLoopReducer {
         return reached;
     }
 
+    /**
+     * A loop without condition ('while (true)') which is left by a 'break' to the code which follows it in an enclosing loop, and by a
+     * 'break' of this enclosing loop (to a block shared by several exits): the farthest exit is not the 'end' of this loop, it is the
+     * 'break' of the enclosing loop. The 'end' is the code which goes on with the enclosing loop.
+     */
     private static BasicBlock preferTheExitToTheEnclosingLoop(BasicBlock start, Set<BasicBlock> members, BasicBlock end) {
         if (end.getPredecessors().size() < 2) {
             return end;

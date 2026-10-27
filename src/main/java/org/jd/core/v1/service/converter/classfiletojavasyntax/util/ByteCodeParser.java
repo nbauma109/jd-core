@@ -23,10 +23,6 @@ import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.classfile.Method;
-import org.apache.bcel.generic.GotoInstruction;
-import org.apache.bcel.generic.ISTORE;
-import org.apache.bcel.generic.InstructionHandle;
-import org.apache.bcel.generic.InstructionList;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.AbstractNopDeclarationVisitor;
@@ -163,8 +159,7 @@ public class ByteCodeParser {
     private final Set<String> fieldNamesInScope = new HashSet<>();
     private final Set<String> enclosingTypeNames = new HashSet<>();
     private final ClassFile classFile;
-    /** The method being parsed (the local 'method' of a block is the one of its graph) */
-    private final Method ownMethod;
+    private final TypeSwitchParser typeSwitchParser;
     private final AbstractTypeParametersToTypeArgumentsBinder typeParametersToTypeArgumentsBinder;
     private final BootstrapMethods attributeBootstrapMethods;
     private final ClassFileBodyDeclaration bodyDeclaration;
@@ -190,7 +185,7 @@ public class ByteCodeParser {
         }
         this.attributeBootstrapMethods = classFile.getAttribute(ATTR_BOOTSTRAP_METHODS);
         this.bodyDeclaration = bodyDeclaration;
-        this.ownMethod = comd.getMethod();
+        this.typeSwitchParser = new TypeSwitchParser(typeMaker, comd.getMethod());
         this.returnedType = comd.getReturnedType();
         this.exceptionTypes = comd.getExceptionTypes();
         this.typeBounds = comd.getTypeBounds();
@@ -1023,7 +1018,11 @@ public class ByteCodeParser {
                         localVariable = getLocalVariableInAssignment(binding.storeIndex(), binding.storeEndOffset(), valueRef);
                         localVariable.setAssigned(true);
                         localVariable.setDeclared(true);
-                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, expression1, rawQualifiedInstanceOfType(type1), localVariable));
+                        // The variable keeps its type arguments ('o instanceof List<String> list') when it has the class of the test
+                        Type patternType = localVariable.getType() instanceof ObjectType variableType && variableType.getDimension() == 0
+                                && variableType.getInternalName().equals(type1.getInternalName()) ? variableType : rawQualifiedInstanceOfType(type1);
+
+                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, expression1, patternType, localVariable));
                     } else {
                         stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
                     }
@@ -1661,26 +1660,11 @@ public class ByteCodeParser {
         BootstrapMethod bootstrapMethod = attributeBootstrapMethods.getBootstrapMethods()[constantMemberRef.getClassIndex()];
         int[] bootstrapArguments = bootstrapMethod.getBootstrapArguments();
 
-        if ("typeSwitch".equals(indyMethodName) && "(Ljava/lang/Object;I)I".equals(indyDescriptor) && isSwitchBootstrap(constants, bootstrapMethod)
-                && indyParameters instanceof Expressions switchParameters && switchParameters.size() == 2
-                && !isRestartIndexReassigned(switchParameters.get(1), invokeOffset)) {
-            // 'switch' with patterns: its labels are the arguments of the bootstrap method
-            List<Object> labels = new ArrayList<>(bootstrapArguments.length);
+        ClassFileTypeSwitchExpression typeSwitch = typeSwitchParser.parse(constants, attributeBootstrapMethods.getBootstrapMethods(), constantMemberRef.getClassIndex(),
+                indyMethodName, indyDescriptor, indyParameters, lineNumber, invokeOffset);
 
-            for (int bootstrapArgument : bootstrapArguments) {
-                Constant labelConstant = constants.getConstant(bootstrapArgument);
-
-                if (labelConstant instanceof ConstantClass) {
-                    labels.add(typeMaker.makeFromDescriptorOrInternalTypeName(constants.getConstantString(bootstrapArgument, CONSTANT_Class)));
-                } else if (labelConstant instanceof ConstantString) {
-                    labels.add(constants.getConstantString(bootstrapArgument, CONSTANT_String));
-                } else if (labelConstant instanceof ConstantInteger constantInteger) {
-                    labels.add(constantInteger.getBytes());
-                } else {
-                    labels.add(null);
-                }
-            }
-            stack.push(new ClassFileTypeSwitchExpression(lineNumber, indyMethodName, switchParameters.get(0), switchParameters.get(1), labels, indyParameters));
+        if (typeSwitch != null) {
+            stack.push(typeSwitch);
             return;
         }
         if ("makeConcatWithConstants".equals(indyMethodName)) {
@@ -1770,37 +1754,6 @@ public class ByteCodeParser {
         if (indyParameters instanceof Expressions e) {
             stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1));
         }
-    }
-
-    /**
-     * A guard ('case String s when s.isEmpty()') sets the restart index and jumps back to the call which selects the case: the switch is then a loop
-     * which is not rebuilt, the method is left undecompiled rather than with the wrong case selected.
-     */
-    /** The bootstrap method of the call site is the one of the switches with patterns, not the one of a lambda whose method is named 'typeSwitch' */
-    private static boolean isSwitchBootstrap(ConstantPool constants, BootstrapMethod bootstrapMethod) {
-        ConstantMethodHandle handle = constants.getConstant(bootstrapMethod.getBootstrapMethodRef());
-        ConstantCP reference = constants.getConstant(handle.getReferenceIndex());
-
-        return "java/lang/runtime/SwitchBootstraps".equals(constants.getConstantString(reference.getClassIndex(), CONSTANT_Class));
-    }
-
-    private boolean isRestartIndexReassigned(Expression restartIndex, int invokeOffset) {
-        if (!(restartIndex instanceof ClassFileLocalVariableReferenceExpression reference)) {
-            // ECJ passes the constant 0 when there is no guard: nothing can change it
-            return !restartIndex.isIntegerConstantExpression();
-        }
-
-        // The code of a guard sets the index and jumps back before the call: the javac reuses the slot of the index for the next switch, whose
-        // initialization is no such store
-        InstructionHandle[] handles = new InstructionList(ownMethod.getCode().getCode()).getInstructionHandles();
-
-        for (int i = 0; i < handles.length - 1; i++) {
-            if (handles[i].getInstruction() instanceof ISTORE store && store.getIndex() == reference.getLocalVariable().getIndex()
-                    && handles[i + 1].getInstruction() instanceof GotoInstruction jump && jump.getTarget().getPosition() < invokeOffset) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static boolean isSyntheticMethodReferenceNullCheck(Expression expression, DefaultStack<Expression> stack) {

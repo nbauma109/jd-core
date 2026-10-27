@@ -23,6 +23,9 @@ import java.util.List;
 public class ClassFileTypeSwitchExpression extends ClassFileMethodInvocationExpression {
     private static final ObjectType SWITCH_BOOTSTRAPS = new ObjectType("java/lang/runtime/SwitchBootstraps", "java.lang.runtime.SwitchBootstraps", "SwitchBootstraps");
 
+    /** A qualified enum constant of a label: 'case E.A' */
+    public record EnumLabel(ObjectType type, String name) {}
+
     private final Expression selector;
     private final Expression restartIndex;
     private final List<Object> labels;

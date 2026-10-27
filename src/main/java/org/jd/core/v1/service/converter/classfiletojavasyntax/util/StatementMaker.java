@@ -20,6 +20,7 @@ import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
@@ -509,6 +510,11 @@ public class StatementMaker {
         return expression;
     }
 
+    /** The type of an integer constant which can be a boolean, a char, a byte, a short or an int */
+    private static boolean isAmbiguousConstantType(Type type) {
+        return type instanceof PrimitiveType primitiveType && Integer.bitCount(primitiveType.getFlags()) > 1;
+    }
+
     private SwitchExpression buildSwitchExpression(
             int lineNumber,
             Expression selector,
@@ -543,8 +549,11 @@ public class StatementMaker {
             }
 
             if (group.result() != null) {
-                if (resultType == null) {
-                    resultType = group.result().getType();
+                Type groupType = group.result().getType();
+
+                // The constant 1 of a rule is a boolean for the compiler until the other rules say it is not: the result has the type of the first result which says it
+                if (resultType == null || isAmbiguousConstantType(resultType) && !isAmbiguousConstantType(groupType)) {
+                    resultType = groupType;
                 }
 
                 if (group.statements().isEmpty()) {
@@ -841,6 +850,12 @@ public class StatementMaker {
         return null;
     }
 
+    /** The type of the pattern: the one of its variable, with its type arguments, when the variable has the class of the label ('case ArrayList<String> list') */
+    private static Type patternType(ObjectType labelType, AbstractLocalVariable patternVariable) {
+        return patternVariable != null && patternVariable.getType() instanceof ObjectType variableType && variableType.getDimension() == 0
+                && variableType.getInternalName().equals(labelType.getInternalName()) ? variableType : labelType;
+    }
+
     /** The label of the case which is selected by an index of the labels of a 'switch' with patterns: a pattern (named later), 'null', a string or an integer */
     private static Expression switchLabelExpression(PatternBinding binding, Type selectorType, BasicBlock.SwitchCase switchCase) {
         if (binding == null || switchCase.getStringValue() != null) {
@@ -863,7 +878,13 @@ public class StatementMaker {
             return new NullExpression(UNKNOWN_LINE_NUMBER, ObjectType.TYPE_UNDEFINED_OBJECT);
         }
         if (label instanceof ObjectType type) {
-            return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), type, patternVariable);
+            return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), patternType(type, patternVariable), patternVariable);
+        }
+        if (label instanceof ClassFileTypeSwitchExpression.EnumLabel enumLabel) {
+            ObjectType enumType = enumLabel.type();
+
+            return new FieldReferenceExpression(UNKNOWN_LINE_NUMBER, enumType, new ObjectTypeReferenceExpression(UNKNOWN_LINE_NUMBER, enumType), enumType.getInternalName(),
+                    enumLabel.name(), enumType.getDescriptor());
         }
         if (label instanceof String string) {
             return new StringConstantExpression(UNKNOWN_LINE_NUMBER, string);

@@ -23,6 +23,7 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -201,6 +202,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(MethodInvocationExpression expression) {
+            if (isVariable(expression.getExpression()) && members.contains(expression.getName() + expression.getDescriptor())) {
+                found = true;
+            }
+            super.visit(expression);
+        }
+
+        /** 'v::added': the method reference is a use of the method, by the descriptor of the referenced method */
+        @Override
+        public void visit(MethodReferenceExpression expression) {
             if (isVariable(expression.getExpression()) && members.contains(expression.getName() + expression.getDescriptor())) {
                 found = true;
             }

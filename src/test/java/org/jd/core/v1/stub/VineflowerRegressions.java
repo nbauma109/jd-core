@@ -359,6 +359,7 @@ public class VineflowerRegressions {
         return named.put("x") + new Holder().of(new Other());
     }
 
+    @SuppressWarnings("java:S128") // the case which falls through is what the method is about
     public void loopWhoseBreakJumpsOverTheCodeAfterTheLoop(int i) {
         switch (i) {
             case 0:
@@ -416,5 +417,39 @@ public class VineflowerRegressions {
             }
         };
         return base.value();
+    }
+
+    public java.util.function.IntSupplier methodReferenceToAMethodOfTheClass() {
+        var v = new Object() {
+            public int added() {
+                return 2;
+            }
+        };
+        return v::added;
+    }
+
+    @SuppressWarnings("java:S1854") // the handler sees the value of 'i'
+    public int incrementBeforeAnOperationWhichCanThrow(int i, int[] a) {
+        try {
+            while (i > 0) {
+                i++;
+
+                if (a[0] > i) {
+                    break;
+                }
+
+                System.out.println(i);
+            }
+        } catch (NullPointerException e) {
+            return i;
+        }
+        return -i;
+    }
+
+    public String genericPatternVariable(Object o) {
+        if (o instanceof java.util.ArrayList<?> list) {
+            return String.valueOf(list.size());
+        }
+        return null;
     }
 }

@@ -79,6 +79,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // ... or of an overload of an inherited method: a call has to select the overload of the anonymous class
         assertTrue(source.contains("var v = new Object() {"));
         assertTrue(source.contains("var putter = new Putter() {"));
+        // ... a reference to a method of the class needs the type of the class too
+        assertTrue(source.contains("var v = new Object() {"));
         // ... a private method of the super type is not overridden by the one of the class
         assertTrue(source.contains("var base = new PrivateBase() {"));
         // ... or when another variable of the same name, the parameter of a local class, is the one which is used
@@ -104,6 +106,11 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("if (o instanceof String)"));
         // The test of 'this'
         assertTrue(source.contains("this instanceof Derived derived"));
+
+        // The increment stays before an operation which can throw: the handler sees the incremented value
+        String throwing = source.substring(source.indexOf("incrementBeforeAnOperationWhichCanThrow"));
+
+        assertFalse(throwing.substring(0, throwing.indexOf("genericPatternVariable")).contains("++i"));
 
         // An assignment to a parameter is no pattern variable, the increment of a test is evaluated before the first use of the variable
         assertTrue(source.contains("s = (String)o;"));

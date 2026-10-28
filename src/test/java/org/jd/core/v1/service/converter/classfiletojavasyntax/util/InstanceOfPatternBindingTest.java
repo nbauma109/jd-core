@@ -337,6 +337,14 @@ public class InstanceOfPatternBindingTest {
             return null;
         }
 
+        <T extends Number> T ofATypeVariable(Object o) {
+            if (o instanceof Number) {
+                T n = (T) o;
+                return n;
+            }
+            return null;
+        }
+
         boolean negated(Object o) {
             return !(o instanceof String s) || s.isEmpty();
         }
@@ -377,6 +385,8 @@ public class InstanceOfPatternBindingTest {
         assertEquals(2, bindings("twoSequentialPatterns"));
         assertEquals(1, bindings("ofAnArray"));
         assertEquals(0, bindings("initializedBeforeTheTest"));
+        // the variable has the type of a type variable
+        assertEquals(0, bindings("ofATypeVariable"));
         // a handler reads the variable
         assertEquals(0, bindings("sharedWithAHandler"));
         // the failed test does not jump over the cast

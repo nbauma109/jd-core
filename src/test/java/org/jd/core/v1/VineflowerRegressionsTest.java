@@ -174,6 +174,10 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // The branches of a conditional give their type to the variable
         assertTrue(source.contains("var chosen = flag ? new Object() {") || source.contains("var chosen = (flag) ? new Object() {"));
+        // A protected method of a super type of another package is called through the anonymous type
+        assertTrue(source.contains("var list = new ArrayList"));
+        // The argument of a call which returns Object, and which is cast, gives no type to the variable
+        assertFalse(source.contains("var kept"));
         // The anonymous argument of a call which returns another type gives no type to the variable
         assertTrue(source.contains("Other holder = make(new Object() {"));
         // The parameter of a nested class hides the variable in that class only

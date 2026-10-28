@@ -36,11 +36,13 @@ import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
 import java.util.ArrayDeque;
@@ -63,11 +65,21 @@ import java.util.stream.Stream;
 public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private final TypeMaker typeMaker;
     private final Loader loader;
+    /** The class which contains the code: its package is the one from which the protected members of the super types are accessible */
+    private String internalTypeName;
 
     public AnonymousClassVarVisitor(TypeMaker typeMaker, Loader loader) {
         this.typeMaker = typeMaker;
         this.loader = loader;
     }
+    public void setInternalTypeName(String internalTypeName) {
+        this.internalTypeName = internalTypeName;
+    }
+
+    private static String packageOf(String internalName) {
+        return internalName == null || internalName.lastIndexOf('/') < 0 ? "" : internalName.substring(0, internalName.lastIndexOf('/'));
+    }
+
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
     private static final String CLONE = "clone()Ljava/lang/Object;";
@@ -210,33 +222,47 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * @return the expressions which give their value, so their type, to the one: itself, the value of a cast, the branches of a conditional, the arguments of a call which returns an
-     * 'Object' ('requireNonNull(b)': the erasure of a type variable which the arguments give); the call of any other method gives a type of its own
+     * @return the expressions which give their value, so their type, to the one: itself, the value of a cast to the type of an anonymous class, the
+     * branches of a conditional, the arguments of a generic call which returns one of its arguments ('requireNonNull(b)': '&lt;T&gt; T f(T)'); any other
+     * call, or cast, gives a type of its own
      */
-    private static List<Expression> underlyingValues(Expression value) {
+    private List<Expression> underlyingValues(Expression value) {
         List<Expression> values = new ArrayList<>();
 
-        if (value instanceof CastExpression cast) {
+        if (value instanceof CastExpression cast && cast.getType() instanceof ObjectType type && LocalVariableMaker.isAnonymousClassName(type.getInternalName())) {
             values.addAll(underlyingValues(cast.getExpression()));
         } else if (value instanceof TernaryOperatorExpression ternary) {
             values.addAll(underlyingValues(ternary.getTrueExpression()));
             values.addAll(underlyingValues(ternary.getFalseExpression()));
-        } else if (value instanceof MethodInvocationExpression call && call.getDescriptor().endsWith(")Ljava/lang/Object;") && call.getParameters() != null) {
+        } else if (value instanceof MethodInvocationExpression call && returnsOneOfItsArguments(call)) {
             call.getParameters().forEach(parameter -> values.addAll(underlyingValues(parameter)));
-        } else {
+        } else if (!(value instanceof CastExpression) && !(value instanceof MethodInvocationExpression)) {
             values.add(value);
         }
         return values;
     }
 
+    /** '&lt;T&gt; T f(T argument)': the generic signature of the method returns a type variable which one of its parameters has */
+    private boolean returnsOneOfItsArguments(MethodInvocationExpression call) {
+        String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (signature == null || call.getParameters() == null || signature.indexOf(')') < 0) {
+            return false;
+        }
+
+        String returned = signature.substring(signature.indexOf(')') + 1);
+
+        return returned.startsWith("T") && signature.substring(0, signature.indexOf(')')).contains(returned);
+    }
+
     /** @return the name of the first of these variables which the value is, or which an argument of the call which returns it is, null if none */
-    private static String references(Expression value, Set<String> names) {
+    private String references(Expression value, Set<String> names) {
         return underlyingValues(value).stream().filter(LocalVariableReferenceExpression.class::isInstance).map(reference -> ((LocalVariableReferenceExpression) reference).getName())
                 .filter(names::contains).findFirst().orElse(null);
     }
 
     /** @return the creation of an anonymous class which gives its type to the value, null if none does */
-    private static ClassFileNewExpression anonymousCreation(Expression value) {
+    private ClassFileNewExpression anonymousCreation(Expression value) {
         return underlyingValues(value).stream().filter(ClassFileNewExpression.class::isInstance).map(ClassFileNewExpression.class::cast)
                 .filter(creation -> creation.getBodyDeclaration() != null).findFirst().orElse(null);
     }
@@ -273,6 +299,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         if (OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
             return (!widens || ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature()))
                     && ClassMetadata.exceptionNames(method).containsAll(exceptionsOfTheSuperMethod(method, superInternalName));
+        }
+        if (!method.isPublic() && !packageOf(superInternalName).equals(packageOf(internalTypeName))) {
+            // A protected method of a super type of another package cannot be called through the super type from here, only through the anonymous class
+            return false;
         }
         if (ClassMetadata.isLoadable(loader, superInternalName)) {
             return (method.isPublic()
@@ -342,7 +372,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return "@" + ownerInternalName + "." + name;
     }
 
-    private static final class MemberUseSearch extends AbstractJavaSyntaxVisitor {
+    private final class MemberUseSearch extends AbstractJavaSyntaxVisitor {
         private final String variableName;
         /** The variable and the variables which are declared with its value: 'var c = b;' */
         private final Set<String> variableNames = new HashSet<>();

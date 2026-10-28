@@ -106,6 +106,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
      */
     private static boolean isUncheckedGeneric(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, LocalVariable[] generics, ConstantPool constants) {
         String variableArguments = null;
+        boolean variableIsTypeVariable = false;
         String operandArguments = null;
         String operandType = null;
         int operandIndex = loadedIndex(code, binding.firstSkippedOffset());
@@ -113,6 +114,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         for (LocalVariable generic : generics) {
             if (generic.getIndex() == binding.storeIndex() && generic.getStartPC() == binding.storeEndOffset()) {
                 variableArguments = typeArguments(generic.getSignature());
+                variableIsTypeVariable = generic.getSignature().replace("[", "").startsWith("T");
             }
             if (generic.getIndex() == operandIndex && generic.getStartPC() <= instanceOfOffset && instanceOfOffset < generic.getStartPC() + generic.getLength()) {
                 operandArguments = typeArguments(generic.getSignature());
@@ -120,7 +122,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             }
         }
         // 'Collection<?>' cannot be tested against 'List<String>': the arguments have to be the ones of the operand, and its type a super type
-        return variableArguments != null && (!variableArguments.equals(operandArguments)
+        // '(T) o' is unchecked too: a pattern cannot declare a type variable
+        return variableIsTypeVariable || variableArguments != null && (!variableArguments.equals(operandArguments)
                 || !isSubtype(castDescriptor(code, instanceOfOffset, constants), operandType));
     }
 

@@ -95,6 +95,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             // Print the double constants which widen a float as float literals
             widenedFloatConstantVisitor.visit(declaration);
             // Declare 'var' the variables which hold an instance of an anonymous class and use its own members
+            anonymousClassVarVisitor.setInternalTypeName(typeDeclaration.getInternalTypeName());
             anonymousClassVarVisitor.visit(declaration);
             // Negate the test of an 'if' whose 'then' is empty because of a pattern variable
             emptyThenWithPatternVisitor.visit(declaration);

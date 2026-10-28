@@ -283,7 +283,7 @@ public class LocalVariableMaker {
     }
 
     /** The name of an anonymous class ends with the number after the last '$' */
-    static boolean isAnonymousClassName(String internalName) {
+    public static boolean isAnonymousClassName(String internalName) {
         int start = internalName.lastIndexOf('$') + 1;
 
         return start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit);

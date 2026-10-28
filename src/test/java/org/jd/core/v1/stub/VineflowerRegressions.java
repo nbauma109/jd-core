@@ -700,6 +700,35 @@ public class VineflowerRegressions {
         return chosen == null ? 0 : chosen.added();
     }
 
+    static Object plain(Object argument) {
+        return new OtherSub();
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public String anonymousArgumentOfACallWhichReturnsObject() {
+        Other kept = (OtherSub) plain(new Object() {
+            String added() {
+                return "argument";
+            }
+        });
+        String result = kept.added();
+        kept = new Other();
+        return result + kept.added();
+    }
+
+    @SuppressWarnings("java:S2160") // the anonymous class only exposes a protected method of its super type
+    public int protectedMethodOfAnotherPackage() {
+        var list = new java.util.ArrayList<String>() {
+            @Override
+            protected void removeRange(int from, int to) {
+                super.removeRange(from, to);
+            }
+        };
+        list.add("x");
+        list.removeRange(0, 1);
+        return list.size();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

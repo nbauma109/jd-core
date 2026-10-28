@@ -47,7 +47,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -69,13 +68,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
+    private static final String CLONE = "clone()Ljava/lang/Object;";
+    private static final String FINALIZE = "finalize()V";
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
-    private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", "clone()Ljava/lang/Object;", "finalize()V");
+    private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", CLONE, FINALIZE);
 
-    private static final Map<String, Set<String>> OBJECT_METHOD_EXCEPTIONS = Map.of("clone()Ljava/lang/Object;", Set.of("java/lang/CloneNotSupportedException"),
-            "finalize()V", Set.of("java/lang/Throwable"));
+    private static final Map<String, Set<String>> OBJECT_METHOD_EXCEPTIONS = Map.of(CLONE, Set.of("java/lang/CloneNotSupportedException"),
+            FINALIZE, Set.of("java/lang/Throwable"));
 
-    private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of("clone()Ljava/lang/Object;", "finalize()V");
+    private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of(CLONE, FINALIZE);
 
     /** The variables which are declared 'var' because of their anonymous class, with the members which it adds: 'var c = b;' has the type of 'b' */
     private final Map<String, Set<String>> anonymousVariables = new HashMap<>();

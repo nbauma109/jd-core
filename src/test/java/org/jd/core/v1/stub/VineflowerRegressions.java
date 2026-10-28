@@ -527,6 +527,27 @@ public class VineflowerRegressions {
         return new Local().value();
     }
 
+    @SuppressWarnings({ "java:S1854", "java:S1172" }) // the field of the local class is not the variable which is assigned afterwards
+    public String fieldOfALocalClassNamedLikeTheVariable() {
+        Putter target = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+
+        class WithField {
+            final Other target = new Other();
+
+            String value() {
+                return target.added();
+            }
+        }
+
+        String result = new WithField().value();
+        target = new Putter();
+        return result + target.put("x");
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

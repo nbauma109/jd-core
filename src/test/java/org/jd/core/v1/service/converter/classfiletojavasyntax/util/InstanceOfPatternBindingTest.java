@@ -327,4 +327,22 @@ public class InstanceOfPatternBindingTest {
         // a second range of the variable which no store starts is not an assignment
         assertEquals(1, bindings("negated"));
     }
+
+    private static int bindingsWithoutDebugInformation(String method) throws ClassNotFoundException {
+        for (Method m : Repository.lookupClass(Samples.class).getMethods()) {
+            if (m.getName().equals(method)) {
+                return InstanceOfPatternBinding.find(m.getCode().getCode(), 2, null, m.getConstantPool()).size();
+            }
+        }
+        throw new IllegalArgumentException(method);
+    }
+
+    @Test
+    public void testBindingsWithoutTheLocalVariableTable() throws ClassNotFoundException {
+        assertEquals(1, bindingsWithoutDebugInformation("pattern"));
+        // another store to the slot of the variable is an assignment of it
+        assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranches"));
+        // two patterns which reuse the slot are still patterns
+        assertEquals(2, bindingsWithoutDebugInformation("twoSequentialPatterns"));
+    }
 }

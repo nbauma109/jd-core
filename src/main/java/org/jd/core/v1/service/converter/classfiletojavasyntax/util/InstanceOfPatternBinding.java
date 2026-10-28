@@ -146,11 +146,14 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 }
             }
         }
-        if (variables != null) {
-            // The variable of a pattern is declared by the test: a variable which the code assigns elsewhere is declared before it
-            Map<Integer, InstanceOfPatternBinding> candidates = new HashMap<>(bindings);
+        // The variable of a pattern is declared by the test: a variable which the code assigns elsewhere is declared before it
+        Map<Integer, InstanceOfPatternBinding> candidates = new HashMap<>(bindings);
 
+        if (variables != null) {
             bindings.values().removeIf(binding -> isAssignedElsewhere(binding, candidates.values(), code, starts, variables));
+        } else {
+            // Without the table, the slot of the variable is the only evidence
+            bindings.values().removeIf(binding -> isStoredOverTheJump(binding, code, starts));
         }
         return bindings;
     }
@@ -198,6 +201,27 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                         return true;
                     }
                 }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 'if (o instanceof String) { s = (String) o; } else { s = "fallback"; } return s;': the store which binds the variable is followed by the jump
+     * over the other branch, which stores the slot too. A store after the join is the one of another variable which reuses the slot.
+     */
+    private static boolean isStoredOverTheJump(InstanceOfPatternBinding binding, byte[] code, boolean[] starts) {
+        int jump = binding.storeEndOffset();
+
+        if (jump + 2 >= code.length || (code[jump] & 255) != Const.GOTO) {
+            return false;
+        }
+
+        int target = jump + (short) ((code[jump + 1] & 255) << 8 | code[jump + 2] & 255);
+
+        for (int p = jump + 3; p < target && p < code.length; p++) {
+            if (starts[p] && storedIndex(code, p) == binding.storeIndex()) {
+                return true;
             }
         }
         return false;

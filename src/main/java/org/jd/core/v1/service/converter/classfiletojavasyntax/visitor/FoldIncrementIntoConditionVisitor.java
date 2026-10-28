@@ -96,7 +96,8 @@ public final class FoldIncrementIntoConditionVisitor {
 
         @Override
         public void visit(FieldReferenceExpression expression) {
-            throwing |= found == null && !expression.getExpression().isObjectTypeReferenceExpression();
+            // The read of a static field can initialize its class, which can throw
+            throwing |= found == null;
             super.visit(expression);
         }
 

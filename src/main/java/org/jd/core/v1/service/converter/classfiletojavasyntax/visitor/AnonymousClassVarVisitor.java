@@ -14,6 +14,7 @@ import org.jd.core.v1.model.javasyntax.statement.ForStatement;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.ConstructorDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
@@ -41,7 +42,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -259,6 +262,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** The variable and the variables which are declared with its value: 'var c = b;' */
         private final Set<String> variableNames = new HashSet<>();
         private final Set<String> members;
+        /** The fields which the local classes around the code declare: they are no capture of the variable */
+        private final Deque<Set<String>> declaredFields = new ArrayDeque<>();
         private boolean found;
 
         MemberUseSearch(String variableName, Set<String> members) {
@@ -280,6 +285,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (!hasParameter(declaration.getFormalParameters())) {
                 super.visit(declaration);
             }
+        }
+
+        @Override
+        public void visit(BodyDeclaration declaration) {
+            Set<String> fields = new HashSet<>();
+
+            if (declaration instanceof ClassFileBodyDeclaration body) {
+                Objects.requireNonNullElse(body.getFieldDeclarations(), List.<ClassFileFieldDeclaration>of())
+                        .forEach(field -> field.getFieldDeclarators().accept(new AbstractJavaSyntaxVisitor() {
+                            @Override
+                            public void visit(FieldDeclarator declarator) {
+                                fields.add(declarator.getName());
+                            }
+                        }));
+            }
+            declaredFields.push(fields);
+            super.visit(declaration);
+            declaredFields.pop();
         }
 
         /** The parameters of the method itself: the ones of the methods of its local classes hide the variable in those methods only */
@@ -374,7 +397,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         private boolean isVariable(Expression expression) {
             // A local class or an anonymous class reaches the variable by a captured field of itself, which is named like the variable: 'holder.name' is no capture
             return expression instanceof LocalVariableReferenceExpression reference && variableNames.contains(reference.getName())
-                    || expression instanceof FieldReferenceExpression field && (field.getExpression() == null || field.getExpression() instanceof ThisExpression) && variableName.equals(field.getName());
+                    || expression instanceof FieldReferenceExpression field && (field.getExpression() == null || field.getExpression() instanceof ThisExpression)
+                    && variableName.equals(field.getName()) && declaredFields.stream().noneMatch(fields -> fields.contains(field.getName()));
         }
     }
 }

@@ -17,6 +17,9 @@ import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.PrimitiveLocalVariable;
+import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -102,5 +105,14 @@ public class FoldIncrementIntoConditionVisitorTest {
         Expression ternary = new TernaryOperatorExpression(1, PrimitiveType.TYPE_BOOLEAN, binary(variable(I), ">", two()), variable(J), variable(J));
 
         assertSame(ternary, FoldIncrementIntoConditionVisitor.fold(ternary, I, "++"));
+    }
+
+    @Test
+    public void testReadOfAStaticFieldBeforeTheFirstUseIsNotFolded() {
+        ObjectType owner = new ObjectType("p/Broken", "p.Broken", "Broken");
+        Expression staticField = new FieldReferenceExpression(PrimitiveType.TYPE_INT, new ObjectTypeReferenceExpression(owner), "p/Broken", "n", "I");
+
+        // The class of the field is initialized by the read, which can throw
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(staticField, ">", variable(I)), I, "++"));
     }
 }

@@ -168,14 +168,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean needsVar(BaseLocalVariableDeclarator declarators, Consumer<MemberUseSearch> uses) {
-        if (!(declarators instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0) {
+        if (!(declarators instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
+                || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)) {
             return false;
         }
+        return needsVar(declarator.getName(), initializer.getExpression(), uses);
+    }
 
-        VariableInitializer initializer = declarator.getVariableInitializer();
-
-        if (!(initializer instanceof ExpressionVariableInitializer evi) || !(evi.getExpression() instanceof ClassFileNewExpression newExpression)
-                || !(newExpression.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
+    private boolean needsVar(String name, Expression value, Consumer<MemberUseSearch> uses) {
+        if (!(value instanceof ClassFileNewExpression newExpression) || !(newExpression.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
             return false;
         }
 
@@ -185,13 +186,35 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
+        MemberUseSearch search = new MemberUseSearch(name, members);
 
         uses.accept(search);
         if (search.found) {
-            anonymousVariables.put(declarator.getName(), members);
+            anonymousVariables.put(name, members);
         }
         return search.found;
+    }
+
+    /** 'try (var r = new AutoCloseable() { int added() {...} }) { r.added(); }': the resources which follow and the body use the resource */
+    @Override
+    public void visit(TryStatement statement) {
+        List<TryStatement.Resource> resources = statement.getResources();
+
+        for (int i = 0; resources != null && i < resources.size(); i++) {
+            TryStatement.Resource resource = resources.get(i);
+            List<TryStatement.Resource> following = resources.subList(i + 1, resources.size());
+
+            if (resource.getType() != null && needsVar(resource.getName(), resource.getExpression(), search -> {
+                following.forEach(next -> next.getExpression().accept(search));
+                Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
+            })) {
+                TryStatement.Resource varResource = new TryStatement.Resource(VAR, resource.getName(), resource.getExpression());
+
+                varResource.setFinal(resource.isFinal());
+                resources.set(i, varResource);
+            }
+        }
+        super.visit(statement);
     }
 
     /** A method of the anonymous class which overrides a method of its super type: the type of the super type is enough to call it */

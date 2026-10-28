@@ -18,6 +18,7 @@ import java.util.List;
 
 /** Gives its name to the variable of 'o instanceof T v' and of 'case T v', once the local variables are named */
 public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVisitor {
+    private int unusedCount;
 
     @Override
     protected Expression updateExpression(Expression expression) {
@@ -34,11 +35,11 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
     public void visit(SwitchStatement statement) {
         List<SwitchStatement.Block> blocks = statement.getBlocks();
 
-        blocks.replaceAll(ResolveInstanceOfPatternVisitor::resolve);
+        blocks.replaceAll(this::resolveBlock);
         super.visit(statement);
     }
 
-    private static SwitchStatement.Block resolve(SwitchStatement.Block block) {
+    private SwitchStatement.Block resolveBlock(SwitchStatement.Block block) {
         if (block instanceof SwitchStatement.LabelBlock labelBlock && labelBlock.getLabel() instanceof SwitchStatement.ExpressionLabel label
                 && label.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern) {
             return new SwitchStatement.LabelBlock(new SwitchStatement.PatternLabel(pattern(pattern)), labelBlock.getWhenCondition(), labelBlock.getStatements());
@@ -51,7 +52,7 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                 && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression);
     }
 
-    private static SwitchExpression resolve(SwitchExpression switchExpression) {
+    private SwitchExpression resolve(SwitchExpression switchExpression) {
         List<SwitchExpression.Rule> rules = new ArrayList<>();
 
         for (SwitchExpression.Rule rule : switchExpression.getRules()) {
@@ -73,8 +74,10 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
         return new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), rules, switchExpression.getType());
     }
 
-    private static TypePattern pattern(ClassFileInstanceOfPatternExpression expression) {
-        String name = expression.getLocalVariable() != null && expression.getLocalVariable().getName() != null ? expression.getLocalVariable().getName() : "obj";
+    /** The name of a pattern which binds no variable ('case String _' of Java 22): it is used nowhere, it only has not to be the name of another variable */
+    private TypePattern pattern(ClassFileInstanceOfPatternExpression expression) {
+        String name = expression.getLocalVariable() != null && expression.getLocalVariable().getName() != null ? expression.getLocalVariable().getName() : "unused" + unusedCount++;
+
         return new TypePattern(expression.getInstanceOfType(), name);
     }
 }

@@ -581,6 +581,21 @@ public class VineflowerRegressions {
         return reader.read();
     }
 
+    public int resourceOfAnAnonymousClass() throws Exception {
+        try (var resource = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+
+            int added() {
+                return 2;
+            }
+        }) {
+            return resource.added();
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

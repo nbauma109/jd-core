@@ -134,6 +134,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("ProtectedBase base = new ProtectedBase() {"));
         // A local class reaches the variable by a captured field
         assertTrue(source.contains("var captured = new Object() {"));
+        // The resource of a try is declared 'var' too
+        assertTrue(source.contains("try (var resource = new AutoCloseable() {"));
         // An override which declares fewer exceptions is called through the anonymous type
         assertTrue(source.contains("var reader = new Reading() {"));
         // Two variables which are declared on one line are declared one by one: 'var' declares one variable

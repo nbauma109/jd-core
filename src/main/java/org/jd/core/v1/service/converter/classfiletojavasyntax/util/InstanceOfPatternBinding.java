@@ -13,10 +13,24 @@ import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.ClassGenException;
+import org.apache.bcel.generic.ALOAD;
+import org.apache.bcel.generic.ASTORE;
+import org.apache.bcel.generic.ATHROW;
+import org.apache.bcel.generic.BranchInstruction;
+import org.apache.bcel.generic.GotoInstruction;
+import org.apache.bcel.generic.Instruction;
+import org.apache.bcel.generic.InstructionHandle;
+import org.apache.bcel.generic.ReturnInstruction;
+import org.apache.bcel.generic.Select;
 import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.Type;
 import org.jd.core.v1.api.loader.Loader;
 
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -210,24 +224,44 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     }
 
     /**
-     * 'String s = "fallback"; if (o instanceof String) { s = (String) o; } return s;': the code which the failed test goes to reads the slot before it
-     * stores it, or leaves the method or the branch: the variable has a value on the way where the test failed, so the test does not declare it.
+     * 'String s = "fallback"; if (o instanceof String) { s = (String) o; } return s;': a way which the failed test can follow reads the slot before it
+     * stores it: the variable has a value on the way where the test failed, so the test does not declare it.
      */
     private static boolean isReadAfterTheFailedTest(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, boolean[] starts) {
-        int ifOffset = instanceOfOffset + 3;
+        if (!starts[instanceOfOffset + 3]) {
+            return false;
+        }
 
-        for (int p = ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255); p > 0 && p < code.length; p++) {
-            if (!starts[p]) {
+        InstructionList list = new InstructionList(code);
+        int ifOffset = instanceOfOffset + 3;
+        InstructionHandle start = list.findHandle(ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255));
+        Deque<InstructionHandle> todo = new ArrayDeque<>();
+        Set<Integer> visited = new HashSet<>();
+
+        todo.push(start == null ? list.getEnd() : start);
+        while (!todo.isEmpty()) {
+            InstructionHandle handle = todo.pop();
+
+            if (handle == null || !visited.add(handle.getPosition())) {
                 continue;
             }
-            if (loadedIndex(code, p) == binding.storeIndex()) {
+
+            Instruction instruction = handle.getInstruction();
+
+            if (instruction instanceof ALOAD load && load.getIndex() == binding.storeIndex()) {
                 return true;
             }
-
-            int opcode = code[p] & 255;
-
-            if (storedIndex(code, p) == binding.storeIndex() || opcode == Const.GOTO || opcode == Const.ATHROW || opcode >= Const.IRETURN && opcode <= Const.RETURN) {
-                return false;
+            if (instruction instanceof ASTORE store && store.getIndex() == binding.storeIndex()) {
+                continue;
+            }
+            if (instruction instanceof BranchInstruction branch) {
+                if (branch instanceof Select select) {
+                    Arrays.stream(select.getTargets()).forEach(todo::push);
+                }
+                todo.push(branch.getTarget());
+            }
+            if (!(instruction instanceof GotoInstruction || instruction instanceof ReturnInstruction || instruction instanceof ATHROW || instruction instanceof Select)) {
+                todo.push(handle.getNext());
             }
         }
         return false;

@@ -232,6 +232,16 @@ public class InstanceOfPatternBindingTest {
             return s;
         }
 
+        String initializedBeforeAConditionalExit(Object o, boolean flag) {
+            String s = "fallback";
+            if (o instanceof String) {
+                s = (String) o;
+            } else if (flag) {
+                return "early";
+            }
+            return s;
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -364,6 +374,7 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranches"));
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranchesWithMoreCode"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeTheTest"));
+        assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeAConditionalExit"));
         // two patterns which reuse the slot are still patterns
         assertEquals(2, bindingsWithoutDebugInformation("twoSequentialPatterns"));
     }

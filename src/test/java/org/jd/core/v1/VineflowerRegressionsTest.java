@@ -172,6 +172,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     public void testAnonymousTypesWhichPassThroughValues() throws Exception {
         String source = decompile();
 
+        // The branches of a conditional give their type to the variable
+        assertTrue(source.contains("var chosen = flag ? new Object() {") || source.contains("var chosen = (flag) ? new Object() {"));
         // The anonymous argument of a call which returns another type gives no type to the variable
         assertTrue(source.contains("Other holder = make(new Object() {"));
         // The parameter of a nested class hides the variable in that class only

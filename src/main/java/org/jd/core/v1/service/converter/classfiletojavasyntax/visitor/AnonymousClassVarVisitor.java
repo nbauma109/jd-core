@@ -25,6 +25,7 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
@@ -209,7 +210,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * @return the expressions which give their value, so their type, to the one: itself, the value of a cast, the arguments of a call which returns an
+     * @return the expressions which give their value, so their type, to the one: itself, the value of a cast, the branches of a conditional, the arguments of a call which returns an
      * 'Object' ('requireNonNull(b)': the erasure of a type variable which the arguments give); the call of any other method gives a type of its own
      */
     private static List<Expression> underlyingValues(Expression value) {
@@ -217,6 +218,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         if (value instanceof CastExpression cast) {
             values.addAll(underlyingValues(cast.getExpression()));
+        } else if (value instanceof TernaryOperatorExpression ternary) {
+            values.addAll(underlyingValues(ternary.getTrueExpression()));
+            values.addAll(underlyingValues(ternary.getFalseExpression()));
         } else if (value instanceof MethodInvocationExpression call && call.getDescriptor().endsWith(")Ljava/lang/Object;") && call.getParameters() != null) {
             call.getParameters().forEach(parameter -> values.addAll(underlyingValues(parameter)));
         } else {

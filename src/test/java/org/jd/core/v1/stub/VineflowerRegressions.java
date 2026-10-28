@@ -691,6 +691,15 @@ public class VineflowerRegressions {
         return result + holder.added();
     }
 
+    public int anonymousTypeOfAConditional(boolean flag) {
+        var chosen = flag ? new Object() {
+            int added() {
+                return 2;
+            }
+        } : null;
+        return chosen == null ? 0 : chosen.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

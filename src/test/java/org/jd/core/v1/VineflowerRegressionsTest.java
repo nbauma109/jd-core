@@ -166,6 +166,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // The variables of a block are known up to its end: a later block can reuse the name for a variable of another type
         assertTrue(source.contains("var object = new Object() {"));
         assertTrue(source.contains("Other alias = shared;"));
+    }
+
+    @Test
+    public void testAnonymousTypesWhichPassThroughValues() throws Exception {
+        String source = decompile();
+
+        // The anonymous argument of a call which returns another type gives no type to the variable
+        assertTrue(source.contains("Other holder = make(new Object() {"));
         // The parameter of a nested class hides the variable in that class only
         assertTrue(source.contains("var outer = new Object() {"));
         // ... and past a block which declares a variable of the same name

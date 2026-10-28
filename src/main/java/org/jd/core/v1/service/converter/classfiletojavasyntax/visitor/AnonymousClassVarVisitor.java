@@ -22,6 +22,7 @@ import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
@@ -208,34 +209,33 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return search.found;
     }
 
-    /** @return the name of the first of these variables which the expression reads, the variable itself or an argument of the call which returns it ('requireNonNull(b)'), null if none */
-    private static String references(Expression expression, Set<String> names) {
-        String[] found = new String[1];
+    /**
+     * @return the expressions which give their value, so their type, to the one: itself, the value of a cast, the arguments of a call which returns an
+     * 'Object' ('requireNonNull(b)': the erasure of a type variable which the arguments give); the call of any other method gives a type of its own
+     */
+    private static List<Expression> underlyingValues(Expression value) {
+        List<Expression> values = new ArrayList<>();
 
-        expression.accept(new AbstractJavaSyntaxVisitor() {
-            @Override
-            public void visit(LocalVariableReferenceExpression reference) {
-                if (found[0] == null && names.contains(reference.getName())) {
-                    found[0] = reference.getName();
-                }
-            }
-        });
-        return found[0];
+        if (value instanceof CastExpression cast) {
+            values.addAll(underlyingValues(cast.getExpression()));
+        } else if (value instanceof MethodInvocationExpression call && call.getDescriptor().endsWith(")Ljava/lang/Object;") && call.getParameters() != null) {
+            call.getParameters().forEach(parameter -> values.addAll(underlyingValues((Expression) parameter)));
+        } else {
+            values.add(value);
+        }
+        return values;
     }
 
-    /** @return the creation of an anonymous class which gives its type to the value: the value itself, or an argument of the call which returns it, as 'requireNonNull(new Object() {...})' */
-    private static ClassFileNewExpression anonymousCreation(Expression value) {
-        ClassFileNewExpression[] creation = new ClassFileNewExpression[1];
+    /** @return the name of the first of these variables which the value is, or which an argument of the call which returns it is, null if none */
+    private static String references(Expression value, Set<String> names) {
+        return underlyingValues(value).stream().filter(LocalVariableReferenceExpression.class::isInstance).map(reference -> ((LocalVariableReferenceExpression) reference).getName())
+                .filter(names::contains).findFirst().orElse(null);
+    }
 
-        value.accept(new AbstractJavaSyntaxVisitor() {
-            @Override
-            public void visit(NewExpression expression) {
-                if (creation[0] == null && expression instanceof ClassFileNewExpression newExpression && newExpression.getBodyDeclaration() != null) {
-                    creation[0] = newExpression;
-                }
-            }
-        });
-        return creation[0];
+    /** @return the creation of an anonymous class which gives its type to the value, null if none does */
+    private static ClassFileNewExpression anonymousCreation(Expression value) {
+        return underlyingValues(value).stream().filter(ClassFileNewExpression.class::isInstance).map(ClassFileNewExpression.class::cast)
+                .filter(creation -> creation.getBodyDeclaration() != null).findFirst().orElse(null);
     }
 
     /** 'try (var r = new AutoCloseable() { int added() {...} }) { r.added(); }': the resources which follow and the body use the resource */
@@ -414,12 +414,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** The variable of this name which a block declares hides the one of the enclosing method up to the end of the block */
         @Override
         public void visit(Statements statements) {
+            // The aliases which a block declares are known up to its end
+            Set<String> knownBefore = new HashSet<>(variableNames);
+
             for (Statement statement : statements) {
                 statement.accept(this);
                 if (statement instanceof LocalVariableDeclarationStatement declaration && declaredNames(declaration).contains(variableName)) {
-                    return;
+                    break;
                 }
             }
+            variableNames.retainAll(knownBefore);
         }
 
         @Override

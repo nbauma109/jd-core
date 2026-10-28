@@ -674,6 +674,22 @@ public class VineflowerRegressions {
         return identity.added();
     }
 
+    static OtherSub make(Object argument) {
+        return new OtherSub();
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public String anonymousArgumentOfACallWhichReturnsAnotherType() {
+        Other holder = make(new Object() {
+            String added() {
+                return "argument";
+            }
+        });
+        String result = holder.added();
+        holder = new Other();
+        return result + holder.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

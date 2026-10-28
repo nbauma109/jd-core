@@ -136,15 +136,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return search.found;
     }
 
-    private static List<String> declaredNames(LocalVariableDeclarationStatement declaration) {
-        List<String> names = new ArrayList<>();
-
-        for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
-            names.add(declarator.getName());
-        }
-        return names;
-    }
-
     private boolean isDeclaredWithVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
         return needsVar(declaration.getLocalVariableDeclarators(), search -> {
             for (int i = nextIndex; i < statements.size() && !search.found; i++) {
@@ -298,6 +289,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 }
             });
             return declared[0];
+        }
+
+        private static List<String> declaredNames(LocalVariableDeclarationStatement declaration) {
+            List<String> names = new ArrayList<>();
+
+            for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
+                names.add(declarator.getName());
+            }
+            return names;
         }
 
         /** The variable of this name which a block declares hides the one of the enclosing method up to the end of the block */

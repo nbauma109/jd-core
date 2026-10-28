@@ -144,7 +144,11 @@ public final class ClassMetadata {
         do {
             char c = signature.charAt(index++);
 
-            depth += c == '<' ? 1 : c == '>' ? -1 : 0;
+            if (c == '<') {
+                depth++;
+            } else if (c == '>') {
+                depth--;
+            }
             if (c == ';' && depth == 0) {
                 return index;
             }

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /** What the declaration of a class says, read from its class file: the answers are 'unknown' (false or null) when the class cannot be loaded */
@@ -88,6 +89,42 @@ public final class ClassMetadata {
             }
         }
         return Collections.emptySet();
+    }
+
+    /** @return the generic signature of the method of this name and descriptor which the class, a super class or an interface declares; null if it has none or is unknown */
+    public static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor) {
+        return declaredGenericSignature(loader, internalName, name, descriptor, new HashSet<>());
+    }
+
+    private static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return null;
+        }
+        for (Method method : javaClass.getMethods()) {
+            if (!method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+                return genericSignature(method);
+            }
+        }
+
+        List<String> parents = new ArrayList<>();
+
+        parents.add(internalNameOf(javaClass.getSuperclassName()));
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            parents.add(internalNameOf(interfaceName));
+        }
+        return parents.stream().map(parent -> declaredGenericSignature(loader, parent, name, descriptor, visited)).filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    /** @return the generic signature of the method, null if its types have no type argument */
+    public static String genericSignature(Method method) {
+        for (Attribute attribute : method.getAttributes()) {
+            if (attribute instanceof Signature signature) {
+                return signature.getSignature();
+            }
+        }
+        return null;
     }
 
     /** @return the names of the exceptions which the method declares */

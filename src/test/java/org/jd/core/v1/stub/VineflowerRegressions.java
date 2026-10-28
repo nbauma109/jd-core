@@ -640,6 +640,30 @@ public class VineflowerRegressions {
         return value.added();
     }
 
+    static class Listing {
+        public java.util.List<?> values() {
+            return java.util.List.of();
+        }
+    }
+
+    public java.util.List<String> overrideWhichRefinesTheTypeArguments() {
+        var listing = new Listing() {
+            @Override
+            public java.util.List<String> values() {
+                return java.util.List.of("x");
+            }
+        };
+        return listing.values();
+    }
+
+    public int aliasInTheDeclarationOfALoop() {
+        var origin = new Object() { int n = 2; };
+        int count = 0;
+
+        for (var counter = origin; counter.n > count; count++) { System.out.println(count); }
+        return count;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

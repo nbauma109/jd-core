@@ -128,7 +128,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** 'Object c = b;' keeps its type, 'c.added()' needs the type of the anonymous class of 'b' */
     private boolean isAliasWhichNeedsVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
-        if (!(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
+        return aliasNeedsVar(declaration.getLocalVariableDeclarators(), search -> {
+            for (int i = nextIndex; i < statements.size() && !search.found; i++) {
+                statements.get(i).accept(search);
+            }
+        });
+    }
+
+    private boolean aliasNeedsVar(BaseLocalVariableDeclarator declarators, Consumer<MemberUseSearch> uses) {
+        if (!(declarators instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
                 || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
                 || !(initializer.getExpression() instanceof LocalVariableReferenceExpression reference) || !anonymousVariables.containsKey(reference.getName())) {
             return false;
@@ -137,9 +145,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         Set<String> members = anonymousVariables.get(reference.getName());
         MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
 
-        for (int i = nextIndex; i < statements.size() && !search.found; i++) {
-            statements.get(i).accept(search);
-        }
+        uses.accept(search);
         if (search.found) {
             anonymousVariables.put(declarator.getName(), members);
         }
@@ -159,10 +165,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(ForStatement statement) {
         LocalVariableDeclaration declaration = statement.getDeclaration();
 
-        if (declaration != null && needsVar(declaration.getLocalVariableDeclarators(), search -> {
+        Consumer<MemberUseSearch> uses = search -> {
             Stream.of(statement.getCondition(), statement.getUpdate()).filter(Objects::nonNull).forEach(expression -> expression.accept(search));
             Stream.of(statement.getStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
-        })) {
+        };
+
+        if (declaration != null && (needsVar(declaration.getLocalVariableDeclarators(), uses) || aliasNeedsVar(declaration.getLocalVariableDeclarators(), uses))) {
             LocalVariableDeclaration varDeclaration = new LocalVariableDeclaration(VAR, declaration.getLocalVariableDeclarators());
 
             varDeclaration.setFinal(declaration.isFinal());
@@ -253,7 +261,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return (method.isPublic()
                     ? ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature())
                     : ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature()))
-                    && ClassMetadata.exceptionNames(method).containsAll(ClassMetadata.declaredExceptions(loader, superInternalName, method.getName(), method.getSignature()));
+                    && ClassMetadata.exceptionNames(method).containsAll(ClassMetadata.declaredExceptions(loader, superInternalName, method.getName(), method.getSignature()))
+                    // A return type with other type arguments ('List<String>' for 'List<?>') is the one of the anonymous class only
+                    && Objects.equals(ClassMetadata.genericSignature(method), ClassMetadata.declaredGenericSignature(loader, superInternalName, method.getName(), method.getSignature()));
         }
         // The super type cannot be read: the types which are known to the type maker
         return typeMaker.matchCount(superInternalName, method.getName(), Type.getArgumentTypes(method.getSignature()).length, false) > 0;

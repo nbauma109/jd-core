@@ -138,6 +138,10 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (var resource = new AutoCloseable() {"));
         // The type of an anonymous class which a generic call returns
         assertTrue(source.contains("var value = Objects.requireNonNull(new Object() {"));
+        // An override whose return type has other type arguments than the one of its super method
+        assertTrue(source.contains("var listing = new Listing() {"));
+        // An alias which is declared by a loop
+        assertTrue(source.contains("for (var counter = origin;"));
         // ... also when the body does not use it: the try calls its close() which declares no exception
         assertTrue(source.substring(source.indexOf("resourceWhichIsClosedByTheTry")).contains("try (var resource = new AutoCloseable() {"));
         // An override of clone which declares no exception, whose super method declares one

@@ -155,6 +155,12 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var anon = new Object() {"));
         // The declaration of a loop is searched in its condition, its update and its body
         assertTrue(source.contains("for (var counter = new Object() {"));
+    }
+
+    @Test
+    public void testGenericPatternsAndSharedVariables() throws Exception {
+        String source = decompile();
+
         // An unchecked cast to a generic type is no pattern: the test of 'o' has no type arguments
         assertTrue(source.contains("if (o instanceof List) {"));
         // ... nor is the test of a wildcard against a type with arguments, while the arguments of the operand make the pattern legal

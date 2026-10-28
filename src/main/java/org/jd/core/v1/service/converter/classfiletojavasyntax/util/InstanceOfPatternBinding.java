@@ -90,11 +90,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     public static Map<Integer, InstanceOfPatternBinding> find(Method method) {
         Code code = method.getCode();
 
-        Map<Integer, InstanceOfPatternBinding> bindings = find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool());
+        Map<Integer, InstanceOfPatternBinding> bindings = find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool(),
+                code.getExceptionTable() == null ? new CodeException[0] : code.getExceptionTable());
         LocalVariable[] generics = code.getLocalVariableTypeTable() == null ? new LocalVariable[0] : code.getLocalVariableTypeTable().getLocalVariableTypeTable();
 
-        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool())
-                || isReadByAHandler(entry.getKey(), entry.getValue(), code));
+        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool()));
         return bindings;
     }
 
@@ -153,6 +153,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
      * @return the bindings, by the offset of their 'instanceof'
      */
     public static Map<Integer, InstanceOfPatternBinding> find(byte[] code, int parameterSlots, LocalVariableTable variables, ConstantPool constants) {
+        return find(code, parameterSlots, variables, constants, new CodeException[0]);
+    }
+
+    /** @param handlers the exception table of the code: a handler which reads the variable declares it before the test */
+    public static Map<Integer, InstanceOfPatternBinding> find(byte[] code, int parameterSlots, LocalVariableTable variables, ConstantPool constants, CodeException[] handlers) {
         Map<Integer, InstanceOfPatternBinding> bindings = new HashMap<>();
         boolean[] starts = instructionStarts(code);
 
@@ -166,7 +171,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             }
         }
         // The variable which the failed test reads is declared before it
-        bindings.entrySet().removeIf(entry -> isReadAfterTheFailedTest(entry.getKey(), entry.getValue(), code, starts));
+        bindings.entrySet().removeIf(entry -> isReadAfterTheFailedTest(entry.getKey(), entry.getValue(), code, starts, handlers));
 
         // The variable of a pattern is declared by the test: a variable which the code assigns elsewhere is declared before it
         Map<Integer, InstanceOfPatternBinding> candidates = new HashMap<>(bindings);
@@ -232,7 +237,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
      * 'String s = "fallback"; if (o instanceof String) { s = (String) o; } return s;': a way which the failed test can follow reads the slot before it
      * stores it: the variable has a value on the way where the test failed, so the test does not declare it.
      */
-    private static boolean isReadAfterTheFailedTest(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, boolean[] starts) {
+    private static boolean isReadAfterTheFailedTest(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, boolean[] starts, CodeException[] handlers) {
         if (!starts[instanceOfOffset + 3]) {
             return false;
         }
@@ -240,52 +245,38 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         InstructionList list = new InstructionList(code);
         int ifOffset = instanceOfOffset + 3;
         InstructionHandle start = list.findHandle(ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255));
-
-        return readsSlotFrom(start == null ? list.getEnd() : start, binding.storeIndex());
-    }
-
-    /** A handler of an exception of the code which contains the test reads the slot before it stores it: the variable is read by the code of the handler */
-    private static boolean isReadByAHandler(int instanceOfOffset, InstanceOfPatternBinding binding, Code code) {
-        if (code.getExceptionTable() == null || code.getExceptionTable().length == 0) {
-            return false;
-        }
-
-        InstructionList list;
-
-        try {
-            list = new InstructionList(code.getCode());
-        } catch (ClassGenException e) {
-            return false;
-        }
-        for (CodeException exception : code.getExceptionTable()) {
-            if (exception.getStartPC() <= instanceOfOffset && instanceOfOffset < exception.getEndPC()
-                    && readsSlotFrom(list.findHandle(exception.getHandlerPC()), binding.storeIndex())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean readsSlotFrom(InstructionHandle start, int slot) {
         Deque<InstructionHandle> todo = new ArrayDeque<>();
         Set<Integer> visited = new HashSet<>();
 
-        todo.add(start);
+        todo.add(start == null ? list.getEnd() : start);
+        // A handler of the exceptions of the code which contains the test reads the variable too
+        todo.addAll(handlersAt(list, handlers, instanceOfOffset));
         while (!todo.isEmpty()) {
             InstructionHandle handle = todo.remove();
 
             if (visited.add(handle.getPosition())) {
-                if (handle.getInstruction() instanceof ALOAD load && load.getIndex() == slot) {
+                if (handle.getInstruction() instanceof ALOAD load && load.getIndex() == binding.storeIndex()) {
                     return true;
                 }
-                todo.addAll(successorsUntilStore(handle, slot));
+                todo.addAll(successorsUntilStore(handle, binding.storeIndex(), list, handlers));
             }
         }
         return false;
     }
 
+    private static List<InstructionHandle> handlersAt(InstructionList list, CodeException[] handlers, int offset) {
+        List<InstructionHandle> found = new ArrayList<>();
+
+        for (CodeException exception : handlers) {
+            if (exception.getStartPC() <= offset && offset < exception.getEndPC()) {
+                found.add(list.findHandle(exception.getHandlerPC()));
+            }
+        }
+        return found;
+    }
+
     /** @return the instructions which can follow the one, none when it stores the slot (the variable has another value from there) or ends the way */
-    private static List<InstructionHandle> successorsUntilStore(InstructionHandle handle, int slot) {
+    private static List<InstructionHandle> successorsUntilStore(InstructionHandle handle, int slot, InstructionList list, CodeException[] handlers) {
         Instruction instruction = handle.getInstruction();
         List<InstructionHandle> successors = new ArrayList<>();
 
@@ -301,6 +292,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (!(instruction instanceof GotoInstruction || instruction instanceof ReturnInstruction || instruction instanceof ATHROW || instruction instanceof Select)) {
             successors.add(handle.getNext());
         }
+        successors.addAll(handlersAt(list, handlers, handle.getPosition()));
         successors.removeIf(Objects::isNull);
         return successors;
     }

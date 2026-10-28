@@ -255,6 +255,18 @@ public class InstanceOfPatternBindingTest {
             return "other";
         }
 
+        String sharedWithALaterHandler(Object o) {
+            String s = "old";
+            if (o instanceof String) {
+                s = (String) o;
+            }
+            try {
+                throw new IllegalStateException();
+            } catch (IllegalStateException ex) {
+                return s;
+            }
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -376,7 +388,7 @@ public class InstanceOfPatternBindingTest {
     private static int bindingsWithoutDebugInformation(String method) throws ClassNotFoundException {
         for (Method m : Repository.lookupClass(Samples.class).getMethods()) {
             if (m.getName().equals(method)) {
-                return InstanceOfPatternBinding.find(m.getCode().getCode(), 2, null, m.getConstantPool()).size();
+                return InstanceOfPatternBinding.find(m.getCode().getCode(), 2, null, m.getConstantPool(), m.getCode().getExceptionTable()).size();
             }
         }
         throw new IllegalArgumentException(method);
@@ -390,6 +402,8 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranchesWithMoreCode"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeTheTest"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeAConditionalExit"));
+        // a handler of a later range reads the variable
+        assertEquals(0, bindingsWithoutDebugInformation("sharedWithALaterHandler"));
         // two patterns which reuse the slot are still patterns
         assertEquals(2, bindingsWithoutDebugInformation("twoSequentialPatterns"));
     }

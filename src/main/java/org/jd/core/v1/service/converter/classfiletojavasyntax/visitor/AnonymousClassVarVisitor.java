@@ -117,8 +117,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean isAliasOfAnonymousVariable(LocalVariableDeclarator declarator) {
-        return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
-                && initializer.getExpression() instanceof LocalVariableReferenceExpression reference && anonymousVariables.containsKey(reference.getName());
+        return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer && references(initializer.getExpression(), anonymousVariables.keySet()) != null;
     }
 
     private static boolean isAnonymousClassInstance(LocalVariableDeclarator declarator) {
@@ -138,11 +137,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private boolean aliasNeedsVar(BaseLocalVariableDeclarator declarators, Consumer<MemberUseSearch> uses) {
         if (!(declarators instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
                 || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
-                || !(initializer.getExpression() instanceof LocalVariableReferenceExpression reference) || !anonymousVariables.containsKey(reference.getName())) {
+                || references(initializer.getExpression(), anonymousVariables.keySet()) == null) {
             return false;
         }
 
-        Set<String> members = anonymousVariables.get(reference.getName());
+        Set<String> members = anonymousVariables.get(references(initializer.getExpression(), anonymousVariables.keySet()));
         MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
 
         uses.accept(search);
@@ -207,6 +206,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             anonymousVariables.put(name, members);
         }
         return search.found;
+    }
+
+    /** @return the name of the first of these variables which the expression reads, the variable itself or an argument of the call which returns it ('requireNonNull(b)'), null if none */
+    private static String references(Expression expression, Set<String> names) {
+        String[] found = new String[1];
+
+        expression.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(LocalVariableReferenceExpression reference) {
+                if (found[0] == null && names.contains(reference.getName())) {
+                    found[0] = reference.getName();
+                }
+            }
+        });
+        return found[0];
     }
 
     /** @return the creation of an anonymous class which gives its type to the value: the value itself, or an argument of the call which returns it, as 'requireNonNull(new Object() {...})' */
@@ -426,7 +440,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(LocalVariableDeclarator declarator) {
-            if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer && isVariable(initializer.getExpression())) {
+            if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer && references(initializer.getExpression(), variableNames) != null) {
                 variableNames.add(declarator.getName());
             }
             super.visit(declarator);

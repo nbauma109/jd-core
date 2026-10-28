@@ -548,6 +548,23 @@ public class VineflowerRegressions {
         return result + target.put("x");
     }
 
+    public int aliasCapturedByALocalClass() {
+        var base = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        var copy = base;
+
+        class Reading {
+            int value() {
+                return copy.added();
+            }
+        }
+
+        return new Reading().value();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

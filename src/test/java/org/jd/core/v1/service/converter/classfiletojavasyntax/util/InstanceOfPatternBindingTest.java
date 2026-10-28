@@ -213,6 +213,17 @@ public class InstanceOfPatternBindingTest {
             return s;
         }
 
+        String assignedByBothBranchesWithMoreCode(Object o) {
+            String s;
+            if (o instanceof String) {
+                s = (String) o;
+                System.out.println(s);
+            } else {
+                s = "fallback";
+            }
+            return s;
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -342,6 +353,7 @@ public class InstanceOfPatternBindingTest {
         assertEquals(1, bindingsWithoutDebugInformation("pattern"));
         // another store to the slot of the variable is an assignment of it
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranches"));
+        assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranchesWithMoreCode"));
         // two patterns which reuse the slot are still patterns
         assertEquals(2, bindingsWithoutDebugInformation("twoSequentialPatterns"));
     }

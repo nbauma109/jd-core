@@ -398,7 +398,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             // A local class or an anonymous class reaches the variable by a captured field of itself, which is named like the variable: 'holder.name' is no capture
             return expression instanceof LocalVariableReferenceExpression reference && variableNames.contains(reference.getName())
                     || expression instanceof FieldReferenceExpression field && (field.getExpression() == null || field.getExpression() instanceof ThisExpression)
-                    && variableName.equals(field.getName()) && declaredFields.stream().noneMatch(fields -> fields.contains(field.getName()));
+                    && variableNames.contains(field.getName()) && declaredFields.stream().noneMatch(fields -> fields.contains(field.getName()));
         }
     }
 }

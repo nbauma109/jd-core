@@ -153,7 +153,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             bindings.values().removeIf(binding -> isAssignedElsewhere(binding, candidates.values(), code, starts, variables));
         } else {
             // Without the table, the slot of the variable is the only evidence
-            bindings.values().removeIf(binding -> isStoredOverTheJump(binding, code, starts));
+            bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts));
         }
         return bindings;
     }
@@ -207,19 +207,22 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     }
 
     /**
-     * 'if (o instanceof String) { s = (String) o; } else { s = "fallback"; } return s;': the store which binds the variable is followed by the jump
-     * over the other branch, which stores the slot too. A store after the join is the one of another variable which reuses the slot.
+     * 'if (o instanceof String) { s = (String) o; ... } else { s = "fallback"; } return s;': the failed test goes to the other branch, which the
+     * successful branch ends by a jump over, and the other branch stores the slot too. A store after the join is the one of another variable
+     * which reuses the slot.
      */
-    private static boolean isStoredOverTheJump(InstanceOfPatternBinding binding, byte[] code, boolean[] starts) {
-        int jump = binding.storeEndOffset();
+    private static boolean isStoredInTheOtherBranch(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, boolean[] starts) {
+        int ifOffset = instanceOfOffset + 3;
+        int elseOffset = ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255);
+        int jump = elseOffset - 3;
 
-        if (jump + 2 >= code.length || (code[jump] & 255) != Const.GOTO) {
+        if (jump < binding.storeEndOffset() || jump + 2 >= code.length || !starts[jump] || (code[jump] & 255) != Const.GOTO) {
             return false;
         }
 
-        int target = jump + (short) ((code[jump + 1] & 255) << 8 | code[jump + 2] & 255);
+        int joinOffset = jump + (short) ((code[jump + 1] & 255) << 8 | code[jump + 2] & 255);
 
-        for (int p = jump + 3; p < target && p < code.length; p++) {
+        for (int p = elseOffset; p < joinOffset && p < code.length; p++) {
             if (starts[p] && storedIndex(code, p) == binding.storeIndex()) {
                 return true;
             }

@@ -581,7 +581,7 @@ public class VineflowerRegressions {
         return reader.read();
     }
 
-    public int resourceOfAnAnonymousClass() throws Exception {
+    public int resourceOfAnAnonymousClass() {
         try (var resource = new AutoCloseable() {
             @Override
             public void close() {

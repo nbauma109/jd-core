@@ -27,6 +27,9 @@ import org.apache.bcel.generic.Type;
 import org.jd.core.v1.api.loader.Loader;
 
 import java.util.ArrayDeque;
+import java.util.Objects;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
@@ -238,33 +241,39 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         Deque<InstructionHandle> todo = new ArrayDeque<>();
         Set<Integer> visited = new HashSet<>();
 
-        todo.push(start == null ? list.getEnd() : start);
+        todo.add(start == null ? list.getEnd() : start);
         while (!todo.isEmpty()) {
-            InstructionHandle handle = todo.pop();
+            InstructionHandle handle = todo.remove();
 
-            if (handle == null || !visited.add(handle.getPosition())) {
-                continue;
-            }
-
-            Instruction instruction = handle.getInstruction();
-
-            if (instruction instanceof ALOAD load && load.getIndex() == binding.storeIndex()) {
-                return true;
-            }
-            if (instruction instanceof ASTORE store && store.getIndex() == binding.storeIndex()) {
-                continue;
-            }
-            if (instruction instanceof BranchInstruction branch) {
-                if (branch instanceof Select select) {
-                    Arrays.stream(select.getTargets()).forEach(todo::push);
+            if (visited.add(handle.getPosition())) {
+                if (handle.getInstruction() instanceof ALOAD load && load.getIndex() == binding.storeIndex()) {
+                    return true;
                 }
-                todo.push(branch.getTarget());
-            }
-            if (!(instruction instanceof GotoInstruction || instruction instanceof ReturnInstruction || instruction instanceof ATHROW || instruction instanceof Select)) {
-                todo.push(handle.getNext());
+                todo.addAll(successorsUntilStore(handle, binding.storeIndex()));
             }
         }
         return false;
+    }
+
+    /** @return the instructions which can follow the one, none when it stores the slot (the variable has another value from there) or ends the way */
+    private static List<InstructionHandle> successorsUntilStore(InstructionHandle handle, int slot) {
+        Instruction instruction = handle.getInstruction();
+        List<InstructionHandle> successors = new ArrayList<>();
+
+        if (instruction instanceof ASTORE store && store.getIndex() == slot) {
+            return successors;
+        }
+        if (instruction instanceof BranchInstruction branch) {
+            successors.add(branch.getTarget());
+            if (branch instanceof Select select) {
+                successors.addAll(Arrays.asList(select.getTargets()));
+            }
+        }
+        if (!(instruction instanceof GotoInstruction || instruction instanceof ReturnInstruction || instruction instanceof ATHROW || instruction instanceof Select)) {
+            successors.add(handle.getNext());
+        }
+        successors.removeIf(Objects::isNull);
+        return successors;
     }
 
     /**

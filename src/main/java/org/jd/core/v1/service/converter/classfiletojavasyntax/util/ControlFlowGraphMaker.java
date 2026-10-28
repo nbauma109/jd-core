@@ -684,7 +684,7 @@ public class ControlFlowGraphMaker {
                         predecessor = iterator.next();
 
                         // The jump back of a loop which is in the 'try' of a 'finally' goes on with the loop, not with the 'try'
-                        if (!start.contains(predecessor) && !(aroundALoop && startPc <= predecessor.getFromOffset() && predecessor.getFromOffset() < endPc)) {
+                        if (!start.contains(predecessor) && (!aroundALoop || (startPc > predecessor.getFromOffset()) || (predecessor.getFromOffset() >= endPc))) {
                             predecessor.replace(start, tcf);
                             tcfPredecessors.add(predecessor);
                             iterator.remove();

@@ -922,7 +922,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             BaseType parameterTypes = ne.getParameterTypes();
 
             if (instanceMemberClassFinder == null || !(ne.getObjectType() instanceof InnerObjectType innerType) || innerType.getOuterType() == null
-                    || Utils.isEmpty(parameters) || !(parameters.getFirst().isThisExpression() || parameters.getFirst() == ne.getQualifier())
+                    || Utils.isEmpty(parameters) || (!parameters.getFirst().isThisExpression() && (parameters.getFirst() != ne.getQualifier()))
                     || !(parameterTypes.getFirst() instanceof ObjectType first)
                     || !first.getInternalName().equals(innerType.getOuterType().getInternalName())
                     // (an argument which is the qualifier is the outer instance whatever the class is: 'outer.new Inner(outer)' is wrong)

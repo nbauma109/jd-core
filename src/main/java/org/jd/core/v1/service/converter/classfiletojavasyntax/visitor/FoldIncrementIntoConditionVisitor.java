@@ -15,6 +15,7 @@ import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
@@ -110,6 +111,13 @@ public final class FoldIncrementIntoConditionVisitor {
 
         @Override
         public void visit(CastExpression expression) {
+            throwing |= found == null;
+            super.visit(expression);
+        }
+
+        @Override
+        public void visit(NewArray expression) {
+            // A negative size throws
             throwing |= found == null;
             super.visit(expression);
         }

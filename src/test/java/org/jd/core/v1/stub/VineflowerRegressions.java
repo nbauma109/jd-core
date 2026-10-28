@@ -596,6 +596,41 @@ public class VineflowerRegressions {
         }
     }
 
+    public int resourceWhichIsClosedByTheTry() {
+        try (var resource = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            return 1;
+        }
+    }
+
+    static class CloneBase implements Cloneable {
+        @Override
+        public Object clone() throws CloneNotSupportedException {
+            return super.clone();
+        }
+    }
+
+    public Object overrideOfCloneWhichDeclaresNoException() {
+        var copy = new CloneBase() {
+            @Override
+            public Object clone() {
+                return new Object();
+            }
+        };
+        return copy.clone();
+    }
+
+    @SuppressWarnings("java:S1659") // the aliases are declared on one line on purpose: the declarations are merged
+    public int mergedAliases() {
+        var origin = new Object() { int n = 1; };
+        var first = origin; var second = origin;
+        return first.n + second.n;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -136,6 +136,13 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var captured = new Object() {"));
         // The resource of a try is declared 'var' too
         assertTrue(source.contains("try (var resource = new AutoCloseable() {"));
+        // ... also when the body does not use it: the try calls its close() which declares no exception
+        assertTrue(source.substring(source.indexOf("resourceWhichIsClosedByTheTry")).contains("try (var resource = new AutoCloseable() {"));
+        // An override of clone which declares no exception, whose super method declares one
+        assertTrue(source.contains("var copy = new CloneBase() {"));
+        // Aliases which were merged are declared one by one
+        assertTrue(source.contains("var first = origin;"));
+        assertTrue(source.contains("var second = origin;"));
         // An override which declares fewer exceptions is called through the anonymous type
         assertTrue(source.contains("var reader = new Reading() {"));
         // Two variables which are declared on one line are declared one by one: 'var' declares one variable

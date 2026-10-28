@@ -72,6 +72,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
     private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", "clone()Ljava/lang/Object;", "finalize()V");
 
+    private static final Map<String, Set<String>> OBJECT_METHOD_EXCEPTIONS = Map.of("clone()Ljava/lang/Object;", Set.of("java/lang/CloneNotSupportedException"),
+            "finalize()V", Set.of("java/lang/Throwable"));
+
     private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of("clone()Ljava/lang/Object;", "finalize()V");
 
     /** The variables which are declared 'var' because of their anonymous class, with the members which it adds: 'var c = b;' has the type of 'b' */
@@ -79,41 +82,41 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(Statements statements) {
-        splitDeclarationsOfAnonymousClasses(statements);
-
         // The variables of a block are known up to its end only: another block may reuse their names
         Set<String> knownBefore = new HashSet<>(anonymousVariables.keySet());
-        ListIterator<Statement> iterator = statements.listIterator();
 
-        while (iterator.hasNext()) {
-            Statement statement = iterator.next();
-
-            if (statement instanceof LocalVariableDeclarationStatement declaration
-                    && (isDeclaredWithVar(declaration, statements, iterator.nextIndex()) || isAliasWhichNeedsVar(declaration, statements, iterator.nextIndex()))) {
-                iterator.set(new LocalVariableDeclarationStatement(VAR, declaration.getLocalVariableDeclarators()));
+        for (int i = 0; i < statements.size(); i++) {
+            if (statements.get(i) instanceof LocalVariableDeclarationStatement declaration && needsOneDeclaratorEach(declaration)) {
+                split(statements, i, declaration);
             }
-            iterator.previous().accept(this);
-            iterator.next();
+            if (statements.get(i) instanceof LocalVariableDeclarationStatement declaration
+                    && (isDeclaredWithVar(declaration, statements, i + 1) || isAliasWhichNeedsVar(declaration, statements, i + 1))) {
+                statements.set(i, new LocalVariableDeclarationStatement(VAR, declaration.getLocalVariableDeclarators()));
+            }
+            statements.get(i).accept(this);
         }
         anonymousVariables.keySet().retainAll(knownBefore);
     }
 
-    /** 'var' declares one variable: 'Object a = new Object() {...}, b = new Object() {...};' which was merged is split */
-    private static void splitDeclarationsOfAnonymousClasses(Statements statements) {
+    /** 'var' declares one variable: 'Object a = new Object() {...}, b = new Object() {...};' or 'Object b = a, c = a;' which was merged is split */
+    private boolean needsOneDeclaratorEach(LocalVariableDeclarationStatement declaration) {
+        return declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarators declarators
+                && declarators.stream().anyMatch(declarator -> isAnonymousClassInstance(declarator) || isAliasOfAnonymousVariable(declarator));
+    }
+
+    private static void split(Statements statements, int index, LocalVariableDeclarationStatement declaration) {
         List<Statement> split = new ArrayList<>();
 
-        for (Statement statement : statements) {
-            if (statement instanceof LocalVariableDeclarationStatement declaration && declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarators declarators
-                    && declarators.stream().anyMatch(AnonymousClassVarVisitor::isAnonymousClassInstance)) {
-                declarators.forEach(declarator -> split.add(new LocalVariableDeclarationStatement(declaration.getType(), declarator)));
-            } else {
-                split.add(statement);
-            }
+        for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
+            split.add(new LocalVariableDeclarationStatement(declaration.getType(), declarator));
         }
-        if (split.size() != statements.size()) {
-            statements.clear();
-            statements.addAll(split);
-        }
+        statements.remove(index);
+        statements.addAll(index, split);
+    }
+
+    private boolean isAliasOfAnonymousVariable(LocalVariableDeclarator declarator) {
+        return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
+                && initializer.getExpression() instanceof LocalVariableReferenceExpression reference && anonymousVariables.containsKey(reference.getName());
     }
 
     private static boolean isAnonymousClassInstance(LocalVariableDeclarator declarator) {
@@ -206,6 +209,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (resource.getType() != null && needsVar(resource.getName(), resource.getExpression(), search -> {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
+                // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
+                search.found |= search.members.stream().anyMatch(member -> member.equals("close()V") || member.endsWith(".close()V"));
             })) {
                 TryStatement.Resource varResource = new TryStatement.Resource(VAR, resource.getName(), resource.getExpression());
 
@@ -222,7 +227,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         boolean widens = method.isPublic() && PROTECTED_OBJECT_METHODS.contains(method.getName() + method.getSignature());
 
         if (OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
-            return !widens || ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature());
+            return (!widens || ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature()))
+                    && ClassMetadata.exceptionNames(method).containsAll(exceptionsOfTheSuperMethod(method, superInternalName));
         }
         if (ClassMetadata.isLoadable(loader, superInternalName)) {
             return (method.isPublic()
@@ -232,6 +238,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
         // The super type cannot be read: the types which are known to the type maker
         return typeMaker.matchCount(superInternalName, method.getName(), Type.getArgumentTypes(method.getSignature()).length, false) > 0;
+    }
+
+    /** The exceptions which the method of the super type declares: the ones of the method of Object if no super class declares it */
+    private Set<String> exceptionsOfTheSuperMethod(Method method, String superInternalName) {
+        String key = method.getName() + method.getSignature();
+
+        if (ClassMetadata.isLoadable(loader, superInternalName) && ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature())) {
+            return ClassMetadata.declaredExceptions(loader, superInternalName, method.getName(), method.getSignature());
+        }
+        return OBJECT_METHOD_EXCEPTIONS.getOrDefault(key, Set.of());
     }
 
     private boolean overrides(Method method, String superInternalName) {

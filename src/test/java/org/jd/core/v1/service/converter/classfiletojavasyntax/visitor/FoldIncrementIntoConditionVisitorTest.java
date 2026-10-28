@@ -11,6 +11,7 @@ import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
@@ -123,5 +124,13 @@ public class FoldIncrementIntoConditionVisitorTest {
 
         // The array can be null
         assertNull(FoldIncrementIntoConditionVisitor.fold(binary(length, ">", variable(I)), I, "++"));
+    }
+
+    @Test
+    public void testAllocationOfAnArrayBeforeTheFirstUseIsNotFolded() {
+        Expression allocation = new NewArray(1, PrimitiveType.TYPE_INT.createType(1), variable(J));
+
+        // A negative size throws
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(allocation, ">", variable(I)), I, "++"));
     }
 }

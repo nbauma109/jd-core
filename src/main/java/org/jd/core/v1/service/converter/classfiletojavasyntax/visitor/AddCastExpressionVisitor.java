@@ -981,7 +981,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Expression argument = parameterIterator.next();
 
             // A lambda or a method reference takes the types of its parameters from its target: a raw receiver would make them Object
-            if (!argument.isNullExpression() && !(argument instanceof LambdaIdentifiersExpression || isProperMethodReference(argument))
+            if (!argument.isNullExpression() && (!(argument instanceof LambdaIdentifiersExpression) && !isProperMethodReference(argument))
                     && referencesClassTypeParameter(unboundType, capturedTypeParameterNames)) {
                 return buildCaptureCastType(receiverType, typeTypes, classTypeParameterBounds);
             }
@@ -1405,7 +1405,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private static boolean hasKnownTypeArguments(ObjectType objectType, ObjectType bound) {
         BaseTypeArgument typeArguments = objectType.getTypeArguments();
 
-        return typeArguments != null && !(typeArguments instanceof ObjectType argument && argument.getInternalName().equals(bound.getInternalName()));
+        return typeArguments != null && (!(typeArguments instanceof ObjectType argument) || !argument.getInternalName().equals(bound.getInternalName()));
     }
 
     private static boolean isTypeVariable(Type type, org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter) {
@@ -1668,7 +1668,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * implementing 'Predicate&lt;Object&gt;'): the source has an unchecked cast, which the bytecode does not
      */
     private boolean isUncheckedTypeVariableMismatch(ObjectType target, Expression expression, ObjectType expressionType) {
-        if (!(expression instanceof FieldReferenceExpression || expression.isThisExpression() || expression.isLocalVariableReferenceExpression())
+        if ((!(expression instanceof FieldReferenceExpression) && !expression.isThisExpression() && !expression.isLocalVariableReferenceExpression())
                 || target.getTypeArguments() == null || target.getDimension() != 0 || expressionType.getDimension() != 0) {
             return false;
         }
@@ -2021,7 +2021,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean returnsCapturedTypeVariable(ClassFileMethodInvocationExpression call) {
         Expression receiver = call.getExpression();
 
-        if (!(receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression()) || !(receiver.getType() instanceof ObjectType receiverType)
+        if ((!receiver.isLocalVariableReferenceExpression() && !receiver.isFieldReferenceExpression()) || !(receiver.getType() instanceof ObjectType receiverType)
                 || receiverType.getTypeArguments() == null || !receiverType.getInternalName().equals(call.getInternalTypeName())) {
             return false;
         }
@@ -2035,7 +2035,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean producesCapturesOfWildcardReceiver(ClassFileMethodInvocationExpression call) {
         Expression receiver = call.getExpression();
 
-        if (!(receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression()) || !(receiver.getType() instanceof ObjectType receiverType)
+        if ((!receiver.isLocalVariableReferenceExpression() && !receiver.isFieldReferenceExpression()) || !(receiver.getType() instanceof ObjectType receiverType)
                 || receiverType.getTypeArguments() == null || !receiverType.getInternalName().equals(call.getInternalTypeName())) {
             return false;
         }
@@ -2447,7 +2447,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         for (org.jd.core.v1.model.javasyntax.type.TypeParameter typeParameter : receiver.getTypeParameters()) {
             if (usedVariables.contains(typeParameter.getIdentifier()) && typeParameter instanceof TypeParameterWithTypeBounds withBounds
-                    && !(withBounds.getTypeBounds().getFirst() instanceof ObjectType bound && isJavaLangObject(bound))) {
+                    && (!(withBounds.getTypeBounds().getFirst() instanceof ObjectType bound) || !isJavaLangObject(bound))) {
                 TypeArgument binding = receiver.getTypeBindings().get(typeParameter.getIdentifier());
 
                 if (binding == null || WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT.equals(binding)
@@ -2619,8 +2619,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     return false;
                 }
             } else if (bound instanceof ObjectType objectBound && !ObjectType.TYPE_OBJECT.equals(objectBound)
-                    && !(argument instanceof ObjectType objectArgument && typeMaker.isRawTypeAssignable(objectBound, objectArgument)
-                            && hasTheParameterizationOfTheBound(objectBound, objectArgument))) {
+                    && (!(argument instanceof ObjectType objectArgument) || !typeMaker.isRawTypeAssignable(objectBound, objectArgument) || !hasTheParameterizationOfTheBound(objectBound, objectArgument))) {
                 return false;
             }
         }
@@ -3105,7 +3104,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             fixedSupertypes |= expression instanceof ClassFileNewExpression && ta1 != null && ta2 != null
                                     && ta2.equals(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT) && !hasWildcardTypeArgument(objectType);
                             if ((!expression.isNew() || fixedSupertypes) && hasKnownTypeParameters(t)
-                                    && !(unboundType == null && t instanceof ObjectType castType && mentionsTypeVariableTheCallDoesNotBind(castType, typeBindings))
+                                    && ((unboundType != null) || !(t instanceof ObjectType castType) || !mentionsTypeVariableTheCallDoesNotBind(castType, typeBindings))
                                     && !isInferredFromItsArgumentsWhereTheBindingIsUnknown(expression)) {
                                 if (!(expression instanceof MethodReferenceExpression)
                                         && t instanceof ObjectType targetType
@@ -3138,7 +3137,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         && (hasKnownTypeParameters(type) || type.getDimension() > 0 && !staticContext)
                         && (expressionType.isObjectType() || expressionType.isGenericType())
                         && (type.getDimension() != 0 || !visitingLambda || genericCastInLambda)
-                        && !(visitingVarArgsInvocation && expression.isNewInitializedArray())) {
+                        && (!visitingVarArgsInvocation || !expression.isNewInitializedArray())) {
                     // (the array of the arguments of a varargs call is printed as its elements: a cast would be printed in front of the first one)
                     expression = addCastExpression(type, expression);
                 }

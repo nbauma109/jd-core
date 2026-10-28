@@ -1217,7 +1217,7 @@ public class ByteCodeParser {
     private static boolean isTernaryOfMethodInvocations(Expression value) {
         return value.isTernaryOperatorExpression()
             && isMethodInvocationOrNull(value.getTrueExpression()) && isMethodInvocationOrNull(value.getFalseExpression())
-            && !(value.getTrueExpression().isNullExpression() && value.getFalseExpression().isNullExpression());
+            && (!value.getTrueExpression().isNullExpression() || !value.getFalseExpression().isNullExpression());
     }
 
     private static boolean isMethodInvocationOrNull(Expression value) {

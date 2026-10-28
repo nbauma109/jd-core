@@ -674,6 +674,7 @@ public class VineflowerRegressions {
         return identity.added();
     }
 
+    @SuppressWarnings("java:S1172") // the argument only gives its type to nothing: the call returns another type
     static OtherSub make(Object argument) {
         return new OtherSub();
     }

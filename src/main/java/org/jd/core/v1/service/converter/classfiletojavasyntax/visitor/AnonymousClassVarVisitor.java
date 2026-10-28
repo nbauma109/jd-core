@@ -29,7 +29,6 @@ import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
-import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -219,7 +218,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         if (value instanceof CastExpression cast) {
             values.addAll(underlyingValues(cast.getExpression()));
         } else if (value instanceof MethodInvocationExpression call && call.getDescriptor().endsWith(")Ljava/lang/Object;") && call.getParameters() != null) {
-            call.getParameters().forEach(parameter -> values.addAll(underlyingValues((Expression) parameter)));
+            call.getParameters().forEach(parameter -> values.addAll(underlyingValues(parameter)));
         } else {
             values.add(value);
         }

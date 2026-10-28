@@ -12,6 +12,7 @@ import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.statement.ForStatement;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.ConstructorDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.Declaration;
@@ -79,6 +80,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     public void visit(Statements statements) {
         splitDeclarationsOfAnonymousClasses(statements);
 
+        // The variables of a block are known up to its end only: another block may reuse their names
+        Set<String> knownBefore = new HashSet<>(anonymousVariables.keySet());
         ListIterator<Statement> iterator = statements.listIterator();
 
         while (iterator.hasNext()) {
@@ -91,6 +94,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             iterator.previous().accept(this);
             iterator.next();
         }
+        anonymousVariables.keySet().retainAll(knownBefore);
     }
 
     /** 'var' declares one variable: 'Object a = new Object() {...}, b = new Object() {...};' which was merged is split */
@@ -267,27 +271,30 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** A method of a local or anonymous class which has a parameter of this name uses its own variable, not the one of the enclosing method */
         @Override
         public void visit(MethodDeclaration declaration) {
-            if (!hasParameter(declaration)) {
+            if (!hasParameter(declaration.getFormalParameters())) {
                 super.visit(declaration);
             }
         }
 
         @Override
         public void visit(ConstructorDeclaration declaration) {
-            if (!hasParameter(declaration)) {
+            if (!hasParameter(declaration.getFormalParameters())) {
                 super.visit(declaration);
             }
         }
 
-        private boolean hasParameter(Declaration declaration) {
+        /** The parameters of the method itself: the ones of the methods of its local classes hide the variable in those methods only */
+        private boolean hasParameter(BaseFormalParameter parameters) {
             boolean[] declared = new boolean[1];
 
-            declaration.accept(new AbstractJavaSyntaxVisitor() {
-                @Override
-                public void visit(FormalParameter parameter) {
-                    declared[0] |= variableName.equals(parameter.getName());
-                }
-            });
+            if (parameters != null) {
+                parameters.accept(new AbstractJavaSyntaxVisitor() {
+                    @Override
+                    public void visit(FormalParameter parameter) {
+                        declared[0] |= variableName.equals(parameter.getName());
+                    }
+                });
+            }
             return declared[0];
         }
 

@@ -488,6 +488,45 @@ public class VineflowerRegressions {
         return first.n + second.n;
     }
 
+    @SuppressWarnings("java:S1854") // the second block assigns the alias again with the super type
+    public String blocksWhichReuseTheNameOfAVariable(boolean flag) {
+        if (flag) {
+            var shared = new Object() {
+                String added() {
+                    return "anonymous";
+                }
+            };
+            return shared.added();
+        } else {
+            OtherSub shared = new OtherSub();
+            Other alias = shared;
+            alias = new Other();
+            return alias.added();
+        }
+    }
+
+    @SuppressWarnings("java:S1172") // the parameter of the nested class is not the one of the method
+    public int parameterOfANestedClass() {
+        var outer = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+
+        class Local {
+            int value() {
+                class Nested {
+                    int get(int outer) {
+                        return outer;
+                    }
+                }
+                return outer.added() + new Nested().get(0);
+            }
+        }
+
+        return new Local().value();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {
@@ -554,6 +593,9 @@ public class VineflowerRegressions {
         String added() {
             return "other";
         }
+    }
+
+    static class OtherSub extends Other {
     }
 
     @SuppressWarnings({ "java:S1172", "java:S1854" }) // the parameter of the local class has the name of the variable, and the first value is replaced

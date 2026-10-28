@@ -142,6 +142,11 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var alias = origin;"));
         // ... but not through a variable which is assigned again
         assertTrue(source.contains("Object copy = holder;"));
+        // The variables of a block are known up to its end: a later block can reuse the name for a variable of another type
+        assertTrue(source.contains("var object = new Object() {"));
+        assertTrue(source.contains("Other alias = shared;"));
+        // The parameter of a nested class hides the variable in that class only
+        assertTrue(source.contains("var outer = new Object() {"));
         // ... and past a block which declares a variable of the same name
         assertTrue(source.contains("var anon = new Object() {"));
         // The declaration of a loop is searched in its condition, its update and its body

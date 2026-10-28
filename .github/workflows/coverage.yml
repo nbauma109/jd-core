@@ -104,7 +104,8 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
-          java-version: ${{ matrix.java }}
+          # Temurin 17.0.21 supports the SHAKE message digests: the tests of Commons Codec which expect them to be missing on JDK 17 fail with it
+          java-version: ${{ matrix.testMethod == 'testCommonsCodec' && '17.0.20' || matrix.java }}
       - name: Build with Maven (JarFileToJavaSourceTest#${{ matrix.testMethod }})
         run: mvn "-Dtest=JarFileToJavaSourceTest#${{ matrix.testMethod }}" test jacoco:report --no-transfer-progress
 

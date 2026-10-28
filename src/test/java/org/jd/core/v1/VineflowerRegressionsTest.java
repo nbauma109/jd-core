@@ -140,6 +140,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // ... through a variable which is declared with its value too
         assertTrue(source.contains("var origin = new Object() {"));
         assertTrue(source.contains("var alias = origin;"));
+        // ... but not through a variable which is assigned again
+        assertTrue(source.contains("Object copy = holder;"));
         // ... and past a block which declares a variable of the same name
         assertTrue(source.contains("var anon = new Object() {"));
         // The declaration of a loop is searched in its condition, its update and its body

@@ -81,7 +81,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
     /**
      * 'List&lt;String&gt; l = (List&lt;String&gt;) o;' is an unchecked cast which stays: 'o instanceof List&lt;String&gt; l' is legal only when the
-     * type of 'o' has the same type arguments and is a super type of the one of the test, as 'Collection&lt;String&gt; o' is.
+     * type of 'o' has the same type arguments and is a super type of the one of the test which has them too, as 'Collection&lt;String&gt; o' is.
      *
      * @param generics the entries of the local variable type table: the variables whose type has type arguments
      */
@@ -109,7 +109,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     private static boolean isSubtype(String tested, String signature) {
         Loader loader = LOADER.get();
 
-        return loader != null && tested != null && ClassMetadata.isSubtype(loader, erasure(tested), erasure(signature));
+        return loader != null && tested != null && ClassMetadata.isSubtypeWithSameTypeArguments(loader, erasure(tested), erasure(signature));
     }
 
     /** @return the internal name of the class of a descriptor or a generic signature of a class, of an array or not: 'Ljava/util/List&lt;TT;&gt;;' gives 'java/util/List' */

@@ -449,6 +449,18 @@ public class VineflowerRegressions {
         return alias.added();
     }
 
+    @SuppressWarnings({ "java:S1854", "java:S1196" }) // the alias is assigned again with another value: it keeps the type of Object
+    public int explicitAliasKeepsItsType() {
+        var holder = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        Object copy = holder;
+        copy = new Object();
+        return holder.added() + copy.hashCode() * 0;
+    }
+
     @SuppressWarnings("java:S1117") // the block declares the name of the captured variable on purpose
     public int blockWhichShadowsTheCapturedVariable() {
         var anon = new Object() {

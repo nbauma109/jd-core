@@ -265,6 +265,16 @@ public class InstanceOfPatternBindingTest {
 
         interface B<T> {}
 
+        interface C<T> extends A<String> {}
+
+        String ofASubtypeWhichFixesTheArgument(A<String> o) {
+            if (o instanceof C) {
+                C<String> c = (C<String>) o;
+                return c.toString();
+            }
+            return null;
+        }
+
         String ofAnUnrelatedType(A<String> o) {
             if (o instanceof B) {
                 B<String> b = (B<String>) o;
@@ -306,6 +316,7 @@ public class InstanceOfPatternBindingTest {
         assertEquals(1, bindings("ofTheSameArguments"));
         // ... and its type a super type of the tested one
         assertEquals(0, bindings("ofAnUnrelatedType"));
+        assertEquals(0, bindings("ofASubtypeWhichFixesTheArgument"));
         assertEquals(0, bindings("assignedByBothBranchesInALongSlot"));
         assertEquals(1, bindings("patternInALongSlot"));
         assertEquals(0, bindings("assignedByTwoCasts"));

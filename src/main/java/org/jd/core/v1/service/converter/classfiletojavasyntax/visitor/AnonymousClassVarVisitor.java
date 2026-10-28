@@ -42,9 +42,11 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -70,8 +72,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of("clone()Ljava/lang/Object;", "finalize()V");
 
-    /** The variables which are declared 'var' because of their anonymous class: 'var c = b;' has the type of 'b' */
-    private final Set<String> anonymousVariables = new HashSet<>();
+    /** The variables which are declared 'var' because of their anonymous class, with the members which it adds: 'var c = b;' has the type of 'b' */
+    private final Map<String, Set<String>> anonymousVariables = new HashMap<>();
 
     @Override
     public void visit(Statements statements) {
@@ -83,9 +85,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             Statement statement = iterator.next();
 
             if (statement instanceof LocalVariableDeclarationStatement declaration
-                    && (isDeclaredWithVar(declaration, statements, iterator.nextIndex()) || isAliasOfAnonymousVariable(declaration))) {
+                    && (isDeclaredWithVar(declaration, statements, iterator.nextIndex()) || isAliasWhichNeedsVar(declaration, statements, iterator.nextIndex()))) {
                 iterator.set(new LocalVariableDeclarationStatement(VAR, declaration.getLocalVariableDeclarators()));
-                declaredNames(declaration).forEach(anonymousVariables::add);
             }
             iterator.previous().accept(this);
             iterator.next();
@@ -115,10 +116,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 && initializer.getExpression() instanceof ClassFileNewExpression newExpression && newExpression.getBodyDeclaration() != null;
     }
 
-    private boolean isAliasOfAnonymousVariable(LocalVariableDeclarationStatement declaration) {
-        return declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator && declarator.getDimension() == 0
-                && declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
-                && initializer.getExpression() instanceof LocalVariableReferenceExpression reference && anonymousVariables.contains(reference.getName());
+    /** 'Object c = b;' keeps its type, 'c.added()' needs the type of the anonymous class of 'b' */
+    private boolean isAliasWhichNeedsVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
+        if (!(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
+                || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
+                || !(initializer.getExpression() instanceof LocalVariableReferenceExpression reference) || !anonymousVariables.containsKey(reference.getName())) {
+            return false;
+        }
+
+        Set<String> members = anonymousVariables.get(reference.getName());
+        MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
+
+        for (int i = nextIndex; i < statements.size() && !search.found; i++) {
+            statements.get(i).accept(search);
+        }
+        if (search.found) {
+            anonymousVariables.put(declarator.getName(), members);
+        }
+        return search.found;
     }
 
     private static List<String> declaredNames(LocalVariableDeclarationStatement declaration) {
@@ -176,6 +191,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
 
         uses.accept(search);
+        if (search.found) {
+            anonymousVariables.put(declarator.getName(), members);
+        }
         return search.found;
     }
 

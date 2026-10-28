@@ -9,7 +9,9 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 import org.apache.bcel.classfile.ClassFormatException;
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.Field;
+import org.apache.bcel.classfile.Attribute;
 import org.apache.bcel.classfile.JavaClass;
+import org.apache.bcel.classfile.Signature;
 import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.api.loader.Loader;
 
@@ -55,12 +57,15 @@ public final class ClassMetadata {
         return false;
     }
 
-    /** @return true if the class is the ancestor, or extends or implements it (known by the classes which can be read) */
-    public static boolean isSubtype(Loader loader, String internalName, String ancestor) {
-        return isSubtype(loader, internalName, ancestor, new HashSet<>());
+    /**
+     * @return true if the class is the ancestor, or extends or implements it with its own type parameters as type arguments, in the same order:
+     * 'ArrayList&lt;E&gt;' is a 'Collection&lt;E&gt;', 'interface B&lt;T&gt; extends A&lt;String&gt;' is no 'A&lt;T&gt;' (known by the classes which can be read)
+     */
+    public static boolean isSubtypeWithSameTypeArguments(Loader loader, String internalName, String ancestor) {
+        return isSubtypeWithSameTypeArguments(loader, internalName, ancestor, new HashSet<>());
     }
 
-    private static boolean isSubtype(Loader loader, String internalName, String ancestor, Set<String> visited) {
+    private static boolean isSubtypeWithSameTypeArguments(Loader loader, String internalName, String ancestor, Set<String> visited) {
         if (internalName == null || !visited.add(internalName)) {
             return false;
         }
@@ -69,19 +74,82 @@ public final class ClassMetadata {
         }
 
         JavaClass javaClass = parse(loader, internalName);
+        String signature = javaClass == null ? null : classSignature(javaClass);
 
-        if (javaClass == null) {
+        if (signature == null) {
             return false;
         }
-        if (isSubtype(loader, internalNameOf(javaClass.getSuperclassName()), ancestor, visited)) {
-            return true;
-        }
-        for (String interfaceName : javaClass.getInterfaceNames()) {
-            if (isSubtype(loader, internalNameOf(interfaceName), ancestor, visited)) {
+
+        List<String> parameters = new ArrayList<>();
+        int index = formalParameters(signature, parameters);
+        StringBuilder own = new StringBuilder("<");
+
+        parameters.forEach(parameter -> own.append('T').append(parameter).append(';'));
+        own.append('>');
+
+        while (index < signature.length()) {
+            int end = endOfType(signature, index);
+            String type = signature.substring(index, end);
+            int arguments = type.indexOf('<');
+
+            if (arguments >= 0 && type.substring(arguments, type.lastIndexOf('>') + 1).equals(own.toString())
+                    && isSubtypeWithSameTypeArguments(loader, type.substring(1, arguments), ancestor, visited)) {
                 return true;
             }
+            index = end;
         }
         return false;
+    }
+
+    private static String classSignature(JavaClass javaClass) {
+        for (Attribute attribute : javaClass.getAttributes()) {
+            if (attribute instanceof Signature signature) {
+                return signature.getSignature();
+            }
+        }
+        return null;
+    }
+
+    /** Reads the formal type parameters of a class signature, '&lt;E:Ljava/lang/Object;&gt;', and @return the index of its first super type */
+    private static int formalParameters(String signature, List<String> parameters) {
+        if (signature.charAt(0) != '<') {
+            return 0;
+        }
+
+        int index = 1;
+
+        while (signature.charAt(index) != '>') {
+            int colon = signature.indexOf(':', index);
+
+            parameters.add(signature.substring(index, colon));
+            index = colon;
+            while (signature.charAt(index) == ':') {
+                index++;
+                if (signature.charAt(index) != ':') {
+                    index = endOfType(signature, index);
+                }
+            }
+        }
+        return index + 1;
+    }
+
+    /** @return the index which follows the type which starts at the index: a class with type arguments, a type variable or an array */
+    private static int endOfType(String signature, int start) {
+        int index = start;
+        int depth = 0;
+
+        while (signature.charAt(index) == '[') {
+            index++;
+        }
+        do {
+            char c = signature.charAt(index++);
+
+            depth += c == '<' ? 1 : c == '>' ? -1 : 0;
+            if (c == ';' && depth == 0) {
+                return index;
+            }
+        } while (index < signature.length());
+        return index;
     }
 
     /** @return true if the class can be read */

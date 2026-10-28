@@ -115,4 +115,18 @@ public class ClassMetadataTest {
         assertTrue(ClassMetadata.declaresMethod(LOADER, "java/lang/Object", "finalize", "()V"));
         assertFalse(ClassMetadata.declaresPublicMethod(LOADER, "no/such/Class", "toString", "()Ljava/lang/String;"));
     }
+
+    @Test
+    public void testSubtypeWithTheTypeArgumentsOfTheSubtype() {
+        assertTrue(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/util/List", "java/util/List"));
+        assertTrue(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/util/List", "java/util/Collection"));
+        assertTrue(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/util/ArrayList", "java/util/Collection"));
+        assertTrue(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/util/ArrayList", "java/lang/Iterable"));
+        // 'Properties' is a 'Hashtable&lt;Object, Object&gt;': it has no type argument of its own
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/util/Properties", "java/util/Map"));
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/util/List", "java/util/Map"));
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/lang/String", "java/lang/Comparable"));
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "no/such/Class", "java/util/Collection"));
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, null, "java/util/Collection"));
+    }
 }

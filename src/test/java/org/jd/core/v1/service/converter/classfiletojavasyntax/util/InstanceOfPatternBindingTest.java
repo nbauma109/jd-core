@@ -224,6 +224,14 @@ public class InstanceOfPatternBindingTest {
             return s;
         }
 
+        String initializedBeforeTheTest(Object o) {
+            String s = "fallback";
+            if (o instanceof String) {
+                s = (String) o;
+            }
+            return s;
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -333,6 +341,7 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindings("assignedByTwoCasts"));
         assertEquals(2, bindings("twoSequentialPatterns"));
         assertEquals(1, bindings("ofAnArray"));
+        assertEquals(0, bindings("initializedBeforeTheTest"));
         // the failed test does not jump over the cast
         assertEquals(0, bindings("castWhichFollowsAnEmptyTest"));
         // a second range of the variable which no store starts is not an assignment
@@ -354,6 +363,7 @@ public class InstanceOfPatternBindingTest {
         // another store to the slot of the variable is an assignment of it
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranches"));
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranchesWithMoreCode"));
+        assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeTheTest"));
         // two patterns which reuse the slot are still patterns
         assertEquals(2, bindingsWithoutDebugInformation("twoSequentialPatterns"));
     }

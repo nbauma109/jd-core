@@ -565,6 +565,22 @@ public class VineflowerRegressions {
         return new Reading().value();
     }
 
+    static class Reading {
+        int read() throws java.io.IOException {
+            return 1;
+        }
+    }
+
+    public int overrideWhichNarrowsTheExceptions() {
+        var reader = new Reading() {
+            @Override
+            int read() {
+                return 2;
+            }
+        };
+        return reader.read();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

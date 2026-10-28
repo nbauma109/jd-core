@@ -10,6 +10,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
+import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
@@ -114,5 +115,13 @@ public class FoldIncrementIntoConditionVisitorTest {
 
         // The class of the field is initialized by the read, which can throw
         assertNull(FoldIncrementIntoConditionVisitor.fold(binary(staticField, ">", variable(I)), I, "++"));
+    }
+
+    @Test
+    public void testReadOfTheLengthOfAnArrayBeforeTheFirstUseIsNotFolded() {
+        Expression length = new LengthExpression(variable(J));
+
+        // The array can be null
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(length, ">", variable(I)), I, "++"));
     }
 }

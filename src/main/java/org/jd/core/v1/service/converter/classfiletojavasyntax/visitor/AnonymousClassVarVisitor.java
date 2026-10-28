@@ -203,9 +203,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return !widens || ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature());
         }
         if (ClassMetadata.isLoadable(loader, superInternalName)) {
-            return method.isPublic()
+            return (method.isPublic()
                     ? ClassMetadata.declaresPublicMethod(loader, superInternalName, method.getName(), method.getSignature())
-                    : ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature());
+                    : ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature()))
+                    && ClassMetadata.exceptionNames(method).containsAll(ClassMetadata.declaredExceptions(loader, superInternalName, method.getName(), method.getSignature()));
         }
         // The super type cannot be read: the types which are known to the type maker
         return typeMaker.matchCount(superInternalName, method.getName(), Type.getArgumentTypes(method.getSignature()).length, false) > 0;

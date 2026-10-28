@@ -146,6 +146,9 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 }
             }
         }
+        // The variable which the failed test reads is declared before it
+        bindings.entrySet().removeIf(entry -> isReadAfterTheFailedTest(entry.getKey(), entry.getValue(), code, starts));
+
         // The variable of a pattern is declared by the test: a variable which the code assigns elsewhere is declared before it
         Map<Integer, InstanceOfPatternBinding> candidates = new HashMap<>(bindings);
 
@@ -201,6 +204,30 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                         return true;
                     }
                 }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 'String s = "fallback"; if (o instanceof String) { s = (String) o; } return s;': the code which the failed test goes to reads the slot before it
+     * stores it, or leaves the method or the branch: the variable has a value on the way where the test failed, so the test does not declare it.
+     */
+    private static boolean isReadAfterTheFailedTest(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, boolean[] starts) {
+        int ifOffset = instanceOfOffset + 3;
+
+        for (int p = ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255); p > 0 && p < code.length; p++) {
+            if (!starts[p]) {
+                continue;
+            }
+            if (loadedIndex(code, p) == binding.storeIndex()) {
+                return true;
+            }
+
+            int opcode = code[p] & 255;
+
+            if (storedIndex(code, p) == binding.storeIndex() || opcode == Const.GOTO || opcode == Const.ATHROW || opcode >= Const.IRETURN && opcode <= Const.RETURN) {
+                return false;
             }
         }
         return false;

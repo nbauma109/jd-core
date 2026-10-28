@@ -57,6 +57,51 @@ public final class ClassMetadata {
         return false;
     }
 
+    /** @return the names of the exceptions which the method of this name and descriptor declares in the class, a super class or an interface; empty if none or if it is unknown */
+    public static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor) {
+        return declaredExceptions(loader, internalName, name, descriptor, new HashSet<>());
+    }
+
+    private static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return Collections.emptySet();
+        }
+        for (Method method : javaClass.getMethods()) {
+            if (!method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+                return exceptionNames(method);
+            }
+        }
+
+        List<String> parents = new ArrayList<>();
+
+        parents.add(internalNameOf(javaClass.getSuperclassName()));
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            parents.add(internalNameOf(interfaceName));
+        }
+        for (String parent : parents) {
+            Set<String> exceptions = declaredExceptions(loader, parent, name, descriptor, visited);
+
+            if (!exceptions.isEmpty()) {
+                return exceptions;
+            }
+        }
+        return Collections.emptySet();
+    }
+
+    /** @return the names of the exceptions which the method declares */
+    public static Set<String> exceptionNames(Method method) {
+        Set<String> names = new HashSet<>();
+
+        if (method.getExceptionTable() != null) {
+            for (String exception : method.getExceptionTable().getExceptionNames()) {
+                names.add(internalNameOf(exception));
+            }
+        }
+        return names;
+    }
+
     /**
      * @return true if the class is the ancestor, or extends or implements it with its own type parameters as type arguments, in the same order:
      * 'ArrayList&lt;E&gt;' is a 'Collection&lt;E&gt;', 'interface B&lt;T&gt; extends A&lt;String&gt;' is no 'A&lt;T&gt;' (known by the classes which can be read)

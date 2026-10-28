@@ -242,6 +242,19 @@ public class InstanceOfPatternBindingTest {
             return s;
         }
 
+        String sharedWithAHandler(Object o) {
+            String s = "old";
+            try {
+                if (o instanceof String) {
+                    s = (String) o;
+                    throw new IllegalStateException();
+                }
+            } catch (IllegalStateException ex) {
+                return s;
+            }
+            return "other";
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -352,6 +365,8 @@ public class InstanceOfPatternBindingTest {
         assertEquals(2, bindings("twoSequentialPatterns"));
         assertEquals(1, bindings("ofAnArray"));
         assertEquals(0, bindings("initializedBeforeTheTest"));
+        // a handler reads the variable
+        assertEquals(0, bindings("sharedWithAHandler"));
         // the failed test does not jump over the cast
         assertEquals(0, bindings("castWhichFollowsAnEmptyTest"));
         // a second range of the variable which no store starts is not an assignment

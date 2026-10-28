@@ -44,4 +44,16 @@ public class SwitchGuardTest extends AbstractJdTest {
             assertTrue(source.contains("case String s:"));
         }
     }
+
+    /** A loop which encloses the switch can end by a store of the slot which the switch reuses for its restart index, and jump back: it is no guard */
+    @Test
+    public void testLoopAroundTheSwitchIsNoGuard() throws Exception {
+        try (InputStream is = this.getClass().getResourceAsStream("/jar/SwitchInLoop-JAVAC-21.jar")) {
+            Loader loader = new ZipLoader(is);
+            String source = decompile(loader, new PlainTextPrinter(), "org/jd/core/v1/stub/SwitchInLoop", java.util.Collections.emptyMap());
+
+            assertFalse(source.contains("Decompilation failed"));
+            assertTrue(source.contains("case String s:"));
+        }
+    }
 }

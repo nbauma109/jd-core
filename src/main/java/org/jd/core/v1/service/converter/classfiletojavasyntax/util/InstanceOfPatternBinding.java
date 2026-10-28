@@ -8,6 +8,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.Code;
+import org.apache.bcel.classfile.CodeException;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
@@ -92,7 +93,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         Map<Integer, InstanceOfPatternBinding> bindings = find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool());
         LocalVariable[] generics = code.getLocalVariableTypeTable() == null ? new LocalVariable[0] : code.getLocalVariableTypeTable().getLocalVariableTypeTable();
 
-        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool()));
+        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool())
+                || isReadByAHandler(entry.getKey(), entry.getValue(), code));
         return bindings;
     }
 
@@ -238,18 +240,45 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         InstructionList list = new InstructionList(code);
         int ifOffset = instanceOfOffset + 3;
         InstructionHandle start = list.findHandle(ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255));
+
+        return readsSlotFrom(start == null ? list.getEnd() : start, binding.storeIndex());
+    }
+
+    /** A handler of an exception of the code which contains the test reads the slot before it stores it: the variable is read by the code of the handler */
+    private static boolean isReadByAHandler(int instanceOfOffset, InstanceOfPatternBinding binding, Code code) {
+        if (code.getExceptionTable() == null || code.getExceptionTable().length == 0) {
+            return false;
+        }
+
+        InstructionList list;
+
+        try {
+            list = new InstructionList(code.getCode());
+        } catch (ClassGenException e) {
+            return false;
+        }
+        for (CodeException exception : code.getExceptionTable()) {
+            if (exception.getStartPC() <= instanceOfOffset && instanceOfOffset < exception.getEndPC()
+                    && readsSlotFrom(list.findHandle(exception.getHandlerPC()), binding.storeIndex())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean readsSlotFrom(InstructionHandle start, int slot) {
         Deque<InstructionHandle> todo = new ArrayDeque<>();
         Set<Integer> visited = new HashSet<>();
 
-        todo.add(start == null ? list.getEnd() : start);
+        todo.add(start);
         while (!todo.isEmpty()) {
             InstructionHandle handle = todo.remove();
 
             if (visited.add(handle.getPosition())) {
-                if (handle.getInstruction() instanceof ALOAD load && load.getIndex() == binding.storeIndex()) {
+                if (handle.getInstruction() instanceof ALOAD load && load.getIndex() == slot) {
                     return true;
                 }
-                todo.addAll(successorsUntilStore(handle, binding.storeIndex()));
+                todo.addAll(successorsUntilStore(handle, slot));
             }
         }
         return false;

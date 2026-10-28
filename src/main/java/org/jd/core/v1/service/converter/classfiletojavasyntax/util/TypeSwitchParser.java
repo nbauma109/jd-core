@@ -17,7 +17,9 @@ import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.ConstantString;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.GotoInstruction;
+import org.apache.bcel.generic.ConstantPushInstruction;
 import org.apache.bcel.generic.ISTORE;
+import org.apache.bcel.generic.LoadInstruction;
 import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
@@ -94,12 +96,22 @@ final class TypeSwitchParser {
 
         for (int i = 0; i < handles.length - 1; i++) {
             if (handles[i].getInstruction() instanceof ISTORE store && store.getIndex() == reference.getLocalVariable().getIndex()
-                    && handles[i + 1].getInstruction() instanceof GotoInstruction jump && jump.getTarget().getPosition() < invokeOffset
-                    && handles[i + 1].getPosition() > invokeOffset) {
+                    && handles[i + 1].getInstruction() instanceof GotoInstruction jump && handles[i + 1].getPosition() > invokeOffset
+                    && jumpsToTheSelection(jump.getTarget(), invokeOffset)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** The jump goes back to the loads of the selector and of the restart index which precede the call, not to a loop which encloses the switch */
+    private static boolean jumpsToTheSelection(InstructionHandle target, int invokeOffset) {
+        InstructionHandle handle = target;
+
+        while (handle != null && handle.getPosition() < invokeOffset && (handle.getInstruction() instanceof LoadInstruction || handle.getInstruction() instanceof ConstantPushInstruction)) {
+            handle = handle.getNext();
+        }
+        return handle != null && handle.getPosition() == invokeOffset;
     }
 
     /** @return a type, a string, an integer or an {@link ClassFileTypeSwitchExpression.EnumLabel}; null if the label is none of them */

@@ -6,6 +6,14 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
+import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
+import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
+import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
+import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
@@ -13,12 +21,58 @@ import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.List;
 
 /** Gives its name to the variable of 'o instanceof T v' and of 'case T v', once the local variables are named */
 public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVisitor {
+    private final Set<String> reservedNames = new HashSet<>();
     private int unusedCount;
+
+    /** The names of the parameters and of the variables of the method: a pattern which binds no variable is named by none of them */
+    public void reserveNamesOf(BaseStatement statements, BaseFormalParameter parameters) {
+        reservedNames.clear();
+        unusedCount = 0;
+
+        AbstractJavaSyntaxVisitor collector = new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(FormalParameter parameter) {
+                reservedNames.add(parameter.getName());
+            }
+
+            @Override
+            public void visit(LocalVariableDeclarator declarator) {
+                reservedNames.add(declarator.getName());
+                super.visit(declarator);
+            }
+
+            @Override
+            public void visit(LocalVariableReferenceExpression expression) {
+                reservedNames.add(expression.getName());
+            }
+
+            @Override
+            public void visit(TryStatement.CatchClause catchClause) {
+                reservedNames.add(catchClause.getName());
+                super.visit(catchClause);
+            }
+
+            @Override
+            public void visit(ForEachStatement statement) {
+                reservedNames.add(statement.getName());
+                super.visit(statement);
+            }
+        };
+
+        if (parameters != null) {
+            parameters.accept(collector);
+        }
+        if (statements != null) {
+            statements.accept(collector);
+        }
+    }
 
     @Override
     protected Expression updateExpression(Expression expression) {
@@ -76,8 +130,15 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
 
     /** The name of a pattern which binds no variable ('case String _' of Java 22): it is used nowhere, it only has not to be the name of another variable */
     private TypePattern pattern(ClassFileInstanceOfPatternExpression expression) {
-        String name = expression.getLocalVariable() != null && expression.getLocalVariable().getName() != null ? expression.getLocalVariable().getName() : "unused" + unusedCount++;
+        if (expression.getLocalVariable() != null && expression.getLocalVariable().getName() != null) {
+            return new TypePattern(expression.getInstanceOfType(), expression.getLocalVariable().getName());
+        }
 
+        String name;
+
+        do {
+            name = "unused" + unusedCount++;
+        } while (reservedNames.contains(name));
         return new TypePattern(expression.getInstanceOfType(), name);
     }
 }

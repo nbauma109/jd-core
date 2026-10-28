@@ -159,6 +159,7 @@ public class CreateInstructionsVisitor extends AbstractJavaSyntaxVisitor {
                 methodStatements.accept(fixHoistedCatchThrowVisitor);
                 methodStatements.accept(fixMissingNullGuardVisitor);
                 methodStatements.accept(booleanReturnRewriter);
+                resolveInstanceOfPatternVisitor.reserveNamesOf(methodStatements, localVariableMaker.getFormalParameters());
                 methodStatements.accept(resolveInstanceOfPatternVisitor);
             }
         }

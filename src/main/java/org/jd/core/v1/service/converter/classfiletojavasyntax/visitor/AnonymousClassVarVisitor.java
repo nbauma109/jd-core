@@ -11,8 +11,6 @@ import org.apache.bcel.generic.Type;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.statement.ForStatement;
-import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
-import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.BaseLocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.ConstructorDeclaration;

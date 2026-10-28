@@ -700,6 +700,7 @@ public class VineflowerRegressions {
         return chosen == null ? 0 : chosen.added();
     }
 
+    @SuppressWarnings("java:S1172") // the argument gives its type to nothing: the call returns another type
     static Object plain(Object argument) {
         return new OtherSub();
     }

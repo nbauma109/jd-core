@@ -995,6 +995,10 @@ public class ByteCodeParser {
                                     }
                                 }
                             }
+                            // The type of an anonymous class cannot be written: the value keeps the type which the call gives it
+                            if (type1 instanceof ObjectType anonymous && anonymous.getDimension() == 0 && LocalVariableMaker.isAnonymousClassName(anonymous.getInternalName())) {
+                                castNeeded = false;
+                            }
                             if (castNeeded) {
                                 searchFirstLineNumberVisitor.init();
                                 expression1.accept(searchFirstLineNumberVisitor);

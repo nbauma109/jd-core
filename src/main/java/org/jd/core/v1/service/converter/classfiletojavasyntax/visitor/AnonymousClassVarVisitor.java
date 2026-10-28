@@ -28,6 +28,7 @@ import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -179,7 +180,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean needsVar(String name, Expression value, Consumer<MemberUseSearch> uses) {
-        if (!(value instanceof ClassFileNewExpression newExpression) || !(newExpression.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
+        ClassFileNewExpression newExpression = anonymousCreation(value);
+
+        if (newExpression == null || !(newExpression.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
             return false;
         }
 
@@ -196,6 +199,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             anonymousVariables.put(name, members);
         }
         return search.found;
+    }
+
+    /** @return the creation of an anonymous class which gives its type to the value: the value itself, or an argument of the call which returns it, as 'requireNonNull(new Object() {...})' */
+    private static ClassFileNewExpression anonymousCreation(Expression value) {
+        ClassFileNewExpression[] creation = new ClassFileNewExpression[1];
+
+        value.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(NewExpression expression) {
+                if (creation[0] == null && expression instanceof ClassFileNewExpression newExpression && newExpression.getBodyDeclaration() != null) {
+                    creation[0] = newExpression;
+                }
+            }
+        });
+        return creation[0];
     }
 
     /** 'try (var r = new AutoCloseable() { int added() {...} }) { r.added(); }': the resources which follow and the body use the resource */

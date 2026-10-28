@@ -22,6 +22,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariabl
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
+import org.jd.core.v1.model.javasyntax.expression.CastExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -132,5 +135,24 @@ public class FoldIncrementIntoConditionVisitorTest {
 
         // A negative size throws
         assertNull(FoldIncrementIntoConditionVisitor.fold(binary(allocation, ">", variable(I)), I, "++"));
+    }
+
+    @Test
+    public void testOperationsWhichCanThrowBeforeTheFirstUseAreNotFolded() {
+        Expression array = new ArrayExpression(variable(J), two());
+        Expression cast = new CastExpression(PrimitiveType.TYPE_INT, variable(J));
+        Expression call = new MethodInvocationExpression(PrimitiveType.TYPE_INT, variable(J), "p/A", "m", "()I", null);
+
+        for (Expression operand : new Expression[] { array, cast, call }) {
+            assertNull(FoldIncrementIntoConditionVisitor.fold(binary(operand, ">", variable(I)), I, "++"));
+        }
+    }
+
+    @Test
+    public void testOperationsAfterTheFirstUseAreFolded() {
+        Expression call = new MethodInvocationExpression(PrimitiveType.TYPE_INT, variable(J), "p/A", "m", "()I", null);
+        Expression operand = binary(variable(I), ">", call);
+
+        assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
     }
 }

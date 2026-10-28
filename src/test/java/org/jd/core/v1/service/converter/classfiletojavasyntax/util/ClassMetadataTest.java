@@ -129,4 +129,18 @@ public class ClassMetadataTest {
         assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "no/such/Class", "java/util/Collection"));
         assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, null, "java/util/Collection"));
     }
+
+    @Test
+    public void testDeclaredExceptions() {
+        // declared by the class itself, by a super class, by an interface which an interface extends
+        assertEquals(Collections.singleton("java/io/IOException"), ClassMetadata.declaredExceptions(LOADER, "java/io/BufferedInputStream", "read", "()I"));
+        assertEquals(Collections.singleton("java/io/IOException"), ClassMetadata.declaredExceptions(LOADER, "java/io/DataInputStream", "close", "()V"));
+        assertEquals(Collections.singleton("java/io/IOException"), ClassMetadata.declaredExceptions(LOADER, "java/nio/channels/SeekableByteChannel", "close", "()V"));
+        // declares none, is unknown or has no such method
+        assertTrue(ClassMetadata.declaredExceptions(LOADER, "java/util/ArrayList", "size", "()I").isEmpty());
+        assertTrue(ClassMetadata.declaredExceptions(LOADER, "java/util/ArrayList", "noSuchMethod", "()V").isEmpty());
+        assertTrue(ClassMetadata.declaredExceptions(LOADER, "no/such/Class", "close", "()V").isEmpty());
+        // a class without type parameters has no signature
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/lang/Thread", "java/lang/Runnable"));
+    }
 }

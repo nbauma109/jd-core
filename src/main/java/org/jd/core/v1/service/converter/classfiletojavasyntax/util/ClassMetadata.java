@@ -55,6 +55,35 @@ public final class ClassMetadata {
         return false;
     }
 
+    /** @return true if the class is the ancestor, or extends or implements it (known by the classes which can be read) */
+    public static boolean isSubtype(Loader loader, String internalName, String ancestor) {
+        return isSubtype(loader, internalName, ancestor, new HashSet<>());
+    }
+
+    private static boolean isSubtype(Loader loader, String internalName, String ancestor, Set<String> visited) {
+        if (internalName == null || !visited.add(internalName)) {
+            return false;
+        }
+        if (internalName.equals(ancestor)) {
+            return true;
+        }
+
+        JavaClass javaClass = parse(loader, internalName);
+
+        if (javaClass == null) {
+            return false;
+        }
+        if (isSubtype(loader, internalNameOf(javaClass.getSuperclassName()), ancestor, visited)) {
+            return true;
+        }
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            if (isSubtype(loader, internalNameOf(interfaceName), ancestor, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @return true if the class can be read */
     public static boolean isLoadable(Loader loader, String internalName) {
         return internalName != null && parse(loader, internalName) != null;

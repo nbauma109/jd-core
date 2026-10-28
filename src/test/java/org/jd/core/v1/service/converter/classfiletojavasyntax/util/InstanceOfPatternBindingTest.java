@@ -15,6 +15,8 @@ import org.apache.bcel.classfile.ConstantUtf8;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
 import org.apache.bcel.classfile.Method;
+import org.jd.core.v1.loader.ClassPathLoader;
+import org.junit.After;
 import org.junit.Test;
 
 import java.util.Map;
@@ -251,9 +253,34 @@ public class InstanceOfPatternBindingTest {
             return null;
         }
 
+        @SuppressWarnings("java:S108")
+        String castWhichFollowsAnEmptyTest(Object o) {
+            if (o instanceof String) {
+            }
+            String s = (String) o;
+            return s;
+        }
+
+        interface A<T> {}
+
+        interface B<T> {}
+
+        String ofAnUnrelatedType(A<String> o) {
+            if (o instanceof B) {
+                B<String> b = (B<String>) o;
+                return b.toString();
+            }
+            return null;
+        }
+
         boolean negated(Object o) {
             return !(o instanceof String s) || s.isEmpty();
         }
+    }
+
+    @After
+    public void resetTheLoader() {
+        InstanceOfPatternBinding.setLoader(null);
     }
 
     private static int bindings(String method) throws ClassNotFoundException {
@@ -267,6 +294,7 @@ public class InstanceOfPatternBindingTest {
 
     @Test
     public void testBindingsOfCompiledMethods() throws ClassNotFoundException {
+        InstanceOfPatternBinding.setLoader(new ClassPathLoader());
         assertEquals(1, bindings("pattern"));
         // 's' is declared before the test and assigned by both branches
         assertEquals(0, bindings("assignedByBothBranches"));
@@ -276,11 +304,15 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindings("ofAWildcard"));
         assertEquals(0, bindings("ofARawOperand"));
         assertEquals(1, bindings("ofTheSameArguments"));
+        // ... and its type a super type of the tested one
+        assertEquals(0, bindings("ofAnUnrelatedType"));
         assertEquals(0, bindings("assignedByBothBranchesInALongSlot"));
         assertEquals(1, bindings("patternInALongSlot"));
         assertEquals(0, bindings("assignedByTwoCasts"));
         assertEquals(2, bindings("twoSequentialPatterns"));
         assertEquals(1, bindings("ofAnArray"));
+        // the failed test does not jump over the cast
+        assertEquals(0, bindings("castWhichFollowsAnEmptyTest"));
         // a second range of the variable which no store starts is not an assignment
         assertEquals(1, bindings("negated"));
     }

@@ -439,6 +439,43 @@ public class VineflowerRegressions {
         return count;
     }
 
+    public int aliasOfAnAnonymousVariable() {
+        var origin = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        var alias = origin;
+        return alias.added();
+    }
+
+    @SuppressWarnings("java:S1117") // the block declares the name of the captured variable on purpose
+    public int blockWhichShadowsTheCapturedVariable() {
+        var anon = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+
+        class Inner {
+            int value(boolean flag) {
+                if (flag) {
+                    int anon = 1;
+                    System.out.println(anon);
+                }
+                return anon.added();
+            }
+        }
+
+        return new Inner().value(true);
+    }
+
+    @SuppressWarnings("java:S1659") // both variables are declared on the same line on purpose: the declarations are merged
+    public int twoAnonymousVariablesOnOneLine() {
+        var first = new Object() { int n = 1; }; var second = new Object() { int n = 2; };
+        return first.n + second.n;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

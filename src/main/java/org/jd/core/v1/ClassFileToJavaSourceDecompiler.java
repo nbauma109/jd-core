@@ -73,11 +73,13 @@ public class ClassFileToJavaSourceDecompiler implements Decompiler {
         decompileContext.setMainInternalTypeName(classFile.getInternalTypeName());
         Map<String, Object> configuration = decompileContext.getConfiguration();
         InstanceOfPatternBinding.setEnabled(configuration == null || !Boolean.FALSE.equals(configuration.get(InstanceOfPatternBinding.CONFIGURATION_KEY)));
+        InstanceOfPatternBinding.setLoader(decompileContext.getLoader());
         CompilationUnit compilationUnit;
         try {
             compilationUnit = converter.process(decompileContext);
         } finally {
             InstanceOfPatternBinding.setEnabled(true);
+            InstanceOfPatternBinding.setLoader(null);
         }
         fragmenter.process(compilationUnit, decompileContext);
         layouter.process(decompileContext);

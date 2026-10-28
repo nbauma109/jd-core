@@ -134,6 +134,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("ProtectedBase base = new ProtectedBase() {"));
         // A local class reaches the variable by a captured field
         assertTrue(source.contains("var captured = new Object() {"));
+        // Two variables which are declared on one line are declared one by one: 'var' declares one variable
+        assertTrue(source.contains("var first = new Object() {"));
+        assertTrue(source.contains("var second = new Object() {"));
+        // ... through a variable which is declared with its value too
+        assertTrue(source.contains("var origin = new Object() {"));
+        assertTrue(source.contains("var alias = origin;"));
+        // ... and past a block which declares a variable of the same name
+        assertTrue(source.contains("var anon = new Object() {"));
         // The declaration of a loop is searched in its condition, its update and its body
         assertTrue(source.contains("for (var counter = new Object() {"));
         // An unchecked cast to a generic type is no pattern: the test of 'o' has no type arguments

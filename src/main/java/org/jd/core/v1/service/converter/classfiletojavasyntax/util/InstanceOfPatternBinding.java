@@ -15,6 +15,7 @@ import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.ClassGenException;
 import org.apache.bcel.generic.InstructionList;
 import org.apache.bcel.generic.Type;
+import org.jd.core.v1.api.loader.Loader;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +51,13 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
     private static final ThreadLocal<Boolean> ENABLED = ThreadLocal.withInitial(() -> Boolean.TRUE);
 
+    /** The classes which the bindings of generic types are checked against, for the current thread */
+    private static final ThreadLocal<Loader> LOADER = new ThreadLocal<>();
+
+    public static void setLoader(Loader loader) {
+        LOADER.set(loader);
+    }
+
     /** Enables the patterns for the current thread, which decompiles one class at a time */
     public static void setEnabled(boolean enabled) {
         ENABLED.set(enabled);
@@ -67,19 +75,20 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         Map<Integer, InstanceOfPatternBinding> bindings = find(code.getCode(), parameterSlots(method), code.getLocalVariableTable(), method.getConstantPool());
         LocalVariable[] generics = code.getLocalVariableTypeTable() == null ? new LocalVariable[0] : code.getLocalVariableTypeTable().getLocalVariableTypeTable();
 
-        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics));
+        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool()));
         return bindings;
     }
 
     /**
      * 'List&lt;String&gt; l = (List&lt;String&gt;) o;' is an unchecked cast which stays: 'o instanceof List&lt;String&gt; l' is legal only when the
-     * type of 'o' has the same type arguments, as 'Collection&lt;String&gt; o' has.
+     * type of 'o' has the same type arguments and is a super type of the one of the test, as 'Collection&lt;String&gt; o' is.
      *
      * @param generics the entries of the local variable type table: the variables whose type has type arguments
      */
-    private static boolean isUncheckedGeneric(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, LocalVariable[] generics) {
+    private static boolean isUncheckedGeneric(int instanceOfOffset, InstanceOfPatternBinding binding, byte[] code, LocalVariable[] generics, ConstantPool constants) {
         String variableArguments = null;
         String operandArguments = null;
+        String operandType = null;
         int operandIndex = loadedIndex(code, binding.firstSkippedOffset());
 
         for (LocalVariable generic : generics) {
@@ -88,10 +97,27 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             }
             if (generic.getIndex() == operandIndex && generic.getStartPC() <= instanceOfOffset && instanceOfOffset < generic.getStartPC() + generic.getLength()) {
                 operandArguments = typeArguments(generic.getSignature());
+                operandType = generic.getSignature();
             }
         }
-        // 'Collection<?>' cannot be tested against 'List<String>': the arguments have to be the ones of the operand
-        return variableArguments != null && !variableArguments.equals(operandArguments);
+        // 'Collection<?>' cannot be tested against 'List<String>': the arguments have to be the ones of the operand, and its type a super type
+        return variableArguments != null && (!variableArguments.equals(operandArguments)
+                || !isSubtype(castDescriptor(code, instanceOfOffset, constants), operandType));
+    }
+
+    /** @param tested the descriptor of the class of the test; @param signature the generic signature of the operand */
+    private static boolean isSubtype(String tested, String signature) {
+        Loader loader = LOADER.get();
+
+        return loader != null && tested != null && ClassMetadata.isSubtype(loader, erasure(tested), erasure(signature));
+    }
+
+    /** @return the internal name of the class of a descriptor or a generic signature of a class, of an array or not: 'Ljava/util/List&lt;TT;&gt;;' gives 'java/util/List' */
+    private static String erasure(String signature) {
+        int start = signature.lastIndexOf('[') + 2;
+        int end = signature.indexOf('<');
+
+        return signature.substring(start, end < 0 ? signature.length() - 1 : end);
     }
 
     /** @return the type arguments of a generic signature, 'Ljava/util/List&lt;Ljava/lang/String;&gt;;' gives '&lt;Ljava/lang/String;&gt;' */
@@ -332,6 +358,12 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             storeIndex = opcode - ASTORE_0;
             storeLength = 1;
         } else {
+            return null;
+        }
+        // The failed test jumps over the binding: otherwise the cast and the store are no part of the test
+        int target = instanceOfOffset + 3 + (short) ((code[instanceOfOffset + 4] & 255) << 8 | code[instanceOfOffset + 5] & 255);
+
+        if (target < storeOffset + storeLength) {
             return null;
         }
         return new InstanceOfPatternBinding(storeIndex, storeOffset, storeOffset + storeLength, offset, loadLength + 3 + storeLength);

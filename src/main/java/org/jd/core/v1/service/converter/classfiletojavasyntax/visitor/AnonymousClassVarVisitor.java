@@ -21,6 +21,7 @@ import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
@@ -42,11 +43,14 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * The type of an anonymous class cannot be written: 'var printer = new Object() { void println(String s) {...} }; printer.println("...")' is the
@@ -68,19 +72,64 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of("clone()Ljava/lang/Object;", "finalize()V");
 
+    /** The variables which are declared 'var' because of their anonymous class: 'var c = b;' has the type of 'b' */
+    private final Set<String> anonymousVariables = new HashSet<>();
+
     @Override
     public void visit(Statements statements) {
+        splitDeclarationsOfAnonymousClasses(statements);
+
         ListIterator<Statement> iterator = statements.listIterator();
 
         while (iterator.hasNext()) {
             Statement statement = iterator.next();
 
-            if (statement instanceof LocalVariableDeclarationStatement declaration && isDeclaredWithVar(declaration, statements, iterator.nextIndex())) {
+            if (statement instanceof LocalVariableDeclarationStatement declaration
+                    && (isDeclaredWithVar(declaration, statements, iterator.nextIndex()) || isAliasOfAnonymousVariable(declaration))) {
                 iterator.set(new LocalVariableDeclarationStatement(VAR, declaration.getLocalVariableDeclarators()));
+                declaredNames(declaration).forEach(anonymousVariables::add);
             }
             iterator.previous().accept(this);
             iterator.next();
         }
+    }
+
+    /** 'var' declares one variable: 'Object a = new Object() {...}, b = new Object() {...};' which was merged is split */
+    private static void splitDeclarationsOfAnonymousClasses(Statements statements) {
+        List<Statement> split = new ArrayList<>();
+
+        for (Statement statement : statements) {
+            if (statement instanceof LocalVariableDeclarationStatement declaration && declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarators declarators
+                    && declarators.stream().anyMatch(AnonymousClassVarVisitor::isAnonymousClassInstance)) {
+                declarators.forEach(declarator -> split.add(new LocalVariableDeclarationStatement(declaration.getType(), declarator)));
+            } else {
+                split.add(statement);
+            }
+        }
+        if (split.size() != statements.size()) {
+            statements.clear();
+            statements.addAll(split);
+        }
+    }
+
+    private static boolean isAnonymousClassInstance(LocalVariableDeclarator declarator) {
+        return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
+                && initializer.getExpression() instanceof ClassFileNewExpression newExpression && newExpression.getBodyDeclaration() != null;
+    }
+
+    private boolean isAliasOfAnonymousVariable(LocalVariableDeclarationStatement declaration) {
+        return declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator && declarator.getDimension() == 0
+                && declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
+                && initializer.getExpression() instanceof LocalVariableReferenceExpression reference && anonymousVariables.contains(reference.getName());
+    }
+
+    private static List<String> declaredNames(LocalVariableDeclarationStatement declaration) {
+        List<String> names = new ArrayList<>();
+
+        for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
+            names.add(declarator.getName());
+        }
+        return names;
     }
 
     private boolean isDeclaredWithVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
@@ -97,18 +146,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         LocalVariableDeclaration declaration = statement.getDeclaration();
 
         if (declaration != null && needsVar(declaration.getLocalVariableDeclarators(), search -> {
-            for (Object node : new Object[] { statement.getCondition(), statement.getUpdate(), statement.getStatements() }) {
-                if (node instanceof BaseExpression expressions) {
-                    expressions.accept(search);
-                } else if (node instanceof BaseStatement statements) {
-                    statements.accept(search);
-                }
-            }
+            Stream.of(statement.getCondition(), statement.getUpdate()).filter(Objects::nonNull).forEach(expression -> expression.accept(search));
+            Stream.of(statement.getStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
         })) {
-            LocalVariableDeclaration var = new LocalVariableDeclaration(VAR, declaration.getLocalVariableDeclarators());
+            LocalVariableDeclaration varDeclaration = new LocalVariableDeclaration(VAR, declaration.getLocalVariableDeclarators());
 
-            var.setFinal(declaration.isFinal());
-            statement.setDeclaration(var);
+            varDeclaration.setFinal(declaration.isFinal());
+            statement.setDeclaration(varDeclaration);
         }
         super.visit(statement);
     }
@@ -168,10 +212,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private void addedMethods(ClassFileBodyDeclaration body, String superInternalName, Set<String> members) {
-        if (body.getMethodDeclarations() == null) {
-            return;
-        }
-        for (ClassFileConstructorOrMethodDeclaration method : body.getMethodDeclarations()) {
+        for (ClassFileConstructorOrMethodDeclaration method : Objects.requireNonNullElse(body.getMethodDeclarations(), List.<ClassFileConstructorOrMethodDeclaration>of())) {
             Method m = method.getMethod();
 
             if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
@@ -186,9 +227,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private void addedFields(ClassFileBodyDeclaration body, String superInternalName, Set<String> members) {
-        if (body.getFieldDeclarations() == null) {
-            return;
-        }
         AbstractJavaSyntaxVisitor fieldNames = new AbstractJavaSyntaxVisitor() {
             @Override
             public void visit(FieldDeclarator declarator) {
@@ -197,7 +235,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                         ? hiddenField(body.getInternalTypeName(), declarator.getName()) : declarator.getName());
             }
         };
-        for (ClassFileFieldDeclaration field : body.getFieldDeclarations()) {
+        for (ClassFileFieldDeclaration field : Objects.requireNonNullElse(body.getFieldDeclarations(), List.<ClassFileFieldDeclaration>of())) {
             field.getFieldDeclarators().accept(fieldNames);
         }
     }
@@ -208,30 +246,33 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     private static final class MemberUseSearch extends AbstractJavaSyntaxVisitor {
         private final String variableName;
+        /** The variable and the variables which are declared with its value: 'var c = b;' */
+        private final Set<String> variableNames = new HashSet<>();
         private final Set<String> members;
         private boolean found;
 
         MemberUseSearch(String variableName, Set<String> members) {
             this.variableName = variableName;
             this.members = members;
+            variableNames.add(variableName);
         }
 
-        /** A method of a local or anonymous class which declares a variable of this name uses its own, not the one of the enclosing method */
+        /** A method of a local or anonymous class which has a parameter of this name uses its own variable, not the one of the enclosing method */
         @Override
         public void visit(MethodDeclaration declaration) {
-            if (!declaresVariable(declaration)) {
+            if (!hasParameter(declaration)) {
                 super.visit(declaration);
             }
         }
 
         @Override
         public void visit(ConstructorDeclaration declaration) {
-            if (!declaresVariable(declaration)) {
+            if (!hasParameter(declaration)) {
                 super.visit(declaration);
             }
         }
 
-        private boolean declaresVariable(Declaration declaration) {
+        private boolean hasParameter(Declaration declaration) {
             boolean[] declared = new boolean[1];
 
             declaration.accept(new AbstractJavaSyntaxVisitor() {
@@ -239,25 +280,43 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 public void visit(FormalParameter parameter) {
                     declared[0] |= variableName.equals(parameter.getName());
                 }
-
-                @Override
-                public void visit(LocalVariableDeclarator declarator) {
-                    declared[0] |= variableName.equals(declarator.getName());
-                }
-
-                @Override
-                public void visit(TryStatement.CatchClause catchClause) {
-                    declared[0] |= variableName.equals(catchClause.getName());
-                    super.visit(catchClause);
-                }
-
-                @Override
-                public void visit(ForEachStatement statement) {
-                    declared[0] |= variableName.equals(statement.getName());
-                    super.visit(statement);
-                }
             });
             return declared[0];
+        }
+
+        /** The variable of this name which a block declares hides the one of the enclosing method up to the end of the block */
+        @Override
+        public void visit(Statements statements) {
+            for (Statement statement : statements) {
+                statement.accept(this);
+                if (statement instanceof LocalVariableDeclarationStatement declaration && declaredNames(declaration).contains(variableName)) {
+                    return;
+                }
+            }
+        }
+
+        @Override
+        public void visit(TryStatement.CatchClause catchClause) {
+            if (!variableName.equals(catchClause.getName())) {
+                super.visit(catchClause);
+            }
+        }
+
+        @Override
+        public void visit(ForEachStatement statement) {
+            if (variableName.equals(statement.getName())) {
+                statement.getExpression().accept(this);
+            } else {
+                super.visit(statement);
+            }
+        }
+
+        @Override
+        public void visit(LocalVariableDeclarator declarator) {
+            if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer && isVariable(initializer.getExpression())) {
+                variableNames.add(declarator.getName());
+            }
+            super.visit(declarator);
         }
 
         @Override
@@ -292,7 +351,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         private boolean isVariable(Expression expression) {
             // A local class or an anonymous class reaches the variable by a captured field of itself, which is named like the variable: 'holder.name' is no capture
-            return expression instanceof LocalVariableReferenceExpression reference && variableName.equals(reference.getName())
+            return expression instanceof LocalVariableReferenceExpression reference && variableNames.contains(reference.getName())
                     || expression instanceof FieldReferenceExpression field && (field.getExpression() == null || field.getExpression() instanceof ThisExpression) && variableName.equals(field.getName());
         }
     }

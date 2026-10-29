@@ -164,4 +164,32 @@ public class ClassMetadataTest {
         assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, subclass, "identity", "(Ljava/lang/Object;)Ljava/lang/Object;"));
         assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, "no/such/Class", "identity", "(Ljava/lang/Object;)Ljava/lang/Object;"));
     }
+
+    @Test
+    public void testClassWhichCannotBeParsedIsUnknown() {
+        Loader garbage = new Loader() {
+            @Override
+            public boolean canLoad(String internalName) {
+                return true;
+            }
+
+            @Override
+            public byte[] load(String internalName) {
+                return new byte[] { 1, 2, 3 };
+            }
+        };
+
+        assertFalse(ClassMetadata.isLoadable(garbage, "x/Garbage"));
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(garbage, "x/Garbage", "java/util/Collection"));
+        assertTrue(ClassMetadata.declaredExceptions(garbage, "x/Garbage", "close", "()V").isEmpty());
+    }
+
+    @Test
+    public void testClassWithoutSuperClass() {
+        // Object has no super class: the walk through the super types ends there
+        assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/lang/Object", "x/Unknown"));
+        assertTrue(ClassMetadata.declaredExceptions(LOADER, "java/lang/Object", "noSuchMethod", "()V").isEmpty());
+        assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, "java/lang/Object", "noSuchMethod", "()V"));
+        assertFalse(ClassMetadata.declaresPrivateMethod(LOADER, "java/lang/Object", "noSuchMethod", "()V"));
+    }
 }

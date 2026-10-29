@@ -183,4 +183,34 @@ public class FoldIncrementIntoConditionVisitorTest {
 
         assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
     }
+
+    @Test
+    public void testOperationsWhichCanThrowAfterTheFirstUseAreFolded() {
+        ObjectType owner = new ObjectType("p/A", "p.A", "A");
+        Expression[] operations = {
+            new ArrayExpression(variable(J), two()),
+            new LengthExpression(variable(J)),
+            new CastExpression(PrimitiveType.TYPE_INT, variable(J)),
+            new MethodInvocationExpression(PrimitiveType.TYPE_INT, variable(J), "p/A", "m", "()I", null),
+            new NewArray(1, PrimitiveType.TYPE_INT.createType(1), variable(J)),
+            new FieldReferenceExpression(PrimitiveType.TYPE_INT, new ObjectTypeReferenceExpression(owner), "p/A", "n", "I"),
+            new MethodReferenceExpression(1, PrimitiveType.TYPE_INT, variable(J), "p/A", "run", "()V"),
+            binary(variable(J), "/", two()),
+            binary(variable(J), "%", two()),
+            new PreOperatorExpression(1, "!", variable(J))
+        };
+
+        for (Expression operation : operations) {
+            // The first use is evaluated first, whatever follows it
+            Expression operand = binary(binary(variable(I), ">", two()), "&", binary(operation, ">", two()));
+
+            assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
+        }
+    }
+
+    @Test
+    public void testDivisionBeforeTheFirstUseIsNotFolded() {
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(binary(variable(J), "/", two()), ">", variable(I)), I, "++"));
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(binary(variable(J), "%", two()), ">", variable(I)), I, "++"));
+    }
 }

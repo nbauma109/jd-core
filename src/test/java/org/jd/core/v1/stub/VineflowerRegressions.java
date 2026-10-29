@@ -756,7 +756,7 @@ public class VineflowerRegressions {
         return java.util.Objects.requireNonNull(target).added();
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "java:S1130" }) // the type variable of the exception is what the generic signature of the test needs
     static <T, E extends Exception> T identity(T value) throws E {
         return value;
     }

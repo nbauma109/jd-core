@@ -92,7 +92,7 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
             Statement statement = iterator.next();
 
             if (statement instanceof IfStatement ifStatement) {
-                IfStatement rewritten = rewrite(ifStatement);
+                IfStatement rewritten = rewrite(ifStatement, statements.subList(iterator.nextIndex(), statements.size()));
 
                 if (rewritten != null) {
                     iterator.set(rewritten);
@@ -103,7 +103,8 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
-    private IfStatement rewrite(IfStatement ifStatement) {
+    /** @param following the statements which follow the 'if': the variable of a pattern stays in scope after an 'if' whose other branch exits */
+    private IfStatement rewrite(IfStatement ifStatement, List<Statement> following) {
         if (!(ifStatement.getCondition() instanceof InstanceOfExpression instanceOf) || !(ifStatement.getStatements() instanceof Statements thenStatements)
                 || thenStatements.isEmpty() || !(thenStatements.getLast() instanceof TryStatement tryStatement) || !isMatchExceptionTry(tryStatement)
                 || !(tryStatement.getTryStatements() instanceof Statements tryBody)) {
@@ -140,7 +141,10 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         Set<String> removed = new HashSet<>(extraction.temporaries());
 
         removed.add(recordVariable);
-        if (references(removed, body) || ifStatement instanceof IfElseStatement ifElse && references(removed, ifElse.getElseStatements())) {
+        Statements afterTheIf = new Statements();
+
+        afterTheIf.addAll(following);
+        if (references(removed, body) || ifStatement instanceof IfElseStatement ifElse && references(removed, ifElse.getElseStatements()) || references(removed, afterTheIf)) {
             return null;
         }
 

@@ -576,10 +576,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             super.visit(statement);
         }
 
+        /** The variable of a handler hides the original variable and its aliases which have its name, in the handler only */
         @Override
         public void visit(TryStatement.CatchClause catchClause) {
             if (!variableName.equals(catchClause.getName())) {
-                super.visit(catchClause);
+                visitWithout(Set.of(catchClause.getName()), () -> super.visit(catchClause));
             }
         }
 
@@ -588,7 +589,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (variableName.equals(statement.getName())) {
                 statement.getExpression().accept(this);
             } else {
-                super.visit(statement);
+                visitWithout(Set.of(statement.getName()), () -> super.visit(statement));
             }
         }
 

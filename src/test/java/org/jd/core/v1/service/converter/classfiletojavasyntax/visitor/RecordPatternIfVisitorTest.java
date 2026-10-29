@@ -294,4 +294,14 @@ public class RecordPatternIfVisitorTest {
         assertSame(ifStatement, rewrite(ifStatement, List.of(new ClassMetadata.Component("x", "Ljava/lang/Integer;"))));
         assertRewritten(rewrite(ifStatement, List.of(new ClassMetadata.Component("x", "I"))), "x");
     }
+
+    @Test
+    public void testRecordVariableUsedAfterTheIfIsKept() {
+        IfStatement ifStatement = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")));
+        Statements statements = statements(ifStatement, new ExpressionStatement(variable(RECORD, "r1")));
+
+        new RecordPatternIfVisitor(name -> java.util.List.of(new ClassMetadata.Component("x", "I"))).visit(statements);
+
+        assertSame(ifStatement, statements.getFirst());
+    }
 }

@@ -834,6 +834,37 @@ public class VineflowerRegressions {
         return outcome == null ? 0 : outcome.added();
     }
 
+    static class ThrowingOther extends RuntimeException {
+        String added() {
+            return "thrown";
+        }
+    }
+
+    @SuppressWarnings({ "java:S1854", "java:S1172" }) // the variable of the handler has the name of the alias
+    public String catchVariableWhichHidesAnAlias() {
+        Putter source = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        Object copy = source;
+        copy.hashCode();
+
+        class Handling {
+            String value() {
+                try {
+                    throw new ThrowingOther();
+                } catch (ThrowingOther copy) {
+                    return copy.added();
+                }
+            }
+        }
+
+        String result = new Handling().value();
+        source = new Putter();
+        return result + source.put("x");
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

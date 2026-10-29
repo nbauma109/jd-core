@@ -756,6 +756,20 @@ public class VineflowerRegressions {
         return java.util.Objects.requireNonNull(target).added();
     }
 
+    @SuppressWarnings("unchecked")
+    static <T, E extends Exception> T identity(T value) throws E {
+        return value;
+    }
+
+    public int identityWhichThrowsATypeVariable() {
+        var picked = identity(new Object() {
+            int added() {
+                return 2;
+            }
+        });
+        return picked.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

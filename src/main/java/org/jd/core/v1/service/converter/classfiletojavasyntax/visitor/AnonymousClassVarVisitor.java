@@ -258,7 +258,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return positions;
         }
 
-        String returned = signature.substring(signature.indexOf(')') + 1);
+        // The signature ends with the exceptions which the method throws, '^TE;', if they are type variables
+        String returned = signature.substring(signature.indexOf(')') + 1).split("\\^")[0];
         int index = signature.indexOf('(') + 1;
         int position = 0;
 

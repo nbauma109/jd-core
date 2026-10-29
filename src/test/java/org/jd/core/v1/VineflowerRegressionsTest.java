@@ -178,6 +178,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var list = new ArrayList"));
         // The argument of a call which returns Object, and which is cast, gives no type to the variable
         assertFalse(source.contains("var kept"));
+        // The exceptions of the generic signature are not part of the returned type
+        assertTrue(source.contains("var picked = identity(new Object() {"));
         // The receiver of a call can be a generic call which returns the variable
         assertTrue(source.contains("var target = new Object() {"));
         // Only the argument of the returned type variable gives its type to the variable

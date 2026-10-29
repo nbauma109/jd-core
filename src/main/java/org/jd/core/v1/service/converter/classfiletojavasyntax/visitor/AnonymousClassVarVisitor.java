@@ -29,6 +29,7 @@ import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
+import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
@@ -38,6 +39,7 @@ import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStateme
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
+import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
@@ -439,12 +441,28 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 types.addAll(clause.getOtherTypes());
             }
             for (ObjectType type : types) {
-                if (!isUncheckedOrGeneral(type.getInternalName())) {
+                if (!isUncheckedOrGeneral(type.getInternalName()) && !bodyThrows(statement, type.getInternalName())) {
                     return false;
                 }
             }
         }
         return true;
+    }
+
+    /** The body throws the exception itself ('throw new IOException()'): the handler is valid whatever the close throws */
+    private boolean bodyThrows(TryStatement statement, String handled) {
+        boolean[] thrown = new boolean[1];
+
+        if (statement.getTryStatements() != null) {
+            statement.getTryStatements().accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(ThrowStatement throwStatement) {
+                    thrown[0] |= throwStatement.getExpression().getType() instanceof ObjectType type && ClassMetadata.isSubtype(loader, type.getInternalName(), handled);
+                    super.visit(throwStatement);
+                }
+            });
+        }
+        return thrown[0];
     }
 
     private boolean isUncheckedOrGeneral(String internalName) {
@@ -708,10 +726,37 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(MethodInvocationExpression expression) {
-            if (isVariable(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())) {
+            if (isVariable(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())
+                    || passesTheVariableToALambdaWhichUsesAMember(expression)) {
                 found = true;
             }
             super.visit(expression);
+        }
+
+        /** 'apply(b, x -> x.added())': the parameter of the lambda has the type of the variable, which is inferred from it */
+        private boolean passesTheVariableToALambdaWhichUsesAMember(MethodInvocationExpression call) {
+            if (call.getParameters() == null) {
+                return false;
+            }
+
+            List<Expression> arguments = new ArrayList<>();
+
+            call.getParameters().forEach(arguments::add);
+            return arguments.stream().anyMatch(argument -> references(argument, variableNames) != null)
+                    && arguments.stream().anyMatch(argument -> argument instanceof LambdaIdentifiersExpression && callsAMember(argument));
+        }
+
+        private boolean callsAMember(Expression lambda) {
+            boolean[] calls = new boolean[1];
+
+            lambda.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(MethodInvocationExpression expression) {
+                    calls[0] |= isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+                    super.visit(expression);
+                }
+            });
+            return calls[0];
         }
 
         private boolean isAdded(String ownerInternalName, String name, String descriptor) {

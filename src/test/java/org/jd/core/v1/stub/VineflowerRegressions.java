@@ -982,6 +982,46 @@ public class VineflowerRegressions {
         }
     }
 
+    static <T> int apply(T value, java.util.function.ToIntFunction<T> function) {
+        return function.applyAsInt(value);
+    }
+
+    public int lambdaWhichNeedsTheAnonymousType() {
+        var inferred = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return apply(inferred, x -> x.added());
+    }
+
+    public int closeableWithACheckedHandlerWhichTheBodyThrows(boolean fail) {
+        try (var thrower = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            if (fail) {
+                throw new java.io.IOException();
+            }
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
+    @SuppressWarnings("java:S2159") // the instance is converted to a string: the call of toString can throw
+    public String stringOfAnObjectBeforeTheIncrement(Object object, int i) {
+        while (i > 0) {
+            i++;
+            if (("" + object).isEmpty() | i > 3) {
+                break;
+            }
+        }
+        return String.valueOf(i);
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

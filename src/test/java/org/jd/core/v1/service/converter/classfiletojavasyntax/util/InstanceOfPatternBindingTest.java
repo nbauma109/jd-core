@@ -355,6 +355,14 @@ public class InstanceOfPatternBindingTest {
             return null;
         }
 
+        int redundantTest(String value) {
+            if (value instanceof String) {
+                String text = (String) (Object) value;
+                return text.length();
+            }
+            return -1;
+        }
+
         boolean negated(Object o) {
             return !(o instanceof String s) || s.isEmpty();
         }
@@ -395,6 +403,12 @@ public class InstanceOfPatternBindingTest {
         assertEquals(2, bindings("twoSequentialPatterns"));
         assertEquals(1, bindings("ofAnArray"));
         assertEquals(0, bindings("initializedBeforeTheTest"));
+        // before Java 21 an unconditional pattern is an error: the test stays, from Java 21 it is legal
+        InstanceOfPatternBinding.setMajorVersion(61);
+        assertEquals(0, bindings("redundantTest"));
+        InstanceOfPatternBinding.setMajorVersion(65);
+        assertEquals(1, bindings("redundantTest"));
+        InstanceOfPatternBinding.setMajorVersion(Integer.MAX_VALUE);
         // the variable has the type of a type variable
         assertEquals(0, bindings("ofATypeVariable"));
         // a handler reads the variable

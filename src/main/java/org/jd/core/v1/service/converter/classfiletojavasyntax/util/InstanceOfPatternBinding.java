@@ -76,6 +76,16 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         LOADER.set(loader);
     }
 
+    /** Java 21: an unconditional pattern ('String s instanceof String t') is legal from there only */
+    private static final int UNCONDITIONAL_PATTERN_MAJOR_VERSION = 65;
+
+    /** The major version of the class which is decompiled, for the current thread; the latest one when it is not known */
+    private static final ThreadLocal<Integer> MAJOR_VERSION = ThreadLocal.withInitial(() -> Integer.MAX_VALUE);
+
+    public static void setMajorVersion(int majorVersion) {
+        MAJOR_VERSION.set(majorVersion);
+    }
+
     /** Enables the patterns for the current thread, which decompiles one class at a time */
     public static void setEnabled(boolean enabled) {
         ENABLED.set(enabled);
@@ -94,8 +104,47 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 code.getExceptionTable() == null ? new CodeException[0] : code.getExceptionTable());
         LocalVariable[] generics = code.getLocalVariableTypeTable() == null ? new LocalVariable[0] : code.getLocalVariableTypeTable().getLocalVariableTypeTable();
 
-        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool()));
+        bindings.entrySet().removeIf(entry -> isUncheckedGeneric(entry.getKey(), entry.getValue(), code.getCode(), generics, method.getConstantPool())
+                || isUnconditional(entry.getKey(), entry.getValue(), method));
         return bindings;
+    }
+
+    /** Before Java 21 'value instanceof String text' is an error when 'value' is a 'String' already: the test and the cast stay */
+    private static boolean isUnconditional(int instanceOfOffset, InstanceOfPatternBinding binding, Method method) {
+        if (MAJOR_VERSION.get() >= UNCONDITIONAL_PATTERN_MAJOR_VERSION) {
+            return false;
+        }
+
+        Code code = method.getCode();
+        String tested = castDescriptor(code.getCode(), instanceOfOffset, method.getConstantPool());
+        String operand = operandDescriptor(method, loadedIndex(code.getCode(), binding.firstSkippedOffset()), instanceOfOffset);
+        Loader loader = LOADER.get();
+
+        return tested != null && operand != null && (tested.equals(operand)
+                || loader != null && !operand.startsWith("[") && ClassMetadata.isSubtype(loader, erasure(operand), erasure(tested)));
+    }
+
+    /** @return the descriptor of the type of the variable which the test reads: the one of the local variable table, of the parameter; null if it is unknown */
+    private static String operandDescriptor(Method method, int slot, int offset) {
+        Code code = method.getCode();
+
+        if (code.getLocalVariableTable() != null) {
+            for (LocalVariable variable : code.getLocalVariableTable().getLocalVariableTable()) {
+                if (variable.getIndex() == slot && variable.getStartPC() <= offset && offset < variable.getStartPC() + variable.getLength()) {
+                    return variable.getSignature();
+                }
+            }
+        }
+
+        int index = method.isStatic() ? 0 : 1;
+
+        for (Type type : Type.getArgumentTypes(method.getSignature())) {
+            if (index == slot) {
+                return type.getSignature();
+            }
+            index += type.getSize();
+        }
+        return null;
     }
 
     /**

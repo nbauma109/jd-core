@@ -7,6 +7,7 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
@@ -161,7 +162,7 @@ public final class FoldIncrementIntoConditionVisitor {
                 found = expression.getLeftExpression();
                 blocked = true;
             }
-            throwing |= found == null && ("/".equals(expression.getOperator()) || "%".equals(expression.getOperator()));
+            throwing |= found == null && ("/".equals(expression.getOperator()) || "%".equals(expression.getOperator()) || convertsAnObjectToAString(expression));
             if ("&&".equals(expression.getOperator()) || "||".equals(expression.getOperator())) {
                 expression.getLeftExpression().accept(this);
                 conditional++;
@@ -193,7 +194,17 @@ public final class FoldIncrementIntoConditionVisitor {
             return expression instanceof ClassFileLocalVariableReferenceExpression reference && reference.getLocalVariable() == localVariable;
         }
 
-        private static boolean isIncrement(String operator) {
+        /** '"" + object' calls 'toString()' of the object, which can throw */
+    private static boolean convertsAnObjectToAString(BinaryOperatorExpression expression) {
+        return "+".equals(expression.getOperator()) && expression.getType() instanceof ObjectType type && "java/lang/String".equals(type.getInternalName())
+                && (isAnObject(expression.getLeftExpression()) || isAnObject(expression.getRightExpression()));
+    }
+
+    private static boolean isAnObject(Expression operand) {
+        return operand.getType() instanceof ObjectType type && !"java/lang/String".equals(type.getInternalName());
+    }
+
+    private static boolean isIncrement(String operator) {
             return "++".equals(operator) || "--".equals(operator);
         }
 

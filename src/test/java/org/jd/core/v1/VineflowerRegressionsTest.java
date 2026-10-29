@@ -205,6 +205,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // The elements of the varargs array give their type to the result, an unchecked handler does not keep the explicit type of a resource
         assertTrue(source.contains("var firstValue = first(new Object() {"));
         assertTrue(source.contains("try (var closing = new AutoCloseable() {"));
+        // The lambda which infers its parameter from the variable, the body which throws what the handler catches
+        assertTrue(source.contains("var inferred = new Object() {"));
+        assertTrue(source.contains("try (var thrower = new AutoCloseable() {"));
         // The container of an anonymous argument has its own type
         assertFalse(source.contains("var wrapped"));
         // A local of a nested method hides the alias which has its name; the type goes through the receiver of a generic call

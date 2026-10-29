@@ -763,12 +763,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
             call.getParameters().forEach(arguments::add);
             for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
-                if (references(arguments.get(i), variableNames) != null && parameters.get(i).startsWith("T")) {
-                    for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
-                        if (j != i && arguments.get(j) instanceof LambdaIdentifiersExpression && parameters.get(j).contains(parameters.get(i)) && callsAMember(arguments.get(j))) {
-                            return true;
-                        }
-                    }
+                if (references(arguments.get(i), variableNames) != null && parameters.get(i).startsWith("T") && hasALambdaOfTheTypeVariable(arguments, parameters, i)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */
+        private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index) {
+            for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
+                if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression && parameters.get(j).contains(parameters.get(index)) && callsAMember(arguments.get(j))) {
+                    return true;
                 }
             }
             return false;

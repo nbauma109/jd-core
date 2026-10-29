@@ -730,6 +730,22 @@ public class VineflowerRegressions {
         return list.size();
     }
 
+    static <T extends Other> T choose(T value, Object ignored) {
+        return value;
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public String anonymousArgumentWhichIsNotTheReturnedOne() {
+        Other selected = choose(new OtherSub(), new Object() {
+            String added() {
+                return "ignored";
+            }
+        });
+        String result = selected.added();
+        selected = new Other();
+        return result + selected.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

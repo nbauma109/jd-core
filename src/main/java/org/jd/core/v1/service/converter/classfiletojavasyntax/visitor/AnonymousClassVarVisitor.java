@@ -234,25 +234,70 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         } else if (value instanceof TernaryOperatorExpression ternary) {
             values.addAll(underlyingValues(ternary.getTrueExpression()));
             values.addAll(underlyingValues(ternary.getFalseExpression()));
-        } else if (value instanceof MethodInvocationExpression call && returnsOneOfItsArguments(call)) {
-            call.getParameters().forEach(parameter -> values.addAll(underlyingValues(parameter)));
+        } else if (value instanceof MethodInvocationExpression call && call.getParameters() != null) {
+            List<Expression> arguments = new ArrayList<>();
+
+            call.getParameters().forEach(arguments::add);
+            for (int position : positionsOfTheReturnedTypeVariable(call)) {
+                if (position < arguments.size()) {
+                    values.addAll(underlyingValues(arguments.get(position)));
+                }
+            }
         } else if (!(value instanceof CastExpression) && !(value instanceof MethodInvocationExpression)) {
             values.add(value);
         }
         return values;
     }
 
-    /** '&lt;T&gt; T f(T argument)': the generic signature of the method returns a type variable which one of its parameters has */
-    private boolean returnsOneOfItsArguments(MethodInvocationExpression call) {
+    /** '&lt;T&gt; T f(T first, Object ignored)': the positions of the parameters whose type is the type variable which the generic signature of the method returns */
+    private List<Integer> positionsOfTheReturnedTypeVariable(MethodInvocationExpression call) {
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+        List<Integer> positions = new ArrayList<>();
 
-        if (signature == null || call.getParameters() == null || signature.indexOf(')') < 0) {
-            return false;
+        if (signature == null || signature.indexOf(')') < 0) {
+            return positions;
         }
 
         String returned = signature.substring(signature.indexOf(')') + 1);
+        int index = signature.indexOf('(') + 1;
+        int position = 0;
 
-        return returned.startsWith("T") && signature.substring(0, signature.indexOf(')')).contains(returned);
+        while (returned.startsWith("T") && index < signature.indexOf(')')) {
+            int end = endOfSignatureType(signature, index);
+
+            if (signature.substring(index, end).equals(returned)) {
+                positions.add(position);
+            }
+            index = end;
+            position++;
+        }
+        return positions;
+    }
+
+    /** @return the index which follows the type of a signature which starts at the index: a class with type arguments, a type variable, an array or a primitive type */
+    private static int endOfSignatureType(String signature, int start) {
+        int index = start;
+        int depth = 0;
+
+        while (signature.charAt(index) == '[') {
+            index++;
+        }
+        if (signature.charAt(index) != 'L' && signature.charAt(index) != 'T') {
+            return index + 1;
+        }
+        do {
+            char c = signature.charAt(index++);
+
+            if (c == '<') {
+                depth++;
+            } else if (c == '>') {
+                depth--;
+            }
+            if (c == ';' && depth == 0) {
+                break;
+            }
+        } while (index < signature.length());
+        return index;
     }
 
     /** @return the name of the first of these variables which the value is, or which an argument of the call which returns it is, null if none */
@@ -275,13 +320,14 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         for (int i = 0; resources != null && i < resources.size(); i++) {
             TryStatement.Resource resource = resources.get(i);
             List<TryStatement.Resource> following = resources.subList(i + 1, resources.size());
-
-            if (resource.getType() != null && needsVar(resource.getName(), resource.getExpression(), search -> {
+            Consumer<MemberUseSearch> uses = search -> {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                search.found |= search.members.stream().anyMatch(member -> member.equals("close()V") || member.endsWith(".close()V"));
-            })) {
+                search.found |= search.callsClose();
+            };
+
+            if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
                 TryStatement.Resource varResource = new TryStatement.Resource(VAR, resource.getName(), resource.getExpression());
 
                 varResource.setFinal(resource.isFinal());
@@ -289,6 +335,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         super.visit(statement);
+    }
+
+    /** 'try (var r = b)' where 'b' is a tracked variable */
+    private boolean resourceAliasNeedsVar(TryStatement.Resource resource, Consumer<MemberUseSearch> uses) {
+        String origin = resource.getExpression() == null ? null : references(resource.getExpression(), anonymousVariables.keySet());
+
+        if (origin == null) {
+            return false;
+        }
+
+        Set<String> members = anonymousVariables.get(origin);
+        MemberUseSearch search = new MemberUseSearch(resource.getName(), members);
+
+        uses.accept(search);
+        if (search.found) {
+            anonymousVariables.put(resource.getName(), members);
+        }
+        return search.found;
     }
 
     /** A method of the anonymous class which overrides a method of its super type: the type of the super type is enough to call it */
@@ -457,6 +521,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
             variableNames.retainAll(knownBefore);
+        }
+
+        /** An override of 'close()' which declares fewer exceptions than the one of its super type has to be called through its own type */
+        boolean callsClose() {
+            return members.stream().anyMatch(member -> member.equals("close()V") || member.endsWith(".close()V"));
+        }
+
+        /** 'try (var r = b)' closes the variable: the close is a use of it */
+        @Override
+        public void visit(TryStatement statement) {
+            if (statement.getResources() != null && callsClose()
+                    && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
+                found = true;
+            }
+            super.visit(statement);
         }
 
         @Override

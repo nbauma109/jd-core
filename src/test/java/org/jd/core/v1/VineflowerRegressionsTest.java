@@ -178,6 +178,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var list = new ArrayList"));
         // The argument of a call which returns Object, and which is cast, gives no type to the variable
         assertFalse(source.contains("var kept"));
+        // Only the argument of the returned type variable gives its type to the variable
+        assertFalse(source.contains("var selected"));
         // The anonymous argument of a call which returns another type gives no type to the variable
         assertTrue(source.contains("Other holder = make(new Object() {"));
         // The parameter of a nested class hides the variable in that class only

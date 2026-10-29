@@ -205,6 +205,18 @@ public final class ClassMetadata {
         return false;
     }
 
+    /** @return the names of the type parameters of the class, in the order of its declaration: 'Pair&lt;K, V&gt;' gives K, V; none if it has none or is unknown */
+    public static List<String> typeParameterNames(Loader loader, String internalName) {
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+        String signature = javaClass == null ? null : classSignature(javaClass);
+        List<String> names = new ArrayList<>();
+
+        if (signature != null) {
+            formalParameters(signature, names);
+        }
+        return names;
+    }
+
     private static String classSignature(JavaClass javaClass) {
         for (Attribute attribute : javaClass.getAttributes()) {
             if (attribute instanceof Signature signature) {

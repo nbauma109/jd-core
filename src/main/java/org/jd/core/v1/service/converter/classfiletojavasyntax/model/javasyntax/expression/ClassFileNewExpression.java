@@ -9,6 +9,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.
 
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
+import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
@@ -47,6 +48,16 @@ public class ClassFileNewExpression extends NewExpression {
         this.descriptor = descriptor;
         this.parameterTypes = parameterTypes;
         this.parameters = parameters;
+    }
+
+    /** The copy has to be a {@link ClassFileNewExpression}: the visitors of the conversion cast the new expressions to it */
+    @Override
+    public Expression copyTo(int lineNumber) {
+        ClassFileNewExpression copy = new ClassFileNewExpression(lineNumber, type, getBodyDeclaration(), bound, isVarArgs(), isDiamondPossible());
+
+        copy.set(descriptor, parameterTypes, parameters);
+        copy.setQualifier(getQualifier());
+        return copy;
     }
 
     @Override

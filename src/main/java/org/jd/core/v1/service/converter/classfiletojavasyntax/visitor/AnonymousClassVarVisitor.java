@@ -269,17 +269,35 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
      * returns ('&lt;T&gt; T f(T first, Object ignored)'), the type arguments of the receiver when the method returns a type variable of its class ('List&lt;E&gt;.get')
      */
     private List<Expression> callResults(MethodInvocationExpression call) {
-        List<Expression> results = new ArrayList<>(matchingArguments(call, true));
+        List<Expression> results = new ArrayList<>(matchingArguments(call, true, -1));
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
 
         if (signature != null && signature.contains(")")) {
             String returned = returnedType(signature);
 
             if (returned.startsWith("T") && !declaresTypeVariable(signature, returned) && call.getExpression() instanceof MethodInvocationExpression receiver) {
-                results.addAll(matchingArguments(receiver, false));
+                // The type argument of the receiver which is the one the method returns: 'Pair&lt;K, V&gt;.get()' returns the second
+                int typeArgument = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(returned.substring(1, returned.length() - 1));
+
+                results.addAll(matchingArguments(receiver, false, typeArgument));
             }
         }
         return results;
+    }
+
+    /** @return the type arguments of a generic type signature, 'LPair&lt;TK;TV;&gt;;' gives 'TK;', 'TV;' */
+    private static List<String> typeArguments(String type) {
+        List<String> arguments = new ArrayList<>();
+        int start = type.indexOf('<');
+        int index = start + 1;
+
+        while (start >= 0 && index < type.lastIndexOf('>')) {
+            int end = endOfSignatureType(type, index);
+
+            arguments.add(type.substring(index, end));
+            index = end;
+        }
+        return arguments;
     }
 
     private static String returnedType(String signature) {
@@ -290,8 +308,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /**
      * @param exact true for the arguments whose type is the returned type ('&lt;T&gt; T f(T)'), false for the ones which the returned type only contains as a
      * type argument ('&lt;E&gt; List&lt;E&gt; of(E)')
+     * @param typeArgument the index of the only type argument of the returned type which counts, -1 for all of them
      */
-    private List<Expression> matchingArguments(MethodInvocationExpression call, boolean exact) {
+    private List<Expression> matchingArguments(MethodInvocationExpression call, boolean exact, int typeArgument) {
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
         List<Expression> results = new ArrayList<>();
 
@@ -300,6 +319,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         String returned = returnedType(signature);
+        List<String> counted = typeArguments(returned);
         List<Expression> arguments = new ArrayList<>();
 
         if (call.getParameters() != null) {
@@ -312,7 +332,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         while (index < signature.indexOf(')')) {
             int end = endOfSignatureType(signature, index);
             String parameter = signature.substring(index, end);
-            boolean matches = exact ? returned.equals(parameter) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter);
+            boolean matches = exact ? returned.equals(parameter) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter)
+                    && (typeArgument < 0 || typeArgument >= counted.size() || counted.get(typeArgument).equals(parameter));
 
             if (matches && position < arguments.size()) {
                 results.addAll(underlyingValues(arguments.get(position)));
@@ -380,7 +401,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                search.found |= search.callsClose();
+                search.found |= hasNoHandler(statement) && search.callsClose();
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -391,6 +412,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         super.visit(statement);
+    }
+
+    /** A handler of a checked exception which the close can throw is invalid when the resource has the narrower type: the explicit type stays */
+    private static boolean hasNoHandler(TryStatement statement) {
+        return statement.getCatchClauses() == null || statement.getCatchClauses().isEmpty();
     }
 
     /** 'try (var r = b)' where 'b' is a tracked variable */
@@ -615,7 +641,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** 'try (var r = b)' closes the variable: the close is a use of it */
         @Override
         public void visit(TryStatement statement) {
-            if (statement.getResources() != null && callsClose()
+            if (statement.getResources() != null && hasNoHandler(statement) && callsClose()
                     && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
                 found = true;
             }

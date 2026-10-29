@@ -917,6 +917,44 @@ public class VineflowerRegressions {
         return result + wrapped.added();
     }
 
+    static class Pair<K, V extends Other> {
+        V value;
+
+        V get() {
+            return value;
+        }
+    }
+
+    @SuppressWarnings({ "java:S1172", "java:S1854" }) // the key gives its type to the first type argument only
+    static <K, V extends Other> Pair<K, V> pair(K key, V value) {
+        return new Pair<>();
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public String secondTypeArgumentOfAPair() {
+        Other pairValue = pair(new Object() {
+            String added() {
+                return "key";
+            }
+        }, new OtherSub()).get();
+        String result = pairValue.added();
+        pairValue = new Other();
+        return result + pairValue.added();
+    }
+
+    public int closeableWithAHandler() {
+        try (java.io.Closeable resource = new java.io.Closeable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

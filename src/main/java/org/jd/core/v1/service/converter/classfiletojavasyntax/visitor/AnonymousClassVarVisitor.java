@@ -25,6 +25,7 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
@@ -34,6 +35,7 @@ import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
@@ -233,6 +235,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         } else if (value instanceof TernaryOperatorExpression ternary) {
             values.addAll(underlyingValues(ternary.getTrueExpression()));
             values.addAll(underlyingValues(ternary.getFalseExpression()));
+        } else if (value instanceof SwitchExpression switchExpression) {
+            values.addAll(switchResults(switchExpression));
         } else if (value instanceof MethodInvocationExpression call && call.getParameters() != null) {
             List<Expression> arguments = new ArrayList<>();
 
@@ -246,6 +250,25 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             values.add(value);
         }
         return values;
+    }
+
+    /** @return the expressions which a switch expression gives: the results of its rules and the values which its blocks yield */
+    private List<Expression> switchResults(SwitchExpression switchExpression) {
+        List<Expression> results = new ArrayList<>();
+
+        for (SwitchExpression.Rule rule : switchExpression.getRules()) {
+            if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
+                results.addAll(underlyingValues(ruleExpression.getExpression()));
+            } else if (rule instanceof SwitchExpression.RuleStatement ruleStatement && ruleStatement.getStatements() != null) {
+                ruleStatement.getStatements().accept(new AbstractJavaSyntaxVisitor() {
+                    @Override
+                    public void visit(YieldExpressionStatement statement) {
+                        results.addAll(underlyingValues(statement.getExpression()));
+                    }
+                });
+            }
+        }
+        return results;
     }
 
     /** '&lt;T&gt; T f(T first, Object ignored)': the positions of the parameters whose type is the type variable which the generic signature of the method returns */

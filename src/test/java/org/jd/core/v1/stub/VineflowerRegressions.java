@@ -822,6 +822,18 @@ public class VineflowerRegressions {
         return retained.added();
     }
 
+    public int anonymousTypeOfASwitchExpression(int k) {
+        var outcome = switch (k) {
+            case 0 -> new Object() {
+                int added() {
+                    return 2;
+                }
+            };
+            default -> null;
+        };
+        return outcome == null ? 0 : outcome.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -267,6 +267,16 @@ public class InstanceOfPatternBindingTest {
             }
         }
 
+        String usedBeforeTheTest(Object o) {
+            String s = "old";
+            System.out.println(s);
+            if (o instanceof String) {
+                s = (String) o;
+                System.out.println(s);
+            }
+            return null;
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -412,6 +422,8 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranchesWithMoreCode"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeTheTest"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeAConditionalExit"));
+        // the variable is used before the test
+        assertEquals(0, bindingsWithoutDebugInformation("usedBeforeTheTest"));
         // a handler of a later range reads the variable
         assertEquals(0, bindingsWithoutDebugInformation("sharedWithALaterHandler"));
         // two patterns which reuse the slot are still patterns

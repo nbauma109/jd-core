@@ -183,7 +183,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             bindings.values().removeIf(binding -> isAssignedElsewhere(binding, candidates.values(), code, starts, variables));
         } else {
             // Without the table, the slot of the variable is the only evidence
-            bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts));
+            bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts)
+                    || isUsedBeforeTheTest(entry.getKey(), entry.getValue(), candidates.values(), code, starts));
         }
         return bindings;
     }
@@ -298,6 +299,36 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         successors.addAll(handlersAt(list, handlers, handle.getPosition()));
         successors.removeIf(Objects::isNull);
         return successors;
+    }
+
+    /**
+     * 'String s = "old"; use(s); if (o instanceof String) { s = (String) o; }': without the local variable table the stores to the slot are the ones of one
+     * variable, which is declared by the first of them: a store which is no binding and is followed by a read, before the test, declares it.
+     */
+    private static boolean isUsedBeforeTheTest(int instanceOfOffset, InstanceOfPatternBinding binding, Iterable<InstanceOfPatternBinding> candidates, byte[] code,
+            boolean[] starts) {
+        boolean stored = false;
+
+        for (int p = 0; p < instanceOfOffset; p++) {
+            if (!starts[p]) {
+                continue;
+            }
+            if (storedIndex(code, p) == binding.storeIndex() && !isStoreOfBinding(p, candidates)) {
+                stored = true;
+            } else if (stored && loadedIndex(code, p) == binding.storeIndex()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isStoreOfBinding(int offset, Iterable<InstanceOfPatternBinding> candidates) {
+        for (InstanceOfPatternBinding candidate : candidates) {
+            if (candidate.storeOffset() == offset) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -185,6 +185,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("Putter origin = new Putter() {"));
         // A method which hides a private method of the super type is not the one which a call through the super type reaches
         assertTrue(source.contains("PrivateBase hiding = new PrivateBase() {"));
+        // The results of a switch expression give their type to the variable
+        assertTrue(source.contains("var outcome = switch (k) {"));
         // A private generic method of the class of the call gives its signature too
         assertTrue(source.contains("var retained = privateIdentity(new Object() {"));
         // The exceptions of the generic signature are not part of the returned type

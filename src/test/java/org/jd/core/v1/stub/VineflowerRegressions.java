@@ -1011,7 +1011,7 @@ public class VineflowerRegressions {
         }
     }
 
-    @SuppressWarnings("java:S2159") // the instance is converted to a string: the call of toString can throw
+    @SuppressWarnings({ "java:S2159", "java:S2178" }) // the instance is converted to a string (the call of toString can throw), and both operands are evaluated
     public String stringOfAnObjectBeforeTheIncrement(Object object, int i) {
         while (i > 0) {
             i++;
@@ -1020,6 +1020,23 @@ public class VineflowerRegressions {
             }
         }
         return String.valueOf(i);
+    }
+
+    @SuppressWarnings("java:S1172") // the first argument gives its type to nothing: the lambda is independent of it
+    static int consume(Object ignored, java.util.function.ToIntFunction<Other> function) {
+        return function.applyAsInt(new Other());
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public int lambdaWhichIsIndependentOfTheArgument() {
+        Putter standalone = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        int length = consume(standalone, x -> x.added().length());
+        standalone = new Putter();
+        return length + standalone.put("x").length();
     }
 
     public int anonymousVariableCapturedByALocalClass() {

@@ -205,6 +205,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // The elements of the varargs array give their type to the result, an unchecked handler does not keep the explicit type of a resource
         assertTrue(source.contains("var firstValue = first(new Object() {"));
         assertTrue(source.contains("try (var closing = new AutoCloseable() {"));
+    }
+
+    @Test
+    public void testAnonymousTypesWhichLambdasAndHandlersNeed() throws Exception {
+        String source = decompile();
+
+        // A lambda which is independent of the argument gives no type to it
+        assertTrue(source.contains("Putter standalone = new Putter() {"));
         // The lambda which infers its parameter from the variable, the body which throws what the handler catches
         assertTrue(source.contains("var inferred = new Object() {"));
         assertTrue(source.contains("try (var thrower = new AutoCloseable() {"));

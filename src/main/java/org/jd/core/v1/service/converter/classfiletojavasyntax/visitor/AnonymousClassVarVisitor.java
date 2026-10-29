@@ -311,6 +311,20 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return arguments;
     }
 
+    /** @return the signatures of the parameters of a generic method signature */
+    private static List<String> parameterSignatures(String signature) {
+        List<String> parameters = new ArrayList<>();
+        int index = signature.indexOf('(') + 1;
+
+        while (index < signature.indexOf(')')) {
+            int end = endOfSignatureType(signature, index);
+
+            parameters.add(signature.substring(index, end));
+            index = end;
+        }
+        return parameters;
+    }
+
     private static String returnedType(String signature) {
         // The signature ends with the exceptions which the method throws, '^TE;', if they are type variables
         return signature.substring(signature.indexOf(')') + 1).split("\\^")[0];
@@ -733,17 +747,31 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             super.visit(expression);
         }
 
-        /** 'apply(b, x -> x.added())': the parameter of the lambda has the type of the variable, which is inferred from it */
+        /**
+         * 'apply(b, x -> x.added())' with '&lt;T&gt; int apply(T value, ToIntFunction&lt;T&gt; f)': the parameter of the lambda has the type variable of the parameter which
+         * the variable is passed to, so it has the type of the variable
+         */
         private boolean passesTheVariableToALambdaWhichUsesAMember(MethodInvocationExpression call) {
-            if (call.getParameters() == null) {
+            String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+            if (call.getParameters() == null || signature == null || !signature.contains(")")) {
                 return false;
             }
 
             List<Expression> arguments = new ArrayList<>();
+            List<String> parameters = parameterSignatures(signature);
 
             call.getParameters().forEach(arguments::add);
-            return arguments.stream().anyMatch(argument -> references(argument, variableNames) != null)
-                    && arguments.stream().anyMatch(argument -> argument instanceof LambdaIdentifiersExpression && callsAMember(argument));
+            for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
+                if (references(arguments.get(i), variableNames) != null && parameters.get(i).startsWith("T")) {
+                    for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
+                        if (j != i && arguments.get(j) instanceof LambdaIdentifiersExpression && parameters.get(j).contains(parameters.get(i)) && callsAMember(arguments.get(j))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         private boolean callsAMember(Expression lambda) {

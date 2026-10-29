@@ -22,6 +22,7 @@ import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
@@ -31,6 +32,7 @@ import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
 import org.jd.core.v1.model.javasyntax.statement.Statement;
@@ -239,6 +241,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             values.addAll(switchResults(switchExpression));
         } else if (value instanceof MethodInvocationExpression call) {
             values.addAll(callResults(call));
+        } else if (value instanceof NewInitializedArray array) {
+            // The elements of an array which a generic method receives for its varargs parameter ('T...') give their type to its result
+            for (VariableInitializer element : array.getArrayInitializer()) {
+                if (element instanceof ExpressionVariableInitializer initializer) {
+                    values.addAll(underlyingValues(initializer.getExpression()));
+                }
+            }
         } else if (!(value instanceof CastExpression) && !(value instanceof MethodInvocationExpression)) {
             values.add(value);
         }
@@ -332,7 +341,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         while (index < signature.indexOf(')')) {
             int end = endOfSignatureType(signature, index);
             String parameter = signature.substring(index, end);
-            boolean matches = exact ? returned.equals(parameter) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter)
+            boolean matches = exact ? returned.equals(parameter) || parameter.equals("[" + returned) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter)
                     && (typeArgument < 0 || typeArgument >= counted.size() || counted.get(typeArgument).equals(parameter));
 
             if (matches && position < arguments.size()) {
@@ -401,7 +410,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                search.found |= hasNoHandler(statement) && search.callsClose();
+                search.found |= hasNoCheckedHandler(statement) && search.callsClose();
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -414,9 +423,33 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         super.visit(statement);
     }
 
-    /** A handler of a checked exception which the close can throw is invalid when the resource has the narrower type: the explicit type stays */
-    private static boolean hasNoHandler(TryStatement statement) {
-        return statement.getCatchClauses() == null || statement.getCatchClauses().isEmpty();
+    /**
+     * A handler of a checked exception which the close can throw is invalid when the resource has the narrower type: the explicit type stays. The handlers of the
+     * unchecked exceptions and of 'Exception' and 'Throwable' are valid whatever the close throws.
+     */
+    private boolean hasNoCheckedHandler(TryStatement statement) {
+        if (statement.getCatchClauses() == null) {
+            return true;
+        }
+        for (TryStatement.CatchClause clause : statement.getCatchClauses()) {
+            List<ObjectType> types = new ArrayList<>();
+
+            types.add(clause.getType());
+            if (clause.getOtherTypes() != null) {
+                types.addAll(clause.getOtherTypes());
+            }
+            for (ObjectType type : types) {
+                if (!isUncheckedOrGeneral(type.getInternalName())) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean isUncheckedOrGeneral(String internalName) {
+        return "java/lang/Exception".equals(internalName) || "java/lang/Throwable".equals(internalName)
+                || ClassMetadata.isSubtype(loader, internalName, "java/lang/RuntimeException") || ClassMetadata.isSubtype(loader, internalName, "java/lang/Error");
     }
 
     /** 'try (var r = b)' where 'b' is a tracked variable */
@@ -641,7 +674,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** 'try (var r = b)' closes the variable: the close is a use of it */
         @Override
         public void visit(TryStatement statement) {
-            if (statement.getResources() != null && hasNoHandler(statement) && callsClose()
+            if (statement.getResources() != null && hasNoCheckedHandler(statement) && callsClose()
                     && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
                 found = true;
             }

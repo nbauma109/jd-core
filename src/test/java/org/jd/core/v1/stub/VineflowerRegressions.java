@@ -955,6 +955,33 @@ public class VineflowerRegressions {
         }
     }
 
+    @SafeVarargs
+    static <T> T first(T... values) {
+        return values[0];
+    }
+
+    public int anonymousTypeThroughVarargs() {
+        var firstValue = first(new Object() {
+            int added() {
+                return 2;
+            }
+        });
+        return firstValue.added();
+    }
+
+    public int closeableWithAnUncheckedHandler() {
+        try (var closing = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            return 1;
+        } catch (RuntimeException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

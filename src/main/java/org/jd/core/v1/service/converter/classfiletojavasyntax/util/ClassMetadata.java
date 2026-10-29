@@ -58,6 +58,35 @@ public final class ClassMetadata {
         return false;
     }
 
+    /** @return true if the class is the ancestor, or extends or implements it (known by the classes which can be read) */
+    public static boolean isSubtype(Loader loader, String internalName, String ancestor) {
+        return isSubtype(loader, internalName, ancestor, new HashSet<>());
+    }
+
+    private static boolean isSubtype(Loader loader, String internalName, String ancestor, Set<String> visited) {
+        if (internalName == null || !visited.add(internalName)) {
+            return false;
+        }
+        if (internalName.equals(ancestor)) {
+            return true;
+        }
+
+        JavaClass javaClass = parse(loader, internalName);
+
+        if (javaClass == null) {
+            return false;
+        }
+        if (isSubtype(loader, internalNameOf(javaClass.getSuperclassName()), ancestor, visited)) {
+            return true;
+        }
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            if (isSubtype(loader, internalNameOf(interfaceName), ancestor, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @return true if a super class declares a private method of this name and descriptor: one of the same signature in a subclass hides it, it does not override it */
     public static boolean declaresPrivateMethod(Loader loader, String internalName, String name, String descriptor) {
         Set<String> visited = new HashSet<>();

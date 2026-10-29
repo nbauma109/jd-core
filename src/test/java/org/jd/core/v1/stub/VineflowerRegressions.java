@@ -1039,6 +1039,13 @@ public class VineflowerRegressions {
         return length + standalone.put("x").length();
     }
 
+    public int lambdaWhichReadsAField() {
+        var fielded = new Object() {
+            int added = 2;
+        };
+        return apply(fielded, x -> x.added);
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

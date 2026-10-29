@@ -789,6 +789,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     calls[0] |= isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
                     super.visit(expression);
                 }
+
+                @Override
+                public void visit(FieldReferenceExpression expression) {
+                    calls[0] |= members.contains(expression.getName()) || members.contains(hiddenField(expression.getInternalTypeName(), expression.getName()));
+                    super.visit(expression);
+                }
             });
             return calls[0];
         }

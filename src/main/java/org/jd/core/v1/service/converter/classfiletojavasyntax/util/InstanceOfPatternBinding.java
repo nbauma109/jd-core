@@ -120,8 +120,35 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         String operand = operandDescriptor(method, loadedIndex(code.getCode(), binding.firstSkippedOffset()), instanceOfOffset);
         Loader loader = LOADER.get();
 
-        return tested != null && operand != null && (tested.equals(operand)
+        return tested != null && operand != null && (tested.equals(operand) || isArrayWhichIsATestedSuperType(operand, tested)
                 || loader != null && !operand.startsWith("[") && ClassMetadata.isSubtype(loader, erasure(operand), erasure(tested)));
+    }
+
+    /** 'String[]' is an 'Object[]', an 'Object', a 'Cloneable' and a 'Serializable': the test of such a type is unconditional */
+    private static boolean isArrayWhichIsATestedSuperType(String operand, String tested) {
+        if (!operand.startsWith("[")) {
+            return false;
+        }
+        if (!tested.startsWith("[")) {
+            return isObjectOrArrayInterface(tested);
+        }
+
+        int operandDimensions = operand.lastIndexOf('[') + 1;
+        int testedDimensions = tested.lastIndexOf('[') + 1;
+        String operandElement = operand.substring(operandDimensions);
+        String testedElement = tested.substring(testedDimensions);
+        Loader loader = LOADER.get();
+
+        if (operandDimensions > testedDimensions) {
+            // 'String[][]' is an 'Object[]': its elements are arrays
+            return isObjectOrArrayInterface(testedElement);
+        }
+        return operandDimensions == testedDimensions && (operandElement.equals(testedElement)
+                || loader != null && operandElement.startsWith("L") && testedElement.startsWith("L") && ClassMetadata.isSubtype(loader, erasure(operandElement), erasure(testedElement)));
+    }
+
+    private static boolean isObjectOrArrayInterface(String descriptor) {
+        return "Ljava/lang/Object;".equals(descriptor) || "Ljava/lang/Cloneable;".equals(descriptor) || "Ljava/io/Serializable;".equals(descriptor);
     }
 
     /** @return the descriptor of the type of the variable which the test reads: the one of the local variable table, of the parameter; null if it is unknown */

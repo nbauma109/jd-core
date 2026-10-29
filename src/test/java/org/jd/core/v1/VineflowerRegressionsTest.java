@@ -211,6 +211,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     public void testAnonymousTypesWhichLambdasAndHandlersNeed() throws Exception {
         String source = decompile();
 
+        // A lambda which reads a field of the anonymous class needs its type too
+        assertTrue(source.contains("var fielded = new Object() {"));
         // A lambda which is independent of the argument gives no type to it
         assertTrue(source.contains("Putter standalone = new Putter() {"));
         // The lambda which infers its parameter from the variable, the body which throws what the handler catches

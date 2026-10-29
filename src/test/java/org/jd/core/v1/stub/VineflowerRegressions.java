@@ -747,6 +747,15 @@ public class VineflowerRegressions {
         return result + selected.added();
     }
 
+    public int receiverWhichIsAGenericCall() {
+        var target = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return java.util.Objects.requireNonNull(target).added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

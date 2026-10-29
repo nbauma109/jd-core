@@ -730,6 +730,7 @@ public class VineflowerRegressions {
         return list.size();
     }
 
+    @SuppressWarnings("java:S1172") // the second argument gives its type to nothing: it is not the one of the returned type variable
     static <T extends Other> T choose(T value, Object ignored) {
         return value;
     }

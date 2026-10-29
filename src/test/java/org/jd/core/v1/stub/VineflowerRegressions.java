@@ -770,6 +770,33 @@ public class VineflowerRegressions {
         return picked.added();
     }
 
+    @SuppressWarnings({ "java:S1854", "java:S1659" }) // the declarations are merged on one line on purpose
+    public int mergedGenericInitializers() {
+        var one = java.util.Objects.requireNonNull(new Object() { int added() { return 1; } }); var two = java.util.Objects.requireNonNull(new Object() { int added() { return 2; } });
+        return one.added() + two.added();
+    }
+
+    @SuppressWarnings({ "java:S1854", "java:S1172" }) // the parameter of the local class has the name of the alias
+    public String parameterWhichHidesAnAlias() {
+        Putter origin = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        Object alias = origin;
+        alias.hashCode();
+
+        class Reading {
+            String value(Other alias) {
+                return alias.added();
+            }
+        }
+
+        String result = new Reading().value(new Other());
+        origin = new Putter();
+        return result + origin.put("x");
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

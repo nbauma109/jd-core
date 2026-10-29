@@ -133,9 +133,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer && references(initializer.getExpression(), anonymousVariables.keySet()) != null;
     }
 
-    private static boolean isAnonymousClassInstance(LocalVariableDeclarator declarator) {
-        return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
-                && initializer.getExpression() instanceof ClassFileNewExpression newExpression && newExpression.getBodyDeclaration() != null;
+    private boolean isAnonymousClassInstance(LocalVariableDeclarator declarator) {
+        return declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer && anonymousCreation(initializer.getExpression()) != null;
     }
 
     /** 'Object c = b;' keeps its type, 'c.added()' needs the type of the anonymous class of 'b' */
@@ -455,16 +454,30 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** A method of a local or anonymous class which has a parameter of this name uses its own variable, not the one of the enclosing method */
         @Override
         public void visit(MethodDeclaration declaration) {
-            if (!hasParameter(declaration.getFormalParameters())) {
-                super.visit(declaration);
+            Set<String> parameters = parameterNames(declaration.getFormalParameters());
+
+            if (!parameters.contains(variableName)) {
+                visitWithout(parameters, () -> super.visit(declaration));
             }
         }
 
         @Override
         public void visit(ConstructorDeclaration declaration) {
-            if (!hasParameter(declaration.getFormalParameters())) {
-                super.visit(declaration);
+            Set<String> parameters = parameterNames(declaration.getFormalParameters());
+
+            if (!parameters.contains(variableName)) {
+                visitWithout(parameters, () -> super.visit(declaration));
             }
+        }
+
+        /** The parameters hide the aliases of the variable which have their names, in the executable only */
+        private void visitWithout(Set<String> hidden, Runnable visit) {
+            Set<String> removed = new HashSet<>(variableNames);
+
+            removed.retainAll(hidden);
+            variableNames.removeAll(removed);
+            visit.run();
+            variableNames.addAll(removed);
         }
 
         @Override
@@ -486,18 +499,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /** The parameters of the method itself: the ones of the methods of its local classes hide the variable in those methods only */
-        private boolean hasParameter(BaseFormalParameter parameters) {
-            boolean[] declared = new boolean[1];
+        private Set<String> parameterNames(BaseFormalParameter parameters) {
+            Set<String> names = new HashSet<>();
 
             if (parameters != null) {
                 parameters.accept(new AbstractJavaSyntaxVisitor() {
                     @Override
                     public void visit(FormalParameter parameter) {
-                        declared[0] |= variableName.equals(parameter.getName());
+                        names.add(parameter.getName());
                     }
                 });
             }
-            return declared[0];
+            return names;
         }
 
         private static List<String> declaredNames(LocalVariableDeclarationStatement declaration) {

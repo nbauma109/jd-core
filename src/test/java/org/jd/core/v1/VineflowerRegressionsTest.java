@@ -178,6 +178,11 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var list = new ArrayList"));
         // The argument of a call which returns Object, and which is cast, gives no type to the variable
         assertFalse(source.contains("var kept"));
+        // Declarations which were merged are split before 'var' is restored, whatever the initializer which gives the type
+        assertTrue(source.contains("var one = Objects.requireNonNull(new Object() {"));
+        assertTrue(source.contains("var two = Objects.requireNonNull(new Object() {"));
+        // The parameter of a local class which has the name of an alias hides it
+        assertTrue(source.contains("Putter origin = new Putter() {"));
         // The exceptions of the generic signature are not part of the returned type
         assertTrue(source.contains("var picked = identity(new Object() {"));
         // The receiver of a call can be a generic call which returns the variable

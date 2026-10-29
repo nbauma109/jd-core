@@ -272,7 +272,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         List<Expression> results = new ArrayList<>(matchingArguments(call, true));
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
 
-        if (signature != null && signature.indexOf(')') > 0) {
+        if (signature != null && signature.contains(")")) {
             String returned = returnedType(signature);
 
             if (returned.startsWith("T") && !declaresTypeVariable(signature, returned) && call.getExpression() instanceof MethodInvocationExpression receiver) {

@@ -199,6 +199,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("Other holder = make(new Object() {"));
         // The variable of a handler hides the alias which has its name
         assertTrue(source.contains("Putter source = new Putter() {"));
+        // The container of an anonymous argument has its own type
+        assertFalse(source.contains("var wrapped"));
         // A local of a nested method hides the alias which has its name; the type goes through the receiver of a generic call
         assertTrue(source.contains("Putter holder = new Putter() {"));
         assertTrue(source.contains("var element = List.of(new Object() {"));

@@ -896,6 +896,27 @@ public class VineflowerRegressions {
         return element.added();
     }
 
+    static class Wrapper<T> extends Other {
+        T content;
+    }
+
+    @SuppressWarnings({ "java:S1172", "java:S1854" }) // the argument gives its type to the type argument of the result only
+    static <T> Wrapper<T> wrap(T ignored) {
+        return new Wrapper<>();
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public String containerOfAnAnonymousArgument() {
+        Other wrapped = wrap(new Object() {
+            String added() {
+                return "inside";
+            }
+        });
+        String result = wrapped.added();
+        wrapped = new Other();
+        return result + wrapped.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

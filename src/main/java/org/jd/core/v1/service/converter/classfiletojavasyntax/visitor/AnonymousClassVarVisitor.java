@@ -265,10 +265,33 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * @return the expressions which give their type to the result of a generic call: the arguments whose type is a type variable of the method which the returned
-     * type contains ('&lt;T&gt; T f(T first, Object ignored)', '&lt;E&gt; List&lt;E&gt; of(E)'), the receiver when the method returns a type variable of its class ('List&lt;E&gt;.get')
+     * @return the expressions which give their type to the result of a generic call: the arguments whose type is the type variable which the method
+     * returns ('&lt;T&gt; T f(T first, Object ignored)'), the type arguments of the receiver when the method returns a type variable of its class ('List&lt;E&gt;.get')
      */
     private List<Expression> callResults(MethodInvocationExpression call) {
+        List<Expression> results = new ArrayList<>(matchingArguments(call, true));
+        String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+        if (signature != null && signature.indexOf(')') > 0) {
+            String returned = returnedType(signature);
+
+            if (returned.startsWith("T") && !declaresTypeVariable(signature, returned) && call.getExpression() instanceof MethodInvocationExpression receiver) {
+                results.addAll(matchingArguments(receiver, false));
+            }
+        }
+        return results;
+    }
+
+    private static String returnedType(String signature) {
+        // The signature ends with the exceptions which the method throws, '^TE;', if they are type variables
+        return signature.substring(signature.indexOf(')') + 1).split("\\^")[0];
+    }
+
+    /**
+     * @param exact true for the arguments whose type is the returned type ('&lt;T&gt; T f(T)'), false for the ones which the returned type only contains as a
+     * type argument ('&lt;E&gt; List&lt;E&gt; of(E)')
+     */
+    private List<Expression> matchingArguments(MethodInvocationExpression call, boolean exact) {
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
         List<Expression> results = new ArrayList<>();
 
@@ -276,8 +299,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return results;
         }
 
-        // The signature ends with the exceptions which the method throws, '^TE;', if they are type variables
-        String returned = signature.substring(signature.indexOf(')') + 1).split("\\^")[0];
+        String returned = returnedType(signature);
         List<Expression> arguments = new ArrayList<>();
 
         if (call.getParameters() != null) {
@@ -290,15 +312,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         while (index < signature.indexOf(')')) {
             int end = endOfSignatureType(signature, index);
             String parameter = signature.substring(index, end);
+            boolean matches = exact ? returned.equals(parameter) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter);
 
-            if (parameter.startsWith("T") && returned.contains(parameter) && position < arguments.size()) {
+            if (matches && position < arguments.size()) {
                 results.addAll(underlyingValues(arguments.get(position)));
             }
             index = end;
             position++;
-        }
-        if (returned.startsWith("T") && !declaresTypeVariable(signature, returned) && call.getExpression() != null) {
-            results.addAll(underlyingValues(call.getExpression()));
         }
         return results;
     }

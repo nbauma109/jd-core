@@ -865,6 +865,37 @@ public class VineflowerRegressions {
         return result + source.put("x");
     }
 
+    @SuppressWarnings({ "java:S1854", "java:S1172" }) // the local of the nested method has the name of the alias
+    public String localWhichHidesAnAlias() {
+        Putter holder = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        Object duplicate = holder;
+        duplicate.hashCode();
+
+        class Declaring {
+            String value() {
+                Other duplicate = new Other();
+                return duplicate.added();
+            }
+        }
+
+        String result = new Declaring().value();
+        holder = new Putter();
+        return result + holder.put("x");
+    }
+
+    public int typeThroughTheReceiverOfAGenericCall() {
+        var element = java.util.List.of(new Object() {
+            int added() {
+                return 2;
+            }
+        }).get(0);
+        return element.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

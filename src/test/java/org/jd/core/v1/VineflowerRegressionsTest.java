@@ -199,6 +199,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("Other holder = make(new Object() {"));
         // The variable of a handler hides the alias which has its name
         assertTrue(source.contains("Putter source = new Putter() {"));
+        // A local of a nested method hides the alias which has its name; the type goes through the receiver of a generic call
+        assertTrue(source.contains("Putter holder = new Putter() {"));
+        assertTrue(source.contains("var element = List.of(new Object() {"));
         // The parameter of a nested class hides the variable in that class only
         assertTrue(source.contains("var outer = new Object() {"));
         // ... and past a block which declares a variable of the same name

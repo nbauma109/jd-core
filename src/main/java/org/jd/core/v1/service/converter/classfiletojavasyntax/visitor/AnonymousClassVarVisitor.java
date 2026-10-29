@@ -237,15 +237,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             values.addAll(underlyingValues(ternary.getFalseExpression()));
         } else if (value instanceof SwitchExpression switchExpression) {
             values.addAll(switchResults(switchExpression));
-        } else if (value instanceof MethodInvocationExpression call && call.getParameters() != null) {
-            List<Expression> arguments = new ArrayList<>();
-
-            call.getParameters().forEach(arguments::add);
-            for (int position : positionsOfTheReturnedTypeVariable(call)) {
-                if (position < arguments.size()) {
-                    values.addAll(underlyingValues(arguments.get(position)));
-                }
-            }
+        } else if (value instanceof MethodInvocationExpression call) {
+            values.addAll(callResults(call));
         } else if (!(value instanceof CastExpression) && !(value instanceof MethodInvocationExpression)) {
             values.add(value);
         }
@@ -271,30 +264,50 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return results;
     }
 
-    /** '&lt;T&gt; T f(T first, Object ignored)': the positions of the parameters whose type is the type variable which the generic signature of the method returns */
-    private List<Integer> positionsOfTheReturnedTypeVariable(MethodInvocationExpression call) {
+    /**
+     * @return the expressions which give their type to the result of a generic call: the arguments whose type is a type variable of the method which the returned
+     * type contains ('&lt;T&gt; T f(T first, Object ignored)', '&lt;E&gt; List&lt;E&gt; of(E)'), the receiver when the method returns a type variable of its class ('List&lt;E&gt;.get')
+     */
+    private List<Expression> callResults(MethodInvocationExpression call) {
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
-        List<Integer> positions = new ArrayList<>();
+        List<Expression> results = new ArrayList<>();
 
         if (signature == null || signature.indexOf(')') < 0) {
-            return positions;
+            return results;
         }
 
         // The signature ends with the exceptions which the method throws, '^TE;', if they are type variables
         String returned = signature.substring(signature.indexOf(')') + 1).split("\\^")[0];
+        List<Expression> arguments = new ArrayList<>();
+
+        if (call.getParameters() != null) {
+            call.getParameters().forEach(arguments::add);
+        }
+
         int index = signature.indexOf('(') + 1;
         int position = 0;
 
-        while (returned.startsWith("T") && index < signature.indexOf(')')) {
+        while (index < signature.indexOf(')')) {
             int end = endOfSignatureType(signature, index);
+            String parameter = signature.substring(index, end);
 
-            if (signature.substring(index, end).equals(returned)) {
-                positions.add(position);
+            if (parameter.startsWith("T") && returned.contains(parameter) && position < arguments.size()) {
+                results.addAll(underlyingValues(arguments.get(position)));
             }
             index = end;
             position++;
         }
-        return positions;
+        if (returned.startsWith("T") && !declaresTypeVariable(signature, returned) && call.getExpression() != null) {
+            results.addAll(underlyingValues(call.getExpression()));
+        }
+        return results;
+    }
+
+    /** @return true if the type variable 'TE;' is one of the type parameters of the method: '&lt;E:Ljava/lang/Object;&gt;(TE;)...' */
+    private static boolean declaresTypeVariable(String signature, String typeVariable) {
+        int end = signature.indexOf(">(");
+
+        return signature.startsWith("<") && end > 0 && signature.substring(0, end + 1).matches(".*[<;]" + java.util.regex.Pattern.quote(typeVariable.substring(1, typeVariable.length() - 1)) + ":.*");
     }
 
     /** @return the index which follows the type of a signature which starts at the index: a class with type arguments, a type variable, an array or a primitive type */
@@ -537,6 +550,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return names;
         }
 
+        /** A local which is not declared with the value of the variable has the name of an alias: it hides it up to the end of the block */
+        private void shadowAliases(LocalVariableDeclarationStatement declaration) {
+            for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
+                if (!(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer) || references(initializer.getExpression(), variableNames) == null) {
+                    variableNames.remove(declarator.getName());
+                }
+            }
+        }
+
         private static List<String> declaredNames(LocalVariableDeclarationStatement declaration) {
             List<String> names = new ArrayList<>();
 
@@ -554,11 +576,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
             for (Statement statement : statements) {
                 statement.accept(this);
-                if (statement instanceof LocalVariableDeclarationStatement declaration && declaredNames(declaration).contains(variableName)) {
-                    break;
+                if (statement instanceof LocalVariableDeclarationStatement declaration) {
+                    if (declaredNames(declaration).contains(variableName)) {
+                        break;
+                    }
+                    shadowAliases(declaration);
                 }
             }
-            variableNames.retainAll(knownBefore);
+            variableNames.clear();
+            variableNames.addAll(knownBefore);
         }
 
         /** An override of 'close()' which declares fewer exceptions than the one of its super type has to be called through its own type */

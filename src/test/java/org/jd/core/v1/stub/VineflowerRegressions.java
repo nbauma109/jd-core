@@ -809,6 +809,19 @@ public class VineflowerRegressions {
         return first + hiding.value();
     }
 
+    private static <T> T privateIdentity(T value) {
+        return value;
+    }
+
+    public int privateGenericCall() {
+        var retained = privateIdentity(new Object() {
+            int added() {
+                return 2;
+            }
+        });
+        return retained.added();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -26,6 +26,7 @@ import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -167,6 +168,18 @@ public class FoldIncrementIntoConditionVisitorTest {
 
         // A use which comes first is always evaluated
         Expression operand = binary(binary(variable(I), "+", two()), ">", switchExpression);
+
+        assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
+    }
+
+    @Test
+    public void testBoundMethodReferenceBeforeTheFirstUseIsNotFolded() {
+        Expression bound = new MethodReferenceExpression(1, PrimitiveType.TYPE_INT, variable(J), "p/A", "run", "()V");
+        Expression unbound = new MethodReferenceExpression(1, PrimitiveType.TYPE_INT, new ObjectTypeReferenceExpression(new ObjectType("p/A", "p.A", "A")), "p/A", "run", "()V");
+
+        // The creation of a reference bound to a null receiver throws
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(bound, ">", variable(I)), I, "++"));
+        Expression operand = binary(unbound, ">", variable(I));
 
         assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
     }

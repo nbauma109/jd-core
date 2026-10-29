@@ -15,6 +15,7 @@ import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.LengthExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
@@ -100,6 +101,13 @@ public final class FoldIncrementIntoConditionVisitor {
         @Override
         public void visit(MethodInvocationExpression expression) {
             throwing |= found == null;
+            super.visit(expression);
+        }
+
+        @Override
+        public void visit(MethodReferenceExpression expression) {
+            // The creation of a reference bound to a receiver checks that it is not null
+            throwing |= found == null && !expression.getExpression().isObjectTypeReferenceExpression();
             super.visit(expression);
         }
 

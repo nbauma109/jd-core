@@ -114,17 +114,18 @@ public final class ClassMetadata {
 
     /** @return the generic signature of the method of this name and descriptor which the class, a super class or an interface declares; null if it has none or is unknown */
     public static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor) {
-        return declaredGenericSignature(loader, internalName, name, descriptor, new HashSet<>());
+        return declaredGenericSignature(loader, internalName, name, descriptor, true, new HashSet<>());
     }
 
-    private static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+    /** @param includePrivate true for the class of the invocation, which can call its own private methods: the ones of its super classes are not inherited */
+    private static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
 
         if (javaClass == null) {
             return null;
         }
         for (Method method : javaClass.getMethods()) {
-            if (!method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+            if ((includePrivate || !method.isPrivate()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
                 return genericSignature(method);
             }
         }
@@ -135,7 +136,7 @@ public final class ClassMetadata {
         for (String interfaceName : javaClass.getInterfaceNames()) {
             parents.add(internalNameOf(interfaceName));
         }
-        return parents.stream().map(parent -> declaredGenericSignature(loader, parent, name, descriptor, visited)).filter(Objects::nonNull).findFirst().orElse(null);
+        return parents.stream().map(parent -> declaredGenericSignature(loader, parent, name, descriptor, false, visited)).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     /** @return the generic signature of the method, null if its types have no type argument */

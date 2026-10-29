@@ -143,4 +143,25 @@ public class ClassMetadataTest {
         // a class without type parameters has no signature
         assertFalse(ClassMetadata.isSubtypeWithSameTypeArguments(LOADER, "java/lang/Thread", "java/lang/Runnable"));
     }
+
+    /** A private generic method of the class itself, which a subclass does not inherit */
+    static class WithPrivate {
+        @SuppressWarnings("unused")
+        private static <T> T identity(T value) {
+            return value;
+        }
+    }
+
+    static class InheritingFromPrivate extends WithPrivate {
+    }
+
+    @Test
+    public void testDeclaredGenericSignatureOfAPrivateMethod() {
+        String owner = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$WithPrivate";
+        String subclass = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$InheritingFromPrivate";
+
+        assertEquals("<T:Ljava/lang/Object;>(TT;)TT;", ClassMetadata.declaredGenericSignature(LOADER, owner, "identity", "(Ljava/lang/Object;)Ljava/lang/Object;"));
+        assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, subclass, "identity", "(Ljava/lang/Object;)Ljava/lang/Object;"));
+        assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, "no/such/Class", "identity", "(Ljava/lang/Object;)Ljava/lang/Object;"));
+    }
 }

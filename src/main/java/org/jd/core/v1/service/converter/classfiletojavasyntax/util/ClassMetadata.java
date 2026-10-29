@@ -58,6 +58,27 @@ public final class ClassMetadata {
         return false;
     }
 
+    /** @return true if a super class declares a private method of this name and descriptor: one of the same signature in a subclass hides it, it does not override it */
+    public static boolean declaresPrivateMethod(Loader loader, String internalName, String name, String descriptor) {
+        Set<String> visited = new HashSet<>();
+        String current = internalName;
+
+        while (current != null && visited.add(current)) {
+            JavaClass javaClass = parse(loader, current);
+
+            if (javaClass == null) {
+                return false;
+            }
+            for (Method method : javaClass.getMethods()) {
+                if (method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+                    return true;
+                }
+            }
+            current = internalNameOf(javaClass.getSuperclassName());
+        }
+        return false;
+    }
+
     /** @return the names of the exceptions which the method of this name and descriptor declares in the class, a super class or an interface; empty if none or if it is unknown */
     public static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor) {
         return declaredExceptions(loader, internalName, name, descriptor, new HashSet<>());

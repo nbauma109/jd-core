@@ -25,6 +25,7 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.expression.ArrayExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNull;
@@ -152,6 +153,20 @@ public class FoldIncrementIntoConditionVisitorTest {
     public void testOperationsAfterTheFirstUseAreFolded() {
         Expression call = new MethodInvocationExpression(PrimitiveType.TYPE_INT, variable(J), "p/A", "m", "()I", null);
         Expression operand = binary(variable(I), ">", call);
+
+        assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
+    }
+
+    @Test
+    public void testUseInTheRulesOfASwitchExpressionIsNotFolded() {
+        java.util.List<SwitchExpression.Rule> rules = java.util.List.of(new SwitchExpression.RuleExpression(java.util.Collections.emptyList(), variable(I)));
+        SwitchExpression switchExpression = new SwitchExpression(1, variable(J), rules, PrimitiveType.TYPE_INT);
+
+        // The rule which is taken may not read the variable
+        assertNull(FoldIncrementIntoConditionVisitor.fold(binary(switchExpression, ">", two()), I, "++"));
+
+        // A use which comes first is always evaluated
+        Expression operand = binary(binary(variable(I), "+", two()), ">", switchExpression);
 
         assertSame(operand, FoldIncrementIntoConditionVisitor.fold(operand, I, "++"));
     }

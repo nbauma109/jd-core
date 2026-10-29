@@ -392,7 +392,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     private boolean overrides(Method method, String superInternalName) {
         return OBJECT_METHODS.contains(method.getName() + method.getSignature())
-                || ClassMetadata.isLoadable(loader, superInternalName) && ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature());
+                || ClassMetadata.isLoadable(loader, superInternalName) && (ClassMetadata.declaresMethod(loader, superInternalName, method.getName(), method.getSignature())
+                || ClassMetadata.declaresPrivateMethod(loader, superInternalName, method.getName(), method.getSignature()));
     }
 
     private Set<String> addedMembers(ClassFileBodyDeclaration body, String superInternalName) {

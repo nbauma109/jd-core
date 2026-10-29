@@ -19,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
@@ -169,6 +170,14 @@ public final class FoldIncrementIntoConditionVisitor {
             conditional++;
             expression.getTrueExpression().accept(this);
             expression.getFalseExpression().accept(this);
+            conditional--;
+        }
+
+        /** The rules of a switch expression are evaluated sometimes: the one which is taken may not read the variable */
+        @Override
+        public void visit(SwitchExpression expression) {
+            conditional++;
+            super.visit(expression);
             conditional--;
         }
 

@@ -797,6 +797,18 @@ public class VineflowerRegressions {
         return result + origin.put("x");
     }
 
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public int anonymousMethodWhichHidesAPrivateMethod() {
+        PrivateBase hiding = new PrivateBase() {
+            int value() {
+                return 2;
+            }
+        };
+        int first = hiding.value();
+        hiding = new PrivateBase();
+        return first + hiding.value();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

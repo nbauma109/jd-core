@@ -183,6 +183,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var two = Objects.requireNonNull(new Object() {"));
         // The parameter of a local class which has the name of an alias hides it
         assertTrue(source.contains("Putter origin = new Putter() {"));
+        // A method which hides a private method of the super type is not the one which a call through the super type reaches
+        assertTrue(source.contains("PrivateBase hiding = new PrivateBase() {"));
         // The exceptions of the generic signature are not part of the returned type
         assertTrue(source.contains("var picked = identity(new Object() {"));
         // The receiver of a call can be a generic call which returns the variable

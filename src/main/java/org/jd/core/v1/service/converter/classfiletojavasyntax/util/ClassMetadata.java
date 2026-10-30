@@ -250,7 +250,60 @@ public final class ClassMetadata {
                 return parameterSignatures(method);
             }
         }
+        return inheritedFunctionalMethodParameters(loader, javaClass);
+    }
+
+    /** 'interface Visitor&lt;T&gt; extends ToIntFunction&lt;Other&gt;' has the method of its super interface, where its type arguments replace the type parameters */
+    private static List<String> inheritedFunctionalMethodParameters(Loader loader, JavaClass javaClass) {
+        String signature = classSignature(javaClass);
+
+        if (signature == null) {
+            return Collections.emptyList();
+        }
+
+        int index = formalParameters(signature, new ArrayList<>());
+
+        // The first super type is 'java/lang/Object' for an interface
+        index = endOfType(signature, index);
+        while (index < signature.length()) {
+            int end = endOfType(signature, index);
+            String superType = signature.substring(index, end);
+            String superName = superType.substring(1, superType.indexOf('<') < 0 ? superType.length() - 1 : superType.indexOf('<'));
+            List<String> parameters = functionalMethodParameters(loader, superName);
+
+            if (!parameters.isEmpty()) {
+                List<String> typeParameters = typeParameterNames(loader, superName);
+                List<String> typeArguments = typeArgumentsOf(superType);
+                List<String> substituted = new ArrayList<>();
+
+                for (String parameter : parameters) {
+                    int k = typeParameters.indexOf(parameter.length() > 2 ? parameter.substring(1, parameter.length() - 1) : "");
+
+                    substituted.add(parameter.startsWith("T") && k >= 0 && k < typeArguments.size() ? typeArguments.get(k) : parameter);
+                }
+                return substituted;
+            }
+            index = end;
+        }
         return Collections.emptyList();
+    }
+
+    /** @return the type arguments of a generic type signature: 'Ljava/util/Map&lt;TK;+TV;&gt;;' gives 'TK;', '+TV;' */
+    private static List<String> typeArgumentsOf(String type) {
+        List<String> arguments = new ArrayList<>();
+        int index = type.indexOf('<') + 1;
+
+        while (index > 0 && index < type.length() && type.charAt(index) != '>') {
+            int start = index;
+
+            if (type.charAt(index) == '*') {
+                index++;
+            } else {
+                index = endOfType(type, type.charAt(index) == '+' || type.charAt(index) == '-' ? index + 1 : index);
+            }
+            arguments.add(type.substring(start, index));
+        }
+        return arguments;
     }
 
     private static List<String> parameterSignatures(Method method) {

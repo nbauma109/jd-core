@@ -1280,6 +1280,34 @@ public class VineflowerRegressions {
         return plain.toString();
     }
 
+    public String castThroughALocalIsARuntimeCheck() {
+        var origin = new Object() { };
+        var value = unchecked(origin);
+        return value.toString();
+    }
+
+    interface Extra {
+        int extra();
+    }
+
+    interface InheritedVisitor<T> extends java.util.function.ToIntFunction<Extra> {
+    }
+
+    static <T> int consumeInherited(T first, InheritedVisitor<T> visitor) {
+        return visitor.applyAsInt(() -> 1) + first.hashCode();
+    }
+
+    public int inheritedFunctionalMethodMapsItsParameters() {
+        Object tracked = new Object() {
+            int extra() {
+                return 2;
+            }
+        };
+        int result = consumeInherited(tracked, x -> x.extra());
+        tracked = new Object();
+        return result;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

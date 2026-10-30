@@ -173,8 +173,29 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return search.found;
     }
 
+    /**
+     * 'var origin = new Object() {}; var value = bad(origin);' where the byte code casts the result of 'bad' to the anonymous class: 'origin' has to give its type to
+     * the call, otherwise the runtime check is lost.
+     */
+    private boolean feedsAnAnonymousCast(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
+        if (!(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
+                || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
+                || !(initializer.getExpression() instanceof ClassFileNewExpression creation) || !(creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration)) {
+            return false;
+        }
+        for (int i = nextIndex; i < statements.size(); i++) {
+            if (statements.get(i) instanceof LocalVariableDeclarationStatement next && next.getLocalVariableDeclarators() instanceof LocalVariableDeclarator dependent
+                    && dependent.getVariableInitializer() instanceof ExpressionVariableInitializer value && hasAnonymousCast(value.getExpression())
+                    && references(value.getExpression(), Set.of(declarator.getName())) != null) {
+                anonymousVariables.put(declarator.getName(), addedMembers((ClassFileBodyDeclaration) creation.getBodyDeclaration(), creation.getObjectType().getInternalName()));
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean isDeclaredWithVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
-        return needsVar(declaration.getLocalVariableDeclarators(), search -> {
+        return feedsAnAnonymousCast(declaration, statements, nextIndex) || needsVar(declaration.getLocalVariableDeclarators(), search -> {
             for (int i = nextIndex; i < statements.size() && !search.found; i++) {
                 statements.get(i).accept(search);
             }
@@ -211,6 +232,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private boolean needsVar(String name, Expression value, Consumer<MemberUseSearch> uses) {
         ClassFileNewExpression newExpression = anonymousCreation(value);
 
+        if (newExpression == null && hasAnonymousCast(value) && references(value, anonymousVariables.keySet()) != null) {
+            // The anonymous type comes through a variable which is 'var'
+            anonymousVariables.put(name, anonymousVariables.get(references(value, anonymousVariables.keySet())));
+            return true;
+        }
         if (newExpression == null || !(newExpression.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
             return false;
         }

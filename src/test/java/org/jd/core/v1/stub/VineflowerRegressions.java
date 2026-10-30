@@ -1161,7 +1161,7 @@ public class VineflowerRegressions {
         return applyWithABound(bounded, x -> x.added());
     }
 
-    static void io() throws java.io.IOException {
+    private static void io() throws java.io.IOException {
         // declares what the handler catches
     }
 

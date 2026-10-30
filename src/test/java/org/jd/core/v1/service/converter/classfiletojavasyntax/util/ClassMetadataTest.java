@@ -192,4 +192,24 @@ public class ClassMetadataTest {
         assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, "java/lang/Object", "noSuchMethod", "()V"));
         assertFalse(ClassMetadata.declaresPrivateMethod(LOADER, "java/lang/Object", "noSuchMethod", "()V"));
     }
+
+    /** A private method which declares an exception, and a class which inherits it without being able to call it */
+    static class DeclaringPrivately {
+        @SuppressWarnings("unused")
+        private void io() throws java.io.IOException {
+            // declares an exception
+        }
+    }
+
+    static class InheritingPrivately extends DeclaringPrivately {
+    }
+
+    @Test
+    public void testDeclaredExceptionsOfAPrivateMethod() {
+        String owner = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$DeclaringPrivately";
+        String subclass = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$InheritingPrivately";
+
+        assertEquals(Collections.singleton("java/io/IOException"), ClassMetadata.declaredExceptions(LOADER, owner, "io", "()V"));
+        assertTrue(ClassMetadata.declaredExceptions(LOADER, subclass, "io", "()V").isEmpty());
+    }
 }

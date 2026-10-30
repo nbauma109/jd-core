@@ -110,17 +110,18 @@ public final class ClassMetadata {
 
     /** @return the names of the exceptions which the method of this name and descriptor declares in the class, a super class or an interface; empty if none or if it is unknown */
     public static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor) {
-        return declaredExceptions(loader, internalName, name, descriptor, new HashSet<>());
+        return declaredExceptions(loader, internalName, name, descriptor, true, new HashSet<>());
     }
 
-    private static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+    /** @param includePrivate true for the class which is asked: it can call its own private methods, the ones of its super classes are not inherited */
+    private static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
 
         if (javaClass == null) {
             return Collections.emptySet();
         }
         for (Method method : javaClass.getMethods()) {
-            if (!method.isPrivate() && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+            if ((includePrivate || !method.isPrivate()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
                 return exceptionNames(method);
             }
         }
@@ -132,7 +133,7 @@ public final class ClassMetadata {
             parents.add(internalNameOf(interfaceName));
         }
         for (String parent : parents) {
-            Set<String> exceptions = declaredExceptions(loader, parent, name, descriptor, visited);
+            Set<String> exceptions = declaredExceptions(loader, parent, name, descriptor, false, visited);
 
             if (!exceptions.isEmpty()) {
                 return exceptions;

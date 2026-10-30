@@ -6,9 +6,12 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
 import org.apache.bcel.classfile.ClassFormatException;
 import org.apache.bcel.classfile.ClassParser;
 import org.apache.bcel.classfile.Field;
+import org.apache.bcel.classfile.InnerClass;
+import org.apache.bcel.classfile.InnerClasses;
 import org.apache.bcel.classfile.Attribute;
 import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.classfile.Signature;
@@ -261,31 +264,54 @@ public final class ClassMetadata {
             return Collections.emptyList();
         }
 
-        int index = formalParameters(signature, new ArrayList<>());
-
         // The first super type is 'java/lang/Object' for an interface
-        index = endOfType(signature, index);
+        int index = endOfType(signature, formalParameters(signature, new ArrayList<>()));
+
         while (index < signature.length()) {
             int end = endOfType(signature, index);
-            String superType = signature.substring(index, end);
-            String superName = superType.substring(1, superType.indexOf('<') < 0 ? superType.length() - 1 : superType.indexOf('<'));
-            List<String> parameters = functionalMethodParameters(loader, superName);
+            List<String> parameters = substitutedParameters(loader, signature.substring(index, end));
 
             if (!parameters.isEmpty()) {
-                List<String> typeParameters = typeParameterNames(loader, superName);
-                List<String> typeArguments = typeArgumentsOf(superType);
-                List<String> substituted = new ArrayList<>();
-
-                for (String parameter : parameters) {
-                    int k = typeParameters.indexOf(parameter.length() > 2 ? parameter.substring(1, parameter.length() - 1) : "");
-
-                    substituted.add(parameter.startsWith("T") && k >= 0 && k < typeArguments.size() ? typeArguments.get(k) : parameter);
-                }
-                return substituted;
+                return parameters;
             }
             index = end;
         }
         return Collections.emptyList();
+    }
+
+    /** @return the parameters of the functional method of a super interface, as its type arguments give them; empty if it has none */
+    private static List<String> substitutedParameters(Loader loader, String superType) {
+        int generic = superType.indexOf('<');
+        String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
+        List<String> typeParameters = typeParameterNames(loader, superName);
+        List<String> typeArguments = typeArgumentsOf(superType);
+        List<String> substituted = new ArrayList<>();
+
+        for (String parameter : functionalMethodParameters(loader, superName)) {
+            int k = typeParameters.indexOf(parameter.length() > 2 ? parameter.substring(1, parameter.length() - 1) : "");
+
+            substituted.add(parameter.startsWith("T") && k >= 0 && k < typeArguments.size() ? typeArguments.get(k) : parameter);
+        }
+        return substituted;
+    }
+
+    /** @return false if the class is known and its 'InnerClasses' entry gives it a name: 'Named.$1' is not anonymous; true when it is anonymous or unknown */
+    public static boolean isAnonymousOrUnknown(Loader loader, String internalName) {
+        JavaClass javaClass = parse(loader, internalName);
+
+        if (javaClass == null) {
+            return true;
+        }
+        for (Attribute attribute : javaClass.getAttributes()) {
+            if (attribute instanceof InnerClasses innerClasses) {
+                for (InnerClass inner : innerClasses.getInnerClasses()) {
+                    if (internalName.equals(javaClass.getConstantPool().getConstantString(inner.getInnerClassIndex(), Const.CONSTANT_Class))) {
+                        return inner.getInnerNameIndex() == 0;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     /** @return the type arguments of a generic type signature: 'Ljava/util/Map&lt;TK;+TV;&gt;;' gives 'TK;', '+TV;' */

@@ -1032,8 +1032,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
                             && initializer.getExpression() instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName())) {
                         names.add(declarator.getName());
+                    } else {
+                        // A local of the same name which has another value shadows the alias
+                        names.remove(declarator.getName());
                     }
                     super.visit(declarator);
+                }
+
+                /** The aliases of a block end with it: a sibling block may reuse their names */
+                @Override
+                public void visit(Statements statements) {
+                    Set<String> before = new HashSet<>(names);
+
+                    super.visit(statements);
+                    names.clear();
+                    names.addAll(before);
                 }
 
                 private boolean isParameter(Expression receiver) {

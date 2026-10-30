@@ -97,7 +97,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             widenedFloatConstantVisitor.visit(declaration);
             // Declare 'var' the variables which hold an instance of an anonymous class and use its own members
             // 'var' exists from Java 10 (class file version 54): older sources keep the explicit types
-            if (InstanceOfPatternBinding.getMajorVersion() > 54) {
+            if (InstanceOfPatternBinding.getMajorVersion() >= 54) {
                 anonymousClassVarVisitor.setInternalTypeName(typeDeclaration.getInternalTypeName());
                 anonymousClassVarVisitor.visit(declaration);
             }

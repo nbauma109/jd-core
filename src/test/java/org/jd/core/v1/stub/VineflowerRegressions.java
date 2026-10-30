@@ -1308,6 +1308,38 @@ public class VineflowerRegressions {
         return result;
     }
 
+    static class $1 {
+    }
+
+    public boolean namedLikeAnonymous(Object value) {
+        return (($1) value) == null;
+    }
+
+    static <T> int applyTo(T value, java.util.function.ToIntFunction<T> function) {
+        return function.applyAsInt(value);
+    }
+
+    public int aliasEndsWithItsBlock(boolean flag) {
+        Object sibling = new Object() {
+            int extra() {
+                return 1;
+            }
+        };
+        int total = applyTo(sibling, x -> {
+            if (flag) {
+                Object y = x;
+                return y.hashCode();
+            }
+            if (flag) {
+                Extra y = () -> 3;
+                return y.extra();
+            }
+            return 0;
+        });
+        sibling = new Object();
+        return total + sibling.hashCode();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

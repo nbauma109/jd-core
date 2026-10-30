@@ -282,11 +282,12 @@ public class LocalVariableMaker {
         return typeTypes.getSuperType() != null ? typeTypes.getSuperType() : ObjectType.TYPE_OBJECT;
     }
 
-    /** The name of an anonymous class ends with the number after the last '$' */
+    /** The name of an anonymous class ends with the number after the last '$', and the class does not name itself in its 'InnerClasses' entry: 'Named.$1' does */
     public static boolean isAnonymousClassName(String internalName) {
         int start = internalName.lastIndexOf('$') + 1;
 
-        return start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit);
+        return start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit)
+                && ClassMetadata.isAnonymousOrUnknown(InstanceOfPatternBinding.getLoader(), internalName);
     }
 
     private static boolean containsWildcardTypeArgument(BaseTypeArgument typeArguments) {

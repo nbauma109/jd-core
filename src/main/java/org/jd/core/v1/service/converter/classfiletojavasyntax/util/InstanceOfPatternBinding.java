@@ -86,12 +86,17 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         MAJOR_VERSION.set(majorVersion);
     }
 
-    /** Enables the patterns for the current thread, which decompiles one class at a time */
     /** @return the major version of the class file which is decompiled */
     public static int getMajorVersion() {
         return MAJOR_VERSION.get();
     }
 
+    /** @return the loader of the classes which are decompiled, null when it is not known */
+    public static Loader getLoader() {
+        return LOADER.get();
+    }
+
+    /** Enables the patterns for the current thread, which decompiles one class at a time */
     public static void setEnabled(boolean enabled) {
         ENABLED.set(enabled);
     }

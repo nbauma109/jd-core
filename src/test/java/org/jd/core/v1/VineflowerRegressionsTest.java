@@ -223,6 +223,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertFalse(source.contains("var plain"));
         assertTrue(source.contains("var origin = new Object() {"));
         assertFalse(source.contains("var tracked"));
+        // A named class with a numeric name is not anonymous: its cast stays; the alias of a lambda ends with its block
+        assertTrue(source.contains("($1)value"));
+        assertFalse(source.contains("var sibling"));
         // A nested try without handler lets the exception through, another resource can throw what the handler catches, a method reference counts like a call
         assertTrue(source.contains("try (var nested = new AutoCloseable() {"));
         assertTrue(source.contains("try (var anonymous = new AutoCloseable() {"));
@@ -232,6 +235,12 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // A wildcard bound gives its type to the parameter of the lambda, a call which declares the exception makes the handler valid
         assertTrue(source.contains("var bounded = new Object() {"));
         assertTrue(source.contains("try (var caller = new AutoCloseable() {"));
+    }
+
+    @Test
+    public void testAnonymousTypesWhichFunctionalMethodsDecide() throws Exception {
+        String source = decompile();
+
         // The functional method decides which parameters of the lambda have the type variable, and a lambda in the body of a try is not run by it
         assertTrue(source.contains("Putter visited = new Putter() {"));
         assertTrue(source.contains("try (Closeable deferred = new Closeable() {"));

@@ -24,13 +24,33 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
     private boolean bound;
     private Boolean varArgsOverride;
     private boolean anonymousCast;
+    private final MethodTypes methodTypes;
 
     public ClassFileMethodInvocationExpression(
             int lineNumber, Type type, Expression expression,
             String internalTypeName, String name, String descriptor, BaseExpression parameters, MethodTypes methodTypes) {
         super(lineNumber, type, expression, internalTypeName, name, descriptor, parameters, methodTypes);
+        this.methodTypes = methodTypes;
         this.typeParameters = methodTypes == null ? null : methodTypes.getTypeParameters();
         this.parameterTypes = methodTypes == null ? null : AbstractTypeParametersToTypeArgumentsBinder.clone(methodTypes.getParameterTypes());
+    }
+
+    /** The copy has to be a {@link ClassFileMethodInvocationExpression}: the visitors of the conversion cast the method invocations to it */
+    @Override
+    public Expression copyTo(int lineNumber) {
+        ClassFileMethodInvocationExpression copy = new ClassFileMethodInvocationExpression(lineNumber, getType(), getExpression(), getInternalTypeName(), getName(),
+                getDescriptor(), getParameters(), methodTypes);
+
+        copy.typeParameters = typeParameters;
+        copy.parameterTypes = parameterTypes;
+        copy.unboundParameterTypes = unboundParameterTypes;
+        copy.unboundType = unboundType;
+        copy.bound = bound;
+        copy.varArgsOverride = varArgsOverride;
+        copy.anonymousCast = anonymousCast;
+        copy.setTypeBounds(getTypeBounds());
+        copy.setTypeBindings(getTypeBindings());
+        return copy;
     }
 
     public BaseTypeParameter getTypeParameters() {

@@ -812,8 +812,8 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private Type getExpressionType(Expression expression) {
-        if (expression.isMethodInvocationExpression()) {
-            return getExpressionType((ClassFileMethodInvocationExpression)expression);
+        if (expression instanceof ClassFileMethodInvocationExpression call) {
+            return getExpressionType(call);
         }
         if (expression instanceof ClassFileNewExpression newExpression) {
             return getExpressionType(newExpression);

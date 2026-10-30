@@ -445,18 +445,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 .filter(names::contains).findFirst().orElse(null);
     }
 
-    /** @return true if the byte code which gives the value casts a call result to an anonymous class */
+    /** @return true if the byte code which gives the value casts a call result to an anonymous class: the casts of the arguments which give no type to it do not count */
     private boolean hasAnonymousCast(Expression value) {
-        boolean[] found = {false};
-
-        value.accept(new AbstractJavaSyntaxVisitor() {
-            @Override
-            public void visit(MethodInvocationExpression expression) {
-                found[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast();
-                super.visit(expression);
-            }
-        });
-        return found[0];
+        if (value instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast()) {
+            return true;
+        }
+        if (value instanceof MethodInvocationExpression call) {
+            return callResults(call).stream().anyMatch(this::hasAnonymousCast);
+        }
+        if (value instanceof CastExpression cast) {
+            return hasAnonymousCast(cast.getExpression());
+        }
+        if (value instanceof TernaryOperatorExpression ternary) {
+            return hasAnonymousCast(ternary.getTrueExpression()) || hasAnonymousCast(ternary.getFalseExpression());
+        }
+        return value instanceof SwitchExpression switchExpression && switchResults(switchExpression).stream().anyMatch(this::hasAnonymousCast);
     }
 
     /** @return the creation of an anonymous class which gives its type to the value, null if none does */
@@ -786,7 +789,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         List<String> names = new ArrayList<>();
 
         for (int i = 0; i < lambda.getParameterNames().size(); i++) {
-            if (parameterType(i, methodParameters, typeParameters, typeArguments).equals(typeVariable)) {
+            // 'ToIntFunction<T[]>': the parameter is an array of the type, its elements have it
+            if (parameterType(i, methodParameters, typeParameters, typeArguments).replaceFirst("^\\[+", "").equals(typeVariable)) {
                 names.add(lambda.getParameterNames().get(i));
             }
         }
@@ -1066,8 +1070,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     names.addAll(before);
                 }
 
+                /** The parameter itself, or an element of it when its type is an array of the type variable */
                 private boolean isParameter(Expression receiver) {
-                    return receiver instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName());
+                    Expression value = receiver.isArrayExpression() ? receiver.getExpression() : receiver;
+
+                    return value instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName());
                 }
             });
             return calls[0];

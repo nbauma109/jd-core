@@ -1379,6 +1379,33 @@ public class VineflowerRegressions {
         }).value;
     }
 
+    static <T> int applyToArray(T value, java.util.function.ToIntFunction<T[]> function) {
+        return function.applyAsInt(null) + value.hashCode();
+    }
+
+    public int arrayOfTheTypeVariableGivesItsType() {
+        var arrayed = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyToArray(arrayed, xs -> xs[0].added());
+    }
+
+    static <T> T second(T value, String ignored) {
+        return value;
+    }
+
+    @SuppressWarnings({ "unchecked", "java:S1172" })
+    static <T> T badSecond(T value, String ignored) {
+        return (T) new Object();
+    }
+
+    public String castOfAnUnrelatedArgumentIsNoEvidence() {
+        Object unrelatedCast = badSecond(new Object() { }, second(new Object() { }, "").toString());
+        return unrelatedCast.toString();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

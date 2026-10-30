@@ -1240,6 +1240,36 @@ public class VineflowerRegressions {
         return function.apply(value);
     }
 
+    static <T> int applyIndexed(T value, Indexed<T> function) {
+        return function.apply(1, value, 2);
+    }
+
+    interface Indexed<T> {
+        int apply(int index, T value, int count);
+    }
+
+    public int lambdaWithPrimitiveParametersAndAnAlias() {
+        var indexed = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyIndexed(indexed, (index, x, count) -> {
+            var y = x;
+            return y.added() + index + count;
+        });
+    }
+
+    @SuppressWarnings({ "unchecked", "java:S1172" }) // the unchecked cast of the generic result is a runtime check
+    static <T> T unchecked(T ignored) {
+        return (T) new Object();
+    }
+
+    public String castToTheAnonymousClassIsARuntimeCheck() {
+        var guarded = unchecked(new Object() { });
+        return guarded.toString();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

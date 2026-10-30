@@ -217,6 +217,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (Closeable inner = new Closeable() {"));
         // A lambda which reads a field of the anonymous class needs its type too
         assertTrue(source.contains("var fielded = new Object() {"));
+        // A lambda with primitive parameters and a local alias of its parameter, and the cast to the anonymous class which a generic call needs at run time
+        assertTrue(source.contains("var indexed = new Object() {"));
+        assertTrue(source.contains("var guarded = unchecked(new Object() {"));
         // A nested try without handler lets the exception through, another resource can throw what the handler catches, a method reference counts like a call
         assertTrue(source.contains("try (var nested = new AutoCloseable() {"));
         assertTrue(source.contains("try (var anonymous = new AutoCloseable() {"));

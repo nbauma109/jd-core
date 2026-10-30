@@ -327,6 +327,10 @@ public final class ClassMetadata {
         while (signature.charAt(index) == '[') {
             index++;
         }
+        if (signature.charAt(index) != 'L' && signature.charAt(index) != 'T') {
+            // A primitive type is one character: 'I' in '(ITT;I)I'
+            return index + 1;
+        }
         do {
             char c = signature.charAt(index++);
 

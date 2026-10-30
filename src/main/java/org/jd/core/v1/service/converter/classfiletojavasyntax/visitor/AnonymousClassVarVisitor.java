@@ -216,6 +216,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         Set<String> members = addedMembers(body, newExpression.getObjectType().getInternalName());
 
+        if (!(value instanceof ClassFileNewExpression)) {
+            // The type comes through a generic call: the cast to the anonymous class which the byte code holds is a runtime check which the explicit type loses
+            anonymousVariables.put(name, members);
+            return true;
+        }
         if (members.isEmpty()) {
             return false;
         }
@@ -675,6 +680,79 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return "@" + ownerInternalName + "." + name;
     }
 
+    /** The lambdas which infer the type of their parameters from a tracked variable: their parameters are aliases of it while the lambda is visited */
+    @Override
+    public void visit(MethodInvocationExpression expression) {
+        Set<String> registered = new HashSet<>();
+        String signature = ClassMetadata.declaredGenericSignature(loader, expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+
+        if (expression.getParameters() != null && signature != null && signature.contains(")") && !anonymousVariables.isEmpty()) {
+            List<Expression> arguments = new ArrayList<>();
+            List<String> parameters = parameterSignatures(signature);
+
+            expression.getParameters().forEach(arguments::add);
+            for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
+                String tracked = parameters.get(i).startsWith("T") ? references(arguments.get(i), anonymousVariables.keySet()) : null;
+
+                if (tracked != null) {
+                    registerLambdaParameters(arguments, parameters, i, anonymousVariables.get(tracked), registered);
+                }
+            }
+        }
+        super.visit(expression);
+        registered.forEach(anonymousVariables::remove);
+    }
+
+    private void registerLambdaParameters(List<Expression> arguments, List<String> parameters, int index, Set<String> members, Set<String> registered) {
+        for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
+            if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))) {
+                for (String name : parametersOfTheType(lambda, parameters.get(j), parameters.get(index))) {
+                    if (!anonymousVariables.containsKey(name)) {
+                        anonymousVariables.put(name, members);
+                        registered.add(name);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @return the names of the parameters of the lambda which have the type variable: the i-th parameter has the i-th type argument of its functional
+     * interface ('ToIntBiFunction&lt;T, Other&gt;': 'x' is a 'T', 'y' is an 'Other'), the first one when there are fewer type arguments ('Comparator&lt;T&gt;')
+     */
+    private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
+        List<String> typeArguments = typeArguments(functionalInterface);
+        String interfaceName = functionalInterface.startsWith("L") && functionalInterface.contains("<") ? functionalInterface.substring(1, functionalInterface.indexOf('<')) : null;
+        List<String> methodParameters = ClassMetadata.functionalMethodParameters(loader, interfaceName);
+        List<String> typeParameters = ClassMetadata.typeParameterNames(loader, interfaceName);
+        List<String> names = new ArrayList<>();
+
+        for (int i = 0; i < lambda.getParameterNames().size(); i++) {
+            if (parameterType(i, methodParameters, typeParameters, typeArguments).equals(typeVariable)) {
+                names.add(lambda.getParameterNames().get(i));
+            }
+        }
+        return names;
+    }
+
+    /** @return the type of the i-th parameter of the lambda: the one of the functional method, or the i-th type argument when the method is not known */
+    private String parameterType(int i, List<String> methodParameters, List<String> typeParameters, List<String> typeArguments) {
+        if (i < methodParameters.size()) {
+            return substitute(methodParameters.get(i), typeParameters, typeArguments);
+        }
+        return typeArguments.isEmpty() ? "" : typeArguments.get(Math.min(i, typeArguments.size() - 1));
+    }
+
+    /** @return the type of a parameter of the functional method where the type parameters of the interface are replaced by the type arguments of its use */
+    private String substitute(String parameter, List<String> typeParameters, List<String> typeArguments) {
+        for (int k = 0; k < typeParameters.size() && k < typeArguments.size(); k++) {
+            if (parameter.equals("T" + typeParameters.get(k) + ";")) {
+                return typeArguments.get(k);
+            }
+        }
+        return parameter;
+    }
+
     private final class MemberUseSearch extends AbstractJavaSyntaxVisitor {
         private final String variableName;
         /** The variable and the variables which are declared with its value: 'var c = b;' */
@@ -882,46 +960,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        /**
-         * @return the names of the parameters of the lambda which have the type variable: the i-th parameter has the i-th type argument of its functional
-         * interface ('ToIntBiFunction&lt;T, Other&gt;': 'x' is a 'T', 'y' is an 'Other'), the first one when there are fewer type arguments ('Comparator&lt;T&gt;')
-         */
-        private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
-            List<String> typeArguments = typeArguments(functionalInterface);
-            String interfaceName = functionalInterface.startsWith("L") && functionalInterface.contains("<") ? functionalInterface.substring(1, functionalInterface.indexOf('<')) : null;
-            List<String> methodParameters = ClassMetadata.functionalMethodParameters(loader, interfaceName);
-            List<String> typeParameters = ClassMetadata.typeParameterNames(loader, interfaceName);
-            List<String> names = new ArrayList<>();
-
-            for (int i = 0; i < lambda.getParameterNames().size(); i++) {
-                if (parameterType(i, methodParameters, typeParameters, typeArguments).equals(typeVariable)) {
-                    names.add(lambda.getParameterNames().get(i));
-                }
-            }
-            return names;
-        }
-
-        /** @return the type of the i-th parameter of the lambda: the one of the functional method, or the i-th type argument when the method is not known */
-        private String parameterType(int i, List<String> methodParameters, List<String> typeParameters, List<String> typeArguments) {
-            if (i < methodParameters.size()) {
-                return substitute(methodParameters.get(i), typeParameters, typeArguments);
-            }
-            return typeArguments.isEmpty() ? "" : typeArguments.get(Math.min(i, typeArguments.size() - 1));
-        }
-
-        /** @return the type of a parameter of the functional method where the type parameters of the interface are replaced by the type arguments of its use */
-        private String substitute(String parameter, List<String> typeParameters, List<String> typeArguments) {
-            for (int k = 0; k < typeParameters.size() && k < typeArguments.size(); k++) {
-                if (parameter.equals("T" + typeParameters.get(k) + ";")) {
-                    return typeArguments.get(k);
-                }
-            }
-            return parameter;
-        }
-
         /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */
         private boolean callsAMember(Expression lambda, List<String> parameterNames) {
             boolean[] calls = new boolean[1];
+            Set<String> names = new HashSet<>(parameterNames);
 
             lambda.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
@@ -943,8 +985,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     super.visit(expression);
                 }
 
+                /** 'var y = x;' inside the lambda: 'y' has the type of the parameter */
+                @Override
+                public void visit(LocalVariableDeclarator declarator) {
+                    if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
+                            && initializer.getExpression() instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName())) {
+                        names.add(declarator.getName());
+                    }
+                    super.visit(declarator);
+                }
+
                 private boolean isParameter(Expression receiver) {
-                    return receiver instanceof LocalVariableReferenceExpression reference && parameterNames.contains(reference.getName());
+                    return receiver instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName());
                 }
             });
             return calls[0];

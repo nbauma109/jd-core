@@ -1392,6 +1392,7 @@ public class VineflowerRegressions {
         return applyToArray(arrayed, xs -> xs[0].added());
     }
 
+    @SuppressWarnings("java:S1172")
     static <T> T second(T value, String ignored) {
         return value;
     }

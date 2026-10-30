@@ -1179,6 +1179,19 @@ public class VineflowerRegressions {
         }
     }
 
+    public int closeableWhoseCloseDeclaresTheCaughtException() {
+        try (var declaring = new AutoCloseable() {
+            @Override
+            public void close() throws java.io.IOException {
+                // declares what the handler catches
+            }
+        }) {
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

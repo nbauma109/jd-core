@@ -430,7 +430,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                search.found |= hasNoCheckedHandler(statement) && search.callsClose();
+                search.found |= hasNoCheckedHandler(statement, closeExceptionsOf(resource)) && search.callsClose();
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -447,7 +447,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
      * A handler of a checked exception which the close can throw is invalid when the resource has the narrower type: the explicit type stays. The handlers of the
      * unchecked exceptions and of 'Exception' and 'Throwable' are valid whatever the close throws.
      */
-    private boolean hasNoCheckedHandler(TryStatement statement) {
+    private boolean hasNoCheckedHandler(TryStatement statement, Set<String> closeExceptions) {
         if (statement.getCatchClauses() == null) {
             return true;
         }
@@ -459,7 +459,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 types.addAll(clause.getOtherTypes());
             }
             for (ObjectType type : types) {
-                if (!isUncheckedOrGeneral(type.getInternalName()) && !bodyThrows(statement, type.getInternalName())) {
+                if (!isUncheckedOrGeneral(type.getInternalName()) && !bodyThrows(statement, type.getInternalName()) && !closeThrows(closeExceptions, type.getInternalName())) {
                     return false;
                 }
             }
@@ -516,6 +516,25 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             });
         }
         return thrown[0];
+    }
+
+    /** @return the exceptions which the 'close()' of the anonymous class of the resource declares: the implicit close of the resource throws them */
+    private Set<String> closeExceptionsOf(TryStatement.Resource resource) {
+        ClassFileNewExpression creation = resource.getExpression() == null ? null : anonymousCreation(resource.getExpression());
+
+        if (creation != null && creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration body && body.getMethodDeclarations() != null) {
+            for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
+                if (declaration.getMethod() != null && "close".equals(declaration.getMethod().getName()) && "()V".equals(declaration.getMethod().getSignature())) {
+                    return ClassMetadata.exceptionNames(declaration.getMethod());
+                }
+            }
+        }
+        return Set.of();
+    }
+
+    /** @return true if an exception which the close declares is caught by the handler, or the handler is narrower than it */
+    private boolean closeThrows(Set<String> closeExceptions, String handled) {
+        return closeExceptions.stream().anyMatch(exception -> ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception));
     }
 
     /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
@@ -755,7 +774,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** 'try (var r = b)' closes the variable: the close is a use of it */
         @Override
         public void visit(TryStatement statement) {
-            if (statement.getResources() != null && hasNoCheckedHandler(statement) && callsClose()
+            if (statement.getResources() != null && hasNoCheckedHandler(statement, Set.of()) && callsClose()
                     && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
                 found = true;
             }

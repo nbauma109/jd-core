@@ -234,6 +234,42 @@ public final class ClassMetadata {
         return false;
     }
 
+    /**
+     * @return the signatures of the parameters of the abstract method of a functional interface (generic ones when the method has a signature); null if the interface
+     * is unknown or has no such method
+     */
+    public static List<String> functionalMethodParameters(Loader loader, String internalName) {
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+
+        if (javaClass == null || !javaClass.isInterface()) {
+            return null;
+        }
+        for (Method method : javaClass.getMethods()) {
+            if (method.isAbstract() && !method.isStatic() && !Set.of("equals", "hashCode", "toString").contains(method.getName())) {
+                String generic = genericSignature(method);
+                List<String> parameters = new ArrayList<>();
+
+                if (generic == null) {
+                    for (org.apache.bcel.generic.Type type : org.apache.bcel.generic.Type.getArgumentTypes(method.getSignature())) {
+                        parameters.add(type.getSignature());
+                    }
+                    return parameters;
+                }
+
+                int index = generic.indexOf('(') + 1;
+
+                while (index < generic.indexOf(')')) {
+                    int end = endOfType(generic, index);
+
+                    parameters.add(generic.substring(index, end));
+                    index = end;
+                }
+                return parameters;
+            }
+        }
+        return null;
+    }
+
     /** @return the names of the type parameters of the class, in the order of its declaration: 'Pair&lt;K, V&gt;' gives K, V; none if it has none or is unknown */
     public static List<String> typeParameterNames(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);

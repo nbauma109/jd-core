@@ -477,6 +477,17 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     super.visit(throwStatement);
                 }
 
+                /** The body of a lambda or of a method of an anonymous class is run later, if ever: it does not throw while the body of the 'try' is run */
+                @Override
+                public void visit(LambdaIdentifiersExpression lambda) {
+                    // not searched
+                }
+
+                @Override
+                public void visit(BodyDeclaration body) {
+                    // not searched
+                }
+
                 /** What a nested 'try' throws may be caught by its own handlers: only its handlers and its 'finally' are searched */
                 @Override
                 public void visit(TryStatement nested) {
@@ -810,14 +821,32 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
          */
         private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
             List<String> typeArguments = typeArguments(functionalInterface);
+            List<String> methodParameters = functionalInterface.startsWith("L") && functionalInterface.indexOf('<') > 0
+                    ? ClassMetadata.functionalMethodParameters(loader, functionalInterface.substring(1, functionalInterface.indexOf('<'))) : null;
+            List<String> typeParameters = methodParameters == null ? List.of()
+                    : ClassMetadata.typeParameterNames(loader, functionalInterface.substring(1, functionalInterface.indexOf('<')));
             List<String> names = new ArrayList<>();
 
             for (int i = 0; i < lambda.getParameterNames().size(); i++) {
-                if (!typeArguments.isEmpty() && typeArguments.get(Math.min(i, typeArguments.size() - 1)).equals(typeVariable)) {
+                String parameterType = methodParameters != null && i < methodParameters.size()
+                        ? substitute(methodParameters.get(i), typeParameters, typeArguments)
+                        : typeArguments.isEmpty() ? "" : typeArguments.get(Math.min(i, typeArguments.size() - 1));
+
+                if (parameterType.equals(typeVariable)) {
                     names.add(lambda.getParameterNames().get(i));
                 }
             }
             return names;
+        }
+
+        /** @return the type of a parameter of the functional method where the type parameters of the interface are replaced by the type arguments of its use */
+        private String substitute(String parameter, List<String> typeParameters, List<String> typeArguments) {
+            for (int k = 0; k < typeParameters.size() && k < typeArguments.size(); k++) {
+                if (parameter.equals("T" + typeParameters.get(k) + ";")) {
+                    return typeArguments.get(k);
+                }
+            }
+            return parameter;
         }
 
         /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */

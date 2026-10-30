@@ -1109,6 +1109,44 @@ public class VineflowerRegressions {
         return length + first.put("x").length();
     }
 
+    interface Visitor<T> {
+        int visit(Other other);
+    }
+
+    @SuppressWarnings("java:S1172") // the type variable of the interface is not used by its method
+    static <T> int visitWith(T value, Visitor<T> visitor) {
+        return visitor.visit(new Other());
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public int lambdaOfAFunctionalMethodWhichDoesNotUseTheTypeVariable() {
+        Putter visited = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        int length = visitWith(visited, x -> x.added().length());
+        visited = new Putter();
+        return length + visited.put("x").length();
+    }
+
+    @SuppressWarnings({ "java:S108", "java:S1166" }) // the lambda is run later, if ever
+    public int closeableWhoseBodyDefinesALambdaWhichThrows() {
+        try (java.io.Closeable deferred = new java.io.Closeable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            java.util.concurrent.Callable<Void> later = () -> {
+                throw new java.io.IOException();
+            };
+            return later == null ? 0 : 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

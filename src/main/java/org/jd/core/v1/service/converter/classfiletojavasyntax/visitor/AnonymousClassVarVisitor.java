@@ -476,6 +476,17 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     thrown[0] |= throwStatement.getExpression().getType() instanceof ObjectType type && ClassMetadata.isSubtype(loader, type.getInternalName(), handled);
                     super.visit(throwStatement);
                 }
+
+                /** What a nested 'try' throws may be caught by its own handlers: only its handlers and its 'finally' are searched */
+                @Override
+                public void visit(TryStatement nested) {
+                    if (nested.getCatchClauses() != null) {
+                        nested.getCatchClauses().forEach(clause -> clause.accept(this));
+                    }
+                    if (nested.getFinallyStatements() != null) {
+                        nested.getFinallyStatements().accept(this);
+                    }
+                }
             });
         }
         return thrown[0];

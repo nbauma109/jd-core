@@ -213,6 +213,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // The constructor infers the type of a lambda from its arguments like a generic method
         assertTrue(source.contains("var content = new Object() {"));
+        // A throw which an inner handler consumes does not reach the outer handler: the resource keeps its explicit type
+        assertTrue(source.contains("try (Closeable inner = new Closeable() {"));
         // A lambda which reads a field of the anonymous class needs its type too
         assertTrue(source.contains("var fielded = new Object() {"));
         // The member which the lambda calls is the one of another object

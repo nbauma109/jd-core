@@ -1075,6 +1075,24 @@ public class VineflowerRegressions {
         return length + unrelated.put("x").length();
     }
 
+    @SuppressWarnings({ "java:S108", "java:S1166" }) // the inner handler consumes the exception which the body throws
+    public int closeableWhichTheInnerHandlerCovers() {
+        try (java.io.Closeable inner = new java.io.Closeable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            try {
+                throw new java.io.IOException();
+            } catch (java.io.IOException consumed) {
+            }
+            return 1;
+        } catch (java.io.IOException outer) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

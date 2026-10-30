@@ -792,20 +792,27 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
+        /** @return true if the body of the lambda uses a member of the anonymous class on one of the parameters of the lambda, which have its type */
         private boolean callsAMember(Expression lambda) {
             boolean[] calls = new boolean[1];
+            List<String> parameterNames = lambda instanceof LambdaIdentifiersExpression identifiers ? identifiers.getParameterNames() : List.of();
 
             lambda.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(MethodInvocationExpression expression) {
-                    calls[0] |= isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+                    calls[0] |= isParameter(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
                     super.visit(expression);
                 }
 
                 @Override
                 public void visit(FieldReferenceExpression expression) {
-                    calls[0] |= members.contains(expression.getName()) || members.contains(hiddenField(expression.getInternalTypeName(), expression.getName()));
+                    calls[0] |= isParameter(expression.getExpression())
+                            && (members.contains(expression.getName()) || members.contains(hiddenField(expression.getInternalTypeName(), expression.getName())));
                     super.visit(expression);
+                }
+
+                private boolean isParameter(Expression receiver) {
+                    return receiver instanceof LocalVariableReferenceExpression reference && parameterNames.contains(reference.getName());
                 }
             });
             return calls[0];

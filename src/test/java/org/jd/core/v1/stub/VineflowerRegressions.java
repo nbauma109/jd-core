@@ -1063,6 +1063,18 @@ public class VineflowerRegressions {
         return new Box<>(content, x -> x.added()).value;
     }
 
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public int lambdaWhichCallsTheMemberOfAnotherObject() {
+        Putter unrelated = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        int length = apply(unrelated, x -> new Other().added().length());
+        unrelated = new Putter();
+        return length + unrelated.put("x").length();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

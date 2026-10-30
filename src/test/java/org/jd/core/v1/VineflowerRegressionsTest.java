@@ -215,6 +215,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var content = new Object() {"));
         // A lambda which reads a field of the anonymous class needs its type too
         assertTrue(source.contains("var fielded = new Object() {"));
+        // The member which the lambda calls is the one of another object
+        assertTrue(source.contains("Putter unrelated = new Putter() {"));
         // A lambda which is independent of the argument gives no type to it
         assertTrue(source.contains("Putter standalone = new Putter() {"));
         // The lambda which infers its parameter from the variable, the body which throws what the handler catches

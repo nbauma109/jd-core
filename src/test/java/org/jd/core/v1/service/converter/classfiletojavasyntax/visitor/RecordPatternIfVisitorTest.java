@@ -12,6 +12,7 @@ import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.Expressions;
+import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
@@ -299,6 +300,17 @@ public class RecordPatternIfVisitorTest {
     public void testRecordVariableUsedAfterTheIfIsKept() {
         IfStatement ifStatement = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")));
         Statements statements = statements(ifStatement, new ExpressionStatement(variable(RECORD, "r1")));
+
+        new RecordPatternIfVisitor(name -> java.util.List.of(new ClassMetadata.Component("x", "I"))).visit(statements);
+
+        assertSame(ifStatement, statements.getFirst());
+    }
+
+    @Test
+    public void testRecordVariableCapturedByAnInnerClassIsKept() {
+        IfStatement ifStatement = ifInstanceOf(lowered(twoDeclarators(PrimitiveType.TYPE_INT, "r1", "x", "i", "x")));
+        // 'InitInnerClassVisitor' rewrites the captured 'val$r1' to a field without receiver
+        Statements statements = statements(ifStatement, new ExpressionStatement(new FieldReferenceExpression(RECORD, null, "p/Anonymous", "r1", "Lp/R;")));
 
         new RecordPatternIfVisitor(name -> java.util.List.of(new ClassMetadata.Component("x", "I"))).visit(statements);
 

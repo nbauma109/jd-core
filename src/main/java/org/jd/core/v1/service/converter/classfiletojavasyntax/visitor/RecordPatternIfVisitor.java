@@ -12,9 +12,11 @@ import org.jd.core.v1.model.javasyntax.declaration.ExpressionVariableInitializer
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
+import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.pattern.Pattern;
 import org.jd.core.v1.model.javasyntax.pattern.RecordPattern;
@@ -64,6 +66,13 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
                 @Override
                 public void visit(LocalVariableReferenceExpression expression) {
                     found[0] |= variableNames.contains(expression.getName());
+                }
+
+                /** An anonymous or local class reaches the variable by a captured field of itself, which is named like the variable */
+                @Override
+                public void visit(FieldReferenceExpression expression) {
+                    found[0] |= (expression.getExpression() == null || expression.getExpression() instanceof ThisExpression) && variableNames.contains(expression.getName());
+                    super.visit(expression);
                 }
             });
         }

@@ -23,6 +23,7 @@ import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
+import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
@@ -33,6 +34,7 @@ import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NewInitializedArray;
 import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
@@ -741,7 +743,17 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         @Override
         public void visit(MethodInvocationExpression expression) {
             if (isVariable(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())
-                    || passesTheVariableToALambdaWhichUsesAMember(expression)) {
+                    || passesTheVariableToALambdaWhichUsesAMember(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor(), expression.getParameters())) {
+                found = true;
+            }
+            super.visit(expression);
+        }
+
+        /** 'new Box&lt;&gt;(b, x -> x.added())': the constructor infers the type of the lambda like a generic method */
+        @Override
+        public void visit(NewExpression expression) {
+            if (expression.getObjectType() != null
+                    && passesTheVariableToALambdaWhichUsesAMember(expression.getObjectType().getInternalName(), "<init>", expression.getDescriptor(), expression.getParameters())) {
                 found = true;
             }
             super.visit(expression);
@@ -751,17 +763,17 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
          * 'apply(b, x -> x.added())' with '&lt;T&gt; int apply(T value, ToIntFunction&lt;T&gt; f)': the parameter of the lambda has the type variable of the parameter which
          * the variable is passed to, so it has the type of the variable
          */
-        private boolean passesTheVariableToALambdaWhichUsesAMember(MethodInvocationExpression call) {
-            String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+        private boolean passesTheVariableToALambdaWhichUsesAMember(String ownerInternalName, String name, String descriptor, BaseExpression callParameters) {
+            String signature = ClassMetadata.declaredGenericSignature(loader, ownerInternalName, name, descriptor);
 
-            if (call.getParameters() == null || signature == null || !signature.contains(")")) {
+            if (callParameters == null || signature == null || !signature.contains(")")) {
                 return false;
             }
 
             List<Expression> arguments = new ArrayList<>();
             List<String> parameters = parameterSignatures(signature);
 
-            call.getParameters().forEach(arguments::add);
+            callParameters.forEach(arguments::add);
             for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
                 if (references(arguments.get(i), variableNames) != null && parameters.get(i).startsWith("T") && hasALambdaOfTheTypeVariable(arguments, parameters, i)) {
                     return true;

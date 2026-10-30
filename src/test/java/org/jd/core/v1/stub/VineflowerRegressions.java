@@ -1046,6 +1046,23 @@ public class VineflowerRegressions {
         return apply(fielded, x -> x.added);
     }
 
+    static class Box<T> {
+        final int value;
+
+        Box(T content, java.util.function.ToIntFunction<T> function) {
+            this.value = function.applyAsInt(content);
+        }
+    }
+
+    public int constructorWhichInfersTheLambda() {
+        var content = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return new Box<>(content, x -> x.added()).value;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

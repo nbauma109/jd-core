@@ -53,6 +53,15 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                 reservedNames.add(expression.getName());
             }
 
+            /** The variable of a pattern whose binding was removed has no declarator and no reference left, but its name is taken */
+            @Override
+            public void visit(InstanceOfExpression expression) {
+                if (expression instanceof ClassFileInstanceOfPatternExpression pattern && pattern.getLocalVariable() != null && pattern.getLocalVariable().getName() != null) {
+                    reservedNames.add(pattern.getLocalVariable().getName());
+                }
+                super.visit(expression);
+            }
+
             @Override
             public void visit(TryStatement.CatchClause catchClause) {
                 reservedNames.add(catchClause.getName());

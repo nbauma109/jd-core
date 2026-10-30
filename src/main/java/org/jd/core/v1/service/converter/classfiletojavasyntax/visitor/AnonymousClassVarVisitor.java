@@ -821,22 +821,25 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
          */
         private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
             List<String> typeArguments = typeArguments(functionalInterface);
-            List<String> methodParameters = functionalInterface.startsWith("L") && functionalInterface.indexOf('<') > 0
-                    ? ClassMetadata.functionalMethodParameters(loader, functionalInterface.substring(1, functionalInterface.indexOf('<'))) : null;
-            List<String> typeParameters = methodParameters == null ? List.of()
-                    : ClassMetadata.typeParameterNames(loader, functionalInterface.substring(1, functionalInterface.indexOf('<')));
+            String interfaceName = functionalInterface.startsWith("L") && functionalInterface.contains("<") ? functionalInterface.substring(1, functionalInterface.indexOf('<')) : null;
+            List<String> methodParameters = ClassMetadata.functionalMethodParameters(loader, interfaceName);
+            List<String> typeParameters = ClassMetadata.typeParameterNames(loader, interfaceName);
             List<String> names = new ArrayList<>();
 
             for (int i = 0; i < lambda.getParameterNames().size(); i++) {
-                String parameterType = methodParameters != null && i < methodParameters.size()
-                        ? substitute(methodParameters.get(i), typeParameters, typeArguments)
-                        : typeArguments.isEmpty() ? "" : typeArguments.get(Math.min(i, typeArguments.size() - 1));
-
-                if (parameterType.equals(typeVariable)) {
+                if (parameterType(i, methodParameters, typeParameters, typeArguments).equals(typeVariable)) {
                     names.add(lambda.getParameterNames().get(i));
                 }
             }
             return names;
+        }
+
+        /** @return the type of the i-th parameter of the lambda: the one of the functional method, or the i-th type argument when the method is not known */
+        private String parameterType(int i, List<String> methodParameters, List<String> typeParameters, List<String> typeArguments) {
+            if (i < methodParameters.size()) {
+                return substitute(methodParameters.get(i), typeParameters, typeArguments);
+            }
+            return typeArguments.isEmpty() ? "" : typeArguments.get(Math.min(i, typeArguments.size() - 1));
         }
 
         /** @return the type of a parameter of the functional method where the type parameters of the interface are replaced by the type arguments of its use */

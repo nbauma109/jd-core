@@ -1340,6 +1340,25 @@ public class VineflowerRegressions {
         return total + sibling.hashCode();
     }
 
+    interface Overloaded<T> {
+        int equals(Extra other);
+    }
+
+    static <T> int overloadedConsume(T value, Overloaded<T> function) {
+        return function.equals(() -> 4) + value.hashCode();
+    }
+
+    public int declaredOverloadOfAnObjectMethodIsTheFunctionalMethod() {
+        Object overloaded = new Object() {
+            int extra() {
+                return 2;
+            }
+        };
+        int result = overloadedConsume(overloaded, x -> x.extra());
+        overloaded = new Object();
+        return result + overloaded.hashCode();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -29,6 +29,9 @@ import java.util.Set;
 
 /** What the declaration of a class says, read from its class file: the answers are 'unknown' (false or null) when the class cannot be loaded */
 public final class ClassMetadata {
+    /** The public methods of 'Object' which an interface can redeclare without making them abstract methods of its own: 'equals(Other)' is another method */
+    private static final Set<String> OBJECT_METHODS = Set.of("equals(Ljava/lang/Object;)Z", "hashCode()I", "toString()Ljava/lang/String;");
+
     private static final String OBJECT = "java/lang/Object";
     private static final String RECORD = "java/lang/Record";
 
@@ -249,7 +252,7 @@ public final class ClassMetadata {
             return Collections.emptyList();
         }
         for (Method method : javaClass.getMethods()) {
-            if (method.isAbstract() && !method.isStatic() && !Set.of("equals", "hashCode", "toString").contains(method.getName())) {
+            if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
                 return parameterSignatures(method);
             }
         }

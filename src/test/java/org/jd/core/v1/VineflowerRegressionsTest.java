@@ -226,6 +226,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // A named class with a numeric name is not anonymous: its cast stays; the alias of a lambda ends with its block
         assertTrue(source.contains("($1)value"));
         assertFalse(source.contains("var sibling"));
+        assertFalse(source.contains("var overloaded"));
         // A nested try without handler lets the exception through, another resource can throw what the handler catches, a method reference counts like a call
         assertTrue(source.contains("try (var nested = new AutoCloseable() {"));
         assertTrue(source.contains("try (var anonymous = new AutoCloseable() {"));

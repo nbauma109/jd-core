@@ -131,8 +131,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         String operand = operandDescriptor(method, slot, instanceOfOffset);
         Loader loader = LOADER.get();
 
-        if (operand == null && slot == 0 && !method.isStatic()) {
-            // 'this' has no descriptor without a local variable table: the test stays
+        if (operand == null) {
+            // Without a local variable table the type of the operand is unknown ('this', a local): the test stays
             return true;
         }
         return tested != null && operand != null && (tested.equals(operand) || isArrayWhichIsATestedSuperType(operand, tested)

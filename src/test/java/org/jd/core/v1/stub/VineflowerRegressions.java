@@ -1147,6 +1147,38 @@ public class VineflowerRegressions {
         }
     }
 
+    @SuppressWarnings("java:S1172") // the lambda parameter has the type of the argument by a wildcard
+    static <T> int applyWithABound(T value, java.util.function.ToIntFunction<? super T> function) {
+        return function.applyAsInt(value);
+    }
+
+    public int lambdaWhoseTargetHasAWildcardBound() {
+        var bounded = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyWithABound(bounded, x -> x.added());
+    }
+
+    static void io() throws java.io.IOException {
+        // declares what the handler catches
+    }
+
+    public int closeableWhoseBodyCallsAMethodWhichThrows() {
+        try (var caller = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            io();
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

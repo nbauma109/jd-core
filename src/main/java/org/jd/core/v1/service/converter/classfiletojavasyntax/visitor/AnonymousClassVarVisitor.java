@@ -307,7 +307,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         while (start >= 0 && index < type.lastIndexOf('>')) {
             int end = endOfSignatureType(type, index);
 
-            arguments.add(type.substring(index, end));
+            // The bound of a wildcard is the type of the argument for the lambda: '? super T' gives T
+            arguments.add(type.substring(index, end).replaceFirst("^[+-]", ""));
             index = end;
         }
         return arguments;
@@ -383,7 +384,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         int index = start;
         int depth = 0;
 
-        while (signature.charAt(index) == '[') {
+        // The wildcard indicators: '+TT;' is '? extends T', '-TT;' is '? super T', '*' is '?'
+        while (signature.charAt(index) == '[' || signature.charAt(index) == '+' || signature.charAt(index) == '-') {
             index++;
         }
         if (signature.charAt(index) != 'L' && signature.charAt(index) != 'T') {
@@ -477,6 +479,19 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     super.visit(throwStatement);
                 }
 
+                /** A method or a constructor which declares the exception (or one which the handler is narrower than) is a source of it */
+                @Override
+                public void visit(MethodInvocationExpression call) {
+                    thrown[0] |= declares(call.getInternalTypeName(), call.getName(), call.getDescriptor(), handled);
+                    super.visit(call);
+                }
+
+                @Override
+                public void visit(NewExpression creation) {
+                    thrown[0] |= creation.getObjectType() != null && declares(creation.getObjectType().getInternalName(), "<init>", creation.getDescriptor(), handled);
+                    super.visit(creation);
+                }
+
                 /** The body of a lambda or of a method of an anonymous class is run later, if ever: it does not throw while the body of the 'try' is run */
                 @Override
                 public void visit(LambdaIdentifiersExpression lambda) {
@@ -501,6 +516,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             });
         }
         return thrown[0];
+    }
+
+    /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
+    private boolean declares(String owner, String name, String descriptor, String handled) {
+        for (String exception : ClassMetadata.declaredExceptions(loader, owner, name, descriptor)) {
+            if (ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isUncheckedOrGeneral(String internalName) {

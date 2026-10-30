@@ -217,6 +217,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (Closeable inner = new Closeable() {"));
         // A lambda which reads a field of the anonymous class needs its type too
         assertTrue(source.contains("var fielded = new Object() {"));
+        // A wildcard bound gives its type to the parameter of the lambda, a call which declares the exception makes the handler valid
+        assertTrue(source.contains("var bounded = new Object() {"));
+        assertTrue(source.contains("try (var caller = new AutoCloseable() {"));
         // The functional method decides which parameters of the lambda have the type variable, and a lambda in the body of a try is not run by it
         assertTrue(source.contains("Putter visited = new Putter() {"));
         assertTrue(source.contains("try (Closeable deferred = new Closeable() {"));

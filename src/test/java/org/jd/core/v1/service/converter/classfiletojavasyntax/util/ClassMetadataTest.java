@@ -195,7 +195,7 @@ public class ClassMetadataTest {
 
     /** A private method which declares an exception, and a class which inherits it without being able to call it */
     static class DeclaringPrivately {
-        @SuppressWarnings("unused")
+        @SuppressWarnings({ "unused", "java:S1130" }) // the declared exception is what the test reads
         private void io() throws java.io.IOException {
             // declares an exception
         }

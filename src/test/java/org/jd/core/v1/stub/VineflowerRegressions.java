@@ -1161,6 +1161,7 @@ public class VineflowerRegressions {
         return applyWithABound(bounded, x -> x.added());
     }
 
+    @SuppressWarnings("java:S1130") // the declared exception is what the handler of the callers catches
     private static void io() throws java.io.IOException {
         // declares what the handler catches
     }

@@ -796,17 +796,33 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */
         private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index) {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
-                if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression && parameters.get(j).contains(parameters.get(index)) && callsAMember(arguments.get(j))) {
+                if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))
+                        && callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)))) {
                     return true;
                 }
             }
             return false;
         }
 
-        /** @return true if the body of the lambda uses a member of the anonymous class on one of the parameters of the lambda, which have its type */
-        private boolean callsAMember(Expression lambda) {
+        /**
+         * @return the names of the parameters of the lambda which have the type variable: the i-th parameter has the i-th type argument of its functional
+         * interface ('ToIntBiFunction&lt;T, Other&gt;': 'x' is a 'T', 'y' is an 'Other'), the first one when there are fewer type arguments ('Comparator&lt;T&gt;')
+         */
+        private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
+            List<String> typeArguments = typeArguments(functionalInterface);
+            List<String> names = new ArrayList<>();
+
+            for (int i = 0; i < lambda.getParameterNames().size(); i++) {
+                if (!typeArguments.isEmpty() && typeArguments.get(Math.min(i, typeArguments.size() - 1)).equals(typeVariable)) {
+                    names.add(lambda.getParameterNames().get(i));
+                }
+            }
+            return names;
+        }
+
+        /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */
+        private boolean callsAMember(Expression lambda, List<String> parameterNames) {
             boolean[] calls = new boolean[1];
-            List<String> parameterNames = lambda instanceof LambdaIdentifiersExpression identifiers ? identifiers.getParameterNames() : List.of();
 
             lambda.accept(new AbstractJavaSyntaxVisitor() {
                 @Override

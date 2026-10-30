@@ -1093,6 +1093,22 @@ public class VineflowerRegressions {
         }
     }
 
+    static <T> int applyTwice(T value, java.util.function.ToIntBiFunction<T, Other> function) {
+        return function.applyAsInt(value, new Other());
+    }
+
+    @SuppressWarnings("java:S1854") // the variable is assigned again with the super type
+    public int lambdaWhoseSecondParameterIsOfAnotherType() {
+        Putter first = new Putter() {
+            public String added() {
+                return "added";
+            }
+        };
+        int length = applyTwice(first, (x, y) -> y.added().length());
+        first = new Putter();
+        return length + first.put("x").length();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

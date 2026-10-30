@@ -1359,6 +1359,26 @@ public class VineflowerRegressions {
         return result + overloaded.hashCode();
     }
 
+    static final class Boxed<T> {
+        final int value;
+
+        Boxed(T first, java.util.function.ToIntFunction<T> function) {
+            value = function.applyAsInt(first);
+        }
+    }
+
+    public int aliasInAConstructorLambda() {
+        var constructed = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return new Boxed<>(constructed, x -> {
+            var y = x;
+            return y.added();
+        }).value;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -724,14 +724,32 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The lambdas which infer the type of their parameters from a tracked variable: their parameters are aliases of it while the lambda is visited */
     @Override
     public void visit(MethodInvocationExpression expression) {
-        Set<String> registered = new HashSet<>();
-        String signature = ClassMetadata.declaredGenericSignature(loader, expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
+        Set<String> registered = registerLambdaParameters(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor(), expression.getParameters());
 
-        if (expression.getParameters() != null && signature != null && signature.contains(")") && !anonymousVariables.isEmpty()) {
+        super.visit(expression);
+        registered.forEach(anonymousVariables::remove);
+    }
+
+    /** 'new Box&lt;&gt;(b, x -> ...)': the constructor infers the type of the lambda like a generic method */
+    @Override
+    public void visit(NewExpression expression) {
+        Set<String> registered = expression.getObjectType() == null ? Set.of()
+                : registerLambdaParameters(expression.getObjectType().getInternalName(), INIT, expression.getDescriptor(), expression.getParameters());
+
+        super.visit(expression);
+        registered.forEach(anonymousVariables::remove);
+    }
+
+    /** @return the names of the parameters of the lambdas which were registered as aliases of the tracked variables which the call passes */
+    private Set<String> registerLambdaParameters(String ownerInternalName, String name, String descriptor, BaseExpression callParameters) {
+        Set<String> registered = new HashSet<>();
+        String signature = ClassMetadata.declaredGenericSignature(loader, ownerInternalName, name, descriptor);
+
+        if (callParameters != null && signature != null && signature.contains(")") && !anonymousVariables.isEmpty()) {
             List<Expression> arguments = new ArrayList<>();
             List<String> parameters = parameterSignatures(signature);
 
-            expression.getParameters().forEach(arguments::add);
+            callParameters.forEach(arguments::add);
             for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
                 String tracked = parameters.get(i).startsWith("T") ? references(arguments.get(i), anonymousVariables.keySet()) : null;
 
@@ -740,8 +758,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
         }
-        super.visit(expression);
-        registered.forEach(anonymousVariables::remove);
+        return registered;
     }
 
     private void registerLambdaParameters(List<Expression> arguments, List<String> parameters, int index, Set<String> members, Set<String> registered) {

@@ -90,6 +90,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
+    private static final String INIT = "<init>";
     private static final String CLONE = "clone()Ljava/lang/Object;";
     private static final String FINALIZE = "finalize()V";
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
@@ -430,7 +431,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                search.found |= hasNoCheckedHandler(statement, closeExceptionsOf(resource)) && search.callsClose();
+                search.found |= hasNoCheckedHandler(statement, closeExceptionsOfAll(resources, resource)) && search.callsClose();
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -488,7 +489,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
                 @Override
                 public void visit(NewExpression creation) {
-                    thrown[0] |= creation.getObjectType() != null && declares(creation.getObjectType().getInternalName(), "<init>", creation.getDescriptor(), handled);
+                    thrown[0] |= creation.getObjectType() != null && declares(creation.getObjectType().getInternalName(), INIT, creation.getDescriptor(), handled);
                     super.visit(creation);
                 }
 
@@ -503,9 +504,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     // not searched
                 }
 
-                /** What a nested 'try' throws may be caught by its own handlers: only its handlers and its 'finally' are searched */
+                /** What a nested 'try' throws may be caught by its own handlers: its body is searched when it has none, and its handlers and its 'finally' always are */
                 @Override
                 public void visit(TryStatement nested) {
+                    boolean handled = nested.getCatchClauses() != null && !nested.getCatchClauses().isEmpty();
+
+                    // Without a handler nothing is consumed: what the body throws leaves the nested 'try' ('finally' only runs)
+                    if (!handled && nested.getTryStatements() != null) {
+                        nested.getTryStatements().accept(this);
+                    }
                     if (nested.getCatchClauses() != null) {
                         nested.getCatchClauses().forEach(clause -> clause.accept(this));
                     }
@@ -516,6 +523,22 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             });
         }
         return thrown[0];
+    }
+
+    /**
+     * @return the exceptions which the implicit close of the resources declare: the handlers of the 'try' are valid when one of them throws what they catch. The
+     * declared type of the resource itself does not count: it is the explicit type which the restoration of 'var' replaces
+     */
+    private Set<String> closeExceptionsOfAll(List<TryStatement.Resource> resources, TryStatement.Resource current) {
+        Set<String> exceptions = new HashSet<>();
+
+        for (TryStatement.Resource resource : resources) {
+            exceptions.addAll(closeExceptionsOf(resource));
+            if (resource != current && resource.getType() != null) {
+                exceptions.addAll(ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), "close", "()V"));
+            }
+        }
+        return exceptions;
     }
 
     /** @return the exceptions which the 'close()' of the anonymous class of the resource declares: the implicit close of the resource throws them */
@@ -623,7 +646,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         for (ClassFileConstructorOrMethodDeclaration method : Objects.requireNonNullElse(body.getMethodDeclarations(), List.<ClassFileConstructorOrMethodDeclaration>of())) {
             Method m = method.getMethod();
 
-            if (m != null && !"<init>".equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
+            if (m != null && !INIT.equals(m.getName()) && !m.isSynthetic() && !isInherited(m, superInternalName)) {
                 // not declared by the type which the anonymous class extends: the variable needs the type of the class to call it
                 // A method is identified by its name and descriptor: a call of the inherited overload does not need the type of the class
                 // An override which widens the access is called through the super type too, whose call is owned by the super type
@@ -819,7 +842,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         @Override
         public void visit(NewExpression expression) {
             if (expression.getObjectType() != null
-                    && passesTheVariableToALambdaWhichUsesAMember(expression.getObjectType().getInternalName(), "<init>", expression.getDescriptor(), expression.getParameters())) {
+                    && passesTheVariableToALambdaWhichUsesAMember(expression.getObjectType().getInternalName(), INIT, expression.getDescriptor(), expression.getParameters())) {
                 found = true;
             }
             super.visit(expression);
@@ -911,6 +934,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 public void visit(FieldReferenceExpression expression) {
                     calls[0] |= isParameter(expression.getExpression())
                             && (members.contains(expression.getName()) || members.contains(hiddenField(expression.getInternalTypeName(), expression.getName())));
+                    super.visit(expression);
+                }
+
+                @Override
+                public void visit(MethodReferenceExpression expression) {
+                    calls[0] |= isParameter(expression.getExpression()) && isAdded(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor());
                     super.visit(expression);
                 }
 

@@ -1192,6 +1192,53 @@ public class VineflowerRegressions {
         }
     }
 
+    @SuppressWarnings({ "java:S108", "java:S1166" }) // the nested try has no handler: what the body throws leaves it
+    public int closeableWhoseBodyHasANestedTryWithoutHandler(boolean fail) {
+        try (var nested = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }) {
+            try {
+                if (fail) {
+                    throw new java.io.IOException();
+                }
+            } finally {
+                fail = false;
+            }
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
+    public int closeableNextToAResourceWhichThrows() throws java.io.IOException {
+        try (var anonymous = new AutoCloseable() {
+            @Override
+            public void close() {
+                // nothing to release
+            }
+        }; java.io.Closeable other = () -> { }) {
+            return other == null ? 0 : 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
+    public java.util.function.IntSupplier methodReferenceOfALambdaParameter() {
+        var referenced = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyToReference(referenced, x -> x::added);
+    }
+
+    static <T> java.util.function.IntSupplier applyToReference(T value, java.util.function.Function<T, java.util.function.IntSupplier> function) {
+        return function.apply(value);
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

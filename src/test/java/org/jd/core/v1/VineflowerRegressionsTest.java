@@ -217,6 +217,10 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (Closeable inner = new Closeable() {"));
         // A lambda which reads a field of the anonymous class needs its type too
         assertTrue(source.contains("var fielded = new Object() {"));
+        // A nested try without handler lets the exception through, another resource can throw what the handler catches, a method reference counts like a call
+        assertTrue(source.contains("try (var nested = new AutoCloseable() {"));
+        assertTrue(source.contains("try (var anonymous = new AutoCloseable() {"));
+        assertTrue(source.contains("var referenced = new Object() {"));
         // The close of the anonymous class declares the exception which the handler catches
         assertTrue(source.contains("try (var declaring = new AutoCloseable() {"));
         // A wildcard bound gives its type to the parameter of the lambda, a call which declares the exception makes the handler valid

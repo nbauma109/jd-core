@@ -1270,6 +1270,16 @@ public class VineflowerRegressions {
         return guarded.toString();
     }
 
+    @SuppressWarnings({ "unchecked", "java:S1172" })
+    static <T> T unrelated(T ignored) {
+        return (T) new Object();
+    }
+
+    public String noCastToTheAnonymousClassMeansNoVar() {
+        Object plain = unrelated(new Object() { });
+        return plain.toString();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

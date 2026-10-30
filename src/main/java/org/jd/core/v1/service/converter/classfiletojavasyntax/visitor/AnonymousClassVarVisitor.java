@@ -48,6 +48,7 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
@@ -216,7 +217,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         Set<String> members = addedMembers(body, newExpression.getObjectType().getInternalName());
 
-        if (!(value instanceof ClassFileNewExpression)) {
+        if (!(value instanceof ClassFileNewExpression) && hasAnonymousCast(value)) {
             // The type comes through a generic call: the cast to the anonymous class which the byte code holds is a runtime check which the explicit type loses
             anonymousVariables.put(name, members);
             return true;
@@ -416,6 +417,20 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private String references(Expression value, Set<String> names) {
         return underlyingValues(value).stream().filter(LocalVariableReferenceExpression.class::isInstance).map(reference -> ((LocalVariableReferenceExpression) reference).getName())
                 .filter(names::contains).findFirst().orElse(null);
+    }
+
+    /** @return true if the byte code which gives the value casts a call result to an anonymous class */
+    private boolean hasAnonymousCast(Expression value) {
+        boolean[] found = {false};
+
+        value.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(MethodInvocationExpression expression) {
+                found[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast();
+                super.visit(expression);
+            }
+        });
+        return found[0];
     }
 
     /** @return the creation of an anonymous class which gives its type to the value, null if none does */

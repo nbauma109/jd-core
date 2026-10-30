@@ -87,6 +87,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileCmpExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
@@ -998,6 +999,9 @@ public class ByteCodeParser {
                             // The type of an anonymous class cannot be written: the value keeps the type which the call gives it
                             if (type1 instanceof ObjectType anonymous && anonymous.getDimension() == 0 && LocalVariableMaker.isAnonymousClassName(anonymous.getInternalName())) {
                                 castNeeded = false;
+                                if (expression1 instanceof ClassFileMethodInvocationExpression call) {
+                                    call.setAnonymousCast(true);
+                                }
                             }
                             if (castNeeded) {
                                 searchFirstLineNumberVisitor.init();

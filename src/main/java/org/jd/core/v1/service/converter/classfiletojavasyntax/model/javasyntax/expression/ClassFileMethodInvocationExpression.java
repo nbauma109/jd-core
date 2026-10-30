@@ -23,6 +23,7 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
     private Type unboundType;
     private boolean bound;
     private Boolean varArgsOverride;
+    private boolean anonymousCast;
 
     public ClassFileMethodInvocationExpression(
             int lineNumber, Type type, Expression expression,
@@ -58,6 +59,15 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
             return varArgsOverride;
         }
         return super.isVarArgs();
+    }
+
+    /** @return true if the byte code casts the result to an anonymous class, a runtime check which the source cannot write */
+    public boolean isAnonymousCast() {
+        return anonymousCast;
+    }
+
+    public void setAnonymousCast(boolean anonymousCast) {
+        this.anonymousCast = anonymousCast;
     }
 
     public void setVarArgsOverride(Boolean varArgsOverride) {

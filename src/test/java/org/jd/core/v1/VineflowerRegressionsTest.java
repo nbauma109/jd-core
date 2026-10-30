@@ -220,6 +220,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // A lambda with primitive parameters and a local alias of its parameter, and the cast to the anonymous class which a generic call needs at run time
         assertTrue(source.contains("var indexed = new Object() {"));
         assertTrue(source.contains("var guarded = unchecked(new Object() {"));
+        assertFalse(source.contains("var plain"));
         // A nested try without handler lets the exception through, another resource can throw what the handler catches, a method reference counts like a call
         assertTrue(source.contains("try (var nested = new AutoCloseable() {"));
         assertTrue(source.contains("try (var anonymous = new AutoCloseable() {"));

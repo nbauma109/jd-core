@@ -117,9 +117,14 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         Code code = method.getCode();
         String tested = castDescriptor(code.getCode(), instanceOfOffset, method.getConstantPool());
-        String operand = operandDescriptor(method, loadedIndex(code.getCode(), binding.firstSkippedOffset()), instanceOfOffset);
+        int slot = loadedIndex(code.getCode(), binding.firstSkippedOffset());
+        String operand = operandDescriptor(method, slot, instanceOfOffset);
         Loader loader = LOADER.get();
 
+        if (operand == null && slot == 0 && !method.isStatic()) {
+            // 'this' has no descriptor without a local variable table: the test stays
+            return true;
+        }
         return tested != null && operand != null && (tested.equals(operand) || isArrayWhichIsATestedSuperType(operand, tested)
                 || loader != null && !operand.startsWith("[") && ClassMetadata.isSubtype(loader, erasure(operand), erasure(tested)));
     }

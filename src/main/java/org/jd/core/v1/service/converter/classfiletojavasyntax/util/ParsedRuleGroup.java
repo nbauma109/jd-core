@@ -9,11 +9,13 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 
 public record ParsedRuleGroup(
             boolean defaultCase,
             int fromIndexInclusive,
             int toIndexExclusive,
             Statements statements,
-            Expression result) {
+            Expression result,
+            AbstractLocalVariable patternVariable) {
 }

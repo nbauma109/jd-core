@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -147,6 +148,17 @@ public class ControlFlowGraphMaker {
 
     protected static final CodeExceptionComparator CODE_EXCEPTION_COMPARATOR = new CodeExceptionComparator();
 
+    private final boolean instanceOfPatterns;
+
+    public ControlFlowGraphMaker() {
+        this(false);
+    }
+
+    /** @param instanceOfPatterns whether the 'astore' which binds the variable of 'x instanceof T v' is no statement (class files of Java 16+) */
+    public ControlFlowGraphMaker(boolean instanceOfPatterns) {
+        this.instanceOfPatterns = instanceOfPatterns;
+    }
+
     public ControlFlowGraph make(Method method) {
         Code attributeCode = method.getCode();
 
@@ -170,6 +182,11 @@ public class ControlFlowGraphMaker {
         map[0] = MARK;
         int lastOffset = 0;
         int lastStatementOffset = -1;
+        // The 'astore' which binds the variable of 'x instanceof T v' is no statement
+        Set<Integer> patternStoreOffsets = new HashSet<>();
+        if (instanceOfPatterns) {
+            InstanceOfPatternBinding.find(method).values().forEach(binding -> patternStoreOffsets.add(binding.storeOffset()));
+        }
         int opcode;
         for (int offset=0; offset<length; offset++) {
             nextOffsets[lastOffset] = offset;
@@ -215,8 +232,11 @@ public class ControlFlowGraphMaker {
                     }
                     break;
                 case ISTORE, LSTORE, FSTORE, DSTORE, ASTORE:
+                    boolean patternStore = patternStoreOffsets.contains(offset);
                     offset++;
-                    lastStatementOffset = offset;
+                    if (!patternStore) {
+                        lastStatementOffset = offset;
+                    }
                     break;
                 case ISTORE_0, ISTORE_1, ISTORE_2, ISTORE_3,
                      LSTORE_0, LSTORE_1, LSTORE_2, LSTORE_3,
@@ -226,7 +246,9 @@ public class ControlFlowGraphMaker {
                      IASTORE, LASTORE, FASTORE, DASTORE, AASTORE, BASTORE, CASTORE, SASTORE,
                      POP, POP2,
                      MONITORENTER, MONITOREXIT:
-                    lastStatementOffset = offset;
+                    if (!patternStoreOffsets.contains(offset)) {
+                        lastStatementOffset = offset;
+                    }
                     break;
                 case RET:
                     offset++;
@@ -594,9 +616,13 @@ public class ControlFlowGraphMaker {
                     switchCases.add(new SwitchCase(bb));
                     bb.getPredecessors().add(basicBlock);
 
+                    // 'case null' of a 'switch' with patterns selects the same code as 'default': the null is no useless case
+                    int switchStart = switchStarts[lastInstructionOffset];
+                    boolean typeSwitch = switchStart >= 5 && (code[switchStart - 5] & 255) == Const.INVOKEDYNAMIC;
+
                     for (int j=1, len=offsets.length; j<len; j++) {
                         int offset = offsets[j];
-                        if (offset != defaultOffset) {
+                        if (offset != defaultOffset || typeSwitch && values[j] == -1) {
                             bb = map[offset];
                             switchCases.add(strings == null ? new SwitchCase(values[j], bb) : new SwitchCase(values[j], strings[j], bb));
                             bb.getPredecessors().add(basicBlock);

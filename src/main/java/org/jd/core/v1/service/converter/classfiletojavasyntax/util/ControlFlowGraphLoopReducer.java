@@ -13,6 +13,9 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.ControlF
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.Loop;
 import org.jd.core.v1.util.DefaultList;
 
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -381,21 +384,23 @@ public final class ControlFlowGraphLoopReducer {
         if (end != END) {
             Set<BasicBlock> m = new HashSet<>(members);
             Set<BasicBlock> set = new HashSet<>();
+            // The code which follows the loop is not a tail of the loop, even if a 'break' of the loop jumps over its end to it
+            Set<BasicBlock> afterTheLoop = reachableFrom(end, members);
 
             for (BasicBlock member : m) {
                 if (member.getType() == TYPE_CONDITIONAL_BRANCH && member != start) {
                     set.clear();
-                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getNext(), end)) {
+                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getNext(), end) && Collections.disjoint(set, afterTheLoop)) {
                         members.addAll(set);
                     }
                     set.clear();
-                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getBranch(), end)) {
+                    if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, member.getBranch(), end) && Collections.disjoint(set, afterTheLoop)) {
                         members.addAll(set);
                     }
                 } else if (member.getType() == TYPE_SWITCH_DECLARATION) {
                     for (SwitchCase switchCase : member.getSwitchCases()) {
                         set.clear();
-                        if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, switchCase.getBasicBlock(), end)) {
+                        if (recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, switchCase.getBasicBlock(), end) && Collections.disjoint(set, afterTheLoop)) {
                             members.addAll(set);
                         }
                     }
@@ -406,6 +411,25 @@ public final class ControlFlowGraphLoopReducer {
         return new Loop(start, members, end);
     }
 
+
+    /** The blocks which can be reached from the block, the block included, without going through the blocks to avoid (the loop which is back reached by an enclosing loop) */
+    private static Set<BasicBlock> reachableFrom(BasicBlock start, Set<BasicBlock> toAvoid) {
+        Set<BasicBlock> reached = new HashSet<>();
+        Deque<BasicBlock> todo = new ArrayDeque<>();
+
+        todo.push(start);
+        while (!todo.isEmpty()) {
+            BasicBlock current = todo.pop();
+
+            if (current != null && !toAvoid.contains(current) && !current.matchType(TYPE_END|TYPE_LOOP_START|TYPE_LOOP_CONTINUE|TYPE_LOOP_END|TYPE_SWITCH_BREAK) && reached.add(current)) {
+                todo.push(current.getNext());
+                todo.push(current.getBranch());
+                current.getSwitchCases().forEach(switchCase -> todo.push(switchCase.getBasicBlock()));
+                current.getExceptionHandlers().forEach(handler -> todo.push(handler.getBasicBlock()));
+            }
+        }
+        return reached;
+    }
 
     /**
      * A loop without condition ('while (true)') which is left by a 'break' to the code which follows it in an enclosing loop, and by a

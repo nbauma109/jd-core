@@ -812,11 +812,11 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     private Type getExpressionType(Expression expression) {
-        if (expression.isMethodInvocationExpression()) {
-            return getExpressionType((ClassFileMethodInvocationExpression)expression);
+        if (expression instanceof ClassFileMethodInvocationExpression call) {
+            return getExpressionType(call);
         }
-        if (expression.isNewExpression()) {
-            return getExpressionType((ClassFileNewExpression)expression);
+        if (expression instanceof ClassFileNewExpression newExpression) {
+            return getExpressionType(newExpression);
         }
 
         return expression.getType();
@@ -1211,7 +1211,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
     @Override
     public void visit(NewExpression expression) {
-        ClassFileNewExpression ne = (ClassFileNewExpression)expression;
+        if (!(expression instanceof ClassFileNewExpression ne)) {
+            // Not created from byte code: nothing to bind
+            return;
+        }
 
         if (! ne.isBound()) {
             BaseType parameterTypes = ne.getParameterTypes();

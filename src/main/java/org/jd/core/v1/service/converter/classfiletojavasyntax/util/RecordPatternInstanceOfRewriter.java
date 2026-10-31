@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
@@ -57,15 +58,13 @@ public final class RecordPatternInstanceOfRewriter {
 
     private RecordPatternInstanceOfRewriter() {}
 
-    public static boolean rewrite(Expression condition, Statements thenStatements, Statements statements, int index) {
+    /** @param isRecord tells whether a type (by its internal name) is a record: an accessor-like call on another type is no component */
+    public static boolean rewrite(Expression condition, Statements thenStatements, Statements statements, int index, Predicate<String> isRecord) {
         if (!(condition instanceof InstanceOfExpression instanceOfExpression)) {
             return false;
         }
 
-        Type instanceOfType = instanceOfExpression.getInstanceOfType();
-        if (instanceOfType == null && instanceOfExpression.getPattern() != null) {
-            instanceOfType = instanceOfExpression.getPattern().type();
-        }
+        Type instanceOfType = recordType(instanceOfExpression, isRecord);
         if (instanceOfType == null) {
             return false;
         }
@@ -79,18 +78,11 @@ public final class RecordPatternInstanceOfRewriter {
             return false;
         }
 
-        boolean hasFollowingFalseReturn = false;
-        if (index == statements.size()) {
-            hasFollowingFalseReturn = false;
-        } else if (index + 1 == statements.size()) {
-            Statement followingStatement = statements.get(index);
-            if (!followingStatement.isReturnExpressionStatement() || !isFalseExpression(followingStatement.getExpression())) {
-                return false;
-            }
-            hasFollowingFalseReturn = true;
-        } else {
+        int following = followingFalseReturn(statements, index);
+        if (following < 0) {
             return false;
         }
+        boolean hasFollowingFalseReturn = following == 1;
 
         BaseStatement tryStatements = tryStatement.getTryStatements();
         Expression guardExpression = normalizeRecordPatternGuardExpression(extractRecordPatternGuardExpression(tryStatements));
@@ -126,6 +118,28 @@ public final class RecordPatternInstanceOfRewriter {
         statements.add(new ReturnExpressionStatement(condition.getLineNumber(), rewrittenCondition));
 
         return true;
+    }
+
+    /** @return 0 if nothing follows the 'if', 1 if only 'return false;' follows it, -1 if other statements do */
+    private static int followingFalseReturn(Statements statements, int index) {
+        if (index == statements.size()) {
+            return 0;
+        }
+        if (index + 1 == statements.size()) {
+            Statement followingStatement = statements.get(index);
+            return followingStatement.isReturnExpressionStatement() && isFalseExpression(followingStatement.getExpression()) ? 1 : -1;
+        }
+        return -1;
+    }
+
+    /** @return the type of the test if it is a record, null otherwise */
+    private static Type recordType(InstanceOfExpression instanceOfExpression, Predicate<String> isRecord) {
+        Type type = instanceOfExpression.getInstanceOfType();
+
+        if (type == null && instanceOfExpression.getPattern() != null) {
+            type = instanceOfExpression.getPattern().type();
+        }
+        return type != null && isRecord.test(type.getInternalName()) ? type : null;
     }
 
     private static TryStatement extractSyntheticRecordPatternTryStatement(Statements thenStatements) {

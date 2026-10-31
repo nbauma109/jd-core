@@ -35,6 +35,7 @@ import org.jd.core.v1.model.javasyntax.expression.NullExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.TernaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.ThisExpression;
 import org.jd.core.v1.model.javasyntax.expression.TypeReferenceDotClassExpression;
@@ -293,6 +294,25 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
     @Override
     public void visit(CastExpression expression) {
         expression.setExpression(updateExpression(expression.getType(), expression.getExpression()));
+    }
+
+    /** The constants of the rules of a switch expression have the type of the expression: 'case A -> 1; default -> 2;' gives ints, not booleans */
+    @Override
+    public void visit(SwitchExpression expression) {
+        Type type = expression.getType();
+
+        expression.getSelector().accept(this);
+        for (SwitchExpression.Rule rule : expression.getRules()) {
+            if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
+                if (type.isPrimitiveType()) {
+                    ruleExpression.setExpression(updateExpression(type, ruleExpression.getExpression()));
+                } else {
+                    ruleExpression.getExpression().accept(this);
+                }
+            } else if (rule instanceof SwitchExpression.RuleStatement ruleStatement) {
+                ruleStatement.getStatements().accept(this);
+            }
+        }
     }
 
     @Override

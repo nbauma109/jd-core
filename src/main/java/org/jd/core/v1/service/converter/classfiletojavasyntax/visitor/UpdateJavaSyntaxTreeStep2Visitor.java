@@ -21,6 +21,7 @@ import org.jd.core.v1.model.javasyntax.declaration.TypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileEnumDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileRecordDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InstanceOfPatternBinding;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
 public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor {
@@ -37,6 +38,10 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final AddCastExpressionVisitor addCastExpressionVisitor;
     private final AutoboxingVisitor autoboxingVisitor;
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
+    private final WidenedFloatConstantVisitor widenedFloatConstantVisitor = new WidenedFloatConstantVisitor();
+    private final AnonymousClassVarVisitor anonymousClassVarVisitor;
+    private final EmptyThenWithPatternVisitor emptyThenWithPatternVisitor = new EmptyThenWithPatternVisitor();
+    private final RecordPatternIfVisitor recordPatternIfVisitor;
     private final HoistUndeclaredLocalVariablesVisitor hoistUndeclaredLocalVariablesVisitor = new HoistUndeclaredLocalVariablesVisitor();
 
     private TypeDeclaration typeDeclaration;
@@ -50,6 +55,8 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         this.initInnerClassStep2Visitor = new InitInnerClassVisitor.UpdateNewExpressionVisitor(typeMaker, loader);
         this.addCastExpressionVisitor = new AddCastExpressionVisitor(typeMaker, loader);
         this.autoboxingVisitor = new AutoboxingVisitor(typeMaker);
+        this.anonymousClassVarVisitor = new AnonymousClassVarVisitor(typeMaker, loader);
+        this.recordPatternIfVisitor = new RecordPatternIfVisitor(loader);
     }
 
     @Override
@@ -86,6 +93,18 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
             autoboxingVisitor.visit(declaration);
             // Disable varargs expansion for array literals
             disableVarArgsExpansionVisitor.visit(declaration);
+            // Print the double constants which widen a float as float literals
+            widenedFloatConstantVisitor.visit(declaration);
+            // Declare 'var' the variables which hold an instance of an anonymous class and use its own members
+            // 'var' exists from Java 10 (class file version 54): older sources keep the explicit types
+            if (InstanceOfPatternBinding.getMajorVersion() >= 54) {
+                anonymousClassVarVisitor.setInternalTypeName(typeDeclaration.getInternalTypeName());
+                anonymousClassVarVisitor.visit(declaration);
+            }
+            // Negate the test of an 'if' whose 'then' is empty because of a pattern variable
+            emptyThenWithPatternVisitor.visit(declaration);
+            // Turn back the lowered form of the record pattern of an 'if' to the pattern
+            recordPatternIfVisitor.visit(declaration);
         }
     }
 

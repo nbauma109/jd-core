@@ -1407,6 +1407,29 @@ public class VineflowerRegressions {
         return unrelatedCast.toString();
     }
 
+    interface ArrayFunction<E> {
+        int apply(E[] values);
+    }
+
+    static <T> int applyArrayFunction(T value, ArrayFunction<T> function) {
+        return function.apply(null) + value.hashCode();
+    }
+
+    public int arrayOfTheInterfaceTypeParameterGivesItsType() {
+        var inArray = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyArrayFunction(inArray, xs -> xs[0].added());
+    }
+
+    public String reassignedWithARuntimeCast() {
+        var reassigned = new Object() { };
+        reassigned = unchecked(reassigned);
+        return reassigned.toString();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

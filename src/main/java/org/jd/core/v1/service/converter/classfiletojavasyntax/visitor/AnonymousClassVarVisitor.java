@@ -24,6 +24,7 @@ import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarators;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
+import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.CastExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
@@ -183,15 +184,32 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 || !(initializer.getExpression() instanceof ClassFileNewExpression creation) || !(creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration)) {
             return false;
         }
-        for (int i = nextIndex; i < statements.size(); i++) {
-            if (statements.get(i) instanceof LocalVariableDeclarationStatement next && next.getLocalVariableDeclarators() instanceof LocalVariableDeclarator dependent
+        boolean found = false;
+
+        for (int i = nextIndex; i < statements.size() && !found; i++) {
+            found = statements.get(i) instanceof LocalVariableDeclarationStatement next && next.getLocalVariableDeclarators() instanceof LocalVariableDeclarator dependent
                     && dependent.getVariableInitializer() instanceof ExpressionVariableInitializer value && hasAnonymousCast(value.getExpression())
-                    && references(value.getExpression(), Set.of(declarator.getName())) != null) {
-                anonymousVariables.put(declarator.getName(), addedMembers((ClassFileBodyDeclaration) creation.getBodyDeclaration(), creation.getObjectType().getInternalName()));
-                return true;
-            }
+                    && references(value.getExpression(), Set.of(declarator.getName())) != null || reassignedWithAnAnonymousCast(declarator.getName(), statements.get(i));
         }
-        return false;
+        if (found) {
+            anonymousVariables.put(declarator.getName(), addedMembers((ClassFileBodyDeclaration) creation.getBodyDeclaration(), creation.getObjectType().getInternalName()));
+        }
+        return found;
+    }
+
+    /** 'value = bad(value);': the byte code casts the result to the anonymous class, which the variable has to keep */
+    private boolean reassignedWithAnAnonymousCast(String name, Statement statement) {
+        boolean[] found = {false};
+
+        statement.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(BinaryOperatorExpression expression) {
+                found[0] |= "=".equals(expression.getOperator()) && expression.getLeftExpression() instanceof LocalVariableReferenceExpression target && name.equals(target.getName())
+                        && hasAnonymousCast(expression.getRightExpression()) && references(expression.getRightExpression(), Set.of(name)) != null;
+                super.visit(expression);
+            }
+        });
+        return found[0];
     }
 
     private boolean isDeclaredWithVar(LocalVariableDeclarationStatement declaration, List<Statement> statements, int nextIndex) {
@@ -807,9 +825,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return the type of a parameter of the functional method where the type parameters of the interface are replaced by the type arguments of its use */
     private String substitute(String parameter, List<String> typeParameters, List<String> typeArguments) {
+        // 'E[]' is '[TE;': the dimensions stay in front of the type argument
+        int dimensions = parameter.length() - parameter.replaceFirst("^\\[+", "").length();
+        String component = parameter.substring(dimensions);
+
         for (int k = 0; k < typeParameters.size() && k < typeArguments.size(); k++) {
-            if (parameter.equals("T" + typeParameters.get(k) + ";")) {
-                return typeArguments.get(k);
+            if (component.equals("T" + typeParameters.get(k) + ";")) {
+                return parameter.substring(0, dimensions) + typeArguments.get(k);
             }
         }
         return parameter;

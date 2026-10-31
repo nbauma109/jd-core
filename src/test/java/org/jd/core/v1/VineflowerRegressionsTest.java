@@ -230,6 +230,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var constructed = new Object() {"));
         assertTrue(source.contains("var arrayed = new Object() {"));
         assertFalse(source.contains("var unrelatedCast"));
+        assertTrue(source.contains("var inArray = new Object() {"));
+        assertTrue(source.contains("var reassigned = new Object() {"));
         // A nested try without handler lets the exception through, another resource can throw what the handler catches, a method reference counts like a call
         assertTrue(source.contains("try (var nested = new AutoCloseable() {"));
         assertTrue(source.contains("try (var anonymous = new AutoCloseable() {"));

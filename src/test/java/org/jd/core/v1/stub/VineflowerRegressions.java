@@ -1430,6 +1430,20 @@ public class VineflowerRegressions {
         return reassigned.toString();
     }
 
+    public int lambdaWithAnAnonymousClassWhichCapturesALocal(int captured) {
+        var carrier = new Object() {
+            int added() {
+                return 1;
+            }
+        };
+        return applyTo(carrier, x -> new java.util.function.IntSupplier() {
+            @Override
+            public int getAsInt() {
+                return captured;
+            }
+        }.getAsInt());
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

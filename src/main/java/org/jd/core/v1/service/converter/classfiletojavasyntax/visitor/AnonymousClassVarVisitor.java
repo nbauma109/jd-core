@@ -1094,7 +1094,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
                 /** The parameter itself, or an element of it when its type is an array of the type variable */
                 private boolean isParameter(Expression receiver) {
-                    Expression value = receiver.isArrayExpression() ? receiver.getExpression() : receiver;
+                    // A captured variable of an anonymous class has no receiver
+                    Expression value = receiver != null && receiver.isArrayExpression() ? receiver.getExpression() : receiver;
 
                     return value instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName());
                 }

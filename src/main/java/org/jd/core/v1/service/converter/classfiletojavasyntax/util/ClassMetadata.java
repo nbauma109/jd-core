@@ -246,21 +246,37 @@ public final class ClassMetadata {
      * interface is unknown or has no such method
      */
     public static List<String> functionalMethodParameters(Loader loader, String internalName) {
+        return functionalMethodParameters(loader, internalName, Set.of());
+    }
+
+    /** @param implemented the methods ('name/arity') which a sub interface implements by default: they are no abstract methods of this interface any more */
+    private static List<String> functionalMethodParameters(Loader loader, String internalName, Set<String> implemented) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
 
         if (javaClass == null || !javaClass.isInterface()) {
             return Collections.emptyList();
         }
         for (Method method : javaClass.getMethods()) {
-            if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
+            if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature()) && !implemented.contains(key(method))) {
                 return parameterSignatures(method);
             }
         }
-        return inheritedFunctionalMethodParameters(loader, javaClass);
+        Set<String> inheritedImplemented = new HashSet<>(implemented);
+
+        for (Method method : javaClass.getMethods()) {
+            if (!method.isAbstract() && !method.isStatic() && !method.isPrivate()) {
+                inheritedImplemented.add(key(method));
+            }
+        }
+        return inheritedFunctionalMethodParameters(loader, javaClass, inheritedImplemented);
+    }
+
+    private static String key(Method method) {
+        return method.getName() + "/" + org.apache.bcel.generic.Type.getArgumentTypes(method.getSignature()).length;
     }
 
     /** 'interface Visitor&lt;T&gt; extends ToIntFunction&lt;Other&gt;' has the method of its super interface, where its type arguments replace the type parameters */
-    private static List<String> inheritedFunctionalMethodParameters(Loader loader, JavaClass javaClass) {
+    private static List<String> inheritedFunctionalMethodParameters(Loader loader, JavaClass javaClass, Set<String> implemented) {
         String signature = classSignature(javaClass);
 
         if (signature == null) {
@@ -272,7 +288,7 @@ public final class ClassMetadata {
 
         while (index < signature.length()) {
             int end = endOfType(signature, index);
-            List<String> parameters = substitutedParameters(loader, signature.substring(index, end));
+            List<String> parameters = substitutedParameters(loader, signature.substring(index, end), implemented);
 
             if (!parameters.isEmpty()) {
                 return parameters;
@@ -283,14 +299,14 @@ public final class ClassMetadata {
     }
 
     /** @return the parameters of the functional method of a super interface, as its type arguments give them; empty if it has none */
-    private static List<String> substitutedParameters(Loader loader, String superType) {
+    private static List<String> substitutedParameters(Loader loader, String superType, Set<String> implemented) {
         int generic = superType.indexOf('<');
         String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
         List<String> typeParameters = typeParameterNames(loader, superName);
         List<String> typeArguments = typeArgumentsOf(superType);
         List<String> substituted = new ArrayList<>();
 
-        for (String parameter : functionalMethodParameters(loader, superName)) {
+        for (String parameter : functionalMethodParameters(loader, superName, implemented)) {
             int k = typeParameters.indexOf(parameter.length() > 2 ? parameter.substring(1, parameter.length() - 1) : "");
 
             substituted.add(parameter.startsWith("T") && k >= 0 && k < typeArguments.size() ? typeArguments.get(k) : parameter);

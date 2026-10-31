@@ -187,9 +187,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         boolean found = false;
 
         for (int i = nextIndex; i < statements.size() && !found; i++) {
-            found = statements.get(i) instanceof LocalVariableDeclarationStatement next && next.getLocalVariableDeclarators() instanceof LocalVariableDeclarator dependent
-                    && dependent.getVariableInitializer() instanceof ExpressionVariableInitializer value && hasAnonymousCast(value.getExpression())
-                    && references(value.getExpression(), Set.of(declarator.getName())) != null || reassignedWithAnAnonymousCast(declarator.getName(), statements.get(i));
+            found = dependsOnAnAnonymousCast(declarator.getName(), statements.get(i));
         }
         if (found) {
             anonymousVariables.put(declarator.getName(), addedMembers((ClassFileBodyDeclaration) creation.getBodyDeclaration(), creation.getObjectType().getInternalName()));
@@ -197,11 +195,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return found;
     }
 
-    /** 'value = bad(value);': the byte code casts the result to the anonymous class, which the variable has to keep */
-    private boolean reassignedWithAnAnonymousCast(String name, Statement statement) {
+    /**
+     * 'var value = bad(origin);' or 'value = bad(value);' anywhere in the statement, nested blocks included: the byte code casts the result to the anonymous class,
+     * which the variable has to keep
+     */
+    private boolean dependsOnAnAnonymousCast(String name, Statement statement) {
         boolean[] found = {false};
 
         statement.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(LocalVariableDeclarator declarator) {
+                found[0] |= declarator.getVariableInitializer() instanceof ExpressionVariableInitializer value && hasAnonymousCast(value.getExpression())
+                        && references(value.getExpression(), Set.of(name)) != null;
+                super.visit(declarator);
+            }
+
             @Override
             public void visit(BinaryOperatorExpression expression) {
                 found[0] |= "=".equals(expression.getOperator()) && expression.getLeftExpression() instanceof LocalVariableReferenceExpression target && name.equals(target.getName())

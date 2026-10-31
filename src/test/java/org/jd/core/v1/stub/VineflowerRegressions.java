@@ -1444,6 +1444,35 @@ public class VineflowerRegressions {
         }.getAsInt());
     }
 
+    public String castInANestedBlock(boolean flag) {
+        var nestedOrigin = new Object() { };
+        if (flag) {
+            var nestedValue = unchecked(nestedOrigin);
+            return nestedValue.toString();
+        }
+        return "";
+    }
+
+    interface DefaultedFunction<E> extends java.util.function.Consumer<String>, java.util.function.ToIntFunction<E> {
+        @Override
+        default void accept(String text) {
+            // implemented here: the functional method is applyAsInt
+        }
+    }
+
+    static <T> int applyDefaulted(T value, DefaultedFunction<T> function) {
+        return function.applyAsInt(value);
+    }
+
+    public int defaultMethodImplementsTheFirstInheritedOne() {
+        var defaulted = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyDefaulted(defaulted, x -> x.added());
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

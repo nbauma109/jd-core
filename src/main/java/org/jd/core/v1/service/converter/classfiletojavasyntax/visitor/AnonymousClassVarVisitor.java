@@ -928,8 +928,34 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        /** @return the internal name of the type argument of the receiver which the type variable of its class stands for; null if there is none */
+        /**
+         * @return the internal name of the type which the type variable of the class which declares the method stands for: a type argument of the receiver, or the one
+         * which the receiver inherits it with ('IOThrower extends Thrower&lt;IOException&gt;'); null if there is none
+         */
         private String fromTheReceiver(String typeVariable, MethodInvocationExpression call) {
+            String owner = call.getInternalTypeName();
+            String declaring = ClassMetadata.declaringClass(loader, owner, call.getName(), call.getDescriptor()).orElse(owner);
+            String inTheTermsOfTheOwner = typeVariable;
+
+            if (!declaring.equals(owner)) {
+                List<String> ancestor = ClassMetadata.ancestorTypeArguments(loader, owner, declaring).orElse(List.of());
+                int declared = ClassMetadata.typeParameterNames(loader, declaring).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
+
+                if (declared < 0 || declared >= ancestor.size()) {
+                    return null;
+                }
+                inTheTermsOfTheOwner = ancestor.get(declared);
+                if (inTheTermsOfTheOwner.startsWith("L")) {
+                    int generic = inTheTermsOfTheOwner.indexOf('<');
+
+                    return inTheTermsOfTheOwner.substring(1, generic < 0 ? inTheTermsOfTheOwner.length() - 1 : generic);
+                }
+            }
+            return receiverArgument(inTheTermsOfTheOwner, call);
+        }
+
+        /** @return the internal name of the type argument of the receiver which the type variable of its class stands for; null if there is none */
+        private String receiverArgument(String typeVariable, MethodInvocationExpression call) {
             int position = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
 
             if (position < 0 || call.getExpression() == null || !(call.getExpression().getType() instanceof ObjectType receiver) || receiver.getTypeArguments() == null) {

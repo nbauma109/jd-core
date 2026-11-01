@@ -1875,6 +1875,23 @@ public class VineflowerRegressions {
         }
     }
 
+    interface InputThrower extends Thrower<java.io.IOException> {
+    }
+
+    public int genericThrowsOfTheInheritedReceiver(InputThrower thrower) {
+        try (var inherited = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            thrower.run();
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

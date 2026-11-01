@@ -1473,6 +1473,32 @@ public class VineflowerRegressions {
         return applyDefaulted(defaulted, x -> x.added());
     }
 
+    public String castOfAnInlineCall() {
+        var inlineOrigin = new Object() { };
+        return unchecked(inlineOrigin).toString();
+    }
+
+    interface OverloadingFunction<E> extends java.util.function.ToIntFunction<Extra> {
+        default int applyAsInt(String text) {
+            return 0;
+        }
+    }
+
+    static <T> int applyOverloading(T value, OverloadingFunction<T> function) {
+        return function.applyAsInt(() -> 5) + value.hashCode();
+    }
+
+    public int defaultOverloadDoesNotImplementTheInheritedMethod() {
+        Object overloading = new Object() {
+            int extra() {
+                return 2;
+            }
+        };
+        int result = applyOverloading(overloading, x -> x.extra());
+        overloading = new Object();
+        return result + overloading.hashCode();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

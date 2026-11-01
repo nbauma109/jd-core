@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -246,41 +247,57 @@ public final class ClassMetadata {
      * interface is unknown or has no such method
      */
     public static List<String> functionalMethodParameters(Loader loader, String internalName) {
-        return functionalMethodParameters(loader, internalName, Set.of());
+        List<Map.Entry<String, List<String>>> methods = abstractMethods(loader, internalName);
+
+        return methods.isEmpty() ? Collections.emptyList() : methods.get(0).getValue();
     }
 
-    /** @param implemented the methods ('name/arity') which a sub interface implements by default: they are no abstract methods of this interface any more */
-    private static List<String> functionalMethodParameters(Loader loader, String internalName, Set<String> implemented) {
+    /**
+     * @return the abstract methods of an interface, its own and the ones it inherits, as 'name' and the parameters in the terms of the interface: the type
+     * arguments of the super interfaces replace their type parameters, and a default method of the interface which has the same parameters implements the method
+     */
+    private static List<Map.Entry<String, List<String>>> abstractMethods(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+        List<Map.Entry<String, List<String>>> methods = new ArrayList<>();
 
         if (javaClass == null || !javaClass.isInterface()) {
-            return Collections.emptyList();
+            return methods;
         }
         for (Method method : javaClass.getMethods()) {
-            if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature()) && !implemented.contains(key(method))) {
-                return parameterSignatures(method);
+            if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
+                methods.add(Map.entry(method.getName(), parameterSignatures(method)));
             }
         }
-        Set<String> inheritedImplemented = new HashSet<>(implemented);
+        for (String superType : superInterfaces(javaClass)) {
+            int generic = superType.indexOf('<');
+            String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
+            List<String> typeParameters = typeParameterNames(loader, superName);
+            List<String> typeArguments = typeArgumentsOf(superType);
 
+            for (Map.Entry<String, List<String>> inherited : abstractMethods(loader, superName)) {
+                methods.add(Map.entry(inherited.getKey(), substitute(inherited.getValue(), typeParameters, typeArguments)));
+            }
+        }
         for (Method method : javaClass.getMethods()) {
             if (!method.isAbstract() && !method.isStatic() && !method.isPrivate()) {
-                inheritedImplemented.add(key(method));
+                Map.Entry<String, List<String>> implemented = Map.entry(method.getName(), parameterSignatures(method));
+
+                methods.removeIf(implemented::equals);
             }
         }
-        return inheritedFunctionalMethodParameters(loader, javaClass, inheritedImplemented);
+        return methods;
     }
 
-    private static String key(Method method) {
-        return method.getName() + "/" + org.apache.bcel.generic.Type.getArgumentTypes(method.getSignature()).length;
-    }
-
-    /** 'interface Visitor&lt;T&gt; extends ToIntFunction&lt;Other&gt;' has the method of its super interface, where its type arguments replace the type parameters */
-    private static List<String> inheritedFunctionalMethodParameters(Loader loader, JavaClass javaClass, Set<String> implemented) {
+    /** @return the signatures of the super interfaces: 'Ljava/util/function/ToIntFunction&lt;LOther;&gt;;', or the descriptors of the raw ones when there is no signature */
+    private static List<String> superInterfaces(JavaClass javaClass) {
         String signature = classSignature(javaClass);
+        List<String> superTypes = new ArrayList<>();
 
         if (signature == null) {
-            return Collections.emptyList();
+            for (String interfaceName : javaClass.getInterfaceNames()) {
+                superTypes.add("L" + interfaceName.replace('.', '/') + ";");
+            }
+            return superTypes;
         }
 
         // The first super type is 'java/lang/Object' for an interface
@@ -288,28 +305,23 @@ public final class ClassMetadata {
 
         while (index < signature.length()) {
             int end = endOfType(signature, index);
-            List<String> parameters = substitutedParameters(loader, signature.substring(index, end), implemented);
 
-            if (!parameters.isEmpty()) {
-                return parameters;
-            }
+            superTypes.add(signature.substring(index, end));
             index = end;
         }
-        return Collections.emptyList();
+        return superTypes;
     }
 
-    /** @return the parameters of the functional method of a super interface, as its type arguments give them; empty if it has none */
-    private static List<String> substitutedParameters(Loader loader, String superType, Set<String> implemented) {
-        int generic = superType.indexOf('<');
-        String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
-        List<String> typeParameters = typeParameterNames(loader, superName);
-        List<String> typeArguments = typeArgumentsOf(superType);
+    /** @return the parameters where the type arguments replace the type parameters, the array dimensions staying in front: '[TE;' becomes '[TT;' */
+    private static List<String> substitute(List<String> parameters, List<String> typeParameters, List<String> typeArguments) {
         List<String> substituted = new ArrayList<>();
 
-        for (String parameter : functionalMethodParameters(loader, superName, implemented)) {
-            int k = typeParameters.indexOf(parameter.length() > 2 ? parameter.substring(1, parameter.length() - 1) : "");
+        for (String parameter : parameters) {
+            int dimensions = parameter.length() - parameter.replaceFirst("^\\[+", "").length();
+            String component = parameter.substring(dimensions);
+            int k = component.startsWith("T") ? typeParameters.indexOf(component.substring(1, component.length() - 1)) : -1;
 
-            substituted.add(parameter.startsWith("T") && k >= 0 && k < typeArguments.size() ? typeArguments.get(k) : parameter);
+            substituted.add(k >= 0 && k < typeArguments.size() ? parameter.substring(0, dimensions) + typeArguments.get(k) : parameter);
         }
         return substituted;
     }

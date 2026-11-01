@@ -210,6 +210,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 super.visit(declarator);
             }
 
+            /** 'bad(origin).toString()': the cast-bearing call is used where it stands */
+            @Override
+            public void visit(MethodInvocationExpression expression) {
+                found[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast() && references(call, Set.of(name)) != null;
+                super.visit(expression);
+            }
+
             @Override
             public void visit(BinaryOperatorExpression expression) {
                 found[0] |= "=".equals(expression.getOperator()) && expression.getLeftExpression() instanceof LocalVariableReferenceExpression target && name.equals(target.getName())

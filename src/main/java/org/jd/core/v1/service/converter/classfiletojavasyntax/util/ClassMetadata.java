@@ -121,6 +121,70 @@ public final class ClassMetadata {
         return method == null ? Collections.emptySet() : exceptionNames(method);
     }
 
+    /** @return the internal name of the class or interface which declares the method which is called on the class; null if none does or it is unknown */
+    public static String declaringClass(Loader loader, String internalName, String name, String descriptor) {
+        return declaringClass(loader, internalName, name, descriptor, true, new HashSet<>());
+    }
+
+    private static String declaringClass(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return null;
+        }
+        for (Method method : javaClass.getMethods()) {
+            if ((includePrivate || !method.isPrivate()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
+                return internalName;
+            }
+        }
+        List<String> parents = new ArrayList<>();
+
+        parents.add(internalNameOf(javaClass.getSuperclassName()));
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            parents.add(internalNameOf(interfaceName));
+        }
+        for (String parent : parents) {
+            String declaring = declaringClass(loader, parent, name, descriptor, false, visited);
+
+            if (declaring != null) {
+                return declaring;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * @return the type arguments of the ancestor in the terms of the type parameters of the class: 'Reversed&lt;K, V&gt; extends Map&lt;V, K&gt;' gives 'TV;', 'TK;' for 'Map'; null
+     * if the class has no such ancestor or is unknown
+     */
+    public static List<String> ancestorTypeArguments(Loader loader, String internalName, String ancestor) {
+        return ancestorTypeArguments(loader, internalName, ancestor, new HashSet<>());
+    }
+
+    private static List<String> ancestorTypeArguments(Loader loader, String internalName, String ancestor, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return null;
+        }
+        for (String superType : superTypes(javaClass)) {
+            int generic = superType.indexOf('<');
+            String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
+            List<String> arguments = typeArgumentsOf(superType);
+
+            if (superName.equals(ancestor)) {
+                return arguments;
+            }
+
+            List<String> upper = ancestorTypeArguments(loader, superName, ancestor, visited);
+
+            if (upper != null) {
+                return substitute(upper, typeParameterNames(loader, superName), arguments);
+            }
+        }
+        return null;
+    }
+
     /** @return the exceptions which the constructors of the class itself declare: the one of an anonymous class declares the ones of the constructor of its super class which it calls */
     public static Set<String> declaredConstructorExceptions(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
@@ -295,20 +359,28 @@ public final class ClassMetadata {
         return inherited;
     }
 
-    /** @return the signatures of the super interfaces: 'Ljava/util/function/ToIntFunction&lt;LOther;&gt;;', or the descriptors of the raw ones when there is no signature */
+    /** @return the signatures of the super interfaces of an interface: 'Ljava/util/function/ToIntFunction&lt;LOther;&gt;;', or the descriptors of the raw ones when there is no signature */
     private static List<String> superInterfaces(JavaClass javaClass) {
+        List<String> superTypes = superTypes(javaClass);
+
+        // The first super type is 'java/lang/Object' for an interface
+        return superTypes.subList(1, superTypes.size());
+    }
+
+    /** @return the signatures of the super class then of the interfaces, or the descriptors of the raw ones when there is no signature */
+    private static List<String> superTypes(JavaClass javaClass) {
         String signature = classSignature(javaClass);
         List<String> superTypes = new ArrayList<>();
 
         if (signature == null) {
+            superTypes.add("L" + javaClass.getSuperclassName().replace('.', '/') + ";");
             for (String interfaceName : javaClass.getInterfaceNames()) {
                 superTypes.add("L" + interfaceName.replace('.', '/') + ";");
             }
             return superTypes;
         }
 
-        // The first super type is 'java/lang/Object' for an interface
-        int index = endOfType(signature, formalParameters(signature, new ArrayList<>()));
+        int index = formalParameters(signature, new ArrayList<>());
 
         while (index < signature.length()) {
             int end = endOfType(signature, index);

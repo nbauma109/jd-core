@@ -102,8 +102,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
     private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", CLONE, FINALIZE);
 
+    private static final String THROWABLE = "java/lang/Throwable";
+
     private static final Map<String, Set<String>> OBJECT_METHOD_EXCEPTIONS = Map.of(CLONE, Set.of("java/lang/CloneNotSupportedException"),
-            FINALIZE, Set.of("java/lang/Throwable"));
+            FINALIZE, Set.of(THROWABLE));
 
     private static final Set<String> PROTECTED_OBJECT_METHODS = Set.of(CLONE, FINALIZE);
 
@@ -139,11 +141,30 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         methodExceptions = saved;
     }
 
-    /** @return true if the method declares 'Exception' or 'Throwable': the implicit close of a resource of a super type is valid whatever it throws */
-    private boolean declaresGeneralException() {
+    /**
+     * @return true if the exceptions which the close of the declared type of the resource throws are unchecked or permitted by the method: the explicit type is valid then,
+     * the implicit close needs no narrower type
+     */
+    private boolean methodCoversTheCloseOf(TryStatement.Resource resource) {
+        if (resource.getType() == null) {
+            return false;
+        }
+        for (String exception : ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), "close", "()V")) {
+            if (!isUnchecked(exception) && !declaredByTheMethod(exception)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isUnchecked(String exception) {
+        return ClassMetadata.isSubtype(loader, exception, "java/lang/RuntimeException") || ClassMetadata.isSubtype(loader, exception, "java/lang/Error");
+    }
+
+    private boolean declaredByTheMethod(String exception) {
         if (methodExceptions != null) {
             for (org.jd.core.v1.model.javasyntax.type.Type type : methodExceptions) {
-                if (type instanceof ObjectType objectType && ("java/lang/Exception".equals(objectType.getInternalName()) || "java/lang/Throwable".equals(objectType.getInternalName()))) {
+                if (type instanceof ObjectType objectType && ClassMetadata.isSubtype(loader, exception, objectType.getInternalName())) {
                     return true;
                 }
             }
@@ -681,7 +702,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
                 // Without handler and in a method which declares 'Exception', the explicit type is valid: it stays, with the cast which only 'var' would add
                 search.found |= hasNoCheckedHandler(statement, closeExceptionsOfAll(resources, resource)) && search.callsClose()
-                        && (statement.getCatchClauses() != null && !statement.getCatchClauses().isEmpty() || !declaresGeneralException());
+                        && (statement.getCatchClauses() != null && !statement.getCatchClauses().isEmpty() || !methodCoversTheCloseOf(resource));
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -911,7 +932,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean isUncheckedOrGeneral(String internalName) {
-        return "java/lang/Exception".equals(internalName) || "java/lang/Throwable".equals(internalName)
+        return "java/lang/Exception".equals(internalName) || THROWABLE.equals(internalName)
                 || ClassMetadata.isSubtype(loader, internalName, "java/lang/RuntimeException") || ClassMetadata.isSubtype(loader, internalName, "java/lang/Error");
     }
 
@@ -1113,11 +1134,34 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         String returned = returnedType(signature);
-        int index = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(returned.substring(1, returned.length() - 1));
-        List<String> arguments = typeArguments(container.type());
+        String owner = call.getInternalTypeName();
 
         // The class of the method may be a super type of the container ('Collection' of a 'List'): its type parameters are then not the arguments of the container
-        return !container.type().startsWith("L" + call.getInternalTypeName() + "<") || index >= 0 && index < arguments.size() && arguments.get(index).equals(container.variable());
+        if (!container.type().startsWith("L" + owner + "<")) {
+            return true;
+        }
+
+        String declaring = ClassMetadata.declaringClass(loader, owner, call.getName(), call.getDescriptor());
+        String inTheTermsOfTheOwner = returned;
+
+        if (declaring != null && !declaring.equals(owner)) {
+            // 'Reversed<K, V> extends Map<V, K>': the 'V' which 'Map.get' returns is the 'K' of 'Reversed'
+            List<String> ancestor = ClassMetadata.ancestorTypeArguments(loader, owner, declaring);
+            int position = ClassMetadata.typeParameterNames(loader, declaring).indexOf(returned.substring(1, returned.length() - 1));
+
+            if (ancestor == null || position < 0 || position >= ancestor.size()) {
+                return true;
+            }
+            inTheTermsOfTheOwner = ancestor.get(position);
+        }
+        if (!inTheTermsOfTheOwner.startsWith("T")) {
+            return false;
+        }
+
+        int index = ClassMetadata.typeParameterNames(loader, owner).indexOf(inTheTermsOfTheOwner.substring(1, inTheTermsOfTheOwner.length() - 1));
+        List<String> arguments = typeArguments(container.type());
+
+        return index >= 0 && index < arguments.size() && arguments.get(index).equals(container.variable());
     }
 
     /** @return the parameters of the lambda which hold the type variable as a type argument ('ToIntFunction&lt;List&lt;T&gt;&gt;'), with their types: the elements which they give have it */

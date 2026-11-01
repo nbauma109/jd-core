@@ -1714,7 +1714,7 @@ public class VineflowerRegressions {
         // does nothing
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "java:S1172" })
     static <T> T castingIdentity(T ignored) {
         AutoCloseable closer = () -> { };
 
@@ -1730,6 +1730,43 @@ public class VineflowerRegressions {
         }) {
             return castingIdentity(unhandled).toString();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T closeableIdentity(T ignored) {
+        java.io.Closeable closer = () -> { };
+
+        return (T) closer;
+    }
+
+    @SuppressWarnings("java:S1172")
+    public String resourceWhichTheThrowsClauseCovers() throws java.io.IOException {
+        try (java.io.Closeable covered = new java.io.Closeable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return closeableIdentity(covered).toString();
+        }
+    }
+
+    interface Reversed<K, V> extends java.util.Map<V, K> {
+    }
+
+    static <T> int applyToReversed(T value, java.util.function.ToIntFunction<Reversed<Extra2, T>> function) {
+        return function.applyAsInt(null) + value.hashCode();
+    }
+
+    public int inheritedAccessorWithPermutedArguments() {
+        Object reversed = new Object() {
+            int extra() {
+                return 1;
+            }
+        };
+        int result = applyToReversed(reversed, xs -> xs.get("key").extra());
+        reversed = new Object();
+        return result + reversed.hashCode();
     }
 
     public int anonymousVariableCapturedByALocalClass() {

@@ -248,9 +248,17 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var listed = new Object() {"));
         assertTrue(source.contains("var contained = new Object() {"));
         assertTrue(source.contains("var element = new Object() {"));
+    }
+
+    @Test
+    public void testAnonymousTypesWhichContainersArraysAndThrowsKeep() throws Exception {
+        String source = decompile();
+
         assertFalse(source.contains("var keyed"));
         assertTrue(source.contains("var nestedBlock = new Object() {"));
         assertFalse(source.contains("var unhandled"));
+        assertFalse(source.contains("var covered"));
+        assertFalse(source.contains("var reversed"));
         assertTrue(source.contains("var elemental = new Object() {"));
         assertTrue(source.contains("var stored = xs[0];"));
         assertFalse(source.contains("var generic"));

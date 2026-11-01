@@ -388,7 +388,7 @@ public final class ClassMetadata {
         return arguments;
     }
 
-    private static List<String> parameterSignatures(Method method) {
+    public static List<String> parameterSignatures(Method method) {
         List<String> parameters = new ArrayList<>();
         String generic = genericSignature(method);
 

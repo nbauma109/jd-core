@@ -46,6 +46,7 @@ import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
+import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
@@ -61,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -111,10 +113,49 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The parameters of the lambdas which hold the type of a tracked variable as a type argument ('xs' of 'ToIntFunction<List<T>>'), with the members which it adds */
     private final Map<String, Set<String>> anonymousContainers = new HashMap<>();
 
+    /** The type of each of these parameters and the type variable of the tracked variable which it holds: 'Ljava/util/Map<TT;LOther;>;' holds 'TT;' */
+    private final Map<String, Container> containerShapes = new HashMap<>();
+
+    private record Container(String type, String variable) {}
+
+    /** The exceptions which the method being visited declares; null while none is visited */
+    private BaseType methodExceptions;
+
+    @Override
+    public void visit(MethodDeclaration declaration) {
+        BaseType saved = methodExceptions;
+
+        methodExceptions = declaration.getExceptionTypes();
+        super.visit(declaration);
+        methodExceptions = saved;
+    }
+
+    @Override
+    public void visit(ConstructorDeclaration declaration) {
+        BaseType saved = methodExceptions;
+
+        methodExceptions = declaration.getExceptionTypes();
+        super.visit(declaration);
+        methodExceptions = saved;
+    }
+
+    /** @return true if the method declares 'Exception' or 'Throwable': the implicit close of a resource of a super type is valid whatever it throws */
+    private boolean declaresGeneralException() {
+        if (methodExceptions != null) {
+            for (org.jd.core.v1.model.javasyntax.type.Type type : methodExceptions) {
+                if (type instanceof ObjectType objectType && ("java/lang/Exception".equals(objectType.getInternalName()) || "java/lang/Throwable".equals(objectType.getInternalName()))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @Override
     public void visit(Statements statements) {
         // The variables of a block are known up to its end only: another block may reuse their names
         Set<String> knownBefore = new HashSet<>(anonymousVariables.keySet());
+        Set<String> containersBefore = new HashSet<>(anonymousContainers.keySet());
 
         for (int i = 0; i < statements.size(); i++) {
             if (statements.get(i) instanceof LocalVariableDeclarationStatement declaration && needsOneDeclaratorEach(declaration)) {
@@ -128,7 +169,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             statements.get(i).accept(this);
         }
         anonymousVariables.keySet().retainAll(knownBefore);
-        anonymousContainers.keySet().retainAll(knownBefore);
+        anonymousContainers.keySet().retainAll(containersBefore);
+        containerShapes.keySet().retainAll(containersBefore);
     }
 
     /** 'var' declares one variable: 'Object a = new Object() {...}, b = new Object() {...};' or 'Object b = a, c = a;' which was merged is split */
@@ -160,7 +202,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         if (anonymousContainers.isEmpty() || !(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
                 || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
                 || !(initializer.getExpression() instanceof MethodInvocationExpression element) || !(element.getExpression() instanceof LocalVariableReferenceExpression container)
-                || !anonymousContainers.containsKey(container.getName()) || !returnsATypeVariableOfItsClass(element)) {
+                || !anonymousContainers.containsKey(container.getName()) || !returnsATypeVariableOfItsClass(element, containerShapes.get(container.getName()))) {
             return false;
         }
 
@@ -439,6 +481,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     values.addAll(underlyingValues(initializer.getExpression()));
                 }
             }
+        } else if (value != null && value.isArrayExpression()) {
+            // An element of an array has the type of its elements: 'var y = xs[0];'
+            values.addAll(underlyingValues(value.getExpression()));
         } else if (!(value instanceof CastExpression) && !(value instanceof MethodInvocationExpression)) {
             values.add(value);
         }
@@ -634,7 +679,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                search.found |= hasNoCheckedHandler(statement, closeExceptionsOfAll(resources, resource)) && search.callsClose();
+                // Without handler and in a method which declares 'Exception', the explicit type is valid: it stays, with the cast which only 'var' would add
+                search.found |= hasNoCheckedHandler(statement, closeExceptionsOfAll(resources, resource)) && search.callsClose()
+                        && (statement.getCatchClauses() != null && !statement.getCatchClauses().isEmpty() || !declaresGeneralException());
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -703,7 +750,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** A method or a constructor which declares the exception (or one which the handler is narrower than) is a source of it */
         @Override
         public void visit(MethodInvocationExpression call) {
-            thrown |= declares(call.getInternalTypeName(), call.getName(), call.getDescriptor(), handled);
+            thrown |= throwsThe(call);
             super.visit(call);
         }
 
@@ -748,6 +795,45 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
             return false;
+        }
+
+        /**
+         * @return true if the call throws the exception: what the method declares, where a type variable ('&lt;E extends Exception&gt; void raise(E e) throws E') is the type
+         * of the argument which has it, not its erased bound
+         */
+        private boolean throwsThe(MethodInvocationExpression call) {
+            String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+            if (signature == null || !signature.contains(")") || !signature.substring(signature.indexOf(')')).contains("^T")) {
+                return declares(call.getInternalTypeName(), call.getName(), call.getDescriptor(), handled);
+            }
+
+            List<Expression> arguments = new ArrayList<>();
+            List<String> parameters = parameterSignatures(signature);
+            String[] thrownTypes = signature.substring(signature.indexOf(')') + 1).split("\\^");
+
+            if (call.getParameters() != null) {
+                call.getParameters().forEach(arguments::add);
+            }
+            for (int i = 1; i < thrownTypes.length; i++) {
+                String exception = thrownTypes[i].startsWith("T") ? inferred(thrownTypes[i], parameters, arguments)
+                        : thrownTypes[i].substring(1, thrownTypes[i].length() - 1);
+
+                if (exception != null && (ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** @return the internal name of the type of the argument which has the type variable as its type, null if there is none */
+        private String inferred(String typeVariable, List<String> parameters, List<Expression> arguments) {
+            for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
+                if (parameters.get(i).equals(typeVariable) && arguments.get(i).getType() instanceof ObjectType type) {
+                    return type.getInternalName();
+                }
+            }
+            return null;
         }
 
         private void searchNested(TryStatement nested) {
@@ -938,6 +1024,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         registered.forEach(name -> {
             anonymousVariables.remove(name);
             anonymousContainers.remove(name);
+            containerShapes.remove(name);
         });
     }
 
@@ -951,6 +1038,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         registered.forEach(name -> {
             anonymousVariables.remove(name);
             anonymousContainers.remove(name);
+            containerShapes.remove(name);
         });
     }
 
@@ -979,9 +1067,19 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
             if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))) {
                 register(anonymousVariables, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)), members, registered);
-                register(anonymousContainers, containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index)), members, registered);
+                registerContainers(containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index)), members, registered);
             }
         }
+    }
+
+    private void registerContainers(Map<String, Container> containers, Set<String> members, Set<String> registered) {
+        containers.forEach((name, container) -> {
+            if (!anonymousContainers.containsKey(name)) {
+                anonymousContainers.put(name, members);
+                containerShapes.put(name, container);
+                registered.add(name);
+            }
+        });
     }
 
     /** Registers the names which are not tracked yet as aliases of the variable with these members, up to the end of the call */
@@ -1000,31 +1098,49 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
      */
     private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
         // 'ToIntFunction<T[]>': the parameter is an array of the type, its elements have it
-        return parametersWhere(lambda, functionalInterface, type -> type.replaceFirst("^\\[+", "").equals(typeVariable));
+        return new ArrayList<>(parametersWhere(lambda, functionalInterface, type -> type.replaceFirst("^\\[+", "").equals(typeVariable)).keySet());
     }
 
-    /** @return true if the method returns a type variable of its class ('List&lt;E&gt;.get'): the element has the type argument of the receiver */
-    private boolean returnsATypeVariableOfItsClass(MethodInvocationExpression call) {
+    /**
+     * @return true if the method returns the type argument of the container which is the type variable of the tracked variable ('List&lt;E&gt;.get' of a 'List&lt;T&gt;'): the
+     * element has the type of the variable. 'Map&lt;T, Other&gt;.get' returns the 'Other'.
+     */
+    private boolean returnsATypeVariableOfItsClass(MethodInvocationExpression call, Container container) {
         String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
 
-        return signature != null && signature.contains(")") && returnedType(signature).startsWith("T") && !declaresTypeVariable(signature, returnedType(signature));
+        if (signature == null || !signature.contains(")") || !returnedType(signature).startsWith("T") || declaresTypeVariable(signature, returnedType(signature))) {
+            return false;
+        }
+
+        String returned = returnedType(signature);
+        int index = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(returned.substring(1, returned.length() - 1));
+        List<String> arguments = typeArguments(container.type());
+
+        // The class of the method may be a super type of the container ('Collection' of a 'List'): its type parameters are then not the arguments of the container
+        return !container.type().startsWith("L" + call.getInternalTypeName() + "<") || index >= 0 && index < arguments.size() && arguments.get(index).equals(container.variable());
     }
 
-    /** @return the names of the parameters of the lambda which hold the type variable as a type argument ('ToIntFunction&lt;List&lt;T&gt;&gt;'): the elements which they give have it */
-    private List<String> containerParametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
-        return parametersWhere(lambda, functionalInterface, type -> type.startsWith("L") && typeArguments(type).contains(typeVariable));
+    /** @return the parameters of the lambda which hold the type variable as a type argument ('ToIntFunction&lt;List&lt;T&gt;&gt;'), with their types: the elements which they give have it */
+    private Map<String, Container> containerParametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable, String variable) {
+        Map<String, Container> containers = new HashMap<>();
+
+        parametersWhere(lambda, functionalInterface, type -> type.startsWith("L") && typeArguments(type).contains(typeVariable))
+                .forEach((name, type) -> containers.put(name, new Container(type, variable)));
+        return containers;
     }
 
-    private List<String> parametersWhere(LambdaIdentifiersExpression lambda, String functionalInterface, Predicate<String> hasTheType) {
+    private Map<String, String> parametersWhere(LambdaIdentifiersExpression lambda, String functionalInterface, Predicate<String> hasTheType) {
         List<String> typeArguments = typeArguments(functionalInterface);
         String interfaceName = functionalInterface.startsWith("L") && functionalInterface.contains("<") ? functionalInterface.substring(1, functionalInterface.indexOf('<')) : null;
         List<String> methodParameters = ClassMetadata.functionalMethodParameters(loader, interfaceName);
         List<String> typeParameters = ClassMetadata.typeParameterNames(loader, interfaceName);
-        List<String> names = new ArrayList<>();
+        Map<String, String> names = new LinkedHashMap<>();
 
         for (int i = 0; i < lambda.getParameterNames().size(); i++) {
-            if (hasTheType.test(parameterType(i, methodParameters, typeParameters, typeArguments))) {
-                names.add(lambda.getParameterNames().get(i));
+            String type = parameterType(i, methodParameters, typeParameters, typeArguments);
+
+            if (hasTheType.test(type)) {
+                names.put(lambda.getParameterNames().get(i), type);
             }
         }
         return names;
@@ -1229,7 +1345,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))
                         && callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
-                                containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index)))) {
+                                containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index)))) {
                     return true;
                 }
             }
@@ -1237,10 +1353,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */
-        private boolean callsAMember(Expression lambda, List<String> parameterNames, List<String> containerNames) {
+        private boolean callsAMember(Expression lambda, List<String> parameterNames, Map<String, Container> containers) {
             boolean[] calls = new boolean[1];
             Set<String> names = new HashSet<>(parameterNames);
-            Set<String> containers = new HashSet<>(containerNames);
 
             lambda.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
@@ -1291,7 +1406,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
                     return value instanceof LocalVariableReferenceExpression reference && names.contains(reference.getName())
                             || value instanceof MethodInvocationExpression element && element.getExpression() instanceof LocalVariableReferenceExpression container
-                            && containers.contains(container.getName()) && returnsATypeVariableOfItsClass(element);
+                            && containers.containsKey(container.getName()) && returnsATypeVariableOfItsClass(element, containers.get(container.getName()));
                 }
             });
             return calls[0];

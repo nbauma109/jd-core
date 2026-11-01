@@ -131,7 +131,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         String operand = operandDescriptor(method, slot, instanceOfOffset);
         Loader loader = LOADER.get();
 
-        if (operand == null || isTypeVariable(code, slot, instanceOfOffset)) {
+        if (operand == null || isTypeVariable(code, slot, instanceOfOffset) || isGenericParameter(method, slot)) {
             // Without a local variable table the type of the operand is unknown ('this', a local), and the erasure of a type variable omits its other bounds: the test stays
             return true;
         }
@@ -171,6 +171,29 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             if (variable.getIndex() == slot && variable.getStartPC() <= offset && offset < variable.getStartPC() + variable.getLength()) {
                 return variable.getSignature().replace("[", "").startsWith("T");
             }
+        }
+        return false;
+    }
+
+    /** @return true if the slot holds a parameter typed by a type variable, as the generic signature of the method says: it exists without a local variable table */
+    private static boolean isGenericParameter(Method method, int slot) {
+        if (ClassMetadata.genericSignature(method) == null) {
+            return false;
+        }
+
+        List<String> generic = ClassMetadata.parameterSignatures(method);
+        Type[] erased = Type.getArgumentTypes(method.getSignature());
+        int index = method.isStatic() ? 0 : 1;
+
+        if (generic.size() != erased.length) {
+            // The signature omits synthetic parameters: the correspondence is unknown, the test stays
+            return true;
+        }
+        for (int i = 0; i < erased.length; i++) {
+            if (index == slot) {
+                return generic.get(i).replace("[", "").startsWith("T");
+            }
+            index += erased[i].getSize();
         }
         return false;
     }

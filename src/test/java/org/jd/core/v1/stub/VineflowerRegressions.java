@@ -1643,6 +1643,95 @@ public class VineflowerRegressions {
         }
     }
 
+    interface Extra2 {
+        int extra();
+    }
+
+    static <T> int applyToMap(T value, java.util.function.ToIntFunction<java.util.Map<T, Extra2>> function) {
+        return function.applyAsInt(null) + value.hashCode();
+    }
+
+    public int accessorOfAnotherTypeArgument() {
+        Object keyed = new Object() {
+            int extra() {
+                return 1;
+            }
+        };
+        int result = applyToMap(keyed, xs -> xs.get("key").extra());
+        keyed = new Object();
+        return result + keyed.hashCode();
+    }
+
+    public int arrayElementStoredInALocal() {
+        var elemental = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyToArray(elemental, xs -> {
+            var stored = xs[0];
+            return stored.added();
+        });
+    }
+
+    static <E extends Exception> void raise(E exception) throws E {
+        // throws what it receives
+    }
+
+    public int genericThrowsAreInferred() {
+        try (AutoCloseable generic = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raise(new IllegalArgumentException());
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        } catch (Exception e) {
+            return 3;
+        }
+    }
+
+    public int containerAliasAfterANestedBlock(boolean flag) {
+        var nestedBlock = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyToList(nestedBlock, xs -> {
+            if (flag) {
+                ping();
+                ping();
+            }
+            var stored = xs.get(0);
+            return stored.added();
+        });
+    }
+
+    static void ping() {
+        // does nothing
+    }
+
+    @SuppressWarnings("unchecked")
+    static <T> T castingIdentity(T ignored) {
+        AutoCloseable closer = () -> { };
+
+        return (T) closer;
+    }
+
+    public String resourceWhichIsNarrowedWithoutAHandler() throws Exception {
+        try (AutoCloseable unhandled = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return castingIdentity(unhandled).toString();
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

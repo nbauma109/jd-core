@@ -1522,8 +1522,6 @@ public class VineflowerRegressions {
             return 1;
         } catch (java.io.IOException e) {
             return 2;
-        } catch (Exception e) {
-            return 4;
         }
     }
 
@@ -1602,8 +1600,6 @@ public class VineflowerRegressions {
             return 0;
         } catch (java.io.IOException e) {
             return 2;
-        } catch (Exception e) {
-            return 3;
         }
     }
 
@@ -1732,7 +1728,7 @@ public class VineflowerRegressions {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "java:S1172" })
     static <T> T closeableIdentity(T ignored) {
         java.io.Closeable closer = () -> { };
 
@@ -1767,6 +1763,40 @@ public class VineflowerRegressions {
         int result = applyToReversed(reversed, xs -> xs.get("key").extra());
         reversed = new Object();
         return result + reversed.hashCode();
+    }
+
+    @SuppressWarnings("java:S1172")
+    public String resourceWhichAnEnclosingHandlerCovers() {
+        try {
+            try (AutoCloseable enclosed = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                return castingIdentity(enclosed).toString();
+            }
+        } catch (Exception e) {
+            return e.toString();
+        }
+    }
+
+    interface Thrower<E extends Exception> {
+        void run() throws E;
+    }
+
+    public int genericThrowsOfTheReceiver(Thrower<java.io.IOException> thrower) {
+        try (var thrown = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            thrower.run();
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
     }
 
     public int anonymousVariableCapturedByALocalClass() {

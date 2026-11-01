@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 
@@ -122,19 +123,19 @@ public final class ClassMetadata {
     }
 
     /** @return the internal name of the class or interface which declares the method which is called on the class; null if none does or it is unknown */
-    public static String declaringClass(Loader loader, String internalName, String name, String descriptor) {
+    public static Optional<String> declaringClass(Loader loader, String internalName, String name, String descriptor) {
         return declaringClass(loader, internalName, name, descriptor, true, new HashSet<>());
     }
 
-    private static String declaringClass(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
+    private static Optional<String> declaringClass(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
 
         if (javaClass == null) {
-            return null;
+            return Optional.empty();
         }
         for (Method method : javaClass.getMethods()) {
             if ((includePrivate || !method.isPrivate()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
-                return internalName;
+                return Optional.of(internalName);
             }
         }
         List<String> parents = new ArrayList<>();
@@ -144,28 +145,28 @@ public final class ClassMetadata {
             parents.add(internalNameOf(interfaceName));
         }
         for (String parent : parents) {
-            String declaring = declaringClass(loader, parent, name, descriptor, false, visited);
+            Optional<String> declaring = declaringClass(loader, parent, name, descriptor, false, visited);
 
-            if (declaring != null) {
+            if (declaring.isPresent()) {
                 return declaring;
             }
         }
-        return null;
+        return Optional.empty();
     }
 
     /**
      * @return the type arguments of the ancestor in the terms of the type parameters of the class: 'Reversed&lt;K, V&gt; extends Map&lt;V, K&gt;' gives 'TV;', 'TK;' for 'Map'; null
      * if the class has no such ancestor or is unknown
      */
-    public static List<String> ancestorTypeArguments(Loader loader, String internalName, String ancestor) {
+    public static Optional<List<String>> ancestorTypeArguments(Loader loader, String internalName, String ancestor) {
         return ancestorTypeArguments(loader, internalName, ancestor, new HashSet<>());
     }
 
-    private static List<String> ancestorTypeArguments(Loader loader, String internalName, String ancestor, Set<String> visited) {
+    private static Optional<List<String>> ancestorTypeArguments(Loader loader, String internalName, String ancestor, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
 
         if (javaClass == null) {
-            return null;
+            return Optional.empty();
         }
         for (String superType : superTypes(javaClass)) {
             int generic = superType.indexOf('<');
@@ -173,16 +174,16 @@ public final class ClassMetadata {
             List<String> arguments = typeArgumentsOf(superType);
 
             if (superName.equals(ancestor)) {
-                return arguments;
+                return Optional.of(arguments);
             }
 
-            List<String> upper = ancestorTypeArguments(loader, superName, ancestor, visited);
+            Optional<List<String>> upper = ancestorTypeArguments(loader, superName, ancestor, visited);
 
-            if (upper != null) {
-                return substitute(upper, typeParameterNames(loader, superName), arguments);
+            if (upper.isPresent()) {
+                return Optional.of(substitute(upper.get(), typeParameterNames(loader, superName), arguments));
             }
         }
-        return null;
+        return Optional.empty();
     }
 
     /** @return the exceptions which the constructors of the class itself declare: the one of an anonymous class declares the ones of the constructor of its super class which it calls */

@@ -47,7 +47,9 @@ import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
@@ -102,6 +104,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
     private static final Set<String> OBJECT_METHODS = Set.of("toString()Ljava/lang/String;", "equals(Ljava/lang/Object;)Z", "hashCode()I", CLONE, FINALIZE);
 
+    private static final String CLOSE = "close";
+
     private static final String THROWABLE = "java/lang/Throwable";
 
     private static final Map<String, Set<String>> OBJECT_METHOD_EXCEPTIONS = Map.of(CLONE, Set.of("java/lang/CloneNotSupportedException"),
@@ -119,6 +123,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private final Map<String, Container> containerShapes = new HashMap<>();
 
     private record Container(String type, String variable) {}
+
+    /** The 'try' statements around the code being visited, whose handlers can catch what the resources close throw */
+    private final Deque<TryStatement> enclosingTries = new ArrayDeque<>();
 
     /** The exceptions which the method being visited declares; null while none is visited */
     private BaseType methodExceptions;
@@ -145,12 +152,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
      * @return true if the exceptions which the close of the declared type of the resource throws are unchecked or permitted by the method: the explicit type is valid then,
      * the implicit close needs no narrower type
      */
-    private boolean methodCoversTheCloseOf(TryStatement.Resource resource) {
+    private boolean methodCoversTheCloseOf(TryStatement statement, TryStatement.Resource resource) {
         if (resource.getType() == null) {
             return false;
         }
-        for (String exception : ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), "close", "()V")) {
-            if (!isUnchecked(exception) && !declaredByTheMethod(exception)) {
+        for (String exception : ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), CLOSE, "()V")) {
+            if (!isUnchecked(exception) && !declaredByTheMethod(exception) && !caughtAround(exception) && !caughtBy(statement, exception)) {
                 return false;
             }
         }
@@ -159,6 +166,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     private boolean isUnchecked(String exception) {
         return ClassMetadata.isSubtype(loader, exception, "java/lang/RuntimeException") || ClassMetadata.isSubtype(loader, exception, "java/lang/Error");
+    }
+
+    /** @return true if a handler of a 'try' around the code catches the exception */
+    private boolean caughtAround(String exception) {
+        return enclosingTries.stream().anyMatch(around -> caughtBy(around, exception));
+    }
+
+    private boolean caughtBy(TryStatement statement, String exception) {
+        return statement.getCatchClauses() != null && statement.getCatchClauses().stream().anyMatch(clause -> catches(clause, exception));
     }
 
     private boolean declaredByTheMethod(String exception) {
@@ -700,9 +716,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 following.forEach(next -> next.getExpression().accept(search));
                 Stream.of(statement.getTryStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
                 // The try calls 'close()' itself: an override of it which declares fewer exceptions needs the type of the class
-                // Without handler and in a method which declares 'Exception', the explicit type is valid: it stays, with the cast which only 'var' would add
+                // When the declared type of the resource closes with exceptions which the handlers or the method permit, the explicit type is valid: it stays, with the cast which only 'var' would add
                 search.found |= hasNoCheckedHandler(statement, closeExceptionsOfAll(resources, resource)) && search.callsClose()
-                        && (statement.getCatchClauses() != null && !statement.getCatchClauses().isEmpty() || !methodCoversTheCloseOf(resource));
+                        && !methodCoversTheCloseOf(statement, resource);
             };
 
             if (resource.getType() != null && (needsVar(resource.getName(), resource.getExpression(), uses) || resourceAliasNeedsVar(resource, uses))) {
@@ -712,7 +728,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 resources.set(i, varResource);
             }
         }
+        enclosingTries.push(statement);
         super.visit(statement);
+        enclosingTries.pop();
+    }
+
+    /** The handlers of a 'try' do not catch what its own handlers throw: it is no enclosing 'try' of them */
+    @Override
+    public void visit(TryStatement.CatchClause catchClause) {
+        TryStatement own = enclosingTries.pop();
+
+        super.visit(catchClause);
+        enclosingTries.push(own);
     }
 
     /**
@@ -737,6 +764,17 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return true;
+    }
+
+    /** @return true if the handler catches the exception: its type, or one of the alternatives of the clause, is the exception or a super type of it */
+    private boolean catches(TryStatement.CatchClause clause, String exception) {
+        List<ObjectType> types = new ArrayList<>();
+
+        types.add(clause.getType());
+        if (clause.getOtherTypes() != null) {
+            types.addAll(clause.getOtherTypes());
+        }
+        return types.stream().anyMatch(type -> ClassMetadata.isSubtype(loader, exception, type.getInternalName()));
     }
 
     /** The body or a resource throws the exception itself ('throw new IOException()'): the handler is valid whatever the close throws */
@@ -791,17 +829,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return creation.getObjectType() == null ? null : creation.getObjectType().getInternalName();
         }
 
-        /** @return true if the handler catches the exception: its type, or one of the alternatives of the clause, is the exception or a super type of it */
-        private boolean catches(TryStatement.CatchClause clause, String exception) {
-            List<ObjectType> types = new ArrayList<>();
-
-            types.add(clause.getType());
-            if (clause.getOtherTypes() != null) {
-                types.addAll(clause.getOtherTypes());
-            }
-            return types.stream().anyMatch(type -> ClassMetadata.isSubtype(loader, exception, type.getInternalName()));
-        }
-
         /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
         private boolean declares(String owner, String name, String descriptor, String handled) {
             Set<String> exceptions = ClassMetadata.declaredExceptions(loader, owner, name, descriptor);
@@ -837,7 +864,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 call.getParameters().forEach(arguments::add);
             }
             for (int i = 1; i < thrownTypes.length; i++) {
-                String exception = thrownTypes[i].startsWith("T") ? inferred(thrownTypes[i], parameters, arguments)
+                String exception = thrownTypes[i].startsWith("T") ? inferred(thrownTypes[i], parameters, arguments, call)
                         : thrownTypes[i].substring(1, thrownTypes[i].length() - 1);
 
                 if (exception != null && (ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception))) {
@@ -847,12 +874,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        /** @return the internal name of the type of the argument which has the type variable as its type, null if there is none */
-        private String inferred(String typeVariable, List<String> parameters, List<Expression> arguments) {
+        /**
+         * @return the internal name of the type of the argument which has the type variable as its type, or the type argument of the receiver which the type variable of
+         * its class stands for ('Thrower&lt;IOException&gt;'); null if there is none
+         */
+        private String inferred(String typeVariable, List<String> parameters, List<Expression> arguments, MethodInvocationExpression call) {
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
                 if (parameters.get(i).equals(typeVariable) && arguments.get(i).getType() instanceof ObjectType type) {
                     return type.getInternalName();
                 }
+            }
+
+            int position = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
+
+            if (position >= 0 && call.getExpression() != null && call.getExpression().getType() instanceof ObjectType receiver && receiver.getTypeArguments() != null) {
+                BaseTypeArgument typeArguments = receiver.getTypeArguments();
+                List<TypeArgument> receiverArguments = typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : List.of(typeArguments.getTypeArgumentFirst());
+
+                return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
             }
             return null;
         }
@@ -906,7 +945,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         for (TryStatement.Resource resource : resources) {
             exceptions.addAll(closeExceptionsOf(resource));
             if (resource != current && resource.getType() != null) {
-                exceptions.addAll(ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), "close", "()V"));
+                exceptions.addAll(ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), CLOSE, "()V"));
             }
         }
         return exceptions;
@@ -918,7 +957,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         if (creation != null && creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration body && body.getMethodDeclarations() != null) {
             for (ClassFileConstructorOrMethodDeclaration declaration : body.getMethodDeclarations()) {
-                if (declaration.getMethod() != null && "close".equals(declaration.getMethod().getName()) && "()V".equals(declaration.getMethod().getSignature())) {
+                if (declaration.getMethod() != null && CLOSE.equals(declaration.getMethod().getName()) && "()V".equals(declaration.getMethod().getSignature())) {
                     return ClassMetadata.exceptionNames(declaration.getMethod());
                 }
             }
@@ -1141,15 +1180,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return true;
         }
 
-        String declaring = ClassMetadata.declaringClass(loader, owner, call.getName(), call.getDescriptor());
+        String declaring = ClassMetadata.declaringClass(loader, owner, call.getName(), call.getDescriptor()).orElse(owner);
         String inTheTermsOfTheOwner = returned;
 
-        if (declaring != null && !declaring.equals(owner)) {
+        if (!declaring.equals(owner)) {
             // 'Reversed<K, V> extends Map<V, K>': the 'V' which 'Map.get' returns is the 'K' of 'Reversed'
-            List<String> ancestor = ClassMetadata.ancestorTypeArguments(loader, owner, declaring);
+            List<String> ancestor = ClassMetadata.ancestorTypeArguments(loader, owner, declaring).orElse(List.of());
             int position = ClassMetadata.typeParameterNames(loader, declaring).indexOf(returned.substring(1, returned.length() - 1));
 
-            if (ancestor == null || position < 0 || position >= ancestor.size()) {
+            if (position < 0 || position >= ancestor.size()) {
                 return true;
             }
             inTheTermsOfTheOwner = ancestor.get(position);

@@ -671,17 +671,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return true;
     }
 
-    /** @return true if the handler catches the exception: its type, or one of the alternatives of the clause, is the exception or a super type of it */
-    private boolean catches(TryStatement.CatchClause clause, String exception) {
-        List<ObjectType> types = new ArrayList<>();
-
-        types.add(clause.getType());
-        if (clause.getOtherTypes() != null) {
-            types.addAll(clause.getOtherTypes());
-        }
-        return types.stream().anyMatch(type -> ClassMetadata.isSubtype(loader, exception, type.getInternalName()));
-    }
-
     /** The body or a resource throws the exception itself ('throw new IOException()'): the handler is valid whatever the close throws */
     private boolean bodyThrows(TryStatement statement, String handled) {
         ExceptionSearch search = new ExceptionSearch(handled);
@@ -720,12 +709,45 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(NewExpression creation) {
-            // The type of the creation of an anonymous class is its super type: the constructor which declares the exceptions is the one of the anonymous class
-            String owner = creation instanceof ClassFileNewExpression anonymous && anonymous.getBodyDeclaration() instanceof ClassFileBodyDeclaration body
-                    ? body.getInternalTypeName() : creation.getObjectType() == null ? null : creation.getObjectType().getInternalName();
+            String owner = ownerOfTheConstructor(creation);
 
             thrown |= owner != null && declares(owner, INIT, creation.getDescriptor(), handled);
             super.visit(creation);
+        }
+
+        /** The type of the creation of an anonymous class is its super type: the constructor which declares the exceptions is the one of the anonymous class */
+        private String ownerOfTheConstructor(NewExpression creation) {
+            if (creation instanceof ClassFileNewExpression anonymous && anonymous.getBodyDeclaration() instanceof ClassFileBodyDeclaration body) {
+                return body.getInternalTypeName();
+            }
+            return creation.getObjectType() == null ? null : creation.getObjectType().getInternalName();
+        }
+
+        /** @return true if the handler catches the exception: its type, or one of the alternatives of the clause, is the exception or a super type of it */
+        private boolean catches(TryStatement.CatchClause clause, String exception) {
+            List<ObjectType> types = new ArrayList<>();
+
+            types.add(clause.getType());
+            if (clause.getOtherTypes() != null) {
+                types.addAll(clause.getOtherTypes());
+            }
+            return types.stream().anyMatch(type -> ClassMetadata.isSubtype(loader, exception, type.getInternalName()));
+        }
+
+        /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
+        private boolean declares(String owner, String name, String descriptor, String handled) {
+            Set<String> exceptions = ClassMetadata.declaredExceptions(loader, owner, name, descriptor);
+
+            if (exceptions.isEmpty() && INIT.equals(name) && LocalVariableMaker.isAnonymousClassName(owner)) {
+                // The descriptor of the creation has lost the outer instance of the anonymous class: its only constructor declares what the one of its super class does
+                exceptions = ClassMetadata.declaredConstructorExceptions(loader, owner);
+            }
+            for (String exception : exceptions) {
+                if (ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private void searchNested(TryStatement nested) {
@@ -800,22 +822,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** @return true if an exception which the close declares is caught by the handler, or the handler is narrower than it */
     private boolean closeThrows(Set<String> closeExceptions, String handled) {
         return closeExceptions.stream().anyMatch(exception -> ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception));
-    }
-
-    /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
-    private boolean declares(String owner, String name, String descriptor, String handled) {
-        Set<String> exceptions = ClassMetadata.declaredExceptions(loader, owner, name, descriptor);
-
-        if (exceptions.isEmpty() && INIT.equals(name) && LocalVariableMaker.isAnonymousClassName(owner)) {
-            // The descriptor of the creation has lost the outer instance of the anonymous class: its only constructor declares what the one of its super class does
-            exceptions = ClassMetadata.declaredConstructorExceptions(loader, owner);
-        }
-        for (String exception : exceptions) {
-            if (ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private boolean isUncheckedOrGeneral(String internalName) {
@@ -972,18 +978,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     private void registerLambdaParameters(List<Expression> arguments, List<String> parameters, int index, Set<String> members, Set<String> registered) {
         for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
             if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))) {
-                for (String name : parametersOfTheType(lambda, parameters.get(j), parameters.get(index))) {
-                    if (!anonymousVariables.containsKey(name)) {
-                        anonymousVariables.put(name, members);
-                        registered.add(name);
-                    }
-                }
-                for (String name : containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index))) {
-                    if (!anonymousContainers.containsKey(name)) {
-                        anonymousContainers.put(name, members);
-                        registered.add(name);
-                    }
-                }
+                register(anonymousVariables, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)), members, registered);
+                register(anonymousContainers, containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index)), members, registered);
+            }
+        }
+    }
+
+    /** Registers the names which are not tracked yet as aliases of the variable with these members, up to the end of the call */
+    private static void register(Map<String, Set<String>> tracked, List<String> names, Set<String> members, Set<String> registered) {
+        for (String name : names) {
+            if (!tracked.containsKey(name)) {
+                tracked.put(name, members);
+                registered.add(name);
             }
         }
     }

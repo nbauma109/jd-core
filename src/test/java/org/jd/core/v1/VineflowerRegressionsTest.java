@@ -230,6 +230,12 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var constructed = new Object() {"));
         assertTrue(source.contains("var arrayed = new Object() {"));
         assertFalse(source.contains("var unrelatedCast"));
+    }
+
+    @Test
+    public void testAnonymousTypesWhichRuntimeChecksAndFunctionalMethodsKeep() throws Exception {
+        String source = decompile();
+
         assertTrue(source.contains("var inArray = new Object() {"));
         assertTrue(source.contains("var reassigned = new Object() {"));
         assertTrue(source.contains("var nestedOrigin = new Object() {"));

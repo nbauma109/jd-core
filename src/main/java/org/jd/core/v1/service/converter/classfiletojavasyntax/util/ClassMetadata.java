@@ -269,14 +269,7 @@ public final class ClassMetadata {
             }
         }
         for (String superType : superInterfaces(javaClass)) {
-            int generic = superType.indexOf('<');
-            String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
-            List<String> typeParameters = typeParameterNames(loader, superName);
-            List<String> typeArguments = typeArgumentsOf(superType);
-
-            for (Map.Entry<String, List<String>> inherited : abstractMethods(loader, superName)) {
-                methods.add(Map.entry(inherited.getKey(), substitute(inherited.getValue(), typeParameters, typeArguments)));
-            }
+            methods.addAll(inheritedAbstractMethods(loader, superType));
         }
         for (Method method : javaClass.getMethods()) {
             if (!method.isAbstract() && !method.isStatic() && !method.isPrivate()) {
@@ -286,6 +279,20 @@ public final class ClassMetadata {
             }
         }
         return methods;
+    }
+
+    /** @return the abstract methods of a super interface, where its type arguments replace the type parameters of the interface */
+    private static List<Map.Entry<String, List<String>>> inheritedAbstractMethods(Loader loader, String superType) {
+        int generic = superType.indexOf('<');
+        String superName = superType.substring(1, generic < 0 ? superType.length() - 1 : generic);
+        List<String> typeParameters = typeParameterNames(loader, superName);
+        List<String> typeArguments = typeArgumentsOf(superType);
+        List<Map.Entry<String, List<String>>> inherited = new ArrayList<>();
+
+        for (Map.Entry<String, List<String>> method : abstractMethods(loader, superName)) {
+            inherited.add(Map.entry(method.getKey(), substitute(method.getValue(), typeParameters, typeArguments)));
+        }
+        return inherited;
     }
 
     /** @return the signatures of the super interfaces: 'Ljava/util/function/ToIntFunction&lt;LOther;&gt;;', or the descriptors of the raw ones when there is no signature */

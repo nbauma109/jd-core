@@ -260,6 +260,12 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertFalse(source.contains("var covered"));
         assertFalse(source.contains("var reversed"));
         assertFalse(source.contains("var enclosed"));
+    }
+
+    @Test
+    public void testResourcesWhichGenericThrowsAndHandlersDecide() throws Exception {
+        String source = decompile();
+
         assertTrue(source.contains("try (var shared = new AutoCloseable() {"));
         assertTrue(source.contains("try (var closing2 = new AutoCloseable() {"));
         assertTrue(source.contains("try (var spread = new AutoCloseable() {"));

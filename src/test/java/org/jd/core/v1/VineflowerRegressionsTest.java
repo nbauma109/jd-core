@@ -247,6 +247,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("var alias = aliasOrigin;"));
         assertTrue(source.contains("var listed = new Object() {"));
         assertTrue(source.contains("var contained = new Object() {"));
+        assertTrue(source.contains("var element = new Object() {"));
+        assertTrue(source.contains("var stored = xs.get(0);"));
+        assertTrue(source.contains("try (var source = new Source() {"));
         assertTrue(source.contains("try (var nestedOuter = new AutoCloseable() {"));
         assertTrue(source.contains("Object shadowed = new Object() {"));
         assertFalse(source.contains("var overloading"));

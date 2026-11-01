@@ -1607,6 +1607,42 @@ public class VineflowerRegressions {
         }
     }
 
+    public int elementOfTheContainerStoredInALocal() {
+        var element = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyToList(element, xs -> {
+            var stored = xs.get(0);
+            return stored.added();
+        });
+    }
+
+    static class Source implements AutoCloseable {
+        Source() throws java.io.IOException {
+            // opens the source
+        }
+
+        @Override
+        public void close() throws Exception {
+            // closes the source
+        }
+    }
+
+    public int constructorOfTheResourceThrows() {
+        try (var source = new Source() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return source.hashCode();
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

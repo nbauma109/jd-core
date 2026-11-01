@@ -121,6 +121,21 @@ public final class ClassMetadata {
         return method == null ? Collections.emptySet() : exceptionNames(method);
     }
 
+    /** @return the exceptions which the constructors of the class itself declare: the one of an anonymous class declares the ones of the constructor of its super class which it calls */
+    public static Set<String> declaredConstructorExceptions(Loader loader, String internalName) {
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+        Set<String> exceptions = new HashSet<>();
+
+        if (javaClass != null) {
+            for (Method method : javaClass.getMethods()) {
+                if ("<init>".equals(method.getName())) {
+                    exceptions.addAll(exceptionNames(method));
+                }
+            }
+        }
+        return exceptions;
+    }
+
     /** @return the generic signature of the method of this name and descriptor which the class, a super class or an interface declares; null if it has none or is unknown */
     public static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor) {
         Method method = resolve(loader, internalName, name, descriptor, true, new HashSet<>());

@@ -132,20 +132,31 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(MethodDeclaration declaration) {
-        BaseType saved = methodExceptions;
-
-        methodExceptions = declaration.getExceptionTypes();
-        super.visit(declaration);
-        methodExceptions = saved;
+        inExecutable(declaration.getExceptionTypes(), () -> super.visit(declaration));
     }
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
-        BaseType saved = methodExceptions;
+        inExecutable(declaration.getExceptionTypes(), () -> super.visit(declaration));
+    }
 
-        methodExceptions = declaration.getExceptionTypes();
-        super.visit(declaration);
+    /** The body of a lambda is run later: neither the handlers around it nor the throws clause of its method protect it */
+    @Override
+    public void visit(LambdaIdentifiersExpression lambda) {
+        inExecutable(null, () -> super.visit(lambda));
+    }
+
+    /** The handlers around a method, a constructor or a lambda do not protect its body: it is run elsewhere */
+    private void inExecutable(BaseType exceptions, Runnable visit) {
+        BaseType saved = methodExceptions;
+        Deque<TryStatement> around = new ArrayDeque<>(enclosingTries);
+
+        methodExceptions = exceptions;
+        enclosingTries.clear();
+        visit.run();
         methodExceptions = saved;
+        enclosingTries.clear();
+        enclosingTries.addAll(around);
     }
 
     /**
@@ -883,12 +894,38 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             String common = null;
 
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
-                if (parameters.get(i).equals(typeVariable) && arguments.get(i).getType() instanceof ObjectType type) {
-                    // All the arguments which have the variable constrain it: it is their common super type
-                    common = common == null ? type.getInternalName() : ClassMetadata.commonSuperclass(loader, common, type.getInternalName());
+                // All the arguments which have the variable constrain it: it is their common super type
+                for (String constraint : constraintsOf(parameters.get(i), arguments.get(i), typeVariable)) {
+                    common = common == null ? constraint : ClassMetadata.commonSuperclass(loader, common, constraint);
                 }
             }
             return common != null ? common : fromTheReceiver(typeVariable, call);
+        }
+
+        /** @return the types which the argument gives to the type variable: its own, or the ones of the elements when the parameter is an array of it ('E... values') */
+        private List<String> constraintsOf(String parameter, Expression argument, String typeVariable) {
+            List<String> constraints = new ArrayList<>();
+
+            if (parameter.equals(typeVariable)) {
+                addType(constraints, argument);
+            } else if (parameter.startsWith("[") && parameter.replaceFirst("^\\[+", "").equals(typeVariable)) {
+                if (argument instanceof NewInitializedArray array) {
+                    for (VariableInitializer element : array.getArrayInitializer()) {
+                        if (element instanceof ExpressionVariableInitializer initializer) {
+                            addType(constraints, initializer.getExpression());
+                        }
+                    }
+                } else if (argument.getType() instanceof ObjectType type && type.getDimension() > 0) {
+                    constraints.add(type.getInternalName());
+                }
+            }
+            return constraints;
+        }
+
+        private void addType(List<String> constraints, Expression expression) {
+            if (expression.getType() instanceof ObjectType type) {
+                constraints.add(type.getInternalName());
+            }
         }
 
         /** @return the internal name of the type argument of the receiver which the type variable of its class stands for; null if there is none */

@@ -1836,6 +1836,45 @@ public class VineflowerRegressions {
         return 0;
     }
 
+    @SafeVarargs
+    static <E extends Exception> void raiseAll(E... exceptions) throws E {
+        // throws what it receives
+    }
+
+    public int genericThrowsOfVarargs() {
+        try (var spread = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseAll(new java.io.IOException());
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
+    public Runnable executableInsideAHandledTry() {
+        try {
+            return new Runnable() {
+                @Override
+                public void run() {
+                    try (var nestedRun = new AutoCloseable() {
+                        @Override
+                        public void close() {
+                            // closes nothing
+                        }
+                    }) {
+                        ping();
+                    }
+                }
+            };
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

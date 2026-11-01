@@ -186,6 +186,18 @@ public final class ClassMetadata {
         return Optional.empty();
     }
 
+    /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */
+    public static String commonSuperclass(Loader loader, String first, String second) {
+        String current = first;
+
+        while (current != null && !isSubtype(loader, second, current)) {
+            JavaClass javaClass = parse(loader, current);
+
+            current = javaClass == null ? null : internalNameOf(javaClass.getSuperclassName());
+        }
+        return current;
+    }
+
     /** @return the exceptions which the constructors of the class itself declare: the one of an anonymous class declares the ones of the constructor of its super class which it calls */
     public static Set<String> declaredConstructorExceptions(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);

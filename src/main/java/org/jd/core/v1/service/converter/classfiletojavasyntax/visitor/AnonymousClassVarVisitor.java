@@ -728,18 +728,19 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 resources.set(i, varResource);
             }
         }
+        // The handlers of a 'try' protect its resources and its body only, not its handlers nor its 'finally'
         enclosingTries.push(statement);
-        super.visit(statement);
+        if (statement.getResources() != null) {
+            statement.getResources().forEach(resource -> resource.accept(this));
+        }
+        statement.getTryStatements().accept(this);
         enclosingTries.pop();
-    }
-
-    /** The handlers of a 'try' do not catch what its own handlers throw: it is no enclosing 'try' of them */
-    @Override
-    public void visit(TryStatement.CatchClause catchClause) {
-        TryStatement own = enclosingTries.pop();
-
-        super.visit(catchClause);
-        enclosingTries.push(own);
+        if (statement.getCatchClauses() != null) {
+            statement.getCatchClauses().forEach(clause -> clause.accept(this));
+        }
+        if (statement.getFinallyStatements() != null) {
+            statement.getFinallyStatements().accept(this);
+        }
     }
 
     /**
@@ -879,10 +880,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
          * its class stands for ('Thrower&lt;IOException&gt;'); null if there is none
          */
         private String inferred(String typeVariable, List<String> parameters, List<Expression> arguments, MethodInvocationExpression call) {
+            String common = null;
+
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
                 if (parameters.get(i).equals(typeVariable) && arguments.get(i).getType() instanceof ObjectType type) {
-                    return type.getInternalName();
+                    // All the arguments which have the variable constrain it: it is their common super type
+                    common = common == null ? type.getInternalName() : ClassMetadata.commonSuperclass(loader, common, type.getInternalName());
                 }
+            }
+            if (common != null) {
+                return common;
             }
 
             int position = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(typeVariable.substring(1, typeVariable.length() - 1));

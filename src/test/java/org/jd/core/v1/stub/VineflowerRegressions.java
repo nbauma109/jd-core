@@ -1799,6 +1799,43 @@ public class VineflowerRegressions {
         }
     }
 
+    static <E extends Exception> void raiseOneOf(E first, E second) throws E {
+        // throws what it receives
+    }
+
+    @SuppressWarnings("java:S2486")
+    public int genericThrowsOfSeveralArguments() throws java.io.IOException {
+        try (var shared = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseOneOf(new java.io.FileNotFoundException(), new java.io.EOFException());
+        } catch (java.io.EOFException e) {
+            return 1;
+        }
+        return 0;
+    }
+
+    public int resourceInTheFinallyOfAHandledTry() {
+        try {
+            ping();
+        } catch (Exception e) {
+            ping();
+        } finally {
+            try (var closing2 = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                ping();
+            }
+        }
+        return 0;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -888,19 +888,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     common = common == null ? type.getInternalName() : ClassMetadata.commonSuperclass(loader, common, type.getInternalName());
                 }
             }
-            if (common != null) {
-                return common;
-            }
+            return common != null ? common : fromTheReceiver(typeVariable, call);
+        }
 
+        /** @return the internal name of the type argument of the receiver which the type variable of its class stands for; null if there is none */
+        private String fromTheReceiver(String typeVariable, MethodInvocationExpression call) {
             int position = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
 
-            if (position >= 0 && call.getExpression() != null && call.getExpression().getType() instanceof ObjectType receiver && receiver.getTypeArguments() != null) {
-                BaseTypeArgument typeArguments = receiver.getTypeArguments();
-                List<TypeArgument> receiverArguments = typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : List.of(typeArguments.getTypeArgumentFirst());
-
-                return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
+            if (position < 0 || call.getExpression() == null || !(call.getExpression().getType() instanceof ObjectType receiver) || receiver.getTypeArguments() == null) {
+                return null;
             }
-            return null;
+
+            BaseTypeArgument typeArguments = receiver.getTypeArguments();
+            List<TypeArgument> receiverArguments = typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : List.of(typeArguments.getTypeArgumentFirst());
+
+            return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
         }
 
         private void searchNested(TryStatement nested) {

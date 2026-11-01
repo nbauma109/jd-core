@@ -121,28 +121,32 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
         boolean changed = false;
 
         for (SwitchExpression.Rule rule : switchExpression.getRules()) {
-            List<SwitchExpression.Label> labels = new ArrayList<>();
+            SwitchExpression.Rule resolved = resolve(rule);
 
-            for (SwitchExpression.Label label : rule.getLabels()) {
-                labels.add(label instanceof SwitchExpression.ExpressionLabel expressionLabel && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern
-                        ? new SwitchExpression.PatternLabel(pattern(pattern)) : label);
-            }
-
-            boolean labelsChanged = hasUnresolvedLabel(rule.getLabels());
-
-            if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
-                Expression updated = updateExpression(ruleExpression.getExpression());
-
-                changed |= labelsChanged || updated != ruleExpression.getExpression();
-                rules.add(labelsChanged || updated != ruleExpression.getExpression() ? new SwitchExpression.RuleExpression(labels, ruleExpression.getWhenCondition(), updated) : rule);
-            } else if (rule instanceof SwitchExpression.RuleStatement ruleStatement && labelsChanged) {
-                changed = true;
-                rules.add(new SwitchExpression.RuleStatement(labels, ruleStatement.getWhenCondition(), ruleStatement.getStatements()));
-            } else {
-                rules.add(rule);
-            }
+            changed |= resolved != rule;
+            rules.add(resolved);
         }
         return changed ? new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), rules, switchExpression.getType()) : switchExpression;
+    }
+
+    /** @return the rule with its pattern labels and its expression resolved; the rule itself if nothing changes */
+    private SwitchExpression.Rule resolve(SwitchExpression.Rule rule) {
+        boolean labelsChanged = hasUnresolvedLabel(rule.getLabels());
+        List<SwitchExpression.Label> labels = new ArrayList<>();
+
+        for (SwitchExpression.Label label : rule.getLabels()) {
+            labels.add(label instanceof SwitchExpression.ExpressionLabel expressionLabel && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern
+                    ? new SwitchExpression.PatternLabel(pattern(pattern)) : label);
+        }
+        if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
+            Expression updated = updateExpression(ruleExpression.getExpression());
+
+            return labelsChanged || updated != ruleExpression.getExpression() ? new SwitchExpression.RuleExpression(labels, ruleExpression.getWhenCondition(), updated) : rule;
+        }
+        if (rule instanceof SwitchExpression.RuleStatement ruleStatement && labelsChanged) {
+            return new SwitchExpression.RuleStatement(labels, ruleStatement.getWhenCondition(), ruleStatement.getStatements());
+        }
+        return rule;
     }
 
     /** The name of a pattern which binds no variable ('case String _' of Java 22): it is used nowhere, it only has not to be the name of another variable */

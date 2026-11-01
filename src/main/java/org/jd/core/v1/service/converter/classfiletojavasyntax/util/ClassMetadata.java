@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /** What the declaration of a class says, read from its class file: the answers are 'unknown' (false or null) when the class cannot be loaded */
@@ -305,18 +304,36 @@ public final class ClassMetadata {
         return superTypes;
     }
 
-    /** @return the parameters where the type arguments replace the type parameters, the array dimensions staying in front: '[TE;' becomes '[TT;' */
+    /** @return the parameters where the type arguments replace the type parameters, wherever they occur: '[TE;' becomes '[TT;', 'Ljava/util/List&lt;TE;&gt;;' 'Ljava/util/List&lt;TT;&gt;;' */
     private static List<String> substitute(List<String> parameters, List<String> typeParameters, List<String> typeArguments) {
         List<String> substituted = new ArrayList<>();
 
         for (String parameter : parameters) {
-            int dimensions = parameter.length() - parameter.replaceFirst("^\\[+", "").length();
-            String component = parameter.substring(dimensions);
-            int k = component.startsWith("T") ? typeParameters.indexOf(component.substring(1, component.length() - 1)) : -1;
-
-            substituted.add(k >= 0 && k < typeArguments.size() ? parameter.substring(0, dimensions) + typeArguments.get(k) : parameter);
+            substituted.add(substituteTypeVariables(parameter, typeParameters, typeArguments));
         }
         return substituted;
+    }
+
+    /** @return the signature where each type variable of the type parameters is replaced by the type argument at its index, in one pass: the arguments are not replaced again */
+    public static String substituteTypeVariables(String signature, List<String> typeParameters, List<String> typeArguments) {
+        StringBuilder result = new StringBuilder();
+        int index = 0;
+
+        while (index < signature.length()) {
+            char c = signature.charAt(index);
+            int end = signature.indexOf(';', index);
+            boolean variableStart = c == 'T' && end > index && (index == 0 || "<;[+-(*)".indexOf(signature.charAt(index - 1)) >= 0);
+            int k = variableStart ? typeParameters.indexOf(signature.substring(index + 1, end)) : -1;
+
+            if (k >= 0 && k < typeArguments.size()) {
+                result.append(typeArguments.get(k));
+                index = end + 1;
+            } else {
+                result.append(c);
+                index++;
+            }
+        }
+        return result.toString();
     }
 
     /** @return false if the class is known and its 'InnerClasses' entry gives it a name: 'Named.$1' is not anonymous; true when it is anonymous or unknown */

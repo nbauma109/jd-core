@@ -1570,6 +1570,43 @@ public class VineflowerRegressions {
         return shadowed + holder.toString();
     }
 
+    interface ListFunction<E> {
+        int apply(java.util.List<E> values);
+    }
+
+    static <T> int applyListFunction(T value, ListFunction<T> function) {
+        return function.apply(null) + value.hashCode();
+    }
+
+    public int containerDeclaredInTheFunctionalMethod() {
+        var contained = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyListFunction(contained, xs -> xs.get(0).added());
+    }
+
+    public int nestedResourceWhichClosesWithAnException(boolean flag) {
+        try (var nestedOuter = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            if (flag) {
+                try (java.io.Closeable inner = () -> { }) {
+                    return 1;
+                }
+            }
+            return 0;
+        } catch (java.io.IOException e) {
+            return 2;
+        } catch (Exception e) {
+            return 3;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

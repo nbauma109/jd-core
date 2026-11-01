@@ -225,19 +225,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         statement.accept(new AbstractJavaSyntaxVisitor() {
             @Override
             public void visit(LocalVariableDeclarator declarator) {
-                if (names.contains(declarator.getName())) {
-                    // A local of the same name, in a nested class: it hides the variable up to the end of its block
-                    names.remove(declarator.getName());
-                } else if (declarator.getVariableInitializer() instanceof ExpressionVariableInitializer value) {
-                    String used = references(value.getExpression(), names);
+                String used = declaratorDependency(declarator, names);
 
-                    if (used != null && hasAnonymousCast(value.getExpression())) {
-                        found[0] = used;
-                    } else if (used != null) {
-                        // 'var alias = origin;' has the type of 'origin'
-                        names.add(declarator.getName());
-                    }
-                }
+                found[0] = used == null ? found[0] : used;
                 super.visit(declarator);
             }
 
@@ -290,6 +280,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         });
         return found[0];
+    }
+
+    /**
+     * @return the name of the variable which a cast-bearing declaration uses ('var value = bad(origin);'), null if it is none; a local of the name of a variable hides it, and
+     * a declaration with the value of a variable gives an alias, which the names get ('var alias = origin;')
+     */
+    private String declaratorDependency(LocalVariableDeclarator declarator, Set<String> names) {
+        if (names.remove(declarator.getName()) || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer value)) {
+            return null;
+        }
+
+        String used = references(value.getExpression(), names);
+
+        if (used != null && !hasAnonymousCast(value.getExpression())) {
+            names.add(declarator.getName());
+            return null;
+        }
+        return used;
     }
 
     /** 'var alias = origin; return bad(alias).toString();': the alias gives its type to the cast-bearing call, so it is 'var' too */
@@ -481,13 +489,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return parameters;
     }
 
-    /** @return true if the method returns a type variable of its class ('List&lt;E&gt;.get'): the element has the type argument of the receiver */
-    private boolean returnsATypeVariableOfItsClass(MethodInvocationExpression call) {
-        String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
-
-        return signature != null && signature.contains(")") && returnedType(signature).startsWith("T") && !declaresTypeVariable(signature, returnedType(signature));
-    }
-
     private static String returnedType(String signature) {
         // The signature ends with the exceptions which the method throws, '^TE;', if they are type variables
         return signature.substring(signature.indexOf(')') + 1).split("\\^")[0];
@@ -644,7 +645,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return true;
     }
 
-    /** The body throws the exception itself ('throw new IOException()'): the handler is valid whatever the close throws */
     /** @return true if the handler catches the exception: its type, or one of the alternatives of the clause, is the exception or a super type of it */
     private boolean catches(TryStatement.CatchClause clause, String exception) {
         List<ObjectType> types = new ArrayList<>();
@@ -656,6 +656,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return types.stream().anyMatch(type -> ClassMetadata.isSubtype(loader, exception, type.getInternalName()));
     }
 
+    /** The body throws the exception itself ('throw new IOException()'): the handler is valid whatever the close throws */
     private boolean bodyThrows(TryStatement statement, String handled) {
         boolean[] thrown = new boolean[1];
 
@@ -680,6 +681,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     super.visit(creation);
                 }
 
+                private void searchNested(TryStatement nested) {
+                    if (nested.getTryStatements() != null) {
+                        nested.getTryStatements().accept(this);
+                    }
+                    if (nested.getResources() != null) {
+                        nested.getResources().forEach(resource -> resource.getExpression().accept(this));
+                        thrown[0] |= closeThrows(closeExceptionsOfAll(nested.getResources(), null), handled);
+                    }
+                }
+
                 /** The body of a lambda or of a method of an anonymous class is run later, if ever: it does not throw while the body of the 'try' is run */
                 @Override
                 public void visit(LambdaIdentifiersExpression lambda) {
@@ -696,9 +707,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 public void visit(TryStatement nested) {
                     boolean consumed = nested.getCatchClauses() != null && nested.getCatchClauses().stream().anyMatch(clause -> catches(clause, handled));
 
-                    // A handler of another exception consumes nothing: what the body throws leaves the nested 'try' ('finally' only runs)
-                    if (!consumed && nested.getTryStatements() != null) {
-                        nested.getTryStatements().accept(this);
+                    // A handler of another exception consumes nothing: what the body, the resources and their close throw leave the nested 'try' ('finally' only runs)
+                    if (!consumed) {
+                        searchNested(nested);
                     }
                     if (nested.getCatchClauses() != null) {
                         nested.getCatchClauses().forEach(clause -> clause.accept(this));
@@ -924,11 +935,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return parametersWhere(lambda, functionalInterface, type -> type.replaceFirst("^\\[+", "").equals(typeVariable));
     }
 
-    /** @return the names of the parameters of the lambda which hold the type variable as a type argument ('ToIntFunction&lt;List&lt;T&gt;&gt;'): the elements which they give have it */
-    private List<String> containerParametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
-        return parametersWhere(lambda, functionalInterface, type -> type.startsWith("L") && typeArguments(type).contains(typeVariable));
-    }
-
     private List<String> parametersWhere(LambdaIdentifiersExpression lambda, String functionalInterface, Predicate<String> hasTheType) {
         List<String> typeArguments = typeArguments(functionalInterface);
         String interfaceName = functionalInterface.startsWith("L") && functionalInterface.contains("<") ? functionalInterface.substring(1, functionalInterface.indexOf('<')) : null;
@@ -953,17 +959,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** @return the type of a parameter of the functional method where the type parameters of the interface are replaced by the type arguments of its use */
-    private String substitute(String parameter, List<String> typeParameters, List<String> typeArguments) {
-        // 'E[]' is '[TE;': the dimensions stay in front of the type argument
-        int dimensions = parameter.length() - parameter.replaceFirst("^\\[+", "").length();
-        String component = parameter.substring(dimensions);
-
-        for (int k = 0; k < typeParameters.size() && k < typeArguments.size(); k++) {
-            if (component.equals("T" + typeParameters.get(k) + ";")) {
-                return parameter.substring(0, dimensions) + typeArguments.get(k);
-            }
-        }
-        return parameter;
+    private static String substitute(String parameter, List<String> typeParameters, List<String> typeArguments) {
+        return ClassMetadata.substituteTypeVariables(parameter, typeParameters, typeArguments);
     }
 
     private final class MemberUseSearch extends AbstractJavaSyntaxVisitor {
@@ -1157,6 +1154,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
             return false;
+        }
+
+        /** @return true if the method returns a type variable of its class ('List&lt;E&gt;.get'): the element has the type argument of the receiver */
+        private boolean returnsATypeVariableOfItsClass(MethodInvocationExpression call) {
+            String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+            return signature != null && signature.contains(")") && returnedType(signature).startsWith("T") && !declaresTypeVariable(signature, returnedType(signature));
+        }
+
+        /** @return the names of the parameters of the lambda which hold the type variable as a type argument ('ToIntFunction&lt;List&lt;T&gt;&gt;'): the elements which they give have it */
+        private List<String> containerParametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
+            return parametersWhere(lambda, functionalInterface, type -> type.startsWith("L") && typeArguments(type).contains(typeVariable));
         }
 
         /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */

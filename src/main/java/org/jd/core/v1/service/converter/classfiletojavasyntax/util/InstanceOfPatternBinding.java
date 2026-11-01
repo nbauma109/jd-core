@@ -131,8 +131,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         String operand = operandDescriptor(method, slot, instanceOfOffset);
         Loader loader = LOADER.get();
 
-        if (operand == null) {
-            // Without a local variable table the type of the operand is unknown ('this', a local): the test stays
+        if (operand == null || isTypeVariable(code, slot, instanceOfOffset)) {
+            // Without a local variable table the type of the operand is unknown ('this', a local), and the erasure of a type variable omits its other bounds: the test stays
             return true;
         }
         return tested != null && operand != null && (tested.equals(operand) || isArrayWhichIsATestedSuperType(operand, tested)
@@ -160,6 +160,19 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         }
         return operandDimensions == testedDimensions && (operandElement.equals(testedElement)
                 || loader != null && operandElement.startsWith("L") && testedElement.startsWith("L") && ClassMetadata.isSubtype(loader, erasure(operandElement), erasure(testedElement)));
+    }
+
+    /** @return true if the variable of the slot is typed by a type variable ('T extends A & B'), as the local variable type table says */
+    private static boolean isTypeVariable(Code code, int slot, int offset) {
+        if (code.getLocalVariableTypeTable() == null) {
+            return false;
+        }
+        for (LocalVariable variable : code.getLocalVariableTypeTable().getLocalVariableTypeTable()) {
+            if (variable.getIndex() == slot && variable.getStartPC() <= offset && offset < variable.getStartPC() + variable.getLength()) {
+                return variable.getSignature().replace("[", "").startsWith("T");
+            }
+        }
+        return false;
     }
 
     private static boolean isObjectOrArrayInterface(String descriptor) {
@@ -227,7 +240,14 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
     /** @return the internal name of the class of a descriptor or a generic signature of a class, of an array or not: 'Ljava/util/List&lt;TT;&gt;;' gives 'java/util/List' */
     private static String erasure(String signature) {
-        int start = signature.lastIndexOf('[') + 2;
+        // Only the leading '[' are dimensions: 'Ljava/util/Collection<[Ljava/lang/String;>;' has an array as type argument
+        int dimensions = 0;
+
+        while (signature.charAt(dimensions) == '[') {
+            dimensions++;
+        }
+
+        int start = dimensions + 1;
         int end = signature.indexOf('<');
 
         return signature.substring(start, end < 0 ? signature.length() - 1 : end);

@@ -117,19 +117,32 @@ public final class ClassMetadata {
 
     /** @return the names of the exceptions which the method of this name and descriptor declares in the class, a super class or an interface; empty if none or if it is unknown */
     public static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor) {
-        return declaredExceptions(loader, internalName, name, descriptor, true, new HashSet<>());
+        Method method = resolve(loader, internalName, name, descriptor, true, new HashSet<>());
+
+        return method == null ? Collections.emptySet() : exceptionNames(method);
     }
 
-    /** @param includePrivate true for the class which is asked: it can call its own private methods, the ones of its super classes are not inherited */
-    private static Set<String> declaredExceptions(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
+    /** @return the generic signature of the method of this name and descriptor which the class, a super class or an interface declares; null if it has none or is unknown */
+    public static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor) {
+        Method method = resolve(loader, internalName, name, descriptor, true, new HashSet<>());
+
+        return method == null ? null : genericSignature(method);
+    }
+
+    /**
+     * @return the first method of this name and descriptor which the class, then its super class, then its interfaces declare, even when it declares no exception and has no
+     * generic signature: it is the one which is called. Null if none is found.
+     * @param includePrivate true for the class which is asked: it can call its own private methods, the ones of its super classes are not inherited
+     */
+    private static Method resolve(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
 
         if (javaClass == null) {
-            return Collections.emptySet();
+            return null;
         }
         for (Method method : javaClass.getMethods()) {
             if ((includePrivate || !method.isPrivate()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
-                return exceptionNames(method);
+                return method;
             }
         }
 
@@ -140,40 +153,13 @@ public final class ClassMetadata {
             parents.add(internalNameOf(interfaceName));
         }
         for (String parent : parents) {
-            Set<String> exceptions = declaredExceptions(loader, parent, name, descriptor, false, visited);
+            Method method = resolve(loader, parent, name, descriptor, false, visited);
 
-            if (!exceptions.isEmpty()) {
-                return exceptions;
+            if (method != null) {
+                return method;
             }
         }
-        return Collections.emptySet();
-    }
-
-    /** @return the generic signature of the method of this name and descriptor which the class, a super class or an interface declares; null if it has none or is unknown */
-    public static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor) {
-        return declaredGenericSignature(loader, internalName, name, descriptor, true, new HashSet<>());
-    }
-
-    /** @param includePrivate true for the class of the invocation, which can call its own private methods: the ones of its super classes are not inherited */
-    private static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor, boolean includePrivate, Set<String> visited) {
-        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
-
-        if (javaClass == null) {
-            return null;
-        }
-        for (Method method : javaClass.getMethods()) {
-            if ((includePrivate || !method.isPrivate()) && method.getName().equals(name) && method.getSignature().equals(descriptor)) {
-                return genericSignature(method);
-            }
-        }
-
-        List<String> parents = new ArrayList<>();
-
-        parents.add(internalNameOf(javaClass.getSuperclassName()));
-        for (String interfaceName : javaClass.getInterfaceNames()) {
-            parents.add(internalNameOf(interfaceName));
-        }
-        return parents.stream().map(parent -> declaredGenericSignature(loader, parent, name, descriptor, false, visited)).filter(Objects::nonNull).findFirst().orElse(null);
+        return null;
     }
 
     /** @return the generic signature of the method, null if its types have no type argument */

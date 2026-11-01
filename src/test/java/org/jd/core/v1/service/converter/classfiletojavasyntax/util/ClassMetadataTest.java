@@ -30,6 +30,55 @@ public class ClassMetadataTest {
         }
     }
 
+    interface Reads {
+        int read() throws java.io.IOException;
+    }
+
+    static class Plain {
+        public int read() {
+            return 1;
+        }
+    }
+
+    static class PlainReader extends Plain implements Reads {
+    }
+
+    interface ArrayFunction<E> {
+        int apply(E[] values);
+    }
+
+    interface Defaulted<E> extends java.util.function.Consumer<String>, java.util.function.ToIntFunction<E> {
+        @Override
+        default void accept(String text) {
+            // implemented by default
+        }
+    }
+
+    interface Overloading extends java.util.function.ToIntFunction<String> {
+        default int applyAsInt(Integer number) {
+            return 0;
+        }
+    }
+
+    @Test
+    public void testTheMethodOfTheSuperclassIsTheOneWhichIsCalledEvenWithoutExceptions() {
+        String name = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$PlainReader";
+
+        assertTrue(ClassMetadata.declaredExceptions(LOADER, name, "read", "()I").isEmpty());
+        assertEquals(null, ClassMetadata.declaredGenericSignature(LOADER, name, "read", "()I"));
+    }
+
+    @Test
+    public void testFunctionalMethodWithArraysDefaultsAndOverloads() {
+        String prefix = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$";
+
+        assertEquals(List.of("[TE;"), ClassMetadata.functionalMethodParameters(LOADER, prefix + "ArrayFunction"));
+        assertEquals(List.of("TE;"), ClassMetadata.functionalMethodParameters(LOADER, prefix + "Defaulted"));
+        assertEquals(List.of("Ljava/lang/String;"), ClassMetadata.functionalMethodParameters(LOADER, prefix + "Overloading"));
+        assertTrue(ClassMetadata.isAnonymousOrUnknown(LOADER, "no/such/Class$1"));
+        assertFalse(ClassMetadata.isAnonymousOrUnknown(LOADER, prefix + "PlainReader"));
+    }
+
     @Test
     public void testFieldOfTheClassOfASuperclassOrOfAnInterface() {
         assertTrue(ClassMetadata.declaresField(LOADER, "java/util/ArrayList", "size"));

@@ -88,7 +88,7 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
         if (expression instanceof ClassFileInstanceOfPatternExpression pattern && pattern.getLocalVariable() != null && pattern.getLocalVariable().getName() != null) {
             return new InstanceOfExpression(pattern.getLineNumber(), pattern.getExpression(), pattern.getInstanceOfType(), pattern.getLocalVariable().getName(), false);
         }
-        if (expression instanceof SwitchExpression switchExpression && switchExpression.getRules().stream().anyMatch(rule -> hasUnresolvedLabel(rule.getLabels()))) {
+        if (expression instanceof SwitchExpression switchExpression) {
             return resolve(switchExpression);
         }
         return expression;
@@ -115,8 +115,10 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                 && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression);
     }
 
+    /** @return the switch whose pattern labels are resolved, and the expressions of whose rules are, a switch expression which a rule gives included; the switch itself if nothing changes */
     private SwitchExpression resolve(SwitchExpression switchExpression) {
         List<SwitchExpression.Rule> rules = new ArrayList<>();
+        boolean changed = false;
 
         for (SwitchExpression.Rule rule : switchExpression.getRules()) {
             List<SwitchExpression.Label> labels = new ArrayList<>();
@@ -126,15 +128,21 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                         ? new SwitchExpression.PatternLabel(pattern(pattern)) : label);
             }
 
+            boolean labelsChanged = hasUnresolvedLabel(rule.getLabels());
+
             if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
-                rules.add(new SwitchExpression.RuleExpression(labels, ruleExpression.getWhenCondition(), ruleExpression.getExpression()));
-            } else if (rule instanceof SwitchExpression.RuleStatement ruleStatement) {
+                Expression updated = updateExpression(ruleExpression.getExpression());
+
+                changed |= labelsChanged || updated != ruleExpression.getExpression();
+                rules.add(labelsChanged || updated != ruleExpression.getExpression() ? new SwitchExpression.RuleExpression(labels, ruleExpression.getWhenCondition(), updated) : rule);
+            } else if (rule instanceof SwitchExpression.RuleStatement ruleStatement && labelsChanged) {
+                changed = true;
                 rules.add(new SwitchExpression.RuleStatement(labels, ruleStatement.getWhenCondition(), ruleStatement.getStatements()));
             } else {
                 rules.add(rule);
             }
         }
-        return new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), rules, switchExpression.getType());
+        return changed ? new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), rules, switchExpression.getType()) : switchExpression;
     }
 
     /** The name of a pattern which binds no variable ('case String _' of Java 22): it is used nowhere, it only has not to be the name of another variable */

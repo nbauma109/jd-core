@@ -1499,6 +1499,77 @@ public class VineflowerRegressions {
         return result + overloading.hashCode();
     }
 
+    public String targetTypedReassignment() {
+        var targetTyped = new Object() { };
+        targetTyped = unchecked(null);
+        return targetTyped.toString();
+    }
+
+    public int nestedHandlerOfAnotherException(boolean fail) {
+        try (var other = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            try {
+                if (fail) {
+                    throw new java.io.IOException();
+                }
+            } catch (IllegalArgumentException e) {
+                return 3;
+            }
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        } catch (Exception e) {
+            return 4;
+        }
+    }
+
+    public String aliasOfTheOriginFeedsACast() {
+        var aliasOrigin = new Object() { };
+        var alias = aliasOrigin;
+        return unchecked(alias).toString();
+    }
+
+    public int arrayTypeArgumentOfThePatternOperand(java.util.Collection<String[]> values) {
+        if (values instanceof java.util.List<String[]> list) {
+            return list.size();
+        }
+        return 0;
+    }
+
+    static <T> int applyToList(T value, java.util.function.ToIntFunction<java.util.List<T>> function) {
+        return function.applyAsInt(null) + value.hashCode();
+    }
+
+    public int containerOfTheTypeVariableGivesItsType() {
+        var listed = new Object() {
+            int added() {
+                return 2;
+            }
+        };
+        return applyToList(listed, xs -> xs.get(0).added());
+    }
+
+    static <T> T identityOf(T value) {
+        return value;
+    }
+
+    public String castOfAnotherLocalWhichHasTheSameName() {
+        Object shadowed = new Object() { };
+        Object holder = new Object() {
+            @Override
+            public String toString() {
+                var shadowed = new Object() { };
+                return identityOf(shadowed).toString();
+            }
+        };
+        shadowed = "ok";
+        return shadowed + holder.toString();
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

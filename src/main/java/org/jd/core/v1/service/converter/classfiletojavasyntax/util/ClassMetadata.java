@@ -21,6 +21,7 @@ import org.jd.core.v1.api.loader.Loader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -188,24 +189,52 @@ public final class ClassMetadata {
 
     /** @return the names of the exceptions which the abstract method of a functional interface declares ('Callable.call' throws 'Exception'); empty if unknown */
     public static Set<String> functionalMethodExceptions(Loader loader, String internalName) {
+        Method method = functionalMethod(loader, internalName);
+
+        return method == null ? Collections.emptySet() : exceptionNames(method);
+    }
+
+    /**
+     * @return the thrown types of the abstract method of a functional interface as its signature gives them, a type variable included ('^TE;'): 'Task&lt;E extends Exception&gt;'
+     * has 'TE;' where 'functionalMethodExceptions' gives its erased bound
+     */
+    public static List<String> functionalMethodThrown(Loader loader, String internalName) {
+        Method method = functionalMethod(loader, internalName);
+        List<String> thrown = new ArrayList<>();
+
+        if (method == null) {
+            return thrown;
+        }
+
+        String signature = genericSignature(method);
+
+        if (signature != null && signature.indexOf('^') >= 0) {
+            thrown.addAll(Arrays.asList(signature.substring(signature.indexOf('^') + 1).split("\\^")));
+        } else {
+            exceptionNames(method).forEach(name -> thrown.add("L" + name + ";"));
+        }
+        return thrown;
+    }
+
+    private static Method functionalMethod(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
 
         if (javaClass == null || !javaClass.isInterface()) {
-            return Collections.emptySet();
+            return null;
         }
         for (Method method : javaClass.getMethods()) {
             if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
-                return exceptionNames(method);
+                return method;
             }
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {
-            Set<String> inherited = functionalMethodExceptions(loader, internalNameOf(interfaceName));
+            Method inherited = functionalMethod(loader, internalNameOf(interfaceName));
 
-            if (!inherited.isEmpty()) {
+            if (inherited != null) {
                 return inherited;
             }
         }
-        return Collections.emptySet();
+        return null;
     }
 
     /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */

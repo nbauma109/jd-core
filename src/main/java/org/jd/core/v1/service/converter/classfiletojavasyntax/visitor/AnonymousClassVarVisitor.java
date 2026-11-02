@@ -143,9 +143,35 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The body of a lambda is run later: neither the handlers around it nor the throws clause of its method protect it, the one of its functional method does */
     @Override
     public void visit(LambdaIdentifiersExpression lambda) {
-        Set<String> permitted = lambda.getType() instanceof ObjectType functional ? ClassMetadata.functionalMethodExceptions(loader, functional.getInternalName()) : Set.of();
+        Set<String> permitted = lambda.getType() instanceof ObjectType functional ? thrownByTheFunctionalMethod(functional) : Set.of();
 
         inExecutable(permitted, () -> super.visit(lambda));
+    }
+
+    /** @return the exceptions which the functional method of the target of a lambda throws, where its type variables are the type arguments of the target ('Task&lt;IOException&gt;') */
+    private Set<String> thrownByTheFunctionalMethod(ObjectType functional) {
+        String name = functional.getInternalName();
+        List<String> typeParameters = ClassMetadata.typeParameterNames(loader, name);
+        List<TypeArgument> typeArguments = functional.getTypeArguments() == null ? List.of() : typeArgumentList(functional.getTypeArguments());
+        Set<String> thrown = new HashSet<>();
+
+        for (String token : ClassMetadata.functionalMethodThrown(loader, name)) {
+            int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
+
+            if (!token.startsWith("T")) {
+                thrown.add(token.substring(1, token.length() - 1));
+            } else if (position >= 0 && position < typeArguments.size() && typeArguments.get(position) instanceof ObjectType argument) {
+                thrown.add(argument.getInternalName());
+            } else {
+                // The type argument is unknown: the erased bound of the variable is what the method may throw at most
+                thrown.addAll(ClassMetadata.functionalMethodExceptions(loader, name));
+            }
+        }
+        return thrown;
+    }
+
+    private static List<TypeArgument> typeArgumentList(BaseTypeArgument typeArguments) {
+        return typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : List.of(typeArguments.getTypeArgumentFirst());
     }
 
     private static Set<String> namesOf(BaseType exceptions) {
@@ -824,7 +850,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(ThrowStatement throwStatement) {
-            thrown |= throwStatement.getExpression().getType() instanceof ObjectType type && ClassMetadata.isSubtype(loader, type.getInternalName(), handled);
+            thrown |= throwStatement.getExpression().getType() instanceof ObjectType type && reaches(type.getInternalName());
             super.visit(throwStatement);
         }
 
@@ -852,6 +878,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
+        /** @return true if the handler catches what is thrown: the same exception, a sub type (caught by it) or a super type (the handler is narrower) */
+        private boolean reaches(String exception) {
+            return ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception);
+        }
+
         private boolean declares(String owner, String name, String descriptor, String handled) {
             Set<String> exceptions = ClassMetadata.declaredExceptions(loader, owner, name, descriptor);
 
@@ -972,8 +1003,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 return null;
             }
 
-            BaseTypeArgument typeArguments = receiver.getTypeArguments();
-            List<TypeArgument> receiverArguments = typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : List.of(typeArguments.getTypeArgumentFirst());
+            List<TypeArgument> receiverArguments = typeArgumentList(receiver.getTypeArguments());
 
             return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
         }

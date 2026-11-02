@@ -1919,6 +1919,40 @@ public class VineflowerRegressions {
         }
     }
 
+    @SuppressWarnings("java:S1130")
+    public int broaderThrownTypeReachesTheHandler() throws java.io.IOException {
+        try (var broader = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            if (hashCode() > 0) {
+                throw new java.io.IOException();
+            }
+            return 1;
+        } catch (java.io.FileNotFoundException e) {
+            return 2;
+        }
+    }
+
+    interface Task<E extends Exception> {
+        void run() throws E;
+    }
+
+    public Task<java.io.IOException> lambdaWithAGenericThrows() {
+        return () -> {
+            try (var taskResource = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                ping();
+            }
+        };
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

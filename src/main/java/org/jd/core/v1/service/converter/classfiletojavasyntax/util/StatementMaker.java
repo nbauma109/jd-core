@@ -6,6 +6,9 @@
  */
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
+import org.apache.bcel.classfile.Code;
+import org.apache.bcel.classfile.CodeException;
 import org.apache.bcel.classfile.Method;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
@@ -148,6 +151,9 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.BasicBlock.TYPE_TRY_JSR;
 
 public class StatementMaker {
+    /** The length of 'invokevirtual': the range which javac protects for an accessor of a record pattern */
+    private static final int INVOKEVIRTUAL_LENGTH = 3;
+
     protected static final SwitchCaseComparator SWITCH_CASE_COMPARATOR = new SwitchCaseComparator();
     protected static final NullExpression FINALLY_EXCEPTION_EXPRESSION = new NullExpression(new ObjectType(StringConstants.JAVA_LANG_EXCEPTION, "java.lang.Exception", "Exception"));
     protected static final MergeTryWithResourcesStatementVisitor MERGE_TRY_WITH_RESOURCES_STATEMENT_VISITOR = new MergeTryWithResourcesStatementVisitor();
@@ -1146,7 +1152,10 @@ public class StatementMaker {
                 }
             }
             if (statement == null) {
-                statement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr);
+                ClassFileTryStatement tryStatement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr);
+
+                tryStatement.setProtectsAccessorsOnly(protectsAccessorsOnly(basicBlock));
+                statement = tryStatement;
             } else {
                 mergeTryWithResourcesStatementFlag = true;
             }
@@ -1155,6 +1164,33 @@ public class StatementMaker {
         statements.add(statement);
         makeStatements(watchdog, basicBlock.getNext(), statements, jumps);
 
+    }
+
+    /**
+     * javac protects each invocation of an accessor of a record pattern by its own entry of the exception table, which is exactly the 'invokevirtual' instruction. A
+     * hand-written 'try' which looks the same covers more.
+     */
+    private static boolean protectsAccessorsOnly(BasicBlock tryBlock) {
+        Code code = tryBlock.getControlFlowGraph().getMethod().getCode();
+        CodeException[] table = code.getExceptionTable();
+        boolean found = false;
+
+        if (table == null) {
+            return false;
+        }
+        for (ExceptionHandler exceptionHandler : tryBlock.getExceptionHandlers()) {
+            int handlerOffset = exceptionHandler.getBasicBlock().getFromOffset();
+
+            for (CodeException entry : table) {
+                if (entry.getHandlerPC() == handlerOffset) {
+                    if (entry.getEndPC() - entry.getStartPC() != INVOKEVIRTUAL_LENGTH || (code.getCode()[entry.getStartPC()] & 255) != Const.INVOKEVIRTUAL) {
+                        return false;
+                    }
+                    found = true;
+                }
+            }
+        }
+        return found;
     }
 
     protected void removeExceptionReference(Statements catchStatements) {

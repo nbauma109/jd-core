@@ -127,34 +127,49 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The 'try' statements around the code being visited, whose handlers can catch what the resources close throw */
     private final Deque<TryStatement> enclosingTries = new ArrayDeque<>();
 
-    /** The exceptions which the method being visited declares; null while none is visited */
-    private BaseType methodExceptions;
+    /** The internal names of the exceptions which the method or the lambda being visited may throw; empty while none is visited */
+    private Set<String> permittedExceptions = Set.of();
 
     @Override
     public void visit(MethodDeclaration declaration) {
-        inExecutable(declaration.getExceptionTypes(), () -> super.visit(declaration));
+        inExecutable(namesOf(declaration.getExceptionTypes()), () -> super.visit(declaration));
     }
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
-        inExecutable(declaration.getExceptionTypes(), () -> super.visit(declaration));
+        inExecutable(namesOf(declaration.getExceptionTypes()), () -> super.visit(declaration));
     }
 
-    /** The body of a lambda is run later: neither the handlers around it nor the throws clause of its method protect it */
+    /** The body of a lambda is run later: neither the handlers around it nor the throws clause of its method protect it, the one of its functional method does */
     @Override
     public void visit(LambdaIdentifiersExpression lambda) {
-        inExecutable(null, () -> super.visit(lambda));
+        Set<String> permitted = lambda.getType() instanceof ObjectType functional ? ClassMetadata.functionalMethodExceptions(loader, functional.getInternalName()) : Set.of();
+
+        inExecutable(permitted, () -> super.visit(lambda));
+    }
+
+    private static Set<String> namesOf(BaseType exceptions) {
+        Set<String> names = new HashSet<>();
+
+        if (exceptions != null) {
+            for (org.jd.core.v1.model.javasyntax.type.Type type : exceptions) {
+                if (type instanceof ObjectType objectType) {
+                    names.add(objectType.getInternalName());
+                }
+            }
+        }
+        return names;
     }
 
     /** The handlers around a method, a constructor or a lambda do not protect its body: it is run elsewhere */
-    private void inExecutable(BaseType exceptions, Runnable visit) {
-        BaseType saved = methodExceptions;
+    private void inExecutable(Set<String> permitted, Runnable visit) {
+        Set<String> saved = permittedExceptions;
         Deque<TryStatement> around = new ArrayDeque<>(enclosingTries);
 
-        methodExceptions = exceptions;
+        permittedExceptions = permitted;
         enclosingTries.clear();
         visit.run();
-        methodExceptions = saved;
+        permittedExceptions = saved;
         enclosingTries.clear();
         enclosingTries.addAll(around);
     }
@@ -164,10 +179,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
      * the implicit close needs no narrower type
      */
     private boolean methodCoversTheCloseOf(TryStatement statement, TryStatement.Resource resource) {
-        if (resource.getType() == null) {
-            return false;
-        }
-        for (String exception : ClassMetadata.declaredExceptions(loader, resource.getType().getInternalName(), CLOSE, "()V")) {
+        return resource.getType() != null && closeIsPermitted(statement, resource.getType().getInternalName());
+    }
+
+    /** @return true if the exceptions which the close of the type throws are unchecked, declared, or caught by the handlers of the statement or the ones around it */
+    private boolean closeIsPermitted(TryStatement statement, String declaredType) {
+        for (String exception : ClassMetadata.declaredExceptions(loader, declaredType, CLOSE, "()V")) {
             if (!isUnchecked(exception) && !declaredByTheMethod(exception) && !caughtAround(exception) && !caughtBy(statement, exception)) {
                 return false;
             }
@@ -189,14 +206,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean declaredByTheMethod(String exception) {
-        if (methodExceptions != null) {
-            for (org.jd.core.v1.model.javasyntax.type.Type type : methodExceptions) {
-                if (type instanceof ObjectType objectType && ClassMetadata.isSubtype(loader, exception, objectType.getInternalName())) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return permittedExceptions.stream().anyMatch(permitted -> ClassMetadata.isSubtype(loader, exception, permitted));
     }
 
     @Override
@@ -496,7 +506,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        MemberUseSearch search = new MemberUseSearch(name, members);
+        MemberUseSearch search = new MemberUseSearch(name, members).declaredAs(newExpression.getObjectType().getInternalName());
 
         uses.accept(search);
         if (search.found) {
@@ -1323,10 +1333,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         private final Deque<Set<String>> declaredFields = new ArrayDeque<>();
         private boolean found;
 
+        /** The type which the variable gets when it is declared without 'var': the one of its close is the one which an implicit close of it calls; null if unknown */
+        private String declaredType;
+
         MemberUseSearch(String variableName, Set<String> members) {
             this.variableName = variableName;
             this.members = members;
             variableNames.add(variableName);
+        }
+
+        MemberUseSearch declaredAs(String type) {
+            this.declaredType = type;
+            return this;
         }
 
         /** A method of a local or anonymous class which has a parameter of this name uses its own variable, not the one of the enclosing method */
@@ -1421,7 +1439,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** 'try (var r = b)' closes the variable: the close is a use of it */
         @Override
         public void visit(TryStatement statement) {
-            if (statement.getResources() != null && hasNoCheckedHandler(statement, Set.of()) && callsClose()
+            if (statement.getResources() != null && hasNoCheckedHandler(statement, Set.of()) && callsClose() && !(declaredType != null && closeIsPermitted(statement, declaredType))
                     && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
                 found = true;
             }

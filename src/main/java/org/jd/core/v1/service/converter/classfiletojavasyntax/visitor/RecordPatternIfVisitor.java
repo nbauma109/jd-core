@@ -30,6 +30,7 @@ import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 
 import java.util.ArrayList;
@@ -239,7 +240,8 @@ public class RecordPatternIfVisitor extends AbstractJavaSyntaxVisitor {
         TryStatement.CatchClause catchClause = tryStatement.getCatchClauses().get(0);
         Type type = catchClause.getType();
 
-        return type != null && THROWABLE.equals(type.getInternalName()) && catchClause.getStatements() instanceof Statements statements && statements.size() == 1
+        // The handler of javac protects the accessors only: a hand-written 'try' which also protects the body is no record pattern
+        return ClassFileTryStatement.protectsAccessorsOnly(tryStatement) && type != null && THROWABLE.equals(type.getInternalName()) && catchClause.getStatements() instanceof Statements statements && statements.size() == 1
                 && statements.getFirst() instanceof ThrowStatement throwStatement && throwStatement.getExpression() instanceof NewExpression newExpression
                 && MATCH_EXCEPTION.equals(newExpression.getObjectType().getInternalName()) && isMatchExceptionOf(catchClause.getName(), newExpression);
     }

@@ -44,6 +44,7 @@ import org.jd.core.v1.model.javasyntax.statement.ThrowStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileTryStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.LocalVariableReference;
 import org.jd.core.v1.util.DefaultList;
 
@@ -275,7 +276,8 @@ public final class RecordPatternInstanceOfRewriter {
     }
 
     private static boolean isSyntheticRecordPatternTryStatement(TryStatement tryStatement) {
-        if (!Utils.isEmptyCollection(tryStatement.getResources()) || !Utils.isEmpty(tryStatement.getFinallyStatements())) {
+        // The handler of javac protects the accessors only: a hand-written 'try' which also protects other code is no record pattern
+        if (!ClassFileTryStatement.protectsAccessorsOnly(tryStatement) || !Utils.isEmptyCollection(tryStatement.getResources()) || !Utils.isEmpty(tryStatement.getFinallyStatements())) {
             return false;
         }
 

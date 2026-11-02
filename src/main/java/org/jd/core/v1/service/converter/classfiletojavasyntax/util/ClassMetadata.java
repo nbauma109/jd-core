@@ -186,6 +186,28 @@ public final class ClassMetadata {
         return Optional.empty();
     }
 
+    /** @return the names of the exceptions which the abstract method of a functional interface declares ('Callable.call' throws 'Exception'); empty if unknown */
+    public static Set<String> functionalMethodExceptions(Loader loader, String internalName) {
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+
+        if (javaClass == null || !javaClass.isInterface()) {
+            return Collections.emptySet();
+        }
+        for (Method method : javaClass.getMethods()) {
+            if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
+                return exceptionNames(method);
+            }
+        }
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            Set<String> inherited = functionalMethodExceptions(loader, internalNameOf(interfaceName));
+
+            if (!inherited.isEmpty()) {
+                return inherited;
+            }
+        }
+        return Collections.emptySet();
+    }
+
     /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */
     public static String commonSuperclass(Loader loader, String first, String second) {
         String current = first;

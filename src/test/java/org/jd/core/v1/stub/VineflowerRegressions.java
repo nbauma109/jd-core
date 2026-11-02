@@ -1892,6 +1892,33 @@ public class VineflowerRegressions {
         }
     }
 
+    public java.util.concurrent.Callable<String> lambdaWhichMayThrow() {
+        return () -> {
+            try (AutoCloseable lambdaResource = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                return castingIdentity(lambdaResource).toString();
+            }
+        };
+    }
+
+    @SuppressWarnings("java:S1172")
+    public String existingVariableResource() throws Exception {
+        AutoCloseable existing = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        };
+
+        try (existing) {
+            return castingIdentity(existing).toString();
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

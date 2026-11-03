@@ -283,6 +283,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("for (var aliased = loopOrigin;"));
         assertFalse(source.contains("var generic ="));
         assertTrue(source.contains("try (var contained2 = new AutoCloseable() {"));
+        assertTrue(source.contains("try (var nestedContained = new AutoCloseable() {"));
         assertFalse(source.contains("var nestedExisting"));
         assertFalse(source.contains("text instanceof CharSequence sequence"));
     }

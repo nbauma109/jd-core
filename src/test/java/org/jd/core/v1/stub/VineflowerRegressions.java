@@ -2004,6 +2004,24 @@ public class VineflowerRegressions {
         }
     }
 
+    static <E extends Exception> void raiseFromNested(java.util.List<java.util.List<E>> failures) throws E {
+        // throws one of them
+    }
+
+    public int genericThrowsOfNestedContainers(java.util.List<java.util.List<java.io.IOException>> failures) {
+        try (var nestedContained = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseFromNested(failures);
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

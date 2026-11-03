@@ -1117,56 +1117,58 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         /** 'List&lt;E&gt;' passed a 'List&lt;IOException&gt;' or an 'IOFailures extends ArrayList&lt;IOException&gt;': the type which stands where the parameter has the variable gives it its type */
         private void addContainedTypes(List<String> constraints, String parameter, Expression argument, String typeVariable) {
-            List<String> parameterArguments = typeArguments(parameter);
-
-            if (!(argument.getType() instanceof ObjectType type)) {
-                return;
+            if (argument.getType() instanceof ObjectType type) {
+                addContainedTypes(constraints, parameter, type, typeVariable);
             }
+        }
 
-            List<String> actual = actualArguments(type, parameter.substring(1, parameter.indexOf('<')));
+        /** The type arguments are matched recursively: 'List&lt;List&lt;E&gt;&gt;' passed a 'List&lt;List&lt;IOException&gt;&gt;' gives 'IOException' */
+        private void addContainedTypes(List<String> constraints, String parameter, ObjectType type, String typeVariable) {
+            List<String> parameterArguments = typeArguments(parameter);
+            List<TypeArgument> actual = actualTypeArguments(type, parameter.substring(1, parameter.indexOf('<')));
 
             for (int i = 0; i < parameterArguments.size() && i < actual.size(); i++) {
-                if (parameterArguments.get(i).equals(typeVariable) && actual.get(i) != null) {
-                    constraints.add(actual.get(i));
+                String formal = parameterArguments.get(i);
+                TypeArgument contained = actual.get(i);
+
+                if (formal.equals(typeVariable)) {
+                    if (contained instanceof ObjectType object) {
+                        constraints.add(object.getInternalName());
+                    }
+                } else if (formal.startsWith("L") && formal.contains("<") && contained instanceof ObjectType object) {
+                    addContainedTypes(constraints, formal, object, typeVariable);
                 }
             }
         }
 
         /**
-         * @return the internal names of the type arguments which the type has for its ancestor (or itself) of this name, null where one is unknown: 'IOFailures extends
-         * ArrayList&lt;IOException&gt;' gives 'IOException' for 'List', the 'T' of a 'Failures&lt;T&gt; extends ArrayList&lt;T&gt;' the type argument of the type
+         * @return the type arguments which the type has for its ancestor (or itself) of this name, null where one is unknown: 'IOFailures extends ArrayList&lt;IOException&gt;'
+         * gives 'IOException' for 'List', the 'T' of a 'Failures&lt;T&gt; extends ArrayList&lt;T&gt;' the type argument of the type
          */
-        private List<String> actualArguments(ObjectType type, String ancestor) {
+        private List<TypeArgument> actualTypeArguments(ObjectType type, String ancestor) {
             List<TypeArgument> own = type.getTypeArguments() == null ? List.of() : typeArgumentList(type.getTypeArguments());
-            List<String> tokens;
 
             if (type.getInternalName().equals(ancestor)) {
-                tokens = new ArrayList<>();
-                own.forEach(argument -> tokens.add(argument instanceof ObjectType contained ? "L" + contained.getInternalName() + ";" : ""));
-            } else {
-                tokens = ClassMetadata.ancestorTypeArguments(loader, type.getInternalName(), ancestor).orElse(List.of());
+                return own;
             }
 
+            List<String> tokens = ClassMetadata.ancestorTypeArguments(loader, type.getInternalName(), ancestor).orElse(List.of());
             List<String> typeParameters = ClassMetadata.typeParameterNames(loader, type.getInternalName());
-            List<String> names = new ArrayList<>();
+            List<TypeArgument> actual = new ArrayList<>();
 
             for (String token : tokens) {
-                names.add(argumentNamed(token, typeParameters, own));
+                int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
+
+                if (token.startsWith("L")) {
+                    int generic = token.indexOf('<');
+                    String name = token.substring(1, generic < 0 ? token.length() - 1 : generic);
+
+                    actual.add(new ObjectType(name, name.replace('/', '.'), name.substring(name.lastIndexOf('/') + 1)));
+                } else {
+                    actual.add(position >= 0 && position < own.size() ? own.get(position) : null);
+                }
             }
-            return names;
-        }
-
-        /** @return the internal name which a type argument token stands for: a class, or the type argument of the type for one of its type variables; null if unknown */
-        private String argumentNamed(String token, List<String> typeParameters, List<TypeArgument> own) {
-            if (token.startsWith("L")) {
-                int generic = token.indexOf('<');
-
-                return token.substring(1, generic < 0 ? token.length() - 1 : generic);
-            }
-
-            int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
-
-            return position >= 0 && position < own.size() && own.get(position) instanceof ObjectType contained ? contained.getInternalName() : null;
+            return actual;
         }
 
         private void addType(List<String> constraints, Expression expression) {

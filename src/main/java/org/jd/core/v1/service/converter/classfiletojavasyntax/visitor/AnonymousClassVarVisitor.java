@@ -1005,19 +1005,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (parameter.equals(typeVariable)) {
                 addType(constraints, argument);
             } else if (parameter.startsWith("[") && parameter.replaceFirst("^\\[+", "").equals(typeVariable)) {
-                if (argument instanceof NewInitializedArray array) {
-                    for (VariableInitializer element : array.getArrayInitializer()) {
-                        if (element instanceof ExpressionVariableInitializer initializer) {
-                            addType(constraints, initializer.getExpression());
-                        }
-                    }
-                } else if (argument.getType() instanceof ObjectType type && type.getDimension() > 0) {
-                    constraints.add(type.getInternalName());
-                }
-            } else if (parameter.startsWith("L") && parameter.indexOf('<') > 0) {
+                addElementTypes(constraints, argument);
+            } else if (parameter.startsWith("L") && parameter.contains("<")) {
                 addContainedTypes(constraints, parameter, argument, typeVariable);
             }
             return constraints;
+        }
+
+        /** The array which a call builds for its varargs gives the types of its elements, an array argument the type of its elements */
+        private void addElementTypes(List<String> constraints, Expression argument) {
+            if (argument instanceof NewInitializedArray array) {
+                for (VariableInitializer element : array.getArrayInitializer()) {
+                    if (element instanceof ExpressionVariableInitializer initializer) {
+                        addType(constraints, initializer.getExpression());
+                    }
+                }
+            } else if (argument.getType() instanceof ObjectType type && type.getDimension() > 0) {
+                constraints.add(type.getInternalName());
+            }
         }
 
         /** 'List&lt;E&gt;' passed a 'List&lt;IOException&gt;': the type argument which stands where the parameter has the variable gives it its type */

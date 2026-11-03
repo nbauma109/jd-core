@@ -61,6 +61,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -225,8 +226,14 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return true if the exceptions which the close of the type throws are unchecked, declared, or caught by the handlers of the statement or the ones around it */
     private boolean closeIsPermitted(TryStatement statement, String declaredType) {
+        return closeIsPermitted(statement, declaredType, List.of());
+    }
+
+    /** @param nested the 'try' statements between the code being visited and the statement, which the visit has not pushed: a search which looks ahead meets them first */
+    private boolean closeIsPermitted(TryStatement statement, String declaredType, Collection<TryStatement> nested) {
         for (String exception : ClassMetadata.declaredExceptions(loader, declaredType, CLOSE, "()V")) {
-            if (!isUnchecked(exception) && !declaredByTheMethod(exception) && !caughtAround(exception) && !caughtBy(statement, exception)) {
+            if (!isUnchecked(exception) && !declaredByTheMethod(exception) && !caughtAround(exception) && !caughtBy(statement, exception)
+                    && nested.stream().noneMatch(around -> caughtBy(around, exception))) {
                 return false;
             }
         }
@@ -999,8 +1006,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /** @return the types which the argument gives to the type variable: its own, or the ones of the elements when the parameter is an array of it ('E... values') */
-        private List<String> constraintsOf(String parameter, Expression argument, String typeVariable) {
+        private List<String> constraintsOf(String parameter, Expression passed, String typeVariable) {
             List<String> constraints = new ArrayList<>();
+            Expression argument = withoutRawCast(passed);
 
             if (parameter.equals(typeVariable)) {
                 addType(constraints, argument);
@@ -1010,6 +1018,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 addContainedTypes(constraints, parameter, argument, typeVariable);
             }
             return constraints;
+        }
+
+        /** The decompiler writes a cast to the raw type where the generic call needs one ('raiseFrom((List) failures)'): the type of the argument is the one of its operand */
+        private Expression withoutRawCast(Expression argument) {
+            return argument instanceof CastExpression cast && cast.getType() instanceof ObjectType type && type.getTypeArguments() == null ? cast.getExpression() : argument;
         }
 
         /** The array which a call builds for its varargs gives the types of its elements, an array argument the type of its elements */
@@ -1025,21 +1038,55 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        /** 'List&lt;E&gt;' passed a 'List&lt;IOException&gt;': the type argument which stands where the parameter has the variable gives it its type */
+        /** 'List&lt;E&gt;' passed a 'List&lt;IOException&gt;' or an 'IOFailures extends ArrayList&lt;IOException&gt;': the type which stands where the parameter has the variable gives it its type */
         private void addContainedTypes(List<String> constraints, String parameter, Expression argument, String typeVariable) {
             List<String> parameterArguments = typeArguments(parameter);
 
-            if (!(argument.getType() instanceof ObjectType type) || type.getTypeArguments() == null) {
+            if (!(argument.getType() instanceof ObjectType type)) {
                 return;
             }
 
-            List<TypeArgument> argumentArguments = typeArgumentList(type.getTypeArguments());
+            List<String> actual = actualArguments(type, parameter.substring(1, parameter.indexOf('<')));
 
-            for (int i = 0; i < parameterArguments.size() && i < argumentArguments.size(); i++) {
-                if (parameterArguments.get(i).equals(typeVariable) && argumentArguments.get(i) instanceof ObjectType contained) {
-                    constraints.add(contained.getInternalName());
+            for (int i = 0; i < parameterArguments.size() && i < actual.size(); i++) {
+                if (parameterArguments.get(i).equals(typeVariable) && actual.get(i) != null) {
+                    constraints.add(actual.get(i));
                 }
             }
+        }
+
+        /**
+         * @return the internal names of the type arguments which the type has for its ancestor (or itself) of this name, null where one is unknown: 'IOFailures extends
+         * ArrayList&lt;IOException&gt;' gives 'IOException' for 'List', the 'T' of a 'Failures&lt;T&gt; extends ArrayList&lt;T&gt;' the type argument of the type
+         */
+        private List<String> actualArguments(ObjectType type, String ancestor) {
+            List<TypeArgument> own = type.getTypeArguments() == null ? List.of() : typeArgumentList(type.getTypeArguments());
+            List<String> tokens;
+
+            if (type.getInternalName().equals(ancestor)) {
+                tokens = new ArrayList<>();
+                own.forEach(argument -> tokens.add(argument instanceof ObjectType contained ? "L" + contained.getInternalName() + ";" : ""));
+            } else {
+                tokens = ClassMetadata.ancestorTypeArguments(loader, type.getInternalName(), ancestor).orElse(List.of());
+            }
+
+            List<String> typeParameters = ClassMetadata.typeParameterNames(loader, type.getInternalName());
+            List<String> names = new ArrayList<>();
+
+            for (String token : tokens) {
+                int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
+
+                if (token.startsWith("L")) {
+                    int generic = token.indexOf('<');
+
+                    names.add(token.substring(1, generic < 0 ? token.length() - 1 : generic));
+                } else if (position >= 0 && position < own.size() && own.get(position) instanceof ObjectType contained) {
+                    names.add(contained.getInternalName());
+                } else {
+                    names.add(null);
+                }
+            }
+            return names;
         }
 
         private void addType(List<String> constraints, Expression expression) {
@@ -1545,14 +1592,29 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return members.stream().anyMatch(member -> member.equals("close()V") || member.endsWith(".close()V"));
         }
 
+        /** The 'try' statements which the search has entered: their handlers protect what it meets in their resources and body */
+        private final Deque<TryStatement> nestedTries = new ArrayDeque<>();
+
         /** 'try (var r = b)' closes the variable: the close is a use of it */
         @Override
         public void visit(TryStatement statement) {
-            if (statement.getResources() != null && hasNoCheckedHandler(statement, Set.of()) && callsClose() && !(declaredType != null && closeIsPermitted(statement, declaredType))
+            if (statement.getResources() != null && hasNoCheckedHandler(statement, Set.of()) && callsClose()
+                    && !(declaredType != null && closeIsPermitted(statement, declaredType, nestedTries))
                     && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
                 found = true;
             }
-            super.visit(statement);
+            nestedTries.push(statement);
+            if (statement.getResources() != null) {
+                statement.getResources().forEach(resource -> resource.accept(this));
+            }
+            statement.getTryStatements().accept(this);
+            nestedTries.pop();
+            if (statement.getCatchClauses() != null) {
+                statement.getCatchClauses().forEach(clause -> clause.accept(this));
+            }
+            if (statement.getFinallyStatements() != null) {
+                statement.getFinallyStatements().accept(this);
+            }
         }
 
         /** The variable of a handler hides the original variable and its aliases which have its name, in the handler only */

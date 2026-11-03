@@ -20,6 +20,7 @@ import org.jd.core.v1.api.loader.Loader;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -699,12 +700,32 @@ public final class ClassMetadata {
 
     private static JavaClass parse(Loader loader, String internalName) {
         try {
-            if (loader == null || !loader.canLoad(internalName)) {
-                return null;
-            }
-            return new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
+            byte[] bytes = bytesOf(loader, internalName);
+
+            return bytes == null ? null : new ClassParser(new ByteArrayInputStream(bytes), internalName).parse();
         } catch (IOException | ClassFormatException e) {
             return null;
         }
+    }
+
+    /** @return the class file of the loader, or of the runtime for the classes of the platform which an archive loader does not hold; null if neither has it */
+    private static byte[] bytesOf(Loader loader, String internalName) throws IOException {
+        if (internalName == null || loader == null) {
+            return null;
+        }
+        if (loader.canLoad(internalName)) {
+            return loader.load(internalName);
+        }
+        if (internalName.startsWith("java/") || internalName.startsWith("javax/")) {
+            try (InputStream stream = ClassLoader.getPlatformClassLoader().getResourceAsStream(internalName + ".class")) {
+                return stream == null ? null : stream.readAllBytes();
+            }
+        }
+        return null;
+    }
+
+    /** @return true if the hierarchy of the class can be read: its class file is held by the loader, or it is a class of the platform */
+    public static boolean isKnown(Loader loader, String internalName) {
+        return parse(loader, internalName) != null;
     }
 }

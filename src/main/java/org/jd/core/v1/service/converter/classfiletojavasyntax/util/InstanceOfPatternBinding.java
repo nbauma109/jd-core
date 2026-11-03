@@ -143,7 +143,14 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             return true;
         }
         return tested != null && operand != null && (tested.equals(operand) || isArrayWhichIsATestedSuperType(operand, tested)
-                || loader != null && !operand.startsWith("[") && ClassMetadata.isSubtype(loader, erasure(operand), erasure(tested)));
+                || loader != null && !operand.startsWith("[") && (ClassMetadata.isSubtype(loader, erasure(operand), erasure(tested)) || !isKnown(loader, operand)));
+    }
+
+    /** @return true if the hierarchy of the operand is known: 'Object' is nobody's sub type, any other class has to be read to say whether it is the tested type or a sub type of it */
+    private static boolean isKnown(Loader loader, String operandDescriptor) {
+        String name = erasure(operandDescriptor);
+
+        return "java/lang/Object".equals(name) || ClassMetadata.isKnown(loader, name);
     }
 
     /** 'String[]' is an 'Object[]', an 'Object', a 'Cloneable' and a 'Serializable': the test of such a type is unconditional */

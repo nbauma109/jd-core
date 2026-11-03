@@ -280,6 +280,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         assertTrue(source.contains("for (var looped = new Object() {"));
         assertTrue(source.contains("try (var contained2 = new AutoCloseable() {"));
+        assertFalse(source.contains("var nestedExisting"));
+        assertFalse(source.contains("text instanceof CharSequence sequence"));
         assertTrue(source.contains("try (var inheritedTask = new AutoCloseable() {"));
         assertTrue(source.contains("try (var bounded = new AutoCloseable() {"));
         assertTrue(source.contains("String entered = (String)second;"));

@@ -2020,6 +2020,36 @@ public class VineflowerRegressions {
         };
     }
 
+    @SuppressWarnings("java:S1172")
+    public String existingResourceInANestedHandler(boolean flag) {
+        AutoCloseable nestedExisting = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        };
+
+        try {
+            if (flag) {
+                try (nestedExisting) {
+                    return castingIdentity(nestedExisting).toString();
+                }
+            }
+        } catch (Exception e) {
+            return e.toString();
+        }
+        return "";
+    }
+
+    public int charSequenceOperand(String text) {
+        if (text instanceof CharSequence) {
+            CharSequence sequence = (CharSequence) (Object) text;
+
+            return sequence.length();
+        }
+        return 0;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

@@ -60,6 +60,93 @@ public class ClassMetadataTest {
         }
     }
 
+    interface Reversed<K, V> extends java.util.Map<V, K> {
+    }
+
+    interface Task<E extends Exception> {
+        void run() throws E;
+    }
+
+    interface InputTask extends Task<java.io.IOException> {
+    }
+
+    static class Opening {
+        Opening() throws java.io.IOException {
+            // opens
+        }
+    }
+
+    private static final String PREFIX = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$";
+
+    @Test
+    public void testDeclaringClassOfAnInheritedMethod() {
+        assertEquals("java/util/ArrayList", ClassMetadata.declaringClass(LOADER, "java/util/ArrayList", "size", "()I").orElse(null));
+        assertEquals("java/util/Collection", ClassMetadata.declaringClass(LOADER, "java/util/ArrayList", "stream", "()Ljava/util/stream/Stream;").orElse(null));
+        assertFalse(ClassMetadata.declaringClass(LOADER, "java/util/ArrayList", "noSuchMethod", "()V").isPresent());
+        assertFalse(ClassMetadata.declaringClass(LOADER, null, "size", "()I").isPresent());
+    }
+
+    @Test
+    public void testTypeArgumentsOfAnAncestor() {
+        assertEquals(List.of("TE;"), ClassMetadata.ancestorTypeArguments(LOADER, "java/util/ArrayList", "java/util/List").orElse(null));
+        assertEquals(List.of("TV;", "TK;"), ClassMetadata.ancestorTypeArguments(LOADER, PREFIX + "Reversed", "java/util/Map").orElse(null));
+        assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.ancestorTypeArguments(LOADER, PREFIX + "InputTask", PREFIX + "Task").orElse(null));
+        assertFalse(ClassMetadata.ancestorTypeArguments(LOADER, "java/util/ArrayList", "java/lang/String").isPresent());
+        assertFalse(ClassMetadata.ancestorTypeArguments(LOADER, "no/such/Class", "java/util/List").isPresent());
+    }
+
+    @Test
+    public void testCommonSuperclass() {
+        assertEquals("java/io/IOException", ClassMetadata.commonSuperclass(LOADER, "java/io/FileNotFoundException", "java/io/EOFException"));
+        assertEquals("java/lang/String", ClassMetadata.commonSuperclass(LOADER, "java/lang/String", "java/lang/String"));
+        assertEquals("java/io/IOException", ClassMetadata.commonSuperclass(LOADER, "java/io/IOException", "java/io/EOFException"));
+        assertEquals(null, ClassMetadata.commonSuperclass(LOADER, "no/such/Class", "java/io/EOFException"));
+    }
+
+    @Test
+    public void testExceptionsOfAFunctionalMethod() {
+        assertEquals(java.util.Set.of("java/lang/Exception"), ClassMetadata.functionalMethodExceptions(LOADER, "java/util/concurrent/Callable"));
+        assertEquals(List.of("Ljava/lang/Exception;"), ClassMetadata.functionalMethodThrown(LOADER, "java/util/concurrent/Callable"));
+        assertEquals(List.of("TE;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "Task"));
+        assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "InputTask"));
+        assertEquals(java.util.Set.of("java/lang/Exception"), ClassMetadata.functionalMethodExceptions(LOADER, PREFIX + "InputTask"));
+        assertTrue(ClassMetadata.functionalMethodThrown(LOADER, "java/lang/String").isEmpty());
+        assertTrue(ClassMetadata.functionalMethodExceptions(LOADER, null).isEmpty());
+    }
+
+    @Test
+    public void testSubstitutionOfTypeVariables() {
+        List<String> parameters = List.of("E");
+        List<String> arguments = List.of("Ljava/io/IOException;");
+
+        assertEquals("Ljava/util/List<Ljava/io/IOException;>;", ClassMetadata.substituteTypeVariables("Ljava/util/List<TE;>;", parameters, arguments));
+        assertEquals("[Ljava/io/IOException;", ClassMetadata.substituteTypeVariables("[TE;", parameters, arguments));
+        assertEquals("Ljava/util/TE;", ClassMetadata.substituteTypeVariables("Ljava/util/TE;", parameters, arguments));
+        assertEquals("TF;", ClassMetadata.substituteTypeVariables("TF;", parameters, arguments));
+        assertEquals("TE;", ClassMetadata.substituteTypeVariables("TE;", parameters, List.of()));
+    }
+
+    @Test
+    public void testKnownClassesAndConstructorExceptions() {
+        assertTrue(ClassMetadata.isKnown(LOADER, "java/lang/String"));
+        assertFalse(ClassMetadata.isKnown(null, "java/lang/String"));
+        assertTrue(ClassMetadata.isKnown(new org.jd.core.v1.api.loader.Loader() {
+            @Override
+            public boolean canLoad(String internalName) {
+                return false;
+            }
+
+            @Override
+            public byte[] load(String internalName) {
+                return new byte[0];
+            }
+        }, "java/lang/String"));
+        assertFalse(ClassMetadata.isKnown(null, "no/such/Class"));
+        assertFalse(ClassMetadata.isKnown(LOADER, null));
+        assertEquals(java.util.Set.of("java/io/IOException"), ClassMetadata.declaredConstructorExceptions(LOADER, PREFIX + "Opening"));
+        assertTrue(ClassMetadata.declaredConstructorExceptions(LOADER, "no/such/Class").isEmpty());
+    }
+
     @Test
     public void testTheMethodOfTheSuperclassIsTheOneWhichIsCalledEvenWithoutExceptions() {
         String name = "org/jd/core/v1/service/converter/classfiletojavasyntax/util/ClassMetadataTest$PlainReader";

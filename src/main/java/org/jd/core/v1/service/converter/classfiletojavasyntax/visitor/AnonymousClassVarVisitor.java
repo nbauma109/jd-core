@@ -367,11 +367,19 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return found;
     }
 
-    /** 'for (var v = new Object() {}; ...; ...) { bad(v) }': the condition, the update and the body of the loop are searched like the statements which follow a declaration */
+    /**
+     * 'for (var v = new Object() {}; ...; ...) { bad(v) }' or 'for (var v = origin; ...)': the condition, the update and the body of the loop are searched like the statements
+     * which follow a declaration
+     */
     private boolean feedsAnAnonymousCastInTheLoop(LocalVariableDeclaration declaration, ForStatement loop) {
         if (!(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
-                || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
-                || !(initializer.getExpression() instanceof ClassFileNewExpression creation) || !(creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
+                || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)) {
+            return false;
+        }
+
+        Set<String> members = membersOfTheInitializer(initializer.getExpression());
+
+        if (members == null) {
             return false;
         }
 
@@ -381,9 +389,20 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }) != null;
 
         if (found) {
-            anonymousVariables.put(declarator.getName(), addedMembers(body, creation.getObjectType().getInternalName()));
+            anonymousVariables.put(declarator.getName(), members);
         }
         return found;
+    }
+
+    /** @return the members which the anonymous class of a creation adds, or the ones of the tracked variable which an alias copies; null if the initializer is none of them */
+    private Set<String> membersOfTheInitializer(Expression initializer) {
+        if (initializer instanceof ClassFileNewExpression creation && creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration body) {
+            return addedMembers(body, creation.getObjectType().getInternalName());
+        }
+
+        String tracked = references(initializer, anonymousVariables.keySet());
+
+        return tracked == null ? null : anonymousVariables.get(tracked);
     }
 
     /** The parameters of the method itself: the ones of the methods of its local classes hide the variable in those methods only */
@@ -1074,19 +1093,22 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             List<String> names = new ArrayList<>();
 
             for (String token : tokens) {
-                int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
-
-                if (token.startsWith("L")) {
-                    int generic = token.indexOf('<');
-
-                    names.add(token.substring(1, generic < 0 ? token.length() - 1 : generic));
-                } else if (position >= 0 && position < own.size() && own.get(position) instanceof ObjectType contained) {
-                    names.add(contained.getInternalName());
-                } else {
-                    names.add(null);
-                }
+                names.add(argumentNamed(token, typeParameters, own));
             }
             return names;
+        }
+
+        /** @return the internal name which a type argument token stands for: a class, or the type argument of the type for one of its type variables; null if unknown */
+        private String argumentNamed(String token, List<String> typeParameters, List<TypeArgument> own) {
+            if (token.startsWith("L")) {
+                int generic = token.indexOf('<');
+
+                return token.substring(1, generic < 0 ? token.length() - 1 : generic);
+            }
+
+            int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
+
+            return position >= 0 && position < own.size() && own.get(position) instanceof ObjectType contained ? contained.getInternalName() : null;
         }
 
         private void addType(List<String> constraints, Expression expression) {

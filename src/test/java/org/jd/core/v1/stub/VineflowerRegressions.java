@@ -2050,6 +2050,17 @@ public class VineflowerRegressions {
         return 0;
     }
 
+    public String castOfAnAliasInAForLoop(boolean run) {
+        String result = "";
+        boolean again = run;
+        var loopOrigin = new Object() { };
+
+        for (var aliased = loopOrigin; again; again = false) {
+            result = unchecked(aliased).toString();
+        }
+        return result;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

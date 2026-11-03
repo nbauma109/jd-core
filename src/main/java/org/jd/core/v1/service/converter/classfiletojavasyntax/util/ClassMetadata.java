@@ -702,26 +702,26 @@ public final class ClassMetadata {
         try {
             byte[] bytes = bytesOf(loader, internalName);
 
-            return bytes == null ? null : new ClassParser(new ByteArrayInputStream(bytes), internalName).parse();
+            return bytes.length == 0 ? null : new ClassParser(new ByteArrayInputStream(bytes), internalName).parse();
         } catch (IOException | ClassFormatException e) {
             return null;
         }
     }
 
-    /** @return the class file of the loader, or of the runtime for the classes of the platform which an archive loader does not hold; null if neither has it */
+    /** @return the class file of the loader, or of the runtime for the classes of the platform which an archive loader does not hold; empty if neither has it */
     private static byte[] bytesOf(Loader loader, String internalName) throws IOException {
         if (internalName == null || loader == null) {
-            return null;
+            return new byte[0];
         }
         if (loader.canLoad(internalName)) {
             return loader.load(internalName);
         }
         if (internalName.startsWith("java/") || internalName.startsWith("javax/")) {
             try (InputStream stream = ClassLoader.getPlatformClassLoader().getResourceAsStream(internalName + ".class")) {
-                return stream == null ? null : stream.readAllBytes();
+                return stream == null ? new byte[0] : stream.readAllBytes();
             }
         }
-        return null;
+        return new byte[0];
     }
 
     /** @return true if the hierarchy of the class can be read: its class file is held by the loader, or it is a class of the platform */

@@ -217,21 +217,79 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
+     * @return the internal name of the type which the type variable of the class which declares the method stands for: a type argument of the type which the method is called
+     * on, or the one which this type inherits it with ('IOThrower extends Thrower&lt;IOException&gt;'); null if there is none
+     */
+    private String typeVariableOf(String typeVariable, String owner, String name, String descriptor, org.jd.core.v1.model.javasyntax.type.Type receiverType) {
+        String declaring = ClassMetadata.declaringClass(loader, owner, name, descriptor).orElse(owner);
+        String inTheTermsOfTheOwner = typeVariable;
+
+        if (!declaring.equals(owner)) {
+            List<String> ancestor = ClassMetadata.ancestorTypeArguments(loader, owner, declaring).orElse(List.of());
+            int declared = ClassMetadata.typeParameterNames(loader, declaring).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
+
+            if (declared < 0 || declared >= ancestor.size()) {
+                return null;
+            }
+            inTheTermsOfTheOwner = ancestor.get(declared);
+            if (inTheTermsOfTheOwner.startsWith("L")) {
+                int generic = inTheTermsOfTheOwner.indexOf('<');
+
+                return inTheTermsOfTheOwner.substring(1, generic < 0 ? inTheTermsOfTheOwner.length() - 1 : generic);
+            }
+        }
+
+        int position = ClassMetadata.typeParameterNames(loader, owner).indexOf(inTheTermsOfTheOwner.substring(1, inTheTermsOfTheOwner.length() - 1));
+
+        if (position < 0 || !(receiverType instanceof ObjectType receiver) || receiver.getTypeArguments() == null) {
+            return null;
+        }
+
+        List<TypeArgument> receiverArguments = typeArgumentList(receiver.getTypeArguments());
+
+        return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
+    }
+
+    /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */
+    private Set<String> closeExceptions(ObjectType declared) {
+        String owner = declared.getInternalName();
+        String signature = ClassMetadata.declaredGenericSignature(loader, owner, CLOSE, "()V");
+
+        if (signature == null || signature.indexOf('^') < 0) {
+            return ClassMetadata.declaredExceptions(loader, owner, CLOSE, "()V");
+        }
+
+        Set<String> names = new HashSet<>();
+
+        for (String token : signature.substring(signature.indexOf('^') + 1).split("\\^")) {
+            String resolved = token.startsWith("T") ? typeVariableOf(token, owner, CLOSE, "()V", declared) : token.substring(1, token.length() - 1);
+
+            if (resolved == null) {
+                // The type argument is unknown: the erased bound is what it throws at most
+                names.addAll(ClassMetadata.declaredExceptions(loader, owner, CLOSE, "()V"));
+            } else {
+                names.add(resolved);
+            }
+        }
+        return names;
+    }
+
+    /**
      * @return true if the exceptions which the close of the declared type of the resource throws are unchecked or permitted by the method: the explicit type is valid then,
      * the implicit close needs no narrower type
      */
     private boolean methodCoversTheCloseOf(TryStatement statement, TryStatement.Resource resource) {
-        return resource.getType() != null && closeIsPermitted(statement, resource.getType().getInternalName());
+        return resource.getType() instanceof ObjectType declared && closeIsPermitted(statement, declared);
     }
 
     /** @return true if the exceptions which the close of the type throws are unchecked, declared, or caught by the handlers of the statement or the ones around it */
-    private boolean closeIsPermitted(TryStatement statement, String declaredType) {
+    private boolean closeIsPermitted(TryStatement statement, ObjectType declaredType) {
         return closeIsPermitted(statement, declaredType, List.of());
     }
 
     /** @param nested the 'try' statements between the code being visited and the statement, which the visit has not pushed: a search which looks ahead meets them first */
-    private boolean closeIsPermitted(TryStatement statement, String declaredType, Collection<TryStatement> nested) {
-        for (String exception : ClassMetadata.declaredExceptions(loader, declaredType, CLOSE, "()V")) {
+    private boolean closeIsPermitted(TryStatement statement, ObjectType declaredType, Collection<TryStatement> nested) {
+        for (String exception : closeExceptions(declaredType)) {
             if (!isUnchecked(exception) && !declaredByTheMethod(exception) && !caughtAround(exception) && !caughtBy(statement, exception)
                     && nested.stream().noneMatch(around -> caughtBy(around, exception))) {
                 return false;
@@ -598,7 +656,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        MemberUseSearch search = new MemberUseSearch(name, members).declaredAs(newExpression.getObjectType().getInternalName());
+        MemberUseSearch search = new MemberUseSearch(name, members).declaredAs(newExpression.getObjectType());
 
         uses.accept(search);
         if (search.found) {
@@ -1117,43 +1175,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
-        /**
-         * @return the internal name of the type which the type variable of the class which declares the method stands for: a type argument of the receiver, or the one
-         * which the receiver inherits it with ('IOThrower extends Thrower&lt;IOException&gt;'); null if there is none
-         */
         private String fromTheReceiver(String typeVariable, MethodInvocationExpression call) {
-            String owner = call.getInternalTypeName();
-            String declaring = ClassMetadata.declaringClass(loader, owner, call.getName(), call.getDescriptor()).orElse(owner);
-            String inTheTermsOfTheOwner = typeVariable;
-
-            if (!declaring.equals(owner)) {
-                List<String> ancestor = ClassMetadata.ancestorTypeArguments(loader, owner, declaring).orElse(List.of());
-                int declared = ClassMetadata.typeParameterNames(loader, declaring).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
-
-                if (declared < 0 || declared >= ancestor.size()) {
-                    return null;
-                }
-                inTheTermsOfTheOwner = ancestor.get(declared);
-                if (inTheTermsOfTheOwner.startsWith("L")) {
-                    int generic = inTheTermsOfTheOwner.indexOf('<');
-
-                    return inTheTermsOfTheOwner.substring(1, generic < 0 ? inTheTermsOfTheOwner.length() - 1 : generic);
-                }
-            }
-            return receiverArgument(inTheTermsOfTheOwner, call);
-        }
-
-        /** @return the internal name of the type argument of the receiver which the type variable of its class stands for; null if there is none */
-        private String receiverArgument(String typeVariable, MethodInvocationExpression call) {
-            int position = ClassMetadata.typeParameterNames(loader, call.getInternalTypeName()).indexOf(typeVariable.substring(1, typeVariable.length() - 1));
-
-            if (position < 0 || call.getExpression() == null || !(call.getExpression().getType() instanceof ObjectType receiver) || receiver.getTypeArguments() == null) {
-                return null;
-            }
-
-            List<TypeArgument> receiverArguments = typeArgumentList(receiver.getTypeArguments());
-
-            return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
+            return typeVariableOf(typeVariable, call.getInternalTypeName(), call.getName(), call.getDescriptor(), call.getExpression() == null ? null : call.getExpression().getType());
         }
 
         private void searchNested(TryStatement nested) {
@@ -1512,7 +1535,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         private boolean found;
 
         /** The type which the variable gets when it is declared without 'var': the one of its close is the one which an implicit close of it calls; null if unknown */
-        private String declaredType;
+        private ObjectType declaredType;
 
         MemberUseSearch(String variableName, Set<String> members) {
             this.variableName = variableName;
@@ -1520,7 +1543,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             variableNames.add(variableName);
         }
 
-        MemberUseSearch declaredAs(String type) {
+        MemberUseSearch declaredAs(ObjectType type) {
             this.declaredType = type;
             return this;
         }

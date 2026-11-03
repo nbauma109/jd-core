@@ -2061,6 +2061,29 @@ public class VineflowerRegressions {
         return result;
     }
 
+    interface Closer<E extends Exception> extends AutoCloseable {
+        @Override
+        void close() throws E;
+    }
+
+    @SuppressWarnings({ "unchecked", "java:S1172" })
+    static <T> T closerIdentity(T ignored) {
+        Closer<java.io.IOException> closer = () -> { };
+
+        return (T) closer;
+    }
+
+    public String resourceWhoseCloseThrowsATypeArgument() throws java.io.IOException {
+        try (Closer<java.io.IOException> generic = new Closer<java.io.IOException>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return closerIdentity(generic).toString();
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

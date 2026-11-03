@@ -2004,6 +2004,22 @@ public class VineflowerRegressions {
         }
     }
 
+    interface InputTask extends Task<java.io.IOException> {
+    }
+
+    public InputTask lambdaWithAnInheritedGenericThrows() {
+        return () -> {
+            try (var inheritedTask = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                ping();
+            }
+        };
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

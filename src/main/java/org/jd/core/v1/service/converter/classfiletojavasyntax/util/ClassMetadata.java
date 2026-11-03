@@ -199,17 +199,27 @@ public final class ClassMetadata {
      * has 'TE;' where 'functionalMethodExceptions' gives its erased bound
      */
     public static List<String> functionalMethodThrown(Loader loader, String internalName) {
-        Method method = functionalMethod(loader, internalName);
+        Map.Entry<String, Method> owned = functionalMethodWithOwner(loader, internalName);
         List<String> thrown = new ArrayList<>();
 
-        if (method == null) {
+        if (owned == null) {
             return thrown;
         }
 
+        Method method = owned.getValue();
         String signature = genericSignature(method);
 
         if (signature != null && signature.indexOf('^') >= 0) {
-            thrown.addAll(Arrays.asList(signature.substring(signature.indexOf('^') + 1).split("\\^")));
+            List<String> tokens = Arrays.asList(signature.substring(signature.indexOf('^') + 1).split("\\^"));
+
+            if (owned.getKey().equals(internalName)) {
+                thrown.addAll(tokens);
+            } else {
+                // 'IOTask extends Task<IOException>': the 'E' which 'Task.run' throws is the 'IOException' of the target
+                List<String> ancestor = ancestorTypeArguments(loader, internalName, owned.getKey()).orElse(List.of());
+
+                thrown.addAll(substitute(tokens, typeParameterNames(loader, owned.getKey()), ancestor));
+            }
         } else {
             exceptionNames(method).forEach(name -> thrown.add("L" + name + ";"));
         }
@@ -217,6 +227,13 @@ public final class ClassMetadata {
     }
 
     private static Method functionalMethod(Loader loader, String internalName) {
+        Map.Entry<String, Method> owned = functionalMethodWithOwner(loader, internalName);
+
+        return owned == null ? null : owned.getValue();
+    }
+
+    /** @return the abstract method of the functional interface with the name of the interface which declares it; null if there is none */
+    private static Map.Entry<String, Method> functionalMethodWithOwner(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
 
         if (javaClass == null || !javaClass.isInterface()) {
@@ -224,11 +241,11 @@ public final class ClassMetadata {
         }
         for (Method method : javaClass.getMethods()) {
             if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
-                return method;
+                return Map.entry(internalName, method);
             }
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {
-            Method inherited = functionalMethod(loader, internalNameOf(interfaceName));
+            Map.Entry<String, Method> inherited = functionalMethodWithOwner(loader, internalNameOf(interfaceName));
 
             if (inherited != null) {
                 return inherited;

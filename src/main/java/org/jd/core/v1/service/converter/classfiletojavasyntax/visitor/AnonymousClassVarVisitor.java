@@ -155,19 +155,6 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return declaration instanceof ClassFileConstructorOrMethodDeclaration classFile && classFile.getTypeBounds() != null ? classFile.getTypeBounds() : Map.of();
     }
 
-    /** @return the internal name of the type which a thrown expression has: its class, or the first bound of its type variable; null if unknown */
-    private String thrownTypeName(Expression expression) {
-        if (expression.getType() instanceof ObjectType type) {
-            return type.getInternalName();
-        }
-        if (expression.getType() instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
-            BaseType bound = typeBounds.get(generic.getName());
-
-            return bound.getFirst() instanceof ObjectType first ? first.getInternalName() : null;
-        }
-        return null;
-    }
-
     /** The body of a lambda is run later: neither the handlers around it nor the throws clause of its method protect it, the one of its functional method does */
     @Override
     public void visit(LambdaIdentifiersExpression lambda) {
@@ -932,6 +919,19 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return creation.getObjectType() == null ? null : creation.getObjectType().getInternalName();
         }
 
+        /** @return the internal name of the type which a thrown expression has: its class, or the first bound of its type variable; null if unknown */
+        private String thrownTypeName(Expression expression) {
+            if (expression.getType() instanceof ObjectType type) {
+                return type.getInternalName();
+            }
+            if (expression.getType() instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
+                BaseType bound = typeBounds.get(generic.getName());
+
+                return bound.getFirst() instanceof ObjectType first ? first.getInternalName() : null;
+            }
+            return null;
+        }
+
         /** @return true if the handler catches what is thrown: the same exception, a sub type (caught by it) or a super type (the handler is narrower) */
         private boolean reaches(String exception) {
             return ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception);
@@ -1014,8 +1014,27 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 } else if (argument.getType() instanceof ObjectType type && type.getDimension() > 0) {
                     constraints.add(type.getInternalName());
                 }
+            } else if (parameter.startsWith("L") && parameter.indexOf('<') > 0) {
+                addContainedTypes(constraints, parameter, argument, typeVariable);
             }
             return constraints;
+        }
+
+        /** 'List&lt;E&gt;' passed a 'List&lt;IOException&gt;': the type argument which stands where the parameter has the variable gives it its type */
+        private void addContainedTypes(List<String> constraints, String parameter, Expression argument, String typeVariable) {
+            List<String> parameterArguments = typeArguments(parameter);
+
+            if (!(argument.getType() instanceof ObjectType type) || type.getTypeArguments() == null) {
+                return;
+            }
+
+            List<TypeArgument> argumentArguments = typeArgumentList(type.getTypeArguments());
+
+            for (int i = 0; i < parameterArguments.size() && i < argumentArguments.size(); i++) {
+                if (parameterArguments.get(i).equals(typeVariable) && argumentArguments.get(i) instanceof ObjectType contained) {
+                    constraints.add(contained.getInternalName());
+                }
+            }
         }
 
         private void addType(List<String> constraints, Expression expression) {

@@ -1986,6 +1986,24 @@ public class VineflowerRegressions {
         return 0;
     }
 
+    static <E extends Exception> void raiseFrom(java.util.List<E> failures) throws E {
+        // throws one of them
+    }
+
+    public int genericThrowsOfAContainer(java.util.List<java.io.IOException> failures) {
+        try (var contained2 = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseFrom(failures);
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

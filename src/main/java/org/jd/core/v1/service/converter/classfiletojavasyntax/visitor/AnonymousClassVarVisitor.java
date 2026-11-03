@@ -50,6 +50,7 @@ import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
+import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
@@ -1131,6 +1132,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 String formal = parameterArguments.get(i);
                 TypeArgument contained = actual.get(i);
 
+                if (contained instanceof WildcardExtendsTypeArgument wildcard) {
+                    // 'List<? extends IOException>': the upper bound is what the type variable stands for
+                    contained = wildcard.type() instanceof ObjectType bound ? bound : null;
+                }
                 if (formal.equals(typeVariable)) {
                     if (contained instanceof ObjectType object) {
                         constraints.add(object.getInternalName());

@@ -2022,6 +2022,48 @@ public class VineflowerRegressions {
         }
     }
 
+    static <E extends Exception> void raiseFromBounded(java.util.List<? extends E> failures) throws E {
+        // throws one of them
+    }
+
+    public int genericThrowsOfAWildcardContainer(java.util.List<? extends java.io.IOException> failures) {
+        try (var wildcarded = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseFromBounded(failures);
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
+    interface BroadRunner {
+        void run() throws Exception;
+    }
+
+    interface NarrowRunner {
+        void run() throws java.io.IOException;
+    }
+
+    interface BothRunner extends BroadRunner, NarrowRunner {
+    }
+
+    public BothRunner lambdaWithTwoInheritedThrows() {
+        return () -> {
+            try (var intersected = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                new java.io.StringReader("").read();
+            }
+        };
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

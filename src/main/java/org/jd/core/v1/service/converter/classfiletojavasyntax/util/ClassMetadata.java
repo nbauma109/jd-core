@@ -245,14 +245,29 @@ public final class ClassMetadata {
                 return Map.entry(internalName, method);
             }
         }
+
+        Map.Entry<String, Method> narrowest = null;
+
         for (String interfaceName : javaClass.getInterfaceNames()) {
             Map.Entry<String, Method> inherited = functionalMethodWithOwner(loader, internalNameOf(interfaceName));
 
-            if (inherited != null) {
-                return inherited;
+            if (narrowest == null || inherited != null && throwsLess(loader, inherited.getValue(), narrowest.getValue())) {
+                narrowest = inherited;
             }
         }
-        return null;
+        return narrowest;
+    }
+
+    /** @return true if the method of the same signature which another parent declares throws more: a class which inherits both may throw only what both allow */
+    private static boolean throwsLess(Loader loader, Method method, Method other) {
+        if (!method.getName().equals(other.getName()) || !method.getSignature().equals(other.getSignature())) {
+            return false;
+        }
+
+        Set<String> exceptions = exceptionNames(method);
+        Set<String> others = exceptionNames(other);
+
+        return !others.equals(exceptions) && exceptions.stream().allMatch(name -> others.stream().anyMatch(broader -> isSubtype(loader, name, broader)));
     }
 
     /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */

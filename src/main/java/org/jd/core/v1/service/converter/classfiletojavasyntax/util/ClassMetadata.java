@@ -255,12 +255,6 @@ public final class ClassMetadata {
         return thrown;
     }
 
-    private static Method functionalMethod(Loader loader, String internalName) {
-        Map.Entry<String, Method> owned = functionalMethodWithOwner(loader, internalName);
-
-        return owned == null ? null : owned.getValue();
-    }
-
     /** @return the declarations of the abstract method which the interface inherits from its parents (the one it declares itself if it does); empty if there is none */
     private static List<Map.Entry<String, Method>> functionalMethodDeclarations(Loader loader, String internalName) {
         Map.Entry<String, Method> first = functionalMethodWithOwner(loader, internalName);

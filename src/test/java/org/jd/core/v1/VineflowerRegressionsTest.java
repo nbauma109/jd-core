@@ -285,6 +285,9 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (var contained2 = new AutoCloseable() {"));
         assertTrue(source.contains("try (var nestedContained = new AutoCloseable() {"));
         assertTrue(source.contains("try (var wildcarded = new AutoCloseable() {"));
+        assertTrue(source.contains("try (var intersected = new AutoCloseable() {"));
+        assertTrue(source.contains("try (var overlapped = new SqlCloser() {"));
+        assertTrue(source.contains("pick((Exception)failure)"));
         assertFalse(source.contains("var nestedExisting"));
         assertFalse(source.contains("text instanceof CharSequence sequence"));
     }
@@ -294,9 +297,6 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         String source = decompile();
 
         assertTrue(source.contains("try (var inheritedTask = new AutoCloseable() {"));
-        assertTrue(source.contains("try (var intersected = new AutoCloseable() {"));
-        assertTrue(source.contains("try (var overlapped = new SqlCloser() {"));
-        assertTrue(source.contains("pick((Exception)failure)"));
         assertTrue(source.contains("try (var bounded = new AutoCloseable() {"));
         assertTrue(source.contains("try (var passed = new AutoCloseable() {"));
         assertTrue(source.contains("String entered = (String)second;"));

@@ -2096,11 +2096,11 @@ public class VineflowerRegressions {
     }
 
     static String pick(Exception exception) {
-        return "exception";
+        return "exception" + exception.getMessage();
     }
 
     static String pick(java.io.IOException exception) {
-        return "io";
+        return "io" + exception.getMessage();
     }
 
     static <E extends java.io.IOException> String castToException(E failure) {

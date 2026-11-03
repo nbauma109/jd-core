@@ -2064,6 +2064,49 @@ public class VineflowerRegressions {
         };
     }
 
+    static class SqlCloser implements AutoCloseable {
+        @Override
+        public void close() throws java.sql.SQLException {
+            // closes nothing
+        }
+    }
+
+    interface FirstRunner {
+        void run() throws java.io.IOException, java.sql.SQLException;
+    }
+
+    interface SecondRunner {
+        void run() throws java.io.IOException, ReflectiveOperationException;
+    }
+
+    interface OverlappingRunner extends FirstRunner, SecondRunner {
+    }
+
+    public OverlappingRunner lambdaWithOverlappingInheritedThrows() {
+        return () -> {
+            try (var overlapped = new SqlCloser() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                overlapped.toString();
+            }
+        };
+    }
+
+    static String pick(Exception exception) {
+        return "exception";
+    }
+
+    static String pick(java.io.IOException exception) {
+        return "io";
+    }
+
+    static <E extends java.io.IOException> String castToException(E failure) {
+        return pick((Exception) failure);
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

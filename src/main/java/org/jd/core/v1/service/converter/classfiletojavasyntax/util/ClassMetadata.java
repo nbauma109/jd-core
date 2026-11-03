@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
@@ -188,25 +189,52 @@ public final class ClassMetadata {
         return Optional.empty();
     }
 
-    /** @return the names of the exceptions which the abstract method of a functional interface declares ('Callable.call' throws 'Exception'); empty if unknown */
+    /**
+     * @return the names of the exceptions which the abstract method of a functional interface declares ('Callable.call' throws 'Exception'); empty if unknown. Where several
+     * parents declare it, only what all of them allow is thrown.
+     */
     public static Set<String> functionalMethodExceptions(Loader loader, String internalName) {
-        Method method = functionalMethod(loader, internalName);
+        List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
+        Set<String> exceptions = new LinkedHashSet<>();
 
-        return method == null ? Collections.emptySet() : exceptionNames(method);
+        declarations.forEach(declaration -> exceptions.addAll(exceptionNames(declaration.getValue())));
+        exceptions.removeIf(name -> !allowedByAll(loader, name, declarations));
+        return exceptions;
+    }
+
+    /** @return true if the exception is a sub type of one of the exceptions which each of the declarations throws */
+    private static boolean allowedByAll(Loader loader, String exception, List<Map.Entry<String, Method>> declarations) {
+        return declarations.stream().allMatch(declaration -> exceptionNames(declaration.getValue()).stream().anyMatch(allowed -> isSubtype(loader, exception, allowed)));
     }
 
     /**
      * @return the thrown types of the abstract method of a functional interface as its signature gives them, a type variable included ('^TE;'): 'Task&lt;E extends Exception&gt;'
-     * has 'TE;' where 'functionalMethodExceptions' gives its erased bound
+     * has 'TE;' where 'functionalMethodExceptions' gives its erased bound. Where several parents declare the method, only what all of them allow is thrown.
      */
     public static List<String> functionalMethodThrown(Loader loader, String internalName) {
-        Map.Entry<String, Method> owned = functionalMethodWithOwner(loader, internalName);
+        List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
         List<String> thrown = new ArrayList<>();
 
-        if (owned == null) {
-            return thrown;
+        for (Map.Entry<String, Method> declaration : declarations) {
+            for (String token : thrownBy(loader, internalName, declaration)) {
+                if (!thrown.contains(token) && (declarations.size() == 1 || allowedToken(loader, token, declarations, internalName))) {
+                    thrown.add(token);
+                }
+            }
         }
+        return thrown;
+    }
 
+    /** A class is allowed by the declarations which throw a super type of it; a type variable only by the ones which throw the same one */
+    private static boolean allowedToken(Loader loader, String token, List<Map.Entry<String, Method>> declarations, String internalName) {
+        if (token.startsWith("T")) {
+            return declarations.stream().allMatch(declaration -> thrownBy(loader, internalName, declaration).contains(token));
+        }
+        return allowedByAll(loader, token.substring(1, token.length() - 1), declarations);
+    }
+
+    private static List<String> thrownBy(Loader loader, String internalName, Map.Entry<String, Method> owned) {
+        List<String> thrown = new ArrayList<>();
         Method method = owned.getValue();
         String signature = genericSignature(method);
 
@@ -233,6 +261,30 @@ public final class ClassMetadata {
         return owned == null ? null : owned.getValue();
     }
 
+    /** @return the declarations of the abstract method which the interface inherits from its parents (the one it declares itself if it does); empty if there is none */
+    private static List<Map.Entry<String, Method>> functionalMethodDeclarations(Loader loader, String internalName) {
+        Map.Entry<String, Method> first = functionalMethodWithOwner(loader, internalName);
+        List<Map.Entry<String, Method>> declarations = new ArrayList<>();
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+
+        if (first == null || javaClass == null) {
+            return declarations;
+        }
+        declarations.add(first);
+        if (!first.getKey().equals(internalName)) {
+            for (String interfaceName : javaClass.getInterfaceNames()) {
+                for (Map.Entry<String, Method> other : functionalMethodDeclarations(loader, internalNameOf(interfaceName))) {
+                    boolean same = other.getValue().getName().equals(first.getValue().getName()) && other.getValue().getSignature().equals(first.getValue().getSignature());
+
+                    if (same && declarations.stream().noneMatch(known -> known.getKey().equals(other.getKey()))) {
+                        declarations.add(other);
+                    }
+                }
+            }
+        }
+        return declarations;
+    }
+
     /** @return the abstract method of the functional interface with the name of the interface which declares it; null if there is none */
     private static Map.Entry<String, Method> functionalMethodWithOwner(Loader loader, String internalName) {
         JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
@@ -245,29 +297,14 @@ public final class ClassMetadata {
                 return Map.entry(internalName, method);
             }
         }
-
-        Map.Entry<String, Method> narrowest = null;
-
         for (String interfaceName : javaClass.getInterfaceNames()) {
             Map.Entry<String, Method> inherited = functionalMethodWithOwner(loader, internalNameOf(interfaceName));
 
-            if (narrowest == null || inherited != null && throwsLess(loader, inherited.getValue(), narrowest.getValue())) {
-                narrowest = inherited;
+            if (inherited != null) {
+                return inherited;
             }
         }
-        return narrowest;
-    }
-
-    /** @return true if the method of the same signature which another parent declares throws more: a class which inherits both may throw only what both allow */
-    private static boolean throwsLess(Loader loader, Method method, Method other) {
-        if (!method.getName().equals(other.getName()) || !method.getSignature().equals(other.getSignature())) {
-            return false;
-        }
-
-        Set<String> exceptions = exceptionNames(method);
-        Set<String> others = exceptionNames(other);
-
-        return !others.equals(exceptions) && exceptions.stream().allMatch(name -> others.stream().anyMatch(broader -> isSubtype(loader, name, broader)));
+        return null;
     }
 
     /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */

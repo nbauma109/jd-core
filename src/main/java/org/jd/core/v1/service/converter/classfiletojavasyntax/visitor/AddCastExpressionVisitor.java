@@ -3126,9 +3126,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         boolean cast = true;
                         if (expressionType instanceof GenericType gt) {
                             BaseType boundType = typeBounds.get(gt.getName());
-                            // 'E extends IOException' is an 'Exception' without a cast: the cast to the erased parameter type would change what a generic call infers
+                            // 'E extends IOException' is an 'Exception' without a cast: the cast to the erased parameter type would change what a generic call infers,
+                            // unless the call is overloaded: the cast then selects the overload
                             if (boundType instanceof ObjectType boundObjectType && (boundObjectType.rawEquals(type)
-                                    || type instanceof ObjectType targetType && typeMaker.isRawTypeAssignable(targetType, boundObjectType))) {
+                                    || unique && type instanceof ObjectType targetType && typeMaker.isRawTypeAssignable(targetType, boundObjectType))) {
                                 cast = false;
                             }
                         }

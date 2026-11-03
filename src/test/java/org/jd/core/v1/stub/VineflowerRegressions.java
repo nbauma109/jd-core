@@ -1953,6 +1953,39 @@ public class VineflowerRegressions {
         };
     }
 
+    public String castInAForLoop(boolean run) {
+        String result = "";
+        boolean again = run;
+
+        for (var looped = new Object() { }; again; again = false) {
+            result = unchecked(looped).toString();
+        }
+        return result;
+    }
+
+    @SuppressWarnings("java:S1130")
+    public <E extends java.io.IOException> int thrownTypeVariable(E failure) {
+        try (var bounded = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            throw failure;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
+    public int alternateEntryIntoTheCast(Object first, Object second) {
+        if (first instanceof String || second instanceof String) {
+            String entered = (String) second;
+
+            return entered.length();
+        }
+        return 0;
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

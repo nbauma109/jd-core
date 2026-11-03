@@ -46,6 +46,13 @@ import static org.apache.bcel.Const.ASTORE_0;
 import static org.apache.bcel.Const.ASTORE_3;
 import static org.apache.bcel.Const.CHECKCAST;
 import static org.apache.bcel.Const.IFEQ;
+import static org.apache.bcel.Const.GOTO_W;
+import static org.apache.bcel.Const.IFNONNULL;
+import static org.apache.bcel.Const.IFNULL;
+import static org.apache.bcel.Const.JSR;
+import static org.apache.bcel.Const.JSR_W;
+import static org.apache.bcel.Const.LOOKUPSWITCH;
+import static org.apache.bcel.Const.TABLESWITCH;
 import static org.apache.bcel.Const.INSTANCEOF;
 
 /**
@@ -302,7 +309,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             if (starts[p] && (code[p] & 255) == INSTANCEOF && starts[p + 3] && (code[p + 3] & 255) == IFEQ) {
                 InstanceOfPatternBinding binding = match(code, starts, p);
 
-                if (binding != null && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))) {
+                if (binding != null && !hasAlternateEntry(code, starts, p + 3, binding.firstSkippedOffset()) && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))) {
                     bindings.put(p, binding);
                 }
             }
@@ -612,6 +619,53 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             return 3;
         }
         return opcode == ALOAD || opcode == ASTORE ? 2 : 1;
+    }
+
+    /**
+     * 'if (a instanceof String || b instanceof String) { String s = (String) b; ... }': the success of the first test jumps to the cast too, so the binding is no consequence
+     * of the second test. A binding is entered by its own test only: no other branch has the cast as target.
+     *
+     * @param testJump the offset of the branch of the test, which skips the binding
+     * @param target the offset of the first instruction of the cast
+     */
+    private static boolean hasAlternateEntry(byte[] code, boolean[] starts, int testJump, int target) {
+        for (int p = 0; p < code.length; p++) {
+            if (starts[p] && p != testJump && branchTargets(code, p).anyMatch(destination -> destination == target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return the offsets which the instruction at p may jump to: none for an instruction which does not branch */
+    private static java.util.stream.IntStream branchTargets(byte[] code, int p) {
+        int opcode = code[p] & 255;
+
+        if (opcode >= IFEQ && opcode <= JSR || opcode == IFNULL || opcode == IFNONNULL) {
+            return java.util.stream.IntStream.of(p + (short) ((code[p + 1] & 255) << 8 | code[p + 2] & 255));
+        }
+        if (opcode == GOTO_W || opcode == JSR_W) {
+            return java.util.stream.IntStream.of(p + readInt(code, p + 1));
+        }
+        if (opcode == TABLESWITCH) {
+            int operands = (p + 4) & ~3;
+            int count = readInt(code, operands + 8) - readInt(code, operands + 4) + 1;
+
+            return java.util.stream.IntStream.concat(java.util.stream.IntStream.of(p + readInt(code, operands)),
+                    java.util.stream.IntStream.range(0, count).map(i -> p + readInt(code, operands + 12 + 4 * i)));
+        }
+        if (opcode == LOOKUPSWITCH) {
+            int operands = (p + 4) & ~3;
+            int pairs = readInt(code, operands + 4);
+
+            return java.util.stream.IntStream.concat(java.util.stream.IntStream.of(p + readInt(code, operands)),
+                    java.util.stream.IntStream.range(0, pairs).map(i -> p + readInt(code, operands + 12 + 8 * i)));
+        }
+        return java.util.stream.IntStream.empty();
+    }
+
+    private static int readInt(byte[] code, int offset) {
+        return (code[offset] & 255) << 24 | (code[offset + 1] & 255) << 16 | (code[offset + 2] & 255) << 8 | code[offset + 3] & 255;
     }
 
     private static InstanceOfPatternBinding match(byte[] code, boolean[] starts, int instanceOfOffset) {

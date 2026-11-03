@@ -130,14 +130,42 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** The internal names of the exceptions which the method or the lambda being visited may throw; empty while none is visited */
     private Set<String> permittedExceptions = Set.of();
 
+    /** The bounds of the type variables of the method being visited: a thrown 'E extends IOException' is an 'IOException' */
+    private Map<String, BaseType> typeBounds = Map.of();
+
     @Override
     public void visit(MethodDeclaration declaration) {
+        Map<String, BaseType> saved = typeBounds;
+
+        typeBounds = boundsOf(declaration);
         inExecutable(namesOf(declaration.getExceptionTypes()), () -> super.visit(declaration));
+        typeBounds = saved;
     }
 
     @Override
     public void visit(ConstructorDeclaration declaration) {
+        Map<String, BaseType> saved = typeBounds;
+
+        typeBounds = boundsOf(declaration);
         inExecutable(namesOf(declaration.getExceptionTypes()), () -> super.visit(declaration));
+        typeBounds = saved;
+    }
+
+    private static Map<String, BaseType> boundsOf(Object declaration) {
+        return declaration instanceof ClassFileConstructorOrMethodDeclaration classFile && classFile.getTypeBounds() != null ? classFile.getTypeBounds() : Map.of();
+    }
+
+    /** @return the internal name of the type which a thrown expression has: its class, or the first bound of its type variable; null if unknown */
+    private String thrownTypeName(Expression expression) {
+        if (expression.getType() instanceof ObjectType type) {
+            return type.getInternalName();
+        }
+        if (expression.getType() instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
+            BaseType bound = typeBounds.get(generic.getName());
+
+            return bound.getFirst() instanceof ObjectType first ? first.getInternalName() : null;
+        }
+        return null;
     }
 
     /** The body of a lambda is run later: neither the handlers around it nor the throws clause of its method protect it, the one of its functional method does */
@@ -345,6 +373,25 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return found;
     }
 
+    /** 'for (var v = new Object() {}; ...; ...) { bad(v) }': the condition, the update and the body of the loop are searched like the statements which follow a declaration */
+    private boolean feedsAnAnonymousCastInTheLoop(LocalVariableDeclaration declaration, ForStatement loop) {
+        if (!(declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
+                || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
+                || !(initializer.getExpression() instanceof ClassFileNewExpression creation) || !(creation.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {
+            return false;
+        }
+
+        boolean found = castDependencyIn(Set.of(declarator.getName()), visitor -> {
+            Stream.of(loop.getCondition(), loop.getUpdate()).filter(Objects::nonNull).forEach(expression -> expression.accept(visitor));
+            Stream.of(loop.getStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(visitor));
+        }) != null;
+
+        if (found) {
+            anonymousVariables.put(declarator.getName(), addedMembers(body, creation.getObjectType().getInternalName()));
+        }
+        return found;
+    }
+
     /** The parameters of the method itself: the ones of the methods of its local classes hide the variable in those methods only */
     private static Set<String> parameterNames(BaseFormalParameter parameters) {
         Set<String> names = new HashSet<>();
@@ -371,10 +418,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return the name of the variable which gives its anonymous type to a cast-bearing call or which a cast-bearing assignment targets, null if none does */
     private String castDependency(Set<String> variables, BaseStatement statement) {
+        return castDependencyIn(variables, (AbstractJavaSyntaxVisitor visitor) -> statement.accept(visitor));
+    }
+
+    private String castDependencyIn(Set<String> variables, Consumer<AbstractJavaSyntaxVisitor> target) {
         Set<String> names = new HashSet<>(variables);
         String[] found = {null};
-
-        statement.accept(new AbstractJavaSyntaxVisitor() {
+        AbstractJavaSyntaxVisitor search = new AbstractJavaSyntaxVisitor() {
             @Override
             public void visit(LocalVariableDeclarator declarator) {
                 String used = declaratorDependency(declarator, names);
@@ -430,7 +480,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 visit.run();
                 names.addAll(removed);
             }
-        });
+        };
+
+        target.accept(search);
         return found[0];
     }
 
@@ -492,7 +544,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             Stream.of(statement.getStatements()).filter(Objects::nonNull).forEach(statements -> statements.accept(search));
         };
 
-        if (declaration != null && (needsVar(declaration.getLocalVariableDeclarators(), uses) || aliasNeedsVar(declaration.getLocalVariableDeclarators(), uses))) {
+        if (declaration != null && (needsVar(declaration.getLocalVariableDeclarators(), uses) || aliasNeedsVar(declaration.getLocalVariableDeclarators(), uses)
+                || feedsAnAnonymousCastInTheLoop(declaration, statement))) {
             LocalVariableDeclaration varDeclaration = new LocalVariableDeclaration(VAR, declaration.getLocalVariableDeclarators());
 
             varDeclaration.setFinal(declaration.isFinal());
@@ -850,7 +903,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         @Override
         public void visit(ThrowStatement throwStatement) {
-            thrown |= throwStatement.getExpression().getType() instanceof ObjectType type && reaches(type.getInternalName());
+            String type = thrownTypeName(throwStatement.getExpression());
+
+            thrown |= type != null && reaches(type);
             super.visit(throwStatement);
         }
 
@@ -877,12 +932,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return creation.getObjectType() == null ? null : creation.getObjectType().getInternalName();
         }
 
-        /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
         /** @return true if the handler catches what is thrown: the same exception, a sub type (caught by it) or a super type (the handler is narrower) */
         private boolean reaches(String exception) {
             return ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception);
         }
 
+        /** @return true if the method declares an exception which the handler catches: the same, a sub type (caught by it) or a super type (the handler is narrower) */
         private boolean declares(String owner, String name, String descriptor, String handled) {
             Set<String> exceptions = ClassMetadata.declaredExceptions(loader, owner, name, descriptor);
 

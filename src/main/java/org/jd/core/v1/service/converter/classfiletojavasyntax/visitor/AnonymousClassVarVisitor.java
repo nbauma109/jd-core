@@ -1170,8 +1170,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         private void addType(List<String> constraints, Expression expression) {
-            if (expression.getType() instanceof ObjectType type) {
-                constraints.add(type.getInternalName());
+            String type = thrownTypeName(expression);
+
+            if (type != null) {
+                constraints.add(type);
             }
         }
 

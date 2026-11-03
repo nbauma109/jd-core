@@ -2084,6 +2084,20 @@ public class VineflowerRegressions {
         }
     }
 
+    public <E extends java.io.IOException> int typeVariablePassedToAGenericCall(E failure) {
+        try (var passed = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raise(failure);
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int anonymousVariableCapturedByALocalClass() {
         var captured = new Object() {
             public int added() {

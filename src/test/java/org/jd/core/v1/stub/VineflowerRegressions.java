@@ -2078,6 +2078,22 @@ public class VineflowerRegressions {
         };
     }
 
+    public <X extends java.io.IOException, E extends X> int throwOfAChainedVariable(E failure) {
+        try (var chained = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            if (failure != null) {
+                throw failure;
+            }
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     interface IoClosing extends AutoCloseable {
         @Override
         void close() throws java.io.IOException;

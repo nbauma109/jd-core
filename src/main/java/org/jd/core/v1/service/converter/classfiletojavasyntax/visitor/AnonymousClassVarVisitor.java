@@ -301,9 +301,31 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return exception;
         }
 
-        BaseType bound = typeBounds.get(exception.substring(1, exception.length() - 1));
+        String name = classBoundOf(exception.substring(1, exception.length() - 1));
 
-        return bound != null && bound.getFirst() instanceof ObjectType first ? first.getInternalName() : "java/lang/Exception";
+        return name != null ? name : "java/lang/Exception";
+    }
+
+    /** @return the internal name of the class which bounds the type variable, found through the chain of variables which bound each other ('E extends X', 'X extends IOException'); null if unknown */
+    private String classBoundOf(String variable) {
+        Set<String> visited = new HashSet<>();
+        String current = variable;
+
+        while (visited.add(current)) {
+            BaseType bound = typeBounds.get(current);
+
+            if (bound == null) {
+                return null;
+            }
+            if (bound.getFirst() instanceof ObjectType first) {
+                return first.getInternalName();
+            }
+            if (!(bound.getFirst() instanceof GenericType generic)) {
+                return null;
+            }
+            current = generic.getName();
+        }
+        return null;
     }
 
     /** @return what the closes which an interface inherits all allow, with the type arguments of the declared type substituted ('C extends A, B'); empty if it inherits one at most */
@@ -1103,9 +1125,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 return type.getInternalName();
             }
             if (expression.getType() instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
-                BaseType bound = typeBounds.get(generic.getName());
-
-                return bound.getFirst() instanceof ObjectType first ? first.getInternalName() : null;
+                return classBoundOf(generic.getName());
             }
             return null;
         }

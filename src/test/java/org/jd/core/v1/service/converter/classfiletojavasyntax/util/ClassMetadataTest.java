@@ -109,7 +109,7 @@ public class ClassMetadataTest {
         assertEquals(List.of("Ljava/lang/Exception;"), ClassMetadata.functionalMethodThrown(LOADER, "java/util/concurrent/Callable"));
         assertEquals(List.of("TE;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "Task"));
         assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "InputTask"));
-        assertEquals(java.util.Set.of("java/lang/Exception"), ClassMetadata.functionalMethodExceptions(LOADER, PREFIX + "InputTask"));
+        assertEquals(java.util.Set.of("java/io/IOException"), ClassMetadata.functionalMethodExceptions(LOADER, PREFIX + "InputTask"));
         assertTrue(ClassMetadata.functionalMethodThrown(LOADER, "java/lang/String").isEmpty());
         assertTrue(ClassMetadata.functionalMethodExceptions(LOADER, null).isEmpty());
     }

@@ -197,14 +197,28 @@ public final class ClassMetadata {
         List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
         Set<String> exceptions = new LinkedHashSet<>();
 
-        declarations.forEach(declaration -> exceptions.addAll(exceptionNames(declaration.getValue())));
-        exceptions.removeIf(name -> !allowedByAll(loader, name, declarations));
+        declarations.forEach(declaration -> exceptions.addAll(substitutedExceptions(loader, internalName, declaration)));
+        exceptions.removeIf(name -> !allowedByAll(loader, internalName, name, declarations));
         return exceptions;
     }
 
+    /** @return the names of the exceptions which the declaration throws for this interface: 'Both extends A&lt;SQLException&gt;' gives 'SQLException' for 'A.run() throws E', its erased bound if unknown */
+    private static Set<String> substitutedExceptions(Loader loader, String internalName, Map.Entry<String, Method> declaration) {
+        Set<String> names = new LinkedHashSet<>();
+
+        for (String token : thrownBy(loader, internalName, declaration)) {
+            if (token.startsWith("L")) {
+                names.add(token.substring(1, token.length() - 1));
+            } else {
+                names.addAll(exceptionNames(declaration.getValue()));
+            }
+        }
+        return names;
+    }
+
     /** @return true if the exception is a sub type of one of the exceptions which each of the declarations throws */
-    private static boolean allowedByAll(Loader loader, String exception, List<Map.Entry<String, Method>> declarations) {
-        return declarations.stream().allMatch(declaration -> exceptionNames(declaration.getValue()).stream().anyMatch(allowed -> isSubtype(loader, exception, allowed)));
+    private static boolean allowedByAll(Loader loader, String internalName, String exception, List<Map.Entry<String, Method>> declarations) {
+        return declarations.stream().allMatch(declaration -> substitutedExceptions(loader, internalName, declaration).stream().anyMatch(allowed -> isSubtype(loader, exception, allowed)));
     }
 
     /**
@@ -230,7 +244,7 @@ public final class ClassMetadata {
         if (token.startsWith("T")) {
             return declarations.stream().allMatch(declaration -> thrownBy(loader, internalName, declaration).contains(token));
         }
-        return allowedByAll(loader, token.substring(1, token.length() - 1), declarations);
+        return allowedByAll(loader, internalName, token.substring(1, token.length() - 1), declarations);
     }
 
     private static List<String> thrownBy(Loader loader, String internalName, Map.Entry<String, Method> owned) {

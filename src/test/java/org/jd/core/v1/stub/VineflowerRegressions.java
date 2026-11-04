@@ -2082,6 +2082,37 @@ public class VineflowerRegressions {
     interface OverlappingRunner extends FirstRunner, SecondRunner {
     }
 
+    interface GenericRunner<E extends Exception> {
+        void run() throws E;
+    }
+
+    interface InputRunner {
+        void run() throws java.io.IOException;
+    }
+
+    interface UnrelatedRunner extends GenericRunner<java.sql.SQLException>, InputRunner {
+    }
+
+    static class InputCloser implements AutoCloseable {
+        @Override
+        public void close() throws java.io.IOException {
+            // closes nothing
+        }
+    }
+
+    public UnrelatedRunner lambdaWithUnrelatedInheritedThrows() {
+        return () -> {
+            try (var unrelated = new InputCloser() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                unrelated.toString();
+            }
+        };
+    }
+
     public OverlappingRunner lambdaWithOverlappingInheritedThrows() {
         return () -> {
             try (var overlapped = new SqlCloser() {

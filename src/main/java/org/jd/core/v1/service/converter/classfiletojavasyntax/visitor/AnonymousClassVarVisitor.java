@@ -306,29 +306,40 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return bound != null && bound.getFirst() instanceof ObjectType first ? first.getInternalName() : "java/lang/Exception";
     }
 
-    /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */
-    private Set<String> closeExceptions(ObjectType declared) {
+    /** @return what the closes which an interface inherits all allow, with the type arguments of the declared type substituted ('C extends A, B'); empty if it inherits one at most */
+    private Optional<Set<String>> inheritedCloseExceptions(ObjectType declared) {
         String owner = declared.getInternalName();
         Map<String, String> variableBounds = new HashMap<>();
         List<TypeArgument> arguments = declared.getTypeArguments() == null ? List.of() : typeArgumentList(declared.getTypeArguments());
         Optional<List<String>> inherited = ClassMetadata.inheritedCloseThrown(loader, owner,
                 targetTokens(ClassMetadata.typeParameterNames(loader, owner), arguments, variableBounds), variableBounds);
 
-        if (inherited.isPresent()) {
-            // 'C extends A, B': the close of C throws what the closes of A and B both allow
-            Set<String> allowed = new HashSet<>();
+        if (inherited.isEmpty()) {
+            return Optional.empty();
+        }
 
-            for (String token : inherited.get()) {
-                if (token.startsWith("L")) {
-                    allowed.add(token.substring(1, token.length() - 1));
-                } else if (variableBounds.containsKey(token.substring(1, token.length() - 1))) {
-                    allowed.add(token);
-                } else {
-                    // The type argument is unknown: the erased bound is what it throws at most
-                    allowed.addAll(ClassMetadata.declaredExceptions(loader, owner, CLOSE, "()V"));
-                }
+        Set<String> allowed = new HashSet<>();
+
+        for (String token : inherited.get()) {
+            if (token.startsWith("L")) {
+                allowed.add(token.substring(1, token.length() - 1));
+            } else if (variableBounds.containsKey(token.substring(1, token.length() - 1))) {
+                allowed.add(token);
+            } else {
+                // The type argument is unknown: the erased bound is what it throws at most
+                allowed.addAll(ClassMetadata.declaredExceptions(loader, owner, CLOSE, "()V"));
             }
-            return allowed;
+        }
+        return Optional.of(allowed);
+    }
+
+    /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */
+    private Set<String> closeExceptions(ObjectType declared) {
+        String owner = declared.getInternalName();
+        Optional<Set<String>> intersected = inheritedCloseExceptions(declared);
+
+        if (intersected.isPresent()) {
+            return intersected.get();
         }
 
         String signature = ClassMetadata.declaredGenericSignature(loader, owner, CLOSE, "()V");

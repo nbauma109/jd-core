@@ -300,13 +300,6 @@ public final class ClassMetadata {
         return descriptor.substring(0, descriptor.indexOf(')') + 1);
     }
 
-    /** @return the abstract method of the functional interface with the name of the interface which declares it; null if there is none */
-    private static Map.Entry<String, Method> functionalMethodWithOwner(Loader loader, String internalName) {
-        List<Map.Entry<String, Method>> abstractMethods = abstractDeclarations(loader, internalName, new HashSet<>());
-
-        return abstractMethods.isEmpty() ? null : abstractMethods.get(0);
-    }
-
     /** @return the abstract methods of the interface with the name of the interface which declares each: its own, then the inherited ones which no default method of it implements */
     private static List<Map.Entry<String, Method>> abstractDeclarations(Loader loader, String internalName, Set<String> visited) {
         JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);

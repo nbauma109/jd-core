@@ -173,19 +173,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> typeArguments = functional.getTypeArguments() == null ? List.of() : typeArgumentList(functional.getTypeArguments());
         Set<String> thrown = new HashSet<>();
 
-        List<String> targetTokens = new ArrayList<>();
         Map<String, String> variableBounds = new HashMap<>();
+        List<String> targetTokens = targetTokens(typeParameters, typeArguments, variableBounds);
 
-        for (int i = 0; i < typeParameters.size(); i++) {
-            String argument = i < typeArguments.size() ? nameOf(typeArguments.get(i)) : null;
-
-            if (argument != null && isVariable(argument)) {
-                variableBounds.put(argument.substring(1, argument.length() - 1), boundOf(argument));
-                targetTokens.add(argument);
-            } else {
-                targetTokens.add(argument != null ? "L" + argument + ";" : "T" + typeParameters.get(i) + ";");
-            }
-        }
         for (String token : ClassMetadata.functionalMethodThrown(loader, name, targetTokens, variableBounds)) {
             if (!token.startsWith("T")) {
                 thrown.add(token.substring(1, token.length() - 1));
@@ -198,6 +188,28 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         return thrown;
+    }
+
+    /**
+     * @return the signature tokens of the type arguments of a target for the type parameters of its interface: a class, the variable of the enclosing declaration which is a type
+     * argument (with its bound added to the map), or the type parameter itself if the argument is unknown
+     */
+    private List<String> targetTokens(List<String> typeParameters, List<TypeArgument> typeArguments, Map<String, String> variableBounds) {
+        List<String> tokens = new ArrayList<>();
+
+        for (int i = 0; i < typeParameters.size(); i++) {
+            String argument = i < typeArguments.size() ? nameOf(typeArguments.get(i)) : null;
+
+            if (argument == null) {
+                tokens.add("T" + typeParameters.get(i) + ";");
+            } else if (isVariable(argument)) {
+                variableBounds.put(argument.substring(1, argument.length() - 1), boundOf(argument));
+                tokens.add(argument);
+            } else {
+                tokens.add("L" + argument + ";");
+            }
+        }
+        return tokens;
     }
 
     private static List<TypeArgument> typeArgumentList(BaseTypeArgument typeArguments) {

@@ -271,22 +271,22 @@ public final class ClassMetadata {
 
     /** @return the declarations of the abstract method which the interface inherits from its parents (the one it declares itself if it does); empty if there is none */
     private static List<Map.Entry<String, Method>> functionalMethodDeclarations(Loader loader, String internalName) {
-        Map.Entry<String, Method> first = functionalMethodWithOwner(loader, internalName);
+        List<Map.Entry<String, Method>> abstractMethods = abstractDeclarations(loader, internalName, new HashSet<>());
         List<Map.Entry<String, Method>> declarations = new ArrayList<>();
-        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
 
-        if (first == null || javaClass == null) {
+        if (abstractMethods.isEmpty()) {
             return declarations;
         }
+
+        Map.Entry<String, Method> first = abstractMethods.get(0);
+
         declarations.add(first);
         if (!first.getKey().equals(internalName)) {
-            for (String interfaceName : javaClass.getInterfaceNames()) {
-                for (Map.Entry<String, Method> other : functionalMethodDeclarations(loader, internalNameOf(interfaceName))) {
-                    boolean same = other.getValue().getName().equals(first.getValue().getName()) && parameters(other.getValue()).equals(parameters(first.getValue()));
+            for (Map.Entry<String, Method> other : abstractMethods) {
+                boolean same = other.getValue().getName().equals(first.getValue().getName()) && parameters(other.getValue()).equals(parameters(first.getValue()));
 
-                    if (same && declarations.stream().noneMatch(known -> known.getKey().equals(other.getKey()))) {
-                        declarations.add(other);
-                    }
+                if (same && declarations.stream().noneMatch(known -> known.getKey().equals(other.getKey()))) {
+                    declarations.add(other);
                 }
             }
         }
@@ -302,24 +302,34 @@ public final class ClassMetadata {
 
     /** @return the abstract method of the functional interface with the name of the interface which declares it; null if there is none */
     private static Map.Entry<String, Method> functionalMethodWithOwner(Loader loader, String internalName) {
-        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+        List<Map.Entry<String, Method>> abstractMethods = abstractDeclarations(loader, internalName, new HashSet<>());
+
+        return abstractMethods.isEmpty() ? null : abstractMethods.get(0);
+    }
+
+    /** @return the abstract methods of the interface with the name of the interface which declares each: its own, then the inherited ones which no default method of it implements */
+    private static List<Map.Entry<String, Method>> abstractDeclarations(Loader loader, String internalName, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+        List<Map.Entry<String, Method>> methods = new ArrayList<>();
 
         if (javaClass == null || !javaClass.isInterface()) {
-            return null;
+            return methods;
         }
         for (Method method : javaClass.getMethods()) {
             if (method.isAbstract() && !method.isStatic() && !OBJECT_METHODS.contains(method.getName() + method.getSignature())) {
-                return Map.entry(internalName, method);
+                methods.add(Map.entry(internalName, method));
             }
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {
-            Map.Entry<String, Method> inherited = functionalMethodWithOwner(loader, internalNameOf(interfaceName));
-
-            if (inherited != null) {
-                return inherited;
+            methods.addAll(abstractDeclarations(loader, internalNameOf(interfaceName), visited));
+        }
+        for (Method method : javaClass.getMethods()) {
+            if (!method.isAbstract() && !method.isStatic() && !method.isPrivate()) {
+                methods.removeIf(declared -> !declared.getKey().equals(internalName) && declared.getValue().getName().equals(method.getName())
+                        && parameters(declared.getValue()).equals(parameters(method)));
             }
         }
-        return null;
+        return methods;
     }
 
     /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */

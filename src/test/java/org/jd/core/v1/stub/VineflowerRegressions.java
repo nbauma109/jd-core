@@ -2162,6 +2162,37 @@ public class VineflowerRegressions {
         };
     }
 
+    interface BroadAction {
+        void run() throws Exception;
+    }
+
+    interface DefaultedAction extends BroadAction {
+        @Override
+        default void run() {
+            // does nothing
+        }
+    }
+
+    interface ActualAction {
+        void act() throws java.io.IOException;
+    }
+
+    interface DefaultingAction extends DefaultedAction, ActualAction {
+    }
+
+    public DefaultingAction lambdaWithADefaultedInheritedMethod() {
+        return () -> {
+            try (var defaulted = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                defaulted.toString();
+            }
+        };
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

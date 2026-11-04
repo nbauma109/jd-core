@@ -2337,6 +2337,17 @@ public class VineflowerRegressions {
         }
     }
 
+    public <E extends java.io.IOException> String boundNotPermittedByItsVariable() throws E {
+        try (var bound = new Closer<java.io.IOException>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return bound.toString();
+        }
+    }
+
     public <E extends java.io.IOException> int typeVariablePassedToAGenericCall(E failure) {
         try (var passed = new AutoCloseable() {
             @Override

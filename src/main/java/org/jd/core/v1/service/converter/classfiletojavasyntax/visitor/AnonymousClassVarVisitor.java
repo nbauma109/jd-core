@@ -260,12 +260,30 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return position < receiverArguments.size() ? nameOf(receiverArguments.get(position)) : null;
     }
 
-    /** @return the internal name of a type argument, or of the first bound of its type variable ('Closer&lt;E&gt;' with 'E extends IOException'); null if unknown */
+    /**
+     * @return the internal name of a type argument; for a type variable which has a bound ('Closer&lt;E&gt;' with 'E extends IOException') the token 'TE;', which stands for the
+     * variable and not for its bound: 'throws E' does not permit every 'IOException'. Null if unknown.
+     */
     private String nameOf(TypeArgument argument) {
         if (argument instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
-            return typeBounds.get(generic.getName()).getFirst() instanceof ObjectType first ? first.getInternalName() : null;
+            return "T" + generic.getName() + ";";
         }
         return argument instanceof ObjectType type ? type.getInternalName() : null;
+    }
+
+    private static boolean isVariable(String exception) {
+        return exception.startsWith("T") && exception.endsWith(";");
+    }
+
+    /** @return the internal name of the first bound of the type variable which the token stands for, the name itself for a class */
+    private String boundOf(String exception) {
+        if (!isVariable(exception)) {
+            return exception;
+        }
+
+        BaseType bound = typeBounds.get(exception.substring(1, exception.length() - 1));
+
+        return bound != null && bound.getFirst() instanceof ObjectType first ? first.getInternalName() : "java/lang/Exception";
     }
 
     /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */
@@ -308,8 +326,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** @param nested the 'try' statements between the code being visited and the statement, which the visit has not pushed: a search which looks ahead meets them first */
     private boolean closeIsPermitted(TryStatement statement, ObjectType declaredType, Collection<TryStatement> nested) {
         for (String exception : closeExceptions(declaredType)) {
-            if (!isUnchecked(exception) && !declaredByTheMethod(exception) && !caughtAround(exception) && !caughtBy(statement, exception)
-                    && nested.stream().noneMatch(around -> caughtBy(around, exception))) {
+            String bound = boundOf(exception);
+
+            if (!isUnchecked(bound) && !declaredByTheMethod(exception) && !caughtAround(bound) && !caughtBy(statement, bound)
+                    && nested.stream().noneMatch(around -> caughtBy(around, bound))) {
                 return false;
             }
         }
@@ -330,7 +350,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean declaredByTheMethod(String exception) {
-        return permittedExceptions.stream().anyMatch(permitted -> ClassMetadata.isSubtype(loader, exception, permitted));
+        // A type variable is permitted by itself, or by a class which its bound is a sub type of; a class is not permitted by a type variable
+        String bound = boundOf(exception);
+
+        return permittedExceptions.stream().anyMatch(permitted -> isVariable(permitted) ? permitted.equals(exception) : ClassMetadata.isSubtype(loader, bound, permitted));
     }
 
     @Override
@@ -1218,7 +1241,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         private String fromTheReceiver(String typeVariable, MethodInvocationExpression call) {
-            return typeVariableOf(typeVariable, call.getInternalTypeName(), call.getName(), call.getDescriptor(), call.getExpression() == null ? null : call.getExpression().getType());
+            String name = typeVariableOf(typeVariable, call.getInternalTypeName(), call.getName(), call.getDescriptor(), call.getExpression() == null ? null : call.getExpression().getType());
+
+            return name == null ? null : boundOf(name);
         }
 
         private void searchNested(TryStatement nested) {

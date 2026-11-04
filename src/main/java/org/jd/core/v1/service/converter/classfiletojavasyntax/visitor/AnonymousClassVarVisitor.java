@@ -50,6 +50,7 @@ import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
+import org.jd.core.v1.model.javasyntax.type.TypeArguments;
 import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
@@ -1294,18 +1295,39 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             List<TypeArgument> actual = new ArrayList<>();
 
             for (String token : tokens) {
-                int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
-
-                if (token.startsWith("L")) {
-                    int generic = token.indexOf('<');
-                    String name = token.substring(1, generic < 0 ? token.length() - 1 : generic);
-
-                    actual.add(new ObjectType(name, name.replace('/', '.'), name.substring(name.lastIndexOf('/') + 1)));
-                } else {
-                    actual.add(position >= 0 && position < own.size() ? own.get(position) : null);
-                }
+                actual.add(typeOfToken(token, own, typeParameters));
             }
             return actual;
+        }
+
+        /** @return the type which a signature token of an ancestor stands for, its nested type arguments included; null where it is unknown (a variable the type gives no argument for) */
+        private TypeArgument typeOfToken(String token, List<TypeArgument> own, List<String> typeParameters) {
+            if (token.startsWith("T")) {
+                int position = typeParameters.indexOf(token.substring(1, token.length() - 1));
+
+                return position >= 0 && position < own.size() ? own.get(position) : null;
+            }
+            if (!token.startsWith("L")) {
+                return null;
+            }
+
+            int generic = token.indexOf('<');
+            String name = token.substring(1, generic < 0 ? token.length() - 1 : generic);
+            List<TypeArgument> nested = new ArrayList<>();
+
+            for (String argument : typeArguments(token)) {
+                TypeArgument resolved = typeOfToken(argument, own, typeParameters);
+
+                if (resolved == null) {
+                    nested.clear();
+                    break;
+                }
+                nested.add(resolved);
+            }
+
+            BaseTypeArgument arguments = nested.isEmpty() ? null : new TypeArguments(nested);
+
+            return new ObjectType(name, name.replace('/', '.'), name.substring(name.lastIndexOf('/') + 1), arguments);
         }
 
         private void addType(List<String> constraints, Expression expression) {

@@ -2094,6 +2094,28 @@ public class VineflowerRegressions {
         }
     }
 
+    static class NestedFailures extends java.util.ArrayList<java.util.List<java.io.IOException>> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <E extends Exception> void raiseFromListOfLists(java.util.List<java.util.List<E>> failures) throws E {
+        // throws one of them
+    }
+
+    public int genericThrowsOfAnInheritedNestedContainer(NestedFailures failures) {
+        try (var inheritedNested = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseFromListOfLists(failures);
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     interface IoClosing extends AutoCloseable {
         @Override
         void close() throws java.io.IOException;

@@ -3062,7 +3062,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!isJavaLangObject(type) && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
+                        } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType)
+                                && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
                                 || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType)
                                 || isWildcardWhereConcreteExpected(objectType, expressionObjectType))) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
@@ -3162,6 +3163,37 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return expression;
+    }
+
+    /**
+     * @return true if the class, which has no type arguments of its own, inherits the target type with arguments which the variables of the invoked method can stand for:
+     * 'NestedFailures extends ArrayList&lt;List&lt;IOException&gt;&gt;' is a 'List&lt;List&lt;E&gt;&gt;' for the 'E' of 'raise(List&lt;List&lt;E&gt;&gt;)'; no cast is needed
+     */
+    private boolean inheritsWithBindableArguments(ObjectType target, ObjectType expression) {
+        if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
+            return false;
+        }
+
+        List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), expression, new HashSet<String>());
+        List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+
+        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i)));
+    }
+
+    /** @return true if the type argument which a class inherits is the expected one, where a type variable of the invoked method (declared by no scope around the call) stands for anything */
+    private boolean isBindableTo(TypeArgument expected, TypeArgument seen) {
+        if (expected instanceof GenericType variable && variable.getDimension() == 0) {
+            return innermostScopeDeclaring(variable.getName()) == null;
+        }
+        if (expected instanceof ObjectType expectedType && seen instanceof ObjectType seenType && expectedType.getInternalName().equals(seenType.getInternalName())
+                && expectedType.getDimension() == seenType.getDimension()) {
+            List<TypeArgument> expectedArguments = toTypeArgumentList(expectedType.getTypeArguments());
+            List<TypeArgument> seenArguments = toTypeArgumentList(seenType.getTypeArguments());
+
+            return expectedArguments.size() == seenArguments.size()
+                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i)));
+        }
+        return expected.equals(seen);
     }
 
     /** @return true if one of the type variables of the type is declared by a method (class type variables are shared with the inner classes) */

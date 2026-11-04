@@ -2116,6 +2116,21 @@ public class VineflowerRegressions {
         }
     }
 
+    public <X extends java.io.IOException, E extends X> String resourceWhoseVariableIsBoundedByAPermittedOne() throws X {
+        try (Closer<E> boundedVariable = new Closer<E>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return passThrough(boundedVariable).toString();
+        }
+    }
+
+    static <T> T passThrough(T value) {
+        return value;
+    }
+
     interface IoClosing extends AutoCloseable {
         @Override
         void close() throws java.io.IOException;

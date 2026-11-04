@@ -425,11 +425,31 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return statement.getCatchClauses() != null && statement.getCatchClauses().stream().anyMatch(clause -> catches(clause, exception));
     }
 
+    /** @return true if the exception is the permitted type variable, or a type variable bounded by it through the chain of variables ('E extends X' is permitted by 'throws X') */
+    private boolean isBoundedBy(String exception, String permitted) {
+        Set<String> visited = new HashSet<>();
+        String current = exception;
+
+        while (isVariable(current) && visited.add(current)) {
+            if (current.equals(permitted)) {
+                return true;
+            }
+
+            BaseType bound = typeBounds.get(current.substring(1, current.length() - 1));
+
+            if (bound == null || !(bound.getFirst() instanceof GenericType next)) {
+                return false;
+            }
+            current = "T" + next.getName() + ";";
+        }
+        return false;
+    }
+
     private boolean declaredByTheMethod(String exception) {
         // A type variable is permitted by itself, or by a class which its bound is a sub type of; a class is not permitted by a type variable
         String bound = boundOf(exception);
 
-        return permittedExceptions.stream().anyMatch(permitted -> isVariable(permitted) ? permitted.equals(exception) : ClassMetadata.isSubtype(loader, bound, permitted));
+        return permittedExceptions.stream().anyMatch(permitted -> isVariable(permitted) ? isBoundedBy(exception, permitted) : ClassMetadata.isSubtype(loader, bound, permitted));
     }
 
     @Override

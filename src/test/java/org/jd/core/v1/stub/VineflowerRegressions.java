@@ -2224,7 +2224,7 @@ public class VineflowerRegressions {
 
     public SubstitutedRunner lambdaWithSubstitutedInheritedParameters() {
         return value -> {
-            try (var substituted = new AutoCloseable() {
+            try (var substituted = new SqlCloser() {
                 @Override
                 public void close() {
                     // closes nothing

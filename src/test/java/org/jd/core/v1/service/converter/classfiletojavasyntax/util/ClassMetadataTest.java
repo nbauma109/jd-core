@@ -67,6 +67,17 @@ public class ClassMetadataTest {
         void run() throws E;
     }
 
+    interface GenericParameterRunner<T> {
+        void run(T value) throws Exception;
+    }
+
+    interface StringRunner {
+        void run(String value) throws java.io.IOException;
+    }
+
+    interface SubstitutedRunner extends GenericParameterRunner<String>, StringRunner {
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 
@@ -101,6 +112,12 @@ public class ClassMetadataTest {
         assertEquals("java/lang/String", ClassMetadata.commonSuperclass(LOADER, "java/lang/String", "java/lang/String"));
         assertEquals("java/io/IOException", ClassMetadata.commonSuperclass(LOADER, "java/io/IOException", "java/io/EOFException"));
         assertEquals(null, ClassMetadata.commonSuperclass(LOADER, "no/such/Class", "java/io/EOFException"));
+    }
+
+    @Test
+    public void testInheritedFunctionalMethodsWhichParameterTypesAreSubstitutedAreIntersected() {
+        assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "SubstitutedRunner"));
+        assertEquals(java.util.Set.of("java/io/IOException"), ClassMetadata.functionalMethodExceptions(LOADER, PREFIX + "SubstitutedRunner"));
     }
 
     @Test

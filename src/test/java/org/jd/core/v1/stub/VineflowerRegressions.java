@@ -2138,6 +2138,30 @@ public class VineflowerRegressions {
         return pick((Exception) failure);
     }
 
+    interface BroadSupplier {
+        Object get() throws Exception;
+    }
+
+    interface NarrowSupplier {
+        String get() throws java.io.IOException;
+    }
+
+    interface CovariantSupplier extends BroadSupplier, NarrowSupplier {
+    }
+
+    public CovariantSupplier lambdaWithCovariantInheritedThrows() {
+        return () -> {
+            try (var covariant = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                return "ok";
+            }
+        };
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

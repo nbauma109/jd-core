@@ -282,7 +282,7 @@ public final class ClassMetadata {
         if (!first.getKey().equals(internalName)) {
             for (String interfaceName : javaClass.getInterfaceNames()) {
                 for (Map.Entry<String, Method> other : functionalMethodDeclarations(loader, internalNameOf(interfaceName))) {
-                    boolean same = other.getValue().getName().equals(first.getValue().getName()) && other.getValue().getSignature().equals(first.getValue().getSignature());
+                    boolean same = other.getValue().getName().equals(first.getValue().getName()) && parameters(other.getValue()).equals(parameters(first.getValue()));
 
                     if (same && declarations.stream().noneMatch(known -> known.getKey().equals(other.getKey()))) {
                         declarations.add(other);
@@ -291,6 +291,13 @@ public final class ClassMetadata {
             }
         }
         return declarations;
+    }
+
+    /** @return the parameters of the descriptor: the methods which differ by their covariant return types override each other */
+    private static String parameters(Method method) {
+        String descriptor = method.getSignature();
+
+        return descriptor.substring(0, descriptor.indexOf(')') + 1);
     }
 
     /** @return the abstract method of the functional interface with the name of the interface which declares it; null if there is none */

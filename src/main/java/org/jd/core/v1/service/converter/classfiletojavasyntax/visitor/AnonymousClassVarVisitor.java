@@ -174,18 +174,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         Set<String> thrown = new HashSet<>();
 
         List<String> targetTokens = new ArrayList<>();
+        Map<String, String> variableBounds = new HashMap<>();
 
         for (int i = 0; i < typeParameters.size(); i++) {
-            targetTokens.add(i < typeArguments.size() && typeArguments.get(i) instanceof ObjectType argument ? "L" + argument.getInternalName() + ";" : "T" + typeParameters.get(i) + ";");
-        }
-        for (String token : ClassMetadata.functionalMethodThrown(loader, name, targetTokens)) {
-            int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
+            String argument = i < typeArguments.size() ? nameOf(typeArguments.get(i)) : null;
 
+            if (argument != null && isVariable(argument)) {
+                variableBounds.put(argument.substring(1, argument.length() - 1), boundOf(argument));
+                targetTokens.add(argument);
+            } else {
+                targetTokens.add(argument != null ? "L" + argument + ";" : "T" + typeParameters.get(i) + ";");
+            }
+        }
+        for (String token : ClassMetadata.functionalMethodThrown(loader, name, targetTokens, variableBounds)) {
             if (!token.startsWith("T")) {
                 thrown.add(token.substring(1, token.length() - 1));
-            } else if (position >= 0 && position < typeArguments.size() && nameOf(typeArguments.get(position)) != null) {
+            } else if (variableBounds.containsKey(token.substring(1, token.length() - 1))) {
                 // 'Task<E>' with 'E extends IOException' permits 'E' itself, not every 'IOException'
-                thrown.add(nameOf(typeArguments.get(position)));
+                thrown.add(token);
             } else {
                 // The type argument is unknown: the erased bound of the variable is what the method may throw at most
                 thrown.addAll(ClassMetadata.functionalMethodExceptions(loader, name));

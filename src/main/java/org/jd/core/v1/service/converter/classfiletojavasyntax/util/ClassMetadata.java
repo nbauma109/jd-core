@@ -197,18 +197,24 @@ public final class ClassMetadata {
         List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
         Set<String> exceptions = new LinkedHashSet<>();
 
-        declarations.forEach(declaration -> exceptions.addAll(substitutedExceptions(loader, internalName, declaration, List.of())));
-        exceptions.removeIf(name -> !allowedByAll(loader, internalName, name, declarations, List.of()));
+        declarations.forEach(declaration -> exceptions.addAll(substitutedExceptions(loader, internalName, declaration, List.of(), Map.of())));
+        exceptions.removeIf(name -> !allowedByAll(loader, internalName, name, declarations, List.of(), Map.of()));
         return exceptions;
     }
 
-    /** @return the names of the exceptions which the declaration throws for this interface: 'Both extends A&lt;SQLException&gt;' gives 'SQLException' for 'A.run() throws E', its erased bound if unknown */
-    private static Set<String> substitutedExceptions(Loader loader, String internalName, Map.Entry<String, Method> declaration, List<String> targetArguments) {
+    /**
+     * @return the names of the exceptions which the declaration throws for this interface: 'Both extends A&lt;SQLException&gt;' gives 'SQLException' for 'A.run() throws E', its
+     * erased bound if unknown; a type variable of the target which has a bound is kept as its token 'TE;'
+     */
+    private static Set<String> substitutedExceptions(Loader loader, String internalName, Map.Entry<String, Method> declaration, List<String> targetArguments,
+            Map<String, String> variableBounds) {
         Set<String> names = new LinkedHashSet<>();
 
         for (String token : thrownBy(loader, internalName, declaration, targetArguments)) {
             if (token.startsWith("L")) {
                 names.add(token.substring(1, token.length() - 1));
+            } else if (isVariable(token, variableBounds)) {
+                names.add(token);
             } else {
                 names.addAll(exceptionNames(declaration.getValue()));
             }
@@ -216,9 +222,24 @@ public final class ClassMetadata {
         return names;
     }
 
-    /** @return true if the exception is a sub type of one of the exceptions which each of the declarations throws */
-    private static boolean allowedByAll(Loader loader, String internalName, String exception, List<Map.Entry<String, Method>> declarations, List<String> targetArguments) {
-        return declarations.stream().allMatch(declaration -> substitutedExceptions(loader, internalName, declaration, targetArguments).stream().anyMatch(allowed -> isSubtype(loader, exception, allowed)));
+    private static boolean isVariable(String token, Map<String, String> variableBounds) {
+        return token.startsWith("T") && token.endsWith(";") && variableBounds.containsKey(token.substring(1, token.length() - 1));
+    }
+
+    /**
+     * @return true if each of the declarations allows the exception: a class is allowed by a super type of it, a type variable of the target by itself or by a super type of its
+     * bound; a class is not allowed by a type variable, 'throws E' does not allow every 'IOException'
+     */
+    private static boolean allowedByAll(Loader loader, String internalName, String exception, List<Map.Entry<String, Method>> declarations, List<String> targetArguments,
+            Map<String, String> variableBounds) {
+        boolean variable = isVariable(exception, variableBounds);
+        String bound = variable ? variableBounds.get(exception.substring(1, exception.length() - 1)) : exception;
+
+        return declarations.stream().allMatch(declaration -> {
+            Set<String> allowed = substitutedExceptions(loader, internalName, declaration, targetArguments, variableBounds);
+
+            return allowed.stream().anyMatch(candidate -> isVariable(candidate, variableBounds) ? variable && candidate.equals(exception) : isSubtype(loader, bound, candidate));
+        });
     }
 
     /**
@@ -226,20 +247,25 @@ public final class ClassMetadata {
      * has 'TE;' where 'functionalMethodExceptions' gives its erased bound. Where several parents declare the method, only what all of them allow is thrown.
      */
     public static List<String> functionalMethodThrown(Loader loader, String internalName) {
-        return functionalMethodThrown(loader, internalName, List.of());
+        return functionalMethodThrown(loader, internalName, List.of(), Map.of());
+    }
+
+    public static List<String> functionalMethodThrown(Loader loader, String internalName, List<String> targetArguments) {
+        return functionalMethodThrown(loader, internalName, targetArguments, Map.of());
     }
 
     /**
      * @param targetArguments the type arguments of the target for the type parameters of the interface, as signature tokens ('Ljava/sql/SQLException;'): the inherited contracts are
      * intersected once they are substituted, 'Both&lt;SQLException&gt; extends A&lt;E&gt;, B' throws what 'A&lt;SQLException&gt;' and 'B' both allow
+     * @param variableBounds the first bound of the type variables of the enclosing declaration which the target arguments are, by name: 'Both&lt;E&gt;' is given the token 'TE;'
      */
-    public static List<String> functionalMethodThrown(Loader loader, String internalName, List<String> targetArguments) {
+    public static List<String> functionalMethodThrown(Loader loader, String internalName, List<String> targetArguments, Map<String, String> variableBounds) {
         List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
         List<String> thrown = new ArrayList<>();
 
         for (Map.Entry<String, Method> declaration : declarations) {
             for (String token : thrownBy(loader, internalName, declaration, targetArguments)) {
-                if (!thrown.contains(token) && (declarations.size() == 1 || allowedToken(loader, token, declarations, internalName, targetArguments))) {
+                if (!thrown.contains(token) && (declarations.size() == 1 || allowedToken(loader, token, declarations, internalName, targetArguments, variableBounds))) {
                     thrown.add(token);
                 }
             }
@@ -247,12 +273,13 @@ public final class ClassMetadata {
         return thrown;
     }
 
-    /** A class is allowed by the declarations which throw a super type of it; a type variable only by the ones which throw the same one */
-    private static boolean allowedToken(Loader loader, String token, List<Map.Entry<String, Method>> declarations, String internalName, List<String> targetArguments) {
-        if (token.startsWith("T")) {
+    /** A class is allowed by the declarations which throw a super type of it; a type variable of the interface only by the ones which throw the same one */
+    private static boolean allowedToken(Loader loader, String token, List<Map.Entry<String, Method>> declarations, String internalName, List<String> targetArguments,
+            Map<String, String> variableBounds) {
+        if (token.startsWith("T") && !isVariable(token, variableBounds)) {
             return declarations.stream().allMatch(declaration -> thrownBy(loader, internalName, declaration, targetArguments).contains(token));
         }
-        return allowedByAll(loader, internalName, token.substring(1, token.length() - 1), declarations, targetArguments);
+        return allowedByAll(loader, internalName, isVariable(token, variableBounds) ? token : token.substring(1, token.length() - 1), declarations, targetArguments, variableBounds);
     }
 
     private static List<String> thrownBy(Loader loader, String internalName, Map.Entry<String, Method> owned, List<String> targetArguments) {

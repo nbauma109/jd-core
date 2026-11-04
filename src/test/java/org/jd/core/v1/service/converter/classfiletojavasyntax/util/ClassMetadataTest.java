@@ -89,6 +89,9 @@ public class ClassMetadataTest {
     interface TargetRunner<E extends Exception> extends GenericRunner<E>, InputRunner {
     }
 
+    interface BoundedRunner<X extends java.io.IOException> extends GenericRunner<X>, InputRunner {
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 
@@ -135,6 +138,13 @@ public class ClassMetadataTest {
     public void testInheritedContractsAreIntersectedOnceTheTargetArgumentsAreSubstituted() {
         assertTrue(ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "TargetRunner", List.of("Ljava/sql/SQLException;")).isEmpty());
         assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "TargetRunner", List.of("Ljava/io/IOException;")));
+    }
+
+    @Test
+    public void testATypeVariableOfTheTargetIsKeptByTheIntersection() {
+        assertEquals(List.of("TE;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "BoundedRunner", List.of("TE;"), java.util.Map.of("E", "java/io/IOException")));
+        assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "BoundedRunner", List.of("Ljava/io/IOException;")));
+        assertTrue(ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "BoundedRunner", List.of("Ljava/sql/SQLException;")).isEmpty());
     }
 
     @Test

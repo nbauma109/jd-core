@@ -3185,10 +3185,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (expected instanceof GenericType variable && variable.getDimension() == 0) {
             return innermostScopeDeclaring(variable.getName()) == null;
         }
-        if (expected instanceof ObjectType expectedType && seen instanceof ObjectType seenType && expectedType.getInternalName().equals(seenType.getInternalName())
-                && expectedType.getDimension() == seenType.getDimension()) {
-            List<TypeArgument> expectedArguments = toTypeArgumentList(expectedType.getTypeArguments());
-            List<TypeArgument> seenArguments = toTypeArgumentList(seenType.getTypeArguments());
+        if (expected instanceof ObjectType expectedObject && seen instanceof ObjectType seenObject && expectedObject.getInternalName().equals(seenObject.getInternalName())
+                && expectedObject.getDimension() == seenObject.getDimension()) {
+            List<TypeArgument> expectedArguments = toTypeArgumentList(expectedObject.getTypeArguments());
+            List<TypeArgument> seenArguments = toTypeArgumentList(seenObject.getTypeArguments());
 
             return expectedArguments.size() == seenArguments.size()
                     && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i)));

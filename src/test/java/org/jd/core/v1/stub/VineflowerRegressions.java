@@ -2349,6 +2349,19 @@ public class VineflowerRegressions {
         }
     }
 
+    public <E extends java.io.IOException> Task<E> lambdaWhoseTargetHasATypeVariable() {
+        return () -> {
+            try (var variableTarget = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                ping();
+            }
+        };
+    }
+
     public <E extends java.io.IOException> int typeVariablePassedToAGenericCall(E failure) {
         try (var passed = new AutoCloseable() {
             @Override

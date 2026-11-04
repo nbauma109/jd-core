@@ -183,8 +183,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
             if (!token.startsWith("T")) {
                 thrown.add(token.substring(1, token.length() - 1));
-            } else if (position >= 0 && position < typeArguments.size() && typeArguments.get(position) instanceof ObjectType argument) {
-                thrown.add(argument.getInternalName());
+            } else if (position >= 0 && position < typeArguments.size() && nameOf(typeArguments.get(position)) != null) {
+                // 'Task<E>' with 'E extends IOException' permits 'E' itself, not every 'IOException'
+                thrown.add(nameOf(typeArguments.get(position)));
             } else {
                 // The type argument is unknown: the erased bound of the variable is what the method may throw at most
                 thrown.addAll(ClassMetadata.functionalMethodExceptions(loader, name));

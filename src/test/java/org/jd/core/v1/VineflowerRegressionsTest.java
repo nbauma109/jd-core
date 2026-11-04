@@ -290,6 +290,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (var unrelated = new InputCloser() {"));
         assertTrue(source.contains("try (var covariant = new AutoCloseable() {"));
         assertTrue(source.contains("try (var defaulted = new AutoCloseable() {"));
+        assertTrue(source.contains("try (var unconstrained = new AutoCloseable() {"));
         assertTrue(source.contains("pick((Exception)failure)"));
         assertFalse(source.contains("var nestedExisting"));
         assertFalse(source.contains("text instanceof CharSequence sequence"));

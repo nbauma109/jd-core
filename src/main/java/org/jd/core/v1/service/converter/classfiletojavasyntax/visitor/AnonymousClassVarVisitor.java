@@ -1063,6 +1063,22 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 if (exception != null && (ClassMetadata.isSubtype(loader, exception, handled) || ClassMetadata.isSubtype(loader, handled, exception))) {
                     return true;
                 }
+                if (exception == null && thrownTypes[i].startsWith("T") && boundThrown(call)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * @return true if a thrown type variable which no argument constrains ('&lt;E extends IOException&gt; void raise() throws E') is inferred as its bound, which the handler catches:
+         * a bound which RuntimeException is a sub type of gives RuntimeException, which is unchecked
+         */
+        private boolean boundThrown(MethodInvocationExpression call) {
+            for (String bound : ClassMetadata.declaredExceptions(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor())) {
+                if (!ClassMetadata.isSubtype(loader, "java/lang/RuntimeException", bound) && reaches(bound)) {
+                    return true;
+                }
             }
             return false;
         }

@@ -2193,6 +2193,24 @@ public class VineflowerRegressions {
         };
     }
 
+    static <E extends java.io.IOException> void raiseBound() throws E {
+        // throws its bound
+    }
+
+    public int thrownVariableWithoutConstraint() {
+        try (var unconstrained = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseBound();
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

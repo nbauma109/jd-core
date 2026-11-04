@@ -70,6 +70,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -308,6 +309,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */
     private Set<String> closeExceptions(ObjectType declared) {
         String owner = declared.getInternalName();
+        Optional<List<String>> inherited = ClassMetadata.inheritedCloseThrown(loader, owner);
+
+        if (inherited.isPresent()) {
+            // 'C extends A, B': the close of C throws what the closes of A and B both allow
+            Set<String> allowed = new HashSet<>();
+
+            inherited.get().stream().filter(token -> token.startsWith("L")).forEach(token -> allowed.add(token.substring(1, token.length() - 1)));
+            return allowed;
+        }
+
         String signature = ClassMetadata.declaredGenericSignature(loader, owner, CLOSE, "()V");
 
         if (signature == null || signature.indexOf('^') < 0) {

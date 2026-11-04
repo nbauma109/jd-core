@@ -260,7 +260,28 @@ public final class ClassMetadata {
      * @param variableBounds the first bound of the type variables of the enclosing declaration which the target arguments are, by name: 'Both&lt;E&gt;' is given the token 'TE;'
      */
     public static List<String> functionalMethodThrown(Loader loader, String internalName, List<String> targetArguments, Map<String, String> variableBounds) {
-        List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
+        return thrownByAll(loader, internalName, functionalMethodDeclarations(loader, internalName), targetArguments, variableBounds);
+    }
+
+    /**
+     * @return the thrown types which all the inherited declarations of 'close()' allow when the interface inherits several of them ('C extends A, B' where 'A.close' throws
+     * 'IOException' and 'B.close' 'SQLException' throws neither); empty if it inherits one at most
+     */
+    public static Optional<List<String>> inheritedCloseThrown(Loader loader, String internalName) {
+        List<Map.Entry<String, Method>> declarations = new ArrayList<>();
+
+        for (Map.Entry<String, Method> declaration : abstractDeclarations(loader, internalName, new HashSet<>())) {
+            if ("close".equals(declaration.getValue().getName()) && "()".equals(parameters(loader, internalName, declaration))
+                    && declarations.stream().noneMatch(known -> known.getKey().equals(declaration.getKey()))) {
+                declarations.add(declaration);
+            }
+        }
+        return declarations.size() > 1 && !declarations.get(0).getKey().equals(internalName)
+                ? Optional.of(thrownByAll(loader, internalName, declarations, List.of(), Map.of())) : Optional.empty();
+    }
+
+    private static List<String> thrownByAll(Loader loader, String internalName, List<Map.Entry<String, Method>> declarations, List<String> targetArguments,
+            Map<String, String> variableBounds) {
         List<String> thrown = new ArrayList<>();
 
         for (Map.Entry<String, Method> declaration : declarations) {

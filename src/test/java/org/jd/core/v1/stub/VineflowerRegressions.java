@@ -2078,6 +2078,35 @@ public class VineflowerRegressions {
         };
     }
 
+    interface IoClosing extends AutoCloseable {
+        @Override
+        void close() throws java.io.IOException;
+    }
+
+    interface SqlClosing extends AutoCloseable {
+        @Override
+        void close() throws java.sql.SQLException;
+    }
+
+    interface InheritedClosing extends IoClosing, SqlClosing {
+        // inherits two closes
+    }
+
+    static <T extends InheritedClosing> T same(T value) {
+        return value;
+    }
+
+    public int resourceWhoseInheritedClosesAreIntersected() {
+        try (InheritedClosing intersectedClose = new InheritedClosing() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return same(intersectedClose).hashCode();
+        }
+    }
+
     static class SqlCloser implements AutoCloseable {
         @Override
         public void close() throws java.sql.SQLException {

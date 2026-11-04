@@ -254,10 +254,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         List<TypeArgument> receiverArguments = typeArgumentList(receiver.getTypeArguments());
 
-        TypeArgument argument = position < receiverArguments.size() ? receiverArguments.get(position) : null;
+        return position < receiverArguments.size() ? nameOf(receiverArguments.get(position)) : null;
+    }
 
+    /** @return the internal name of a type argument, or of the first bound of its type variable ('Closer&lt;E&gt;' with 'E extends IOException'); null if unknown */
+    private String nameOf(TypeArgument argument) {
         if (argument instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
-            // 'Closer<E>' with 'E extends IOException': the bound is what it throws at most
             return typeBounds.get(generic.getName()).getFirst() instanceof ObjectType first ? first.getInternalName() : null;
         }
         return argument instanceof ObjectType type ? type.getInternalName() : null;

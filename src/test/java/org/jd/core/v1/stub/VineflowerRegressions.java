@@ -2092,6 +2092,30 @@ public class VineflowerRegressions {
         // inherits two closes
     }
 
+    interface GenericClosing<E extends Exception> extends AutoCloseable {
+        @Override
+        void close() throws E;
+    }
+
+    interface GenericInheritedClosing<E extends Exception> extends GenericClosing<E>, IoClosing {
+        // inherits two closes
+    }
+
+    static <T extends GenericInheritedClosing<java.sql.SQLException>> T sameGeneric(T value) {
+        return value;
+    }
+
+    public int resourceWhoseGenericInheritedClosesAreIntersected() {
+        try (GenericInheritedClosing<java.sql.SQLException> substitutedClose = new GenericInheritedClosing<java.sql.SQLException>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return sameGeneric(substitutedClose).hashCode();
+        }
+    }
+
     static <T extends InheritedClosing> T same(T value) {
         return value;
     }

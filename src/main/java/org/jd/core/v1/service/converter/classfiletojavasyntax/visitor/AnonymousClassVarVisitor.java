@@ -309,13 +309,25 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */
     private Set<String> closeExceptions(ObjectType declared) {
         String owner = declared.getInternalName();
-        Optional<List<String>> inherited = ClassMetadata.inheritedCloseThrown(loader, owner);
+        Map<String, String> variableBounds = new HashMap<>();
+        List<TypeArgument> arguments = declared.getTypeArguments() == null ? List.of() : typeArgumentList(declared.getTypeArguments());
+        Optional<List<String>> inherited = ClassMetadata.inheritedCloseThrown(loader, owner,
+                targetTokens(ClassMetadata.typeParameterNames(loader, owner), arguments, variableBounds), variableBounds);
 
         if (inherited.isPresent()) {
             // 'C extends A, B': the close of C throws what the closes of A and B both allow
             Set<String> allowed = new HashSet<>();
 
-            inherited.get().stream().filter(token -> token.startsWith("L")).forEach(token -> allowed.add(token.substring(1, token.length() - 1)));
+            for (String token : inherited.get()) {
+                if (token.startsWith("L")) {
+                    allowed.add(token.substring(1, token.length() - 1));
+                } else if (variableBounds.containsKey(token.substring(1, token.length() - 1))) {
+                    allowed.add(token);
+                } else {
+                    // The type argument is unknown: the erased bound is what it throws at most
+                    allowed.addAll(ClassMetadata.declaredExceptions(loader, owner, CLOSE, "()V"));
+                }
+            }
             return allowed;
         }
 

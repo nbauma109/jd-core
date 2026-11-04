@@ -197,13 +197,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         return typeArguments.isTypeArgumentList() ? typeArguments.getTypeArgumentList() : List.of(typeArguments.getTypeArgumentFirst());
     }
 
-    private static Set<String> namesOf(BaseType exceptions) {
+    /** @return the names of the exceptions which a method declares, a type variable ('throws E' with 'E extends IOException') by its first bound */
+    private Set<String> namesOf(BaseType exceptions) {
         Set<String> names = new HashSet<>();
 
         if (exceptions != null) {
             for (org.jd.core.v1.model.javasyntax.type.Type type : exceptions) {
-                if (type instanceof ObjectType objectType) {
-                    names.add(objectType.getInternalName());
+                String name = nameOf(type);
+
+                if (name != null) {
+                    names.add(name);
                 }
             }
         }

@@ -2326,6 +2326,17 @@ public class VineflowerRegressions {
         }
     }
 
+    public <E extends java.io.IOException> String methodWhichThrowsATypeVariable() throws E {
+        try (Closer<E> declaredVariable = new Closer<E>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return closerIdentity(declaredVariable).toString();
+        }
+    }
+
     public <E extends java.io.IOException> int typeVariablePassedToAGenericCall(E failure) {
         try (var passed = new AutoCloseable() {
             @Override

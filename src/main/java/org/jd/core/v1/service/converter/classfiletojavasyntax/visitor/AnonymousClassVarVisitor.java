@@ -1212,8 +1212,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     contained = wildcard.type() instanceof ObjectType bound ? bound : null;
                 }
                 if (formal.equals(typeVariable)) {
-                    if (contained instanceof ObjectType object) {
-                        constraints.add(object.getInternalName());
+                    // 'List<E>' of a method variable 'E extends IOException': the variable itself, with its bound
+                    String name = nameOf(contained);
+
+                    if (name != null) {
+                        constraints.add(boundOf(name));
                     }
                 } else if (formal.startsWith("L") && formal.contains("<") && contained instanceof ObjectType object) {
                     addContainedTypes(constraints, formal, object, typeVariable);

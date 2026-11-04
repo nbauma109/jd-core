@@ -2026,6 +2026,20 @@ public class VineflowerRegressions {
         // throws one of them
     }
 
+    public <E extends java.io.IOException> int genericThrowsOfAVariableContainer(java.util.List<E> failures) {
+        try (var contained = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseFrom(failures);
+            return 1;
+        } catch (java.io.IOException e) {
+            return 2;
+        }
+    }
+
     public int genericThrowsOfAWildcardContainer(java.util.List<? extends java.io.IOException> failures) {
         try (var wildcarded = new AutoCloseable() {
             @Override

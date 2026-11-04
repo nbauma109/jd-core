@@ -78,6 +78,17 @@ public class ClassMetadataTest {
     interface SubstitutedRunner extends GenericParameterRunner<String>, StringRunner {
     }
 
+    interface GenericRunner<E extends Exception> {
+        void run() throws E;
+    }
+
+    interface InputRunner {
+        void run() throws java.io.IOException;
+    }
+
+    interface TargetRunner<E extends Exception> extends GenericRunner<E>, InputRunner {
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 
@@ -118,6 +129,12 @@ public class ClassMetadataTest {
     public void testInheritedFunctionalMethodsWhichParameterTypesAreSubstitutedAreIntersected() {
         assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "SubstitutedRunner"));
         assertEquals(java.util.Set.of("java/io/IOException"), ClassMetadata.functionalMethodExceptions(LOADER, PREFIX + "SubstitutedRunner"));
+    }
+
+    @Test
+    public void testInheritedContractsAreIntersectedOnceTheTargetArgumentsAreSubstituted() {
+        assertTrue(ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "TargetRunner", List.of("Ljava/sql/SQLException;")).isEmpty());
+        assertEquals(List.of("Ljava/io/IOException;"), ClassMetadata.functionalMethodThrown(LOADER, PREFIX + "TargetRunner", List.of("Ljava/io/IOException;")));
     }
 
     @Test

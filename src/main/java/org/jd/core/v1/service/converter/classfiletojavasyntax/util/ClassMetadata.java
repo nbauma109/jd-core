@@ -197,16 +197,16 @@ public final class ClassMetadata {
         List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
         Set<String> exceptions = new LinkedHashSet<>();
 
-        declarations.forEach(declaration -> exceptions.addAll(substitutedExceptions(loader, internalName, declaration)));
-        exceptions.removeIf(name -> !allowedByAll(loader, internalName, name, declarations));
+        declarations.forEach(declaration -> exceptions.addAll(substitutedExceptions(loader, internalName, declaration, List.of())));
+        exceptions.removeIf(name -> !allowedByAll(loader, internalName, name, declarations, List.of()));
         return exceptions;
     }
 
     /** @return the names of the exceptions which the declaration throws for this interface: 'Both extends A&lt;SQLException&gt;' gives 'SQLException' for 'A.run() throws E', its erased bound if unknown */
-    private static Set<String> substitutedExceptions(Loader loader, String internalName, Map.Entry<String, Method> declaration) {
+    private static Set<String> substitutedExceptions(Loader loader, String internalName, Map.Entry<String, Method> declaration, List<String> targetArguments) {
         Set<String> names = new LinkedHashSet<>();
 
-        for (String token : thrownBy(loader, internalName, declaration)) {
+        for (String token : thrownBy(loader, internalName, declaration, targetArguments)) {
             if (token.startsWith("L")) {
                 names.add(token.substring(1, token.length() - 1));
             } else {
@@ -217,8 +217,8 @@ public final class ClassMetadata {
     }
 
     /** @return true if the exception is a sub type of one of the exceptions which each of the declarations throws */
-    private static boolean allowedByAll(Loader loader, String internalName, String exception, List<Map.Entry<String, Method>> declarations) {
-        return declarations.stream().allMatch(declaration -> substitutedExceptions(loader, internalName, declaration).stream().anyMatch(allowed -> isSubtype(loader, exception, allowed)));
+    private static boolean allowedByAll(Loader loader, String internalName, String exception, List<Map.Entry<String, Method>> declarations, List<String> targetArguments) {
+        return declarations.stream().allMatch(declaration -> substitutedExceptions(loader, internalName, declaration, targetArguments).stream().anyMatch(allowed -> isSubtype(loader, exception, allowed)));
     }
 
     /**
@@ -226,12 +226,20 @@ public final class ClassMetadata {
      * has 'TE;' where 'functionalMethodExceptions' gives its erased bound. Where several parents declare the method, only what all of them allow is thrown.
      */
     public static List<String> functionalMethodThrown(Loader loader, String internalName) {
+        return functionalMethodThrown(loader, internalName, List.of());
+    }
+
+    /**
+     * @param targetArguments the type arguments of the target for the type parameters of the interface, as signature tokens ('Ljava/sql/SQLException;'): the inherited contracts are
+     * intersected once they are substituted, 'Both&lt;SQLException&gt; extends A&lt;E&gt;, B' throws what 'A&lt;SQLException&gt;' and 'B' both allow
+     */
+    public static List<String> functionalMethodThrown(Loader loader, String internalName, List<String> targetArguments) {
         List<Map.Entry<String, Method>> declarations = functionalMethodDeclarations(loader, internalName);
         List<String> thrown = new ArrayList<>();
 
         for (Map.Entry<String, Method> declaration : declarations) {
-            for (String token : thrownBy(loader, internalName, declaration)) {
-                if (!thrown.contains(token) && (declarations.size() == 1 || allowedToken(loader, token, declarations, internalName))) {
+            for (String token : thrownBy(loader, internalName, declaration, targetArguments)) {
+                if (!thrown.contains(token) && (declarations.size() == 1 || allowedToken(loader, token, declarations, internalName, targetArguments))) {
                     thrown.add(token);
                 }
             }
@@ -240,14 +248,14 @@ public final class ClassMetadata {
     }
 
     /** A class is allowed by the declarations which throw a super type of it; a type variable only by the ones which throw the same one */
-    private static boolean allowedToken(Loader loader, String token, List<Map.Entry<String, Method>> declarations, String internalName) {
+    private static boolean allowedToken(Loader loader, String token, List<Map.Entry<String, Method>> declarations, String internalName, List<String> targetArguments) {
         if (token.startsWith("T")) {
-            return declarations.stream().allMatch(declaration -> thrownBy(loader, internalName, declaration).contains(token));
+            return declarations.stream().allMatch(declaration -> thrownBy(loader, internalName, declaration, targetArguments).contains(token));
         }
-        return allowedByAll(loader, internalName, token.substring(1, token.length() - 1), declarations);
+        return allowedByAll(loader, internalName, token.substring(1, token.length() - 1), declarations, targetArguments);
     }
 
-    private static List<String> thrownBy(Loader loader, String internalName, Map.Entry<String, Method> owned) {
+    private static List<String> thrownBy(Loader loader, String internalName, Map.Entry<String, Method> owned, List<String> targetArguments) {
         List<String> thrown = new ArrayList<>();
         Method method = owned.getValue();
         String signature = genericSignature(method);
@@ -266,7 +274,7 @@ public final class ClassMetadata {
         } else {
             exceptionNames(method).forEach(name -> thrown.add("L" + name + ";"));
         }
-        return thrown;
+        return substitute(thrown, typeParameterNames(loader, internalName), targetArguments);
     }
 
     /** @return the declarations of the abstract method which the interface inherits from its parents (the one it declares itself if it does); empty if there is none */

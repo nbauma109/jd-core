@@ -173,7 +173,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> typeArguments = functional.getTypeArguments() == null ? List.of() : typeArgumentList(functional.getTypeArguments());
         Set<String> thrown = new HashSet<>();
 
-        for (String token : ClassMetadata.functionalMethodThrown(loader, name)) {
+        List<String> targetTokens = new ArrayList<>();
+
+        for (int i = 0; i < typeParameters.size(); i++) {
+            targetTokens.add(i < typeArguments.size() && typeArguments.get(i) instanceof ObjectType argument ? "L" + argument.getInternalName() + ";" : "T" + typeParameters.get(i) + ";");
+        }
+        for (String token : ClassMetadata.functionalMethodThrown(loader, name, targetTokens)) {
             int position = token.startsWith("T") ? typeParameters.indexOf(token.substring(1, token.length() - 1)) : -1;
 
             if (!token.startsWith("T")) {
@@ -249,7 +254,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         List<TypeArgument> receiverArguments = typeArgumentList(receiver.getTypeArguments());
 
-        return position < receiverArguments.size() && receiverArguments.get(position) instanceof ObjectType type ? type.getInternalName() : null;
+        TypeArgument argument = position < receiverArguments.size() ? receiverArguments.get(position) : null;
+
+        if (argument instanceof GenericType generic && typeBounds.get(generic.getName()) != null) {
+            // 'Closer<E>' with 'E extends IOException': the bound is what it throws at most
+            return typeBounds.get(generic.getName()).getFirst() instanceof ObjectType first ? first.getInternalName() : null;
+        }
+        return argument instanceof ObjectType type ? type.getInternalName() : null;
     }
 
     /** @return the exceptions which the close of the declared type of a resource throws, where the type variable of its signature is a type argument of the type ('Closer&lt;IOException&gt;') */

@@ -2211,6 +2211,30 @@ public class VineflowerRegressions {
         }
     }
 
+    interface GenericParameterRunner<T> {
+        void run(T value) throws Exception;
+    }
+
+    interface StringRunner {
+        void run(String value) throws java.io.IOException;
+    }
+
+    interface SubstitutedRunner extends GenericParameterRunner<String>, StringRunner {
+    }
+
+    public SubstitutedRunner lambdaWithSubstitutedInheritedParameters() {
+        return value -> {
+            try (var substituted = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                value.length();
+            }
+        };
+    }
+
     interface InputTask extends Task<java.io.IOException> {
     }
 

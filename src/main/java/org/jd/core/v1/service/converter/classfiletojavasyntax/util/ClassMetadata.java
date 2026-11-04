@@ -283,7 +283,8 @@ public final class ClassMetadata {
         declarations.add(first);
         if (!first.getKey().equals(internalName)) {
             for (Map.Entry<String, Method> other : abstractMethods) {
-                boolean same = other.getValue().getName().equals(first.getValue().getName()) && parameters(other.getValue()).equals(parameters(first.getValue()));
+                boolean same = other.getValue().getName().equals(first.getValue().getName())
+                        && parameters(loader, internalName, other).equals(parameters(loader, internalName, first));
 
                 if (same && declarations.stream().noneMatch(known -> known.getKey().equals(other.getKey()))) {
                     declarations.add(other);
@@ -293,11 +294,28 @@ public final class ClassMetadata {
         return declarations;
     }
 
-    /** @return the parameters of the descriptor: the methods which differ by their covariant return types override each other */
-    private static String parameters(Method method) {
-        String descriptor = method.getSignature();
+    /**
+     * @return the parameters of the method in the terms of the interface, without type arguments and return type: the methods which differ by their covariant return types or
+     * by the type arguments which their generic parent gives them ('Broad&lt;T&gt;.run(T)' is 'run(String)' for 'Both extends Broad&lt;String&gt;') override each other
+     */
+    private static String parameters(Loader loader, String internalName, Map.Entry<String, Method> declaration) {
+        Method method = declaration.getValue();
+        String signature = genericSignature(method) != null ? genericSignature(method) : method.getSignature();
 
-        return descriptor.substring(0, descriptor.indexOf(')') + 1);
+        if (!declaration.getKey().equals(internalName)) {
+            List<String> arguments = ancestorTypeArguments(loader, internalName, declaration.getKey()).orElse(List.of());
+
+            signature = substituteTypeVariables(signature, typeParameterNames(loader, declaration.getKey()), arguments);
+        }
+
+        String parameters = signature.substring(0, signature.indexOf(')') + 1);
+        String erased;
+
+        do {
+            erased = parameters;
+            parameters = parameters.replaceAll("<[^<>]*>", "");
+        } while (!parameters.equals(erased));
+        return parameters;
     }
 
     /** @return the abstract methods of the interface with the name of the interface which declares each: its own, then the inherited ones which no default method of it implements */
@@ -319,7 +337,7 @@ public final class ClassMetadata {
         for (Method method : javaClass.getMethods()) {
             if (!method.isAbstract() && !method.isStatic() && !method.isPrivate()) {
                 methods.removeIf(declared -> !declared.getKey().equals(internalName) && declared.getValue().getName().equals(method.getName())
-                        && parameters(declared.getValue()).equals(parameters(method)));
+                        && parameters(loader, internalName, declared).equals(parameters(loader, internalName, Map.entry(internalName, method))));
             }
         }
         return methods;

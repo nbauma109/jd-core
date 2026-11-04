@@ -101,6 +101,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
     private static final String INIT = "<init>";
+    private static final String RUNTIME_EXCEPTION = "java/lang/RuntimeException";
     private static final String CLONE = "clone()Ljava/lang/Object;";
     private static final String FINALIZE = "finalize()V";
     /** The methods of Object, by name and descriptor: an overload of one of them is a new method, an override is not */
@@ -300,7 +301,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private boolean isUnchecked(String exception) {
-        return ClassMetadata.isSubtype(loader, exception, "java/lang/RuntimeException") || ClassMetadata.isSubtype(loader, exception, "java/lang/Error");
+        return ClassMetadata.isSubtype(loader, exception, RUNTIME_EXCEPTION) || ClassMetadata.isSubtype(loader, exception, "java/lang/Error");
     }
 
     /** @return true if a handler of a 'try' around the code catches the exception */
@@ -1076,7 +1077,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
          */
         private boolean boundThrown(MethodInvocationExpression call) {
             for (String bound : ClassMetadata.declaredExceptions(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor())) {
-                if (!ClassMetadata.isSubtype(loader, "java/lang/RuntimeException", bound) && reaches(bound)) {
+                if (!ClassMetadata.isSubtype(loader, RUNTIME_EXCEPTION, bound) && reaches(bound)) {
                     return true;
                 }
             }
@@ -1280,7 +1281,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     private boolean isUncheckedOrGeneral(String internalName) {
         return "java/lang/Exception".equals(internalName) || THROWABLE.equals(internalName)
-                || ClassMetadata.isSubtype(loader, internalName, "java/lang/RuntimeException") || ClassMetadata.isSubtype(loader, internalName, "java/lang/Error");
+                || ClassMetadata.isSubtype(loader, internalName, RUNTIME_EXCEPTION) || ClassMetadata.isSubtype(loader, internalName, "java/lang/Error");
     }
 
     /** 'try (var r = b)' where 'b' is a tracked variable */

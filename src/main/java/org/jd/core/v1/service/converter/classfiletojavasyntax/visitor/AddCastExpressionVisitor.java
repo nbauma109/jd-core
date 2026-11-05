@@ -86,6 +86,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InheritedMethodFinder;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.SingleAbstractMethodFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
@@ -4063,6 +4064,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private Expression addCastExpression(Type type, Expression expression) {
+        if (visitingVarArgsInvocation && expression instanceof LocalVariableReferenceExpression && type instanceof ObjectType objectType
+                && LocalVariableMaker.isAnonymousClassName(objectType.getInternalName())) {
+            // The elements of the array of a varargs call are printed one by one: a cast to an anonymous class cannot be written, and its type comes from the variable
+            return expression;
+        }
         if (!expression.isCastExpression()) {
             searchFirstLineNumberVisitor.init();
             expression.accept(searchFirstLineNumberVisitor);

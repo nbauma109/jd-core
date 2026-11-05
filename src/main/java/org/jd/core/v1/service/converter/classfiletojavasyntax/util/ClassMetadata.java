@@ -25,11 +25,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** What the declaration of a class says, read from its class file: the answers are 'unknown' (false or null) when the class cannot be loaded */
 public final class ClassMetadata {
@@ -365,7 +368,10 @@ public final class ClassMetadata {
             signature = substituteTypeVariables(signature, typeParameterNames(loader, declaration.getKey()), arguments);
         }
 
-        String parameters = signature.substring(0, signature.indexOf(')') + 1);
+        String parameters = eraseMethodTypeVariables(signature);
+
+        parameters = parameters.substring(0, parameters.indexOf(')') + 1);
+
         String erased;
 
         do {
@@ -373,6 +379,60 @@ public final class ClassMetadata {
             parameters = parameters.replaceAll("<[^<>]*>", "");
         } while (!parameters.equals(erased));
         return parameters;
+    }
+
+    /**
+     * @return the signature where the type variables which the method declares ('&lt;T:Ljava/lang/Object;&gt;(TT;)V') are replaced by the erasure of their first bound: '&lt;T&gt; void run(T)' and
+     * 'void run(Object)' have the same erasure, so they override each other in a sub interface
+     */
+    private static String eraseMethodTypeVariables(String signature) {
+        if (!signature.startsWith("<")) {
+            return signature;
+        }
+
+        int depth = 0;
+        int end = 0;
+
+        do {
+            char c = signature.charAt(end);
+
+            depth += c == '<' ? 1 : c == '>' ? -1 : 0;
+            end++;
+        } while (depth > 0 && end < signature.length());
+
+        String formals = signature.substring(1, end - 1);
+        Map<String, String> bounds = new LinkedHashMap<>();
+        int index = 0;
+
+        while (index < formals.length()) {
+            int colon = formals.indexOf(':', index);
+            String name = formals.substring(index, colon);
+            String bound = null;
+
+            index = colon;
+            while (index < formals.length() && formals.charAt(index) == ':') {
+                index++;
+                int next = index < formals.length() && formals.charAt(index) != ':' ? endOfType(formals, index) : index;
+
+                if (bound == null && next > index) {
+                    bound = formals.substring(index, next);
+                }
+                index = next;
+            }
+            bounds.put(name, bound == null ? "Ljava/lang/Object;" : bound);
+        }
+
+        String rest = signature.substring(end);
+
+        for (Map.Entry<String, String> entry : bounds.entrySet()) {
+            String bound = entry.getValue();
+
+            for (int i = 0; i < bounds.size() && bound.startsWith("T") && bounds.containsKey(bound.substring(1, bound.length() - 1)); i++) {
+                bound = bounds.get(bound.substring(1, bound.length() - 1));
+            }
+            rest = rest.replaceAll("(?<=[(;\\[<>*+\\-])T" + Pattern.quote(entry.getKey()) + ";", Matcher.quoteReplacement(bound.startsWith("T") ? "Ljava/lang/Object;" : bound));
+        }
+        return rest;
     }
 
     /** @return the abstract methods of the interface with the name of the interface which declares each: its own, then the inherited ones which no default method of it implements */

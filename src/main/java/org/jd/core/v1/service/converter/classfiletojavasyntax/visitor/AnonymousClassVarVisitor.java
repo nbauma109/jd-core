@@ -1919,26 +1919,63 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             List<Expression> arguments = new ArrayList<>();
-            List<String> parameters = parameterSignatures(signature);
 
             callParameters.forEach(arguments::add);
+
+            List<String> parameters = spreadVarargs(parameterSignatures(signature), arguments.size());
+
             for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
-                if (references(arguments.get(i), variableNames) != null && parameters.get(i).startsWith("T") && hasALambdaOfTheTypeVariable(arguments, parameters, i)) {
+                String variable = typeVariableFedBy(arguments.get(i), parameters.get(i));
+
+                if (variable != null && hasALambdaOfTheTypeVariable(arguments, parameters, i, variable)) {
                     return true;
                 }
             }
             return false;
         }
 
+        /** 'T...' is the signature '[TT;', each of the arguments which the array gathers has the type '"TT;"' */
+        private List<String> spreadVarargs(List<String> parameters, int argumentCount) {
+            if (parameters.isEmpty() || !parameters.get(parameters.size() - 1).startsWith("[T") || argumentCount < parameters.size()) {
+                return parameters;
+            }
+
+            List<String> spread = new ArrayList<>(parameters.subList(0, parameters.size() - 1));
+
+            while (spread.size() < argumentCount) {
+                spread.add(parameters.get(parameters.size() - 1).substring(1));
+            }
+            return spread;
+        }
+
+        /**
+         * @return the type variable of the parameter which the argument gives the type of the variable to: the variable itself ('T'), or an element of the container which a call
+         * builds from it ('List.of(value)' for 'List&lt;T&gt;'); null if none
+         */
+        private String typeVariableFedBy(Expression argument, String parameter) {
+            if (parameter.startsWith("T")) {
+                return references(argument, variableNames) != null ? parameter : null;
+            }
+            if (parameter.startsWith("L") && argument instanceof MethodInvocationExpression call && call.getParameters() != null) {
+                List<Expression> elements = new ArrayList<>();
+
+                call.getParameters().forEach(elements::add);
+                if (elements.stream().anyMatch(element -> references(element, variableNames) != null)) {
+                    return typeArguments(parameter).stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null);
+                }
+            }
+            return null;
+        }
+
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */
-        private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index) {
+        private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index, String variable) {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
-                if (j != index && lambdaAdaptation && parameters.get(j).contains(parameters.get(index)) && isInstantiatedWithTheDeclaredType(arguments.get(j))) {
+                if (j != index && lambdaAdaptation && parameters.get(j).contains(variable) && isInstantiatedWithTheDeclaredType(arguments.get(j))) {
                     return true;
                 }
-                if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))
-                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
-                                containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index))))) {
+                if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(variable)
+                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
+                                containerParametersOfTheType(lambda, parameters.get(j), variable, variable)))) {
                     return true;
                 }
             }

@@ -2350,6 +2350,55 @@ public class VineflowerRegressions {
         return adaptAndBuild(adapted, AnonymousArgumentTarget::new);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptToContainer(java.util.List<T> values, java.util.function.Function<T, String> function) {
+        java.util.Objects.requireNonNull(values);
+        return (String) ((java.util.function.Function) function).apply(new Object());
+    }
+
+    public String lambdaAdaptedThroughAContainer() {
+        var adapted = new Object() {
+        };
+        return adaptToContainer(java.util.List.of(adapted), x -> "ok");
+    }
+
+    @SafeVarargs
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptToVarargs(java.util.function.Function<T, String> function, T... values) {
+        java.util.Objects.requireNonNull(values);
+        return (String) ((java.util.function.Function) function).apply(new Object());
+    }
+
+    public String lambdaAdaptedThroughVarargs() {
+        var adapted = new Object() {
+        };
+        return adaptToVarargs(x -> "ok", adapted);
+    }
+
+    interface GenericBroadAction {
+        <T> void run(T value) throws Exception;
+    }
+
+    interface ErasedNarrowAction {
+        void run(Object value) throws java.io.IOException;
+    }
+
+    interface ErasedBothActions extends GenericBroadAction, ErasedNarrowAction {
+    }
+
+    public ErasedBothActions lambdaWhoseGenericAncestorErasesToTheNarrowOne() {
+        return value -> {
+            try (var erased = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                erased.toString();
+            }
+        };
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

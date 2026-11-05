@@ -792,11 +792,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         MemberUseSearch search = new MemberUseSearch(name, members).declaredAs(newExpression.getObjectType());
 
-        if (members.stream().allMatch(member -> member.startsWith("this$") || member.startsWith("val$"))) {
-            // Nothing is added to the type, but a lambda which the variable gives its type to is adapted to it at run time: 'apply(value, x -> "ok")' checks its argument
-            search.lambdaAdaptation = true;
-            search.anonymousName = body.getInternalTypeName();
-        }
+        // A lambda which the variable gives its type to is adapted to the anonymous class at run time when it was compiled for it: 'apply(value, x -> "ok")' checks its argument
+        search.lambdaAdaptation = true;
+        search.anonymousName = body.getInternalTypeName();
 
         uses.accept(search);
         if (search.found) {

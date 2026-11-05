@@ -2312,6 +2312,13 @@ public class VineflowerRegressions {
         return adaptAndApply(adapted, x -> "ok");
     }
 
+    public String lambdaAdaptedToATypeWithAnUnusedMember() {
+        var adapted = new Object() {
+            int unused;
+        };
+        return adaptAndApply(adapted, x -> "ok");
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

@@ -2319,6 +2319,13 @@ public class VineflowerRegressions {
         return adaptAndApply(adapted, x -> "ok");
     }
 
+    public String lambdaAdaptedThroughAnAlias() {
+        var origin = new Object() {
+        };
+        var value = origin;
+        return adaptAndApply(value, x -> "ok");
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

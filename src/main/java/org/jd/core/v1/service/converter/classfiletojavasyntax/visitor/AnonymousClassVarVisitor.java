@@ -120,6 +120,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** The variables which are declared 'var' because of their anonymous class, with the members which it adds: 'var c = b;' has the type of 'b' */
     private final Map<String, Set<String>> anonymousVariables = new HashMap<>();
+    /** The internal name of the anonymous class of the variables which are known to hold one directly or through an alias */
+    private final Map<String, String> anonymousClassNames = new HashMap<>();
 
     /** The parameters of the lambdas which hold the type of a tracked variable as a type argument ('xs' of 'ToIntFunction<List<T>>'), with the members which it adds */
     private final Map<String, Set<String>> anonymousContainers = new HashMap<>();
@@ -535,12 +537,19 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        Set<String> members = anonymousVariables.get(references(initializer.getExpression(), anonymousVariables.keySet()));
+        String origin = references(initializer.getExpression(), anonymousVariables.keySet());
+        Set<String> members = anonymousVariables.get(origin);
         MemberUseSearch search = new MemberUseSearch(declarator.getName(), members);
 
+        // The alias gives the type of its origin to a lambda as well
+        search.anonymousName = anonymousClassNames.get(origin);
+        search.lambdaAdaptation = search.anonymousName != null;
         uses.accept(search);
         if (search.found) {
             anonymousVariables.put(declarator.getName(), members);
+            if (search.anonymousName != null) {
+                anonymousClassNames.put(declarator.getName(), search.anonymousName);
+            }
         }
         return search.found;
     }
@@ -795,6 +804,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         // A lambda which the variable gives its type to is adapted to the anonymous class at run time when it was compiled for it: 'apply(value, x -> "ok")' checks its argument
         search.lambdaAdaptation = true;
         search.anonymousName = body.getInternalTypeName();
+        anonymousClassNames.put(name, body.getInternalTypeName());
 
         uses.accept(search);
         if (search.found) {

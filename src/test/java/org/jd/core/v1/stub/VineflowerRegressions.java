@@ -2302,6 +2302,7 @@ public class VineflowerRegressions {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> String adaptAndApply(T ignored, java.util.function.Function<T, String> function) {
+        java.util.Objects.requireNonNull(ignored);
         return (String) ((java.util.function.Function) function).apply(new Object());
     }
 

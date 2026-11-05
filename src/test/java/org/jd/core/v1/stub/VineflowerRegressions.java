@@ -2312,6 +2312,12 @@ public class VineflowerRegressions {
         return adaptAndApply(adapted, x -> "ok");
     }
 
+    public String lambdaAdaptedToObject() {
+        Object broad = new Object() {
+        };
+        return adaptAndApply(broad, x -> "ok");
+    }
+
     interface RedundantDefaultingAction extends BroadAction, DefaultedAction, ActualAction {
     }
 

@@ -795,6 +795,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         if (members.stream().allMatch(member -> member.startsWith("this$") || member.startsWith("val$"))) {
             // Nothing is added to the type, but a lambda which the variable gives its type to is adapted to it at run time: 'apply(value, x -> "ok")' checks its argument
             search.lambdaAdaptation = true;
+            search.anonymousName = body.getInternalTypeName();
         }
 
         uses.accept(search);
@@ -1722,6 +1723,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         private boolean found;
         /** True where a lambda which the variable gives its type to is enough to keep 'var', whether it uses a member or not */
         private boolean lambdaAdaptation;
+        private String anonymousName;
 
         /** The type which the variable gets when it is declared without 'var': the one of its close is the one which an implicit close of it calls; null if unknown */
         private ObjectType declaredType;
@@ -1922,12 +1924,20 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index) {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))
-                        && (lambdaAdaptation || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
+                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
                                 containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index))))) {
                     return true;
                 }
             }
             return false;
+        }
+
+        /** @return false if the lambda was compiled for 'Object' ('Object value = new Object() {}': nothing is adapted to the anonymous class); true when its types are unknown */
+        private boolean isCompiledWithTheDeclaredType(LambdaIdentifiersExpression lambda) {
+            var types = lambda.getParameterTypes();
+
+            return types == null || anonymousName == null
+                    || types.stream().anyMatch(type -> type instanceof ObjectType objectType && objectType.getInternalName().equals(anonymousName));
         }
 
         /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */

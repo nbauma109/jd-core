@@ -789,11 +789,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             anonymousVariables.put(name, members);
             return true;
         }
-        if (members.isEmpty()) {
-            return false;
-        }
 
         MemberUseSearch search = new MemberUseSearch(name, members).declaredAs(newExpression.getObjectType());
+
+        if (members.stream().allMatch(member -> member.startsWith("this$") || member.startsWith("val$"))) {
+            // Nothing is added to the type, but a lambda which the variable gives its type to is adapted to it at run time: 'apply(value, x -> "ok")' checks its argument
+            search.lambdaAdaptation = true;
+        }
 
         uses.accept(search);
         if (search.found) {
@@ -1718,6 +1720,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** The fields which the local classes around the code declare: they are no capture of the variable */
         private final Deque<Set<String>> declaredFields = new ArrayDeque<>();
         private boolean found;
+        /** True where a lambda which the variable gives its type to is enough to keep 'var', whether it uses a member or not */
+        private boolean lambdaAdaptation;
 
         /** The type which the variable gets when it is declared without 'var': the one of its close is the one which an implicit close of it calls; null if unknown */
         private ObjectType declaredType;
@@ -1918,8 +1922,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index) {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))
-                        && callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
-                                containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index)))) {
+                        && (lambdaAdaptation || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
+                                containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index))))) {
                     return true;
                 }
             }

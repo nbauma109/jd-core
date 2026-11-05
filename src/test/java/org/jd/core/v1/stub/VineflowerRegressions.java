@@ -2300,6 +2300,33 @@ public class VineflowerRegressions {
     interface DefaultingAction extends DefaultedAction, ActualAction {
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptAndApply(T ignored, java.util.function.Function<T, String> function) {
+        return (String) ((java.util.function.Function) function).apply(new Object());
+    }
+
+    public String lambdaAdaptedToAMemberlessType() {
+        var adapted = new Object() {
+        };
+        return adaptAndApply(adapted, x -> "ok");
+    }
+
+    interface RedundantDefaultingAction extends BroadAction, DefaultedAction, ActualAction {
+    }
+
+    public RedundantDefaultingAction lambdaWithARedundantAncestorBeforeTheDefault() {
+        return () -> {
+            try (var redundant = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                redundant.toString();
+            }
+        };
+    }
+
     public DefaultingAction lambdaWithADefaultedInheritedMethod() {
         return () -> {
             try (var defaulted = new AutoCloseable() {

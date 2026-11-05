@@ -391,13 +391,32 @@ public final class ClassMetadata {
         for (String interfaceName : javaClass.getInterfaceNames()) {
             methods.addAll(abstractDeclarations(loader, internalNameOf(interfaceName), visited));
         }
+        List<Map.Entry<String, Method>> defaults = defaultDeclarations(loader, internalName, new HashSet<>());
+
+        // A default method of an interface implements the abstract methods of its ancestors, whichever branch of the hierarchy they were reached by
+        methods.removeIf(declared -> defaults.stream().anyMatch(implemented -> !implemented.getKey().equals(declared.getKey())
+                && isSubtype(loader, implemented.getKey(), declared.getKey()) && implemented.getValue().getName().equals(declared.getValue().getName())
+                && parameters(loader, internalName, declared).equals(parameters(loader, internalName, implemented))));
+        return methods;
+    }
+
+    /** @return the default methods of the interface and of all its ancestors, with the name of the interface which declares each */
+    private static List<Map.Entry<String, Method>> defaultDeclarations(Loader loader, String internalName, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+        List<Map.Entry<String, Method>> defaults = new ArrayList<>();
+
+        if (javaClass == null || !javaClass.isInterface()) {
+            return defaults;
+        }
         for (Method method : javaClass.getMethods()) {
             if (!method.isAbstract() && !method.isStatic() && !method.isPrivate()) {
-                methods.removeIf(declared -> !declared.getKey().equals(internalName) && declared.getValue().getName().equals(method.getName())
-                        && parameters(loader, internalName, declared).equals(parameters(loader, internalName, Map.entry(internalName, method))));
+                defaults.add(Map.entry(internalName, method));
             }
         }
-        return methods;
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            defaults.addAll(defaultDeclarations(loader, internalNameOf(interfaceName), visited));
+        }
+        return defaults;
     }
 
     /** @return the first class which is a super class of the first one (or the class itself) and a super type of the second; null if one of them is unknown */

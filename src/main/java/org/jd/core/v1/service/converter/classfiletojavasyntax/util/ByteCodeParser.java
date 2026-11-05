@@ -89,6 +89,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
@@ -1722,7 +1723,7 @@ public class ByteCodeParser {
             ObjectType ot = typeMaker.makeFromInternalTypeName(typeName);
 
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name1)) {
-                stack.push(new ConstructorReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ot, descriptor1));
+                stack.push(new ClassFileConstructorReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ot, descriptor1, instantiatedDescriptor(constants, bootstrapArguments)));
             } else {
                 stack.push(new ClassFileMethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), new ObjectTypeReferenceExpression(lineNumber, ot), typeName, name1,
                         descriptor1, instantiatedDescriptor(constants, bootstrapArguments)));

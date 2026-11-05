@@ -2332,6 +2332,24 @@ public class VineflowerRegressions {
         return adaptAndApply(adapted, Object::toString);
     }
 
+    static class AnonymousArgumentTarget {
+        AnonymousArgumentTarget(Object value) {
+            // holds nothing
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptAndBuild(T ignored, java.util.function.Function<T, AnonymousArgumentTarget> factory) {
+        java.util.Objects.requireNonNull(ignored);
+        return String.valueOf(((java.util.function.Function) factory).apply(new Object()));
+    }
+
+    public String constructorReferenceAdaptedToAnAnonymousType() {
+        var adapted = new Object() {
+        };
+        return adaptAndBuild(adapted, AnonymousArgumentTarget::new);
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

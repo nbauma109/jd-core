@@ -56,6 +56,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
@@ -1944,10 +1945,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        /** @return true if a method reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */
+        /** @return true if a method or constructor reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */
         private boolean isInstantiatedWithTheDeclaredType(Expression argument) {
-            return argument instanceof ClassFileMethodReferenceExpression reference && anonymousName != null && reference.getInstantiatedDescriptor() != null
-                    && reference.getInstantiatedDescriptor().contains("L" + anonymousName + ";");
+            String descriptor = null;
+
+            if (argument instanceof ClassFileMethodReferenceExpression reference) {
+                descriptor = reference.getInstantiatedDescriptor();
+            } else if (argument instanceof ClassFileConstructorReferenceExpression reference) {
+                descriptor = reference.getInstantiatedDescriptor();
+            }
+            return anonymousName != null && descriptor != null && descriptor.contains("L" + anonymousName + ";");
         }
 
         /** @return false if the lambda was compiled for 'Object' ('Object value = new Object() {}': nothing is adapted to the anonymous class); true when its types are unknown */

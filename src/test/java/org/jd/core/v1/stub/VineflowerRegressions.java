@@ -2491,6 +2491,58 @@ public class VineflowerRegressions {
         };
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String applyToElements(T ignored, java.util.function.Function<java.util.List<T>, String> function) {
+        java.util.Objects.requireNonNull(ignored);
+        return (String) ((java.util.function.Function) function).apply(plainElements());
+    }
+
+    static Object plainElements() {
+        return java.util.List.of(new Object());
+    }
+
+    public String lambdaWhoseContainerElementIsChecked() {
+        var checked = new Object() {
+        };
+        return applyToElements(checked, xs -> xs.get(0).toString());
+    }
+
+    abstract static class FileClosingBase implements AutoCloseable {
+        @Override
+        public void close() throws java.io.FileNotFoundException {
+            // closes nothing
+        }
+    }
+
+    interface IoOnlyClosing extends AutoCloseable {
+        @Override
+        void close() throws java.io.IOException;
+    }
+
+    interface AnyClosing extends AutoCloseable {
+        @Override
+        void close() throws Exception;
+    }
+
+    abstract static class ImplementedClosingClass extends FileClosingBase implements IoOnlyClosing, AnyClosing {
+        // the close of the superclass is the one of the class
+    }
+
+    static <T extends ImplementedClosingClass> T sameImplementedClosing(T value) {
+        return value;
+    }
+
+    public int resourceWhoseSuperclassImplementsTheClose() throws java.io.FileNotFoundException {
+        try (ImplementedClosingClass implemented = new ImplementedClosingClass() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return sameImplementedClosing(implemented).hashCode();
+        }
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

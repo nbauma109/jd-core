@@ -339,10 +339,33 @@ public final class ClassMetadata {
 
         String superName = internalNameOf(javaClass.getSuperclassName());
 
-        if (superName != null && !"java/lang/Object".equals(superName)) {
+        if (superclassImplementsClose(loader, superName)) {
+            // The close which a superclass implements is the one of the class: the contracts of the interfaces do not matter
+            return new ArrayList<>();
+        }
+        if (superName != null && !OBJECT.equals(superName)) {
             methods.addAll(inheritedAbstractDeclarations(loader, superName));
         }
         return methods;
+    }
+
+    /** @return true if a class of the chain declares a close() which it implements */
+    private static boolean superclassImplementsClose(Loader loader, String internalName) {
+        String current = internalName;
+
+        while (current != null && !OBJECT.equals(current)) {
+            JavaClass javaClass = parse(loader, current);
+
+            if (javaClass == null) {
+                return false;
+            }
+            if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && "close".equals(method.getName())
+                    && "()V".equals(method.getSignature()))) {
+                return true;
+            }
+            current = internalNameOf(javaClass.getSuperclassName());
+        }
+        return false;
     }
 
     private static List<String> thrownByAll(Loader loader, String internalName, List<Map.Entry<String, Method>> declarations, List<String> targetArguments,

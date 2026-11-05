@@ -1981,12 +1981,26 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     return true;
                 }
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(variable)
-                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
+                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || checksTheAnonymousType(lambda) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
                                 containerParametersOfTheType(lambda, parameters.get(j), variable, variable)))) {
                     return true;
                 }
             }
             return false;
+        }
+
+        /** @return true if the body of the lambda casts a call result to the anonymous class ('xs.get(0).toString()' for a 'List<T>' parameter): the explicit type would lose the check */
+        private boolean checksTheAnonymousType(Expression lambda) {
+            boolean[] checks = new boolean[1];
+
+            lambda.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(MethodInvocationExpression expression) {
+                    checks[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast();
+                    super.visit(expression);
+                }
+            });
+            return checks[0];
         }
 
         /** @return true if a method or constructor reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */

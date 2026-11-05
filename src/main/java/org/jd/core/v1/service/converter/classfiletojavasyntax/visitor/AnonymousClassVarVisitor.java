@@ -209,7 +209,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (argument == null) {
                 tokens.add("T" + typeParameters.get(i) + ";");
             } else if (isVariable(argument)) {
-                variableBounds.put(argument.substring(1, argument.length() - 1), immediateBoundOf(argument));
+                addBoundChain(argument, variableBounds);
                 tokens.add(argument);
             } else {
                 tokens.add("L" + argument + ";");
@@ -309,6 +309,18 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         String name = classBoundOf(exception.substring(1, exception.length() - 1));
 
         return name != null ? name : "java/lang/Exception";
+    }
+
+    /** Records the bound of the variable and of the variables which bound it in turn ('E extends X', 'X extends IOException'), even those which are no type argument */
+    private void addBoundChain(String variable, Map<String, String> variableBounds) {
+        String current = variable;
+
+        while (current != null && !variableBounds.containsKey(current.substring(1, current.length() - 1))) {
+            String bound = immediateBoundOf(current);
+
+            variableBounds.put(current.substring(1, current.length() - 1), bound);
+            current = isVariable(bound) ? bound : null;
+        }
     }
 
     /** @return the bound of the variable as the metadata expects it: the token of the variable which bounds it directly ('TX;' for 'E extends X'), else the internal name of its class bound */
@@ -1299,7 +1311,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             List<TypeArgument> actual = actualTypeArguments(type, parameter.substring(1, parameter.indexOf('<')));
 
             for (int i = 0; i < parameterArguments.size() && i < actual.size(); i++) {
-                String formal = parameterArguments.get(i);
+                // 'List<? extends E>': the elements are an 'E' as well
+                String formal = parameterArguments.get(i).startsWith("+") ? parameterArguments.get(i).substring(1) : parameterArguments.get(i);
                 TypeArgument contained = actual.get(i);
 
                 if (contained instanceof WildcardExtendsTypeArgument wildcard) {

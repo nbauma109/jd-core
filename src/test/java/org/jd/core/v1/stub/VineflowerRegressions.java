@@ -2543,6 +2543,50 @@ public class VineflowerRegressions {
         }
     }
 
+    interface ChainedClosingA<T extends Exception> extends AutoCloseable {
+        @Override
+        void close() throws T;
+    }
+
+    interface ChainedClosingB extends AutoCloseable {
+        @Override
+        void close() throws java.io.IOException;
+    }
+
+    interface ChainedClosing<T extends java.io.IOException> extends ChainedClosingA<T>, ChainedClosingB {
+        // inherits two closes
+    }
+
+    public <X extends java.io.IOException, E extends X> void resourceWhoseArgumentIsBoundedByAnotherVariable() {
+        try (var chainedArgument = new ChainedClosing<E>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            chainedArgument.toString();
+        }
+    }
+
+    static <E extends Exception> void raiseWildcard(java.util.List<? extends E> errors) throws E {
+        if (!errors.isEmpty()) {
+            throw errors.get(0);
+        }
+    }
+
+    public void genericThrowsOfAWildcardFormal(java.util.List<java.io.IOException> errors) {
+        try (var wildcard = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseWildcard(errors);
+        } catch (java.io.IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

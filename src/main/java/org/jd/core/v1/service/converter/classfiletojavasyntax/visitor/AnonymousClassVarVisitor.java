@@ -1305,20 +1305,28 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
+        /** 'List<? extends E>': the elements are an 'E' as well */
+        private String withoutExtendsWildcard(String formal) {
+            return formal.startsWith("+") ? formal.substring(1) : formal;
+        }
+
+        /** 'List<? extends IOException>' or 'List<? extends E>': the upper bound, a type variable included, is what the type variable stands for */
+        private TypeArgument upperBound(TypeArgument argument) {
+            if (argument instanceof WildcardExtendsTypeArgument wildcard) {
+                return wildcard.type();
+            }
+            return argument;
+        }
+
         /** The type arguments are matched recursively: 'List&lt;List&lt;E&gt;&gt;' passed a 'List&lt;List&lt;IOException&gt;&gt;' gives 'IOException' */
         private void addContainedTypes(List<String> constraints, String parameter, ObjectType type, String typeVariable) {
             List<String> parameterArguments = typeArguments(parameter);
             List<TypeArgument> actual = actualTypeArguments(type, parameter.substring(1, parameter.indexOf('<')));
 
             for (int i = 0; i < parameterArguments.size() && i < actual.size(); i++) {
-                // 'List<? extends E>': the elements are an 'E' as well
-                String formal = parameterArguments.get(i).startsWith("+") ? parameterArguments.get(i).substring(1) : parameterArguments.get(i);
-                TypeArgument contained = actual.get(i);
+                String formal = withoutExtendsWildcard(parameterArguments.get(i));
+                TypeArgument contained = upperBound(actual.get(i));
 
-                if (contained instanceof WildcardExtendsTypeArgument wildcard) {
-                    // 'List<? extends IOException>': the upper bound is what the type variable stands for
-                    contained = wildcard.type() instanceof ObjectType bound ? bound : null;
-                }
                 if (formal.equals(typeVariable)) {
                     // 'List<E>' of a method variable 'E extends IOException': the variable itself, with its bound
                     String name = nameOf(contained);

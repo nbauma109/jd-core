@@ -2587,6 +2587,19 @@ public class VineflowerRegressions {
         }
     }
 
+    public <E extends java.io.IOException> void genericThrowsOfAWildcardOfAVariable(java.util.List<? extends E> errors) {
+        try (var wildcardVariable = new AutoCloseable() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            raiseWildcard(errors);
+        } catch (java.io.IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

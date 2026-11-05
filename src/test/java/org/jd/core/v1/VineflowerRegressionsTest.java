@@ -317,6 +317,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertEquals(6, source.split("var adapted = new Object\\(\\) \\{", -1).length - 1);
         assertTrue(source.contains("Object broad = new Object() {"));
         assertTrue(source.contains("try (InheritedClosing intersectedClose = new InheritedClosing() {"));
+        assertTrue(source.contains("try (var bounded = new AutoCloseable() {"));
+        assertTrue(source.contains("try (InheritingClosingClass abstractClose = new InheritingClosingClass() {"));
         assertTrue(source.contains("try (GenericInheritedClosing<SQLException> substitutedClose = new GenericInheritedClosing<SQLException>() {"));
     }
 

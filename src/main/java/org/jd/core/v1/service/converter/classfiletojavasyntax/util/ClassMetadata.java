@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -303,7 +304,7 @@ public final class ClassMetadata {
     public static Optional<List<String>> inheritedCloseThrown(Loader loader, String internalName, List<String> targetArguments, Map<String, String> variableBounds) {
         List<Map.Entry<String, Method>> declarations = new ArrayList<>();
 
-        for (Map.Entry<String, Method> declaration : abstractDeclarations(loader, internalName, new HashSet<>())) {
+        for (Map.Entry<String, Method> declaration : inheritedAbstractDeclarations(loader, internalName)) {
             if ("close".equals(declaration.getValue().getName()) && "()".equals(parameters(loader, internalName, declaration))
                     && declarations.stream().noneMatch(known -> known.getKey().equals(declaration.getKey()))) {
                 declarations.add(declaration);
@@ -311,6 +312,37 @@ public final class ClassMetadata {
         }
         return declarations.size() > 1 && !declarations.get(0).getKey().equals(internalName)
                 ? Optional.of(thrownByAll(loader, internalName, declarations, targetArguments, variableBounds)) : Optional.empty();
+    }
+
+    /**
+     * @return the abstract methods which the interface declares or inherits; for an abstract class, those of its interfaces and of its superclass which it does not implement
+     * ('abstract class C implements A, B' inherits two closes)
+     */
+    private static List<Map.Entry<String, Method>> inheritedAbstractDeclarations(Loader loader, String internalName) {
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+
+        if (javaClass == null || javaClass.isInterface()) {
+            return abstractDeclarations(loader, internalName, new HashSet<>());
+        }
+
+        List<Map.Entry<String, Method>> methods = new ArrayList<>();
+
+        for (Method method : javaClass.getMethods()) {
+            if (!method.isStatic() && !method.isPrivate() && "close".equals(method.getName()) && "()V".equals(method.getSignature())) {
+                // The class declares the method itself: its own throws clause decides
+                return methods;
+            }
+        }
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            methods.addAll(abstractDeclarations(loader, internalNameOf(interfaceName), new HashSet<>()));
+        }
+
+        String superName = internalNameOf(javaClass.getSuperclassName());
+
+        if (superName != null && !"java/lang/Object".equals(superName)) {
+            methods.addAll(inheritedAbstractDeclarations(loader, superName));
+        }
+        return methods;
     }
 
     private static List<String> thrownByAll(Loader loader, String internalName, List<Map.Entry<String, Method>> declarations, List<String> targetArguments,
@@ -391,12 +423,23 @@ public final class ClassMetadata {
         Method method = declaration.getValue();
         String signature = genericSignature(method) != null ? genericSignature(method) : method.getSignature();
 
-        // The variables which the method declares hide those of its interface: they are erased before the arguments of the interface are substituted
-        signature = eraseMethodTypeVariables(signature);
-        if (!declaration.getKey().equals(internalName)) {
-            List<String> arguments = ancestorTypeArguments(loader, internalName, declaration.getKey()).orElse(List.of());
+        // The variables which the method declares hide those of its interface: they are erased before the arguments of the interface are substituted, by their bound which
+        // the interface may give ('<T extends U> void run(T)' of 'A<String>' erases to 'run(String)')
+        Map<String, String> interfaceVariables = new HashMap<>();
+        List<String> interfaceArguments = List.of();
 
-            signature = substituteTypeVariables(signature, typeParameterNames(loader, declaration.getKey()), arguments);
+        if (!declaration.getKey().equals(internalName)) {
+            interfaceArguments = ancestorTypeArguments(loader, internalName, declaration.getKey()).orElse(List.of());
+
+            List<String> names = typeParameterNames(loader, declaration.getKey());
+
+            for (int i = 0; i < names.size() && i < interfaceArguments.size(); i++) {
+                interfaceVariables.put(names.get(i), interfaceArguments.get(i));
+            }
+        }
+        signature = eraseMethodTypeVariables(signature, interfaceVariables);
+        if (!interfaceArguments.isEmpty()) {
+            signature = substituteTypeVariables(signature, typeParameterNames(loader, declaration.getKey()), interfaceArguments);
         }
 
         String parameters = signature.substring(0, signature.indexOf(')') + 1);
@@ -413,7 +456,7 @@ public final class ClassMetadata {
      * @return the signature where the type variables which the method declares ('&lt;T:Ljava/lang/Object;&gt;(TT;)V') are replaced by the erasure of their first bound: '&lt;T&gt; void run(T)' and
      * 'void run(Object)' have the same erasure, so they override each other in a sub interface
      */
-    private static String eraseMethodTypeVariables(String signature) {
+    private static String eraseMethodTypeVariables(String signature, Map<String, String> interfaceVariables) {
         if (!signature.startsWith("<")) {
             return signature;
         }
@@ -427,6 +470,9 @@ public final class ClassMetadata {
 
             for (int i = 0; i < bounds.size() && bound.startsWith("T") && bounds.containsKey(bound.substring(1, bound.length() - 1)); i++) {
                 bound = bounds.get(bound.substring(1, bound.length() - 1));
+            }
+            if (bound.startsWith("T") && interfaceVariables.containsKey(bound.substring(1, bound.length() - 1))) {
+                bound = interfaceVariables.get(bound.substring(1, bound.length() - 1));
             }
             if (bound.startsWith("T")) {
                 bound = "Ljava/lang/Object;";

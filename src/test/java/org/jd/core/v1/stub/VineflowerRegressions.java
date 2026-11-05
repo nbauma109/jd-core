@@ -2448,6 +2448,49 @@ public class VineflowerRegressions {
         };
     }
 
+    abstract static class InheritingClosingClass implements IoClosing, SqlClosing {
+        // inherits two closes
+    }
+
+    static <T extends InheritingClosingClass> T sameClosingClass(T value) {
+        return value;
+    }
+
+    public int resourceWhoseAbstractClassInheritsTwoCloses() {
+        try (InheritingClosingClass abstractClose = new InheritingClosingClass() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return sameClosingClass(abstractClose).hashCode();
+        }
+    }
+
+    interface BoundedGenericAction<U> {
+        <T extends U> void run(T value) throws Exception;
+    }
+
+    interface StringAction {
+        void run(String value) throws java.io.IOException;
+    }
+
+    interface BoundedBothActions extends BoundedGenericAction<String>, StringAction {
+    }
+
+    public BoundedBothActions lambdaWhoseMethodVariableIsBoundedByAnInterfaceVariable() {
+        return value -> {
+            try (var bounded = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                bounded.toString();
+            }
+        };
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

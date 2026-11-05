@@ -330,8 +330,11 @@ public final class ClassMetadata {
 
         for (Method method : javaClass.getMethods()) {
             if (!method.isStatic() && !method.isPrivate() && CLOSE.equals(method.getName()) && "()V".equals(method.getSignature())) {
-                // The class declares the method itself: its own throws clause decides
-                return methods;
+                if (!method.isAbstract()) {
+                    // The class implements the method itself: its own throws clause decides
+                    return new ArrayList<>();
+                }
+                methods.add(Map.entry(internalName, method));
             }
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {

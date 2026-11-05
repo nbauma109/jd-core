@@ -2608,6 +2608,30 @@ public class VineflowerRegressions {
         return adaptAndApply(broadValue, x -> java.util.Objects.requireNonNull(other).toString());
     }
 
+    abstract static class AbstractIoClosingBase implements AutoCloseable {
+        @Override
+        public abstract void close() throws java.io.IOException;
+    }
+
+    abstract static class AbstractInheritingClass extends AbstractIoClosingBase implements SqlClosing {
+        // inherits the abstract close of its superclass and the one of its interface
+    }
+
+    static <T extends AbstractInheritingClass> T sameAbstractInheriting(T value) {
+        return value;
+    }
+
+    public int resourceWhoseSuperclassDeclaresAnAbstractClose() {
+        try (AbstractInheritingClass abstractInherited = new AbstractInheritingClass() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return sameAbstractInheriting(abstractInherited).hashCode();
+        }
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

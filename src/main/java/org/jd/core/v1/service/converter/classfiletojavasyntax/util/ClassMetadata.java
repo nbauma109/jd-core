@@ -390,17 +390,49 @@ public final class ClassMetadata {
             return signature;
         }
 
+        int end = endOfFormalTypeParameters(signature);
+        Map<String, String> bounds = firstBounds(signature.substring(1, end - 1));
+        String rest = signature.substring(end);
+
+        for (Map.Entry<String, String> entry : bounds.entrySet()) {
+            String bound = entry.getValue();
+
+            for (int i = 0; i < bounds.size() && bound.startsWith("T") && bounds.containsKey(bound.substring(1, bound.length() - 1)); i++) {
+                bound = bounds.get(bound.substring(1, bound.length() - 1));
+            }
+            if (bound.startsWith("T")) {
+                bound = "Ljava/lang/Object;";
+            }
+            rest = rest.replaceAll("(?<=[(;\\[<>*+\\-])T" + Pattern.quote(entry.getKey()) + ";", Matcher.quoteReplacement(bound));
+        }
+        return rest;
+    }
+
+    /** @return the index which follows the '&gt;' that closes the formal type parameters which start the signature */
+    private static int endOfFormalTypeParameters(String signature) {
         int depth = 0;
         int end = 0;
 
         do {
             char c = signature.charAt(end);
 
-            depth += c == '<' ? 1 : c == '>' ? -1 : 0;
+            if (c == '<') {
+                depth++;
+            } else if (c == '>') {
+                depth--;
+            }
             end++;
         } while (depth > 0 && end < signature.length());
+        return end;
+    }
 
-        String formals = signature.substring(1, end - 1);
+    /** @return the index which follows the bound which starts at the index, the index itself when the bound is empty ('T::Ljava/lang/Comparable;' has no class bound) */
+    private static int endOfBound(String formals, int index) {
+        return index < formals.length() && formals.charAt(index) != ':' ? endOfType(formals, index) : index;
+    }
+
+    /** @return the first bound of each formal type parameter ('T:Ljava/lang/Object;U::Ljava/lang/Comparable;'), 'Object' when it has none */
+    private static Map<String, String> firstBounds(String formals) {
         Map<String, String> bounds = new LinkedHashMap<>();
         int index = 0;
 
@@ -412,7 +444,8 @@ public final class ClassMetadata {
             index = colon;
             while (index < formals.length() && formals.charAt(index) == ':') {
                 index++;
-                int next = index < formals.length() && formals.charAt(index) != ':' ? endOfType(formals, index) : index;
+
+                int next = endOfBound(formals, index);
 
                 if (bound == null && next > index) {
                     bound = formals.substring(index, next);
@@ -421,18 +454,7 @@ public final class ClassMetadata {
             }
             bounds.put(name, bound == null ? "Ljava/lang/Object;" : bound);
         }
-
-        String rest = signature.substring(end);
-
-        for (Map.Entry<String, String> entry : bounds.entrySet()) {
-            String bound = entry.getValue();
-
-            for (int i = 0; i < bounds.size() && bound.startsWith("T") && bounds.containsKey(bound.substring(1, bound.length() - 1)); i++) {
-                bound = bounds.get(bound.substring(1, bound.length() - 1));
-            }
-            rest = rest.replaceAll("(?<=[(;\\[<>*+\\-])T" + Pattern.quote(entry.getKey()) + ";", Matcher.quoteReplacement(bound.startsWith("T") ? "Ljava/lang/Object;" : bound));
-        }
-        return rest;
+        return bounds;
     }
 
     /** @return the abstract methods of the interface with the name of the interface which declares each: its own, then the inherited ones which no default method of it implements */

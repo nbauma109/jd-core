@@ -2661,6 +2661,35 @@ public class VineflowerRegressions {
         }
     }
 
+    interface ShadowedThrowsAction<T> {
+        <T extends java.sql.SQLException> void run(Object value) throws T;
+    }
+
+    interface IoThrowsAction {
+        void run(Object value) throws java.io.IOException;
+    }
+
+    interface ShadowedThrowsActions extends ShadowedThrowsAction<Exception>, IoThrowsAction {
+    }
+
+    interface IoClosingResource extends AutoCloseable {
+        @Override
+        void close() throws java.io.IOException;
+    }
+
+    public ShadowedThrowsActions lambdaWhoseThrownVariableIsShadowed() {
+        return value -> {
+            try (var shadowedThrow = new IoClosingResource() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                shadowedThrow.toString();
+            }
+        };
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

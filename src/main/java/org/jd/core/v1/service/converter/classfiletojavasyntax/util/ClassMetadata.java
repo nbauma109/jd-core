@@ -401,7 +401,13 @@ public final class ClassMetadata {
         String signature = genericSignature(method);
 
         if (signature != null && signature.indexOf('^') >= 0) {
-            List<String> tokens = Arrays.asList(signature.substring(signature.indexOf('^') + 1).split("\\^"));
+            Set<String> declared = methodTypeVariables(signature);
+            List<String> tokens = new ArrayList<>();
+
+            // The variable which the method declares hides the one of its interface of the same name: it is not substituted
+            for (String token : signature.substring(signature.indexOf('^') + 1).split("\\^")) {
+                tokens.add(token.startsWith("T") && declared.contains(token.substring(1, token.length() - 1)) ? "T" + token.substring(1, token.length() - 1) + "~;" : token);
+            }
 
             if (owned.getKey().equals(internalName)) {
                 thrown.addAll(tokens);
@@ -507,6 +513,11 @@ public final class ClassMetadata {
             rest = rest.replaceAll("(?<=[(;\\[<>*+\\-])T" + Pattern.quote(entry.getKey()) + ";", Matcher.quoteReplacement(bound));
         }
         return rest;
+    }
+
+    /** @return the names of the type variables which the signature of a method declares */
+    private static Set<String> methodTypeVariables(String signature) {
+        return signature.startsWith("<") ? firstBounds(signature.substring(1, endOfFormalTypeParameters(signature) - 1)).keySet() : Set.of();
     }
 
     /** @return the index which follows the '&gt;' that closes the formal type parameters which start the signature */

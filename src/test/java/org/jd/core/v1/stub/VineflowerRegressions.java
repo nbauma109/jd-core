@@ -2636,6 +2636,9 @@ public class VineflowerRegressions {
         @SuppressWarnings("unused")
         private void close() throws java.io.IOException {
             // is not inherited
+            if (hashCode() == 0) {
+                throw new java.io.IOException("never");
+            }
         }
     }
 

@@ -2017,7 +2017,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             lambda.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(MethodInvocationExpression expression) {
-                    checks[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast();
+                    checks[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast()
+                            && (anonymousName == null || call.getAnonymousCastName() == null || anonymousName.equals(call.getAnonymousCastName()));
                     super.visit(expression);
                 }
             });

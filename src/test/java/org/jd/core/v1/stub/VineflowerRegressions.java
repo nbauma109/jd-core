@@ -2600,6 +2600,14 @@ public class VineflowerRegressions {
         }
     }
 
+    public String lambdaWhoseCheckedAnonymousTypeIsAnotherOne() {
+        Object broadValue = new Object() {
+        };
+        var other = new Object() {
+        };
+        return adaptAndApply(broadValue, x -> java.util.Objects.requireNonNull(other).toString());
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

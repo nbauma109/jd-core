@@ -1008,8 +1008,9 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
                     if (methodTypeParameters != null && !partialBinding && !wildcardSuperOrExtends) {
                         bindTypeParametersToNonWildcardTypeArgumentsVisitor.init(bindings);
                         methodTypeParameters.accept(bindTypeParametersToNonWildcardTypeArgumentsVisitor);
-                        if (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
-                                || !allTypeParametersInferable(mie.getUnboundParameterTypes(), methodTypeParameters, parameters)) {
+                        if (!namesAnAnonymousClass(bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
+                                && (isNonWildcardableBaseExpression(parameters, bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument())
+                                || !allTypeParametersInferable(mie.getUnboundParameterTypes(), methodTypeParameters, parameters))) {
                             mie.setNonWildcardTypeArguments(bindTypeParametersToNonWildcardTypeArgumentsVisitor.getTypeArgument());
                         }
                     }
@@ -1417,4 +1418,13 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     public void visit(ThisExpression expression) {}
     @Override
     public void visit(TypeReferenceDotClassExpression expression) {}
+
+    /** @return true if the type arguments name the type of an anonymous class, which the source cannot write: the call is left to infer it */
+    private static boolean namesAnAnonymousClass(BaseTypeArgument typeArguments) {
+        if (typeArguments instanceof ObjectType objectType) {
+            return LocalVariableMaker.isAnonymousClassName(objectType.getInternalName());
+        }
+        return typeArguments instanceof TypeArguments list && list.stream().anyMatch(argument -> argument instanceof ObjectType objectType
+                && LocalVariableMaker.isAnonymousClassName(objectType.getInternalName()));
+    }
 }

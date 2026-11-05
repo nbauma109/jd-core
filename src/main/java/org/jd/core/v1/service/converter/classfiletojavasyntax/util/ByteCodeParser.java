@@ -1003,6 +1003,7 @@ public class ByteCodeParser {
                                 castNeeded = false;
                                 if (expression1 instanceof ClassFileMethodInvocationExpression call) {
                                     call.setAnonymousCast(true);
+                                    call.setAnonymousCastName(anonymous.getInternalName());
                                 }
                             }
                             if (castNeeded) {

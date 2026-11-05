@@ -320,6 +320,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (var bounded = new AutoCloseable() {"));
         assertTrue(source.contains("try (var chainedArgument = new ChainedClosing<"));
         assertTrue(source.contains("try (var wildcard = new AutoCloseable() {"));
+        assertTrue(source.contains("Object broadValue = new Object() {"));
         assertTrue(source.contains("try (var wildcardVariable = new AutoCloseable() {"));
         assertTrue(source.contains("try (ImplementedClosingClass implemented = new ImplementedClosingClass() {"));
         assertTrue(source.contains("var checked = new Object() {"));

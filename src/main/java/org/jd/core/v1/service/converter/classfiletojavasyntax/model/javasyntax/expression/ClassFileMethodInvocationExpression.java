@@ -24,6 +24,7 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
     private boolean bound;
     private Boolean varArgsOverride;
     private boolean anonymousCast;
+    private String anonymousCastName;
     private final MethodTypes methodTypes;
 
     public ClassFileMethodInvocationExpression(
@@ -48,6 +49,7 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
         copy.bound = bound;
         copy.varArgsOverride = varArgsOverride;
         copy.anonymousCast = anonymousCast;
+        copy.anonymousCastName = anonymousCastName;
         copy.setTypeBounds(getTypeBounds());
         copy.setTypeBindings(getTypeBindings());
         return copy;
@@ -84,6 +86,15 @@ public class ClassFileMethodInvocationExpression extends MethodInvocationExpress
     /** @return true if the byte code casts the result to an anonymous class, a runtime check which the source cannot write */
     public boolean isAnonymousCast() {
         return anonymousCast;
+    }
+
+    /** @return the internal name of the anonymous class which the byte code casts the result to, null if it is not known or the result is not cast to one */
+    public String getAnonymousCastName() {
+        return anonymousCastName;
+    }
+
+    public void setAnonymousCastName(String anonymousCastName) {
+        this.anonymousCastName = anonymousCastName;
     }
 
     public void setAnonymousCast(boolean anonymousCast) {

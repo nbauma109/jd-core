@@ -41,6 +41,7 @@ public final class ClassMetadata {
     private static final Set<String> OBJECT_METHODS = Set.of("equals(Ljava/lang/Object;)Z", "hashCode()I", "toString()Ljava/lang/String;");
 
     private static final String OBJECT = "java/lang/Object";
+    private static final String CLOSE = "close";
     private static final String RECORD = "java/lang/Record";
 
     private ClassMetadata() {}
@@ -305,7 +306,7 @@ public final class ClassMetadata {
         List<Map.Entry<String, Method>> declarations = new ArrayList<>();
 
         for (Map.Entry<String, Method> declaration : inheritedAbstractDeclarations(loader, internalName)) {
-            if ("close".equals(declaration.getValue().getName()) && "()".equals(parameters(loader, internalName, declaration))
+            if (CLOSE.equals(declaration.getValue().getName()) && "()".equals(parameters(loader, internalName, declaration))
                     && declarations.stream().noneMatch(known -> known.getKey().equals(declaration.getKey()))) {
                 declarations.add(declaration);
             }
@@ -328,7 +329,7 @@ public final class ClassMetadata {
         List<Map.Entry<String, Method>> methods = new ArrayList<>();
 
         for (Method method : javaClass.getMethods()) {
-            if (!method.isStatic() && !method.isPrivate() && "close".equals(method.getName()) && "()V".equals(method.getSignature())) {
+            if (!method.isStatic() && !method.isPrivate() && CLOSE.equals(method.getName()) && "()V".equals(method.getSignature())) {
                 // The class declares the method itself: its own throws clause decides
                 return methods;
             }
@@ -359,7 +360,7 @@ public final class ClassMetadata {
             if (javaClass == null) {
                 return false;
             }
-            if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && "close".equals(method.getName())
+            if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && CLOSE.equals(method.getName())
                     && "()V".equals(method.getSignature()))) {
                 return true;
             }

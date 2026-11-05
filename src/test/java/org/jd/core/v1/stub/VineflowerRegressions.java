@@ -2632,6 +2632,32 @@ public class VineflowerRegressions {
         }
     }
 
+    static class PrivateClosingBase {
+        @SuppressWarnings("unused")
+        private void close() throws java.io.IOException {
+            // is not inherited
+        }
+    }
+
+    abstract static class PrivateCloseInheriting extends PrivateClosingBase implements IoClosing, SqlClosing {
+        // inherits the closes of its interfaces only
+    }
+
+    static <T extends PrivateCloseInheriting> T samePrivateCloseInheriting(T value) {
+        return value;
+    }
+
+    public int resourceWhoseSuperclassHasAPrivateClose() {
+        try (PrivateCloseInheriting privateClose = new PrivateCloseInheriting() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            return samePrivateCloseInheriting(privateClose).hashCode();
+        }
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

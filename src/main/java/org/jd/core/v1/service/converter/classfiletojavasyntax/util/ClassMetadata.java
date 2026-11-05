@@ -363,7 +363,7 @@ public final class ClassMetadata {
             if (javaClass == null) {
                 return false;
             }
-            if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && CLOSE.equals(method.getName())
+            if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && !method.isPrivate() && CLOSE.equals(method.getName())
                     && "()V".equals(method.getSignature()))) {
                 return true;
             }

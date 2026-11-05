@@ -56,6 +56,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.ClassMetadata;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
@@ -1931,6 +1932,9 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */
         private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index) {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
+                if (j != index && lambdaAdaptation && parameters.get(j).contains(parameters.get(index)) && isInstantiatedWithTheDeclaredType(arguments.get(j))) {
+                    return true;
+                }
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(parameters.get(index))
                         && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), parameters.get(index)),
                                 containerParametersOfTheType(lambda, parameters.get(j), parameters.get(index), parameters.get(index))))) {
@@ -1938,6 +1942,12 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
             return false;
+        }
+
+        /** @return true if a method reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */
+        private boolean isInstantiatedWithTheDeclaredType(Expression argument) {
+            return argument instanceof ClassFileMethodReferenceExpression reference && anonymousName != null && reference.getInstantiatedDescriptor() != null
+                    && reference.getInstantiatedDescriptor().contains("L" + anonymousName + ";");
         }
 
         /** @return false if the lambda was compiled for 'Object' ('Object value = new Object() {}': nothing is adapted to the anonymous class); true when its types are unknown */

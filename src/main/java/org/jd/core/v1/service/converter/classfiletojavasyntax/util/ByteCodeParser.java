@@ -89,6 +89,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileMonitorEnterStatement;
@@ -1686,6 +1687,14 @@ public class ByteCodeParser {
         }
     }
 
+    /** @return the third bootstrap argument of a lambda metafactory, the method type which the call site instantiates; null when there is none */
+    private static String instantiatedDescriptor(ConstantPool constants, int[] bootstrapArguments) {
+        if (bootstrapArguments.length < 3 || !(constants.getConstant(bootstrapArguments[2]) instanceof ConstantMethodType instantiated)) {
+            return null;
+        }
+        return constants.getConstantString(instantiated.getDescriptorIndex(), CONSTANT_Utf8);
+    }
+
     private void parseLambdaOrMethodReference(DefaultStack<Expression> stack, ConstantPool constants, int lineNumber,
             TypeMaker.MethodTypes indyMethodTypes, BaseExpression indyParameters, int[] bootstrapArguments) {
         ConstantMethodType cmt0 = constants.getConstant(bootstrapArguments[0]);
@@ -1715,17 +1724,20 @@ public class ByteCodeParser {
             if (StringConstants.INSTANCE_CONSTRUCTOR.equals(name1)) {
                 stack.push(new ConstructorReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), ot, descriptor1));
             } else {
-                stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), new ObjectTypeReferenceExpression(lineNumber, ot), typeName, name1, descriptor1));
+                stack.push(new ClassFileMethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), new ObjectTypeReferenceExpression(lineNumber, ot), typeName, name1,
+                        descriptor1, instantiatedDescriptor(constants, bootstrapArguments)));
             }
             return;
         }
 
         // Create method reference
+        String instantiatedDescriptor = instantiatedDescriptor(constants, bootstrapArguments);
+
         if (indyParameters instanceof Expression e) {
-            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e, typeName, name1, descriptor1));
+            stack.push(new ClassFileMethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e, typeName, name1, descriptor1, instantiatedDescriptor));
         }
         if (indyParameters instanceof Expressions e) {
-            stack.push(new MethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1));
+            stack.push(new ClassFileMethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e.getFirst(), typeName, name1, descriptor1, instantiatedDescriptor));
         }
     }
 

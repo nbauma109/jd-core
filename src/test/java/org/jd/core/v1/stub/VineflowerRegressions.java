@@ -2326,6 +2326,12 @@ public class VineflowerRegressions {
         return adaptAndApply(value, x -> "ok");
     }
 
+    public String methodReferenceAdaptedToAnAnonymousType() {
+        var adapted = new Object() {
+        };
+        return adaptAndApply(adapted, Object::toString);
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

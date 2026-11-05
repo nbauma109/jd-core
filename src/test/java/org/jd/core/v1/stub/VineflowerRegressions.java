@@ -2399,6 +2399,55 @@ public class VineflowerRegressions {
         };
     }
 
+    interface RelatedClosingA<T extends Exception> extends AutoCloseable {
+        @Override
+        void close() throws T;
+    }
+
+    interface RelatedClosingB<T extends Exception> extends AutoCloseable {
+        @Override
+        void close() throws T;
+    }
+
+    interface RelatedClosing<X extends java.io.IOException, E extends X> extends RelatedClosingA<E>, RelatedClosingB<X> {
+        // inherits two closes, one throws a variable which the other one bounds
+    }
+
+    public <X extends java.io.IOException, E extends X> void resourceWhoseInheritedVariablesBoundEachOther() {
+        try (var related = new RelatedClosing<X, E>() {
+            @Override
+            public void close() {
+                // closes nothing
+            }
+        }) {
+            related.toString();
+        }
+    }
+
+    interface ShadowedGenericAction<T> {
+        <T> void run(T value) throws Exception;
+    }
+
+    interface ErasedShadowAction {
+        void run(Object value) throws java.io.IOException;
+    }
+
+    interface ErasedShadowActions extends ShadowedGenericAction<String>, ErasedShadowAction {
+    }
+
+    public ErasedShadowActions lambdaWhoseGenericAncestorShadowsItsVariable() {
+        return value -> {
+            try (var shadowed = new AutoCloseable() {
+                @Override
+                public void close() {
+                    // closes nothing
+                }
+            }) {
+                shadowed.toString();
+            }
+        };
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

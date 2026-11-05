@@ -229,6 +229,34 @@ public final class ClassMetadata {
         return token.startsWith("T") && token.endsWith(";") && variableBounds.containsKey(token.substring(1, token.length() - 1));
     }
 
+    /** @return true if the variable is the other one or is bounded by it through a chain of variables ('E extends X'): 'throws X' allows an 'E' */
+    private static boolean isBoundedBy(String variable, String other, Map<String, String> variableBounds) {
+        Set<String> visited = new HashSet<>();
+        String current = variable;
+
+        while (current != null && visited.add(current)) {
+            if (current.equals(other)) {
+                return true;
+            }
+
+            String bound = variableBounds.get(current.substring(1, current.length() - 1));
+
+            current = bound != null && bound.startsWith("T") && bound.endsWith(";") ? bound : null;
+        }
+        return false;
+    }
+
+    /** @return the internal name of the class which bounds the variable, found through the chain of variables which bound each other */
+    private static String classBound(String variable, Map<String, String> variableBounds) {
+        Set<String> visited = new HashSet<>();
+        String bound = variableBounds.get(variable.substring(1, variable.length() - 1));
+
+        while (bound != null && bound.startsWith("T") && bound.endsWith(";") && visited.add(bound)) {
+            bound = variableBounds.get(bound.substring(1, bound.length() - 1));
+        }
+        return bound == null || bound.startsWith("T") && bound.endsWith(";") ? "java/lang/Exception" : bound;
+    }
+
     /**
      * @return true if each of the declarations allows the exception: a class is allowed by a super type of it, a type variable of the target by itself or by a super type of its
      * bound; a class is not allowed by a type variable, 'throws E' does not allow every 'IOException'
@@ -236,12 +264,13 @@ public final class ClassMetadata {
     private static boolean allowedByAll(Loader loader, String internalName, String exception, List<Map.Entry<String, Method>> declarations, List<String> targetArguments,
             Map<String, String> variableBounds) {
         boolean variable = isVariable(exception, variableBounds);
-        String bound = variable ? variableBounds.get(exception.substring(1, exception.length() - 1)) : exception;
+        String bound = variable ? classBound(exception, variableBounds) : exception;
 
         return declarations.stream().allMatch(declaration -> {
             Set<String> allowed = substitutedExceptions(loader, internalName, declaration, targetArguments, variableBounds);
 
-            return allowed.stream().anyMatch(candidate -> isVariable(candidate, variableBounds) ? variable && candidate.equals(exception) : isSubtype(loader, bound, candidate));
+            return allowed.stream().anyMatch(candidate -> isVariable(candidate, variableBounds)
+                    ? variable && isBoundedBy(exception, candidate, variableBounds) : isSubtype(loader, bound, candidate));
         });
     }
 
@@ -362,16 +391,15 @@ public final class ClassMetadata {
         Method method = declaration.getValue();
         String signature = genericSignature(method) != null ? genericSignature(method) : method.getSignature();
 
+        // The variables which the method declares hide those of its interface: they are erased before the arguments of the interface are substituted
+        signature = eraseMethodTypeVariables(signature);
         if (!declaration.getKey().equals(internalName)) {
             List<String> arguments = ancestorTypeArguments(loader, internalName, declaration.getKey()).orElse(List.of());
 
             signature = substituteTypeVariables(signature, typeParameterNames(loader, declaration.getKey()), arguments);
         }
 
-        String parameters = eraseMethodTypeVariables(signature);
-
-        parameters = parameters.substring(0, parameters.indexOf(')') + 1);
-
+        String parameters = signature.substring(0, signature.indexOf(')') + 1);
         String erased;
 
         do {

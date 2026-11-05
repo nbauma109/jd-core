@@ -209,7 +209,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (argument == null) {
                 tokens.add("T" + typeParameters.get(i) + ";");
             } else if (isVariable(argument)) {
-                variableBounds.put(argument.substring(1, argument.length() - 1), boundOf(argument));
+                variableBounds.put(argument.substring(1, argument.length() - 1), immediateBoundOf(argument));
                 tokens.add(argument);
             } else {
                 tokens.add("L" + argument + ";");
@@ -309,6 +309,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         String name = classBoundOf(exception.substring(1, exception.length() - 1));
 
         return name != null ? name : "java/lang/Exception";
+    }
+
+    /** @return the bound of the variable as the metadata expects it: the token of the variable which bounds it directly ('TX;' for 'E extends X'), else the internal name of its class bound */
+    private String immediateBoundOf(String variable) {
+        BaseType bound = typeBounds.get(variable.substring(1, variable.length() - 1));
+
+        return bound != null && bound.getFirst() instanceof GenericType generic ? "T" + generic.getName() + ";" : boundOf(variable);
     }
 
     /** @return the internal name of the class which bounds the type variable, found through the chain of variables which bound each other ('E extends X', 'X extends IOException'); null if unknown */

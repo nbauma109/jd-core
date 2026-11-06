@@ -838,6 +838,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         if (!(value instanceof ClassFileNewExpression) && hasAnonymousCast(value)) {
             // The type comes through a generic call: the cast to the anonymous class which the byte code holds is a runtime check which the explicit type loses
             anonymousVariables.put(name, members);
+            anonymousClassNames.put(name, body.getInternalTypeName());
             return true;
         }
 
@@ -2145,7 +2146,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     return true;
                 }
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(variable)
-                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda, parametersOfTheType(lambda, parameters.get(j), variable))) || checksTheAnonymousType(lambda) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
+                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda, parametersOfTheType(lambda, parameters.get(j), variable))) || checksTheAnonymousType(lambda, parametersOfTheValue(lambda, parameters.get(j), variable)) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
                                 containerParametersOfTheType(lambda, parameters.get(j), variable, variable)))) {
                     return true;
                 }
@@ -2153,26 +2154,51 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
 
-        /** @return true if the body of the lambda casts a call result to the anonymous class ('xs.get(0).toString()' for a 'List<T>' parameter): the explicit type would lose the check */
-        private boolean checksTheAnonymousType(Expression lambda) {
+        /** @return the names of the parameters of the lambda which have the type variable, or a container of it */
+        private Set<String> parametersOfTheValue(LambdaIdentifiersExpression lambda, String functionalInterface, String variable) {
+            Set<String> names = new HashSet<>(parametersOfTheType(lambda, functionalInterface, variable));
+
+            names.addAll(containerParametersOfTheType(lambda, functionalInterface, variable, variable).keySet());
+            return names;
+        }
+
+        /**
+         * @return true if the body of the lambda casts a result which comes from one of its parameters to the anonymous class ('xs.get(0).toString()' for a 'List<T>' parameter):
+         * the explicit type would lose the check. A cast of what a captured variable gives does not depend on the parameter.
+         */
+        private boolean checksTheAnonymousType(Expression lambda, Set<String> parameterNames) {
             boolean[] checks = new boolean[1];
 
             lambda.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(FieldReferenceExpression expression) {
                     checks[0] |= expression instanceof ClassFileFieldReferenceExpression field
-                            && (anonymousName == null || anonymousName.equals(field.getAnonymousCastName()));
+                            && (anonymousName == null || anonymousName.equals(field.getAnonymousCastName())) && mentions(expression, parameterNames);
                     super.visit(expression);
                 }
 
                 @Override
                 public void visit(MethodInvocationExpression expression) {
                     checks[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast()
-                            && (anonymousName == null || call.getAnonymousCastName() == null || anonymousName.equals(call.getAnonymousCastName()));
+                            && (anonymousName == null || call.getAnonymousCastName() == null || anonymousName.equals(call.getAnonymousCastName()))
+                            && mentions(expression, parameterNames);
                     super.visit(expression);
                 }
             });
             return checks[0];
+        }
+
+        /** @return true if the expression reads one of the variables */
+        private boolean mentions(Expression expression, Set<String> names) {
+            boolean[] found = new boolean[1];
+
+            expression.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(LocalVariableReferenceExpression reference) {
+                    found[0] |= names.contains(reference.getName());
+                }
+            });
+            return found[0];
         }
 
         /** @return true if a method or constructor reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */

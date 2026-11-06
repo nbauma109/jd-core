@@ -2185,6 +2185,26 @@ public class VineflowerRegressions {
         return parameterizedBound((java.util.List) value);
     }
 
+    static class SelfBound implements Comparable<String> {
+        @Override
+        public int compareTo(String other) {
+            return other.length();
+        }
+    }
+
+    static class SelfBounds extends java.util.ArrayList<SelfBound> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <T extends Comparable<T>> int recursiveBound(java.util.List<T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideARecursiveBound(SelfBounds value) {
+        return recursiveBound((java.util.List) value);
+    }
+
     static <T extends Comparable<? extends CharSequence>> int wildcardBound(java.util.List<T> value) {
         return value.size();
     }
@@ -2487,6 +2507,26 @@ public class VineflowerRegressions {
         try (var value = origin) {
             return adaptToContainer(java.util.List.of(value), x -> "ok");
         }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptDirectly(T value, java.util.function.Function<T, String> function) {
+        java.util.Objects.requireNonNull(value);
+        return (String) ((java.util.function.Function) function).apply(new Object());
+    }
+
+    public String lambdaAdaptedThroughAnAliasOfAGenericCall() {
+        var produced = identityOf(new Object() {
+        });
+        var alias = produced;
+        return adaptDirectly(alias, x -> "ok");
+    }
+
+    public String lambdaWhoseCheckedCaptureIsNotItsParameter() {
+        var origin = new Object() {
+        };
+        Object value = origin;
+        return adaptDirectly(value, x -> identityOf(origin).toString());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

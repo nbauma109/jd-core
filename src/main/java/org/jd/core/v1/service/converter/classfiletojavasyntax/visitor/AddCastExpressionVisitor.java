@@ -3205,7 +3205,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             TypeArgument argument = seen.get(i);
 
             if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
-                    && (!argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument)) || !isWithinBound(bounds.get(variable.getName()), argument))) {
+                    && (!argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument)) || !isWithinBound(bounds.get(variable.getName()), variable.getName(), argument))) {
                 return true;
             }
         }
@@ -3216,7 +3216,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings, Map<String, BaseType> bounds) {
         if (expected instanceof GenericType variable && variable.getDimension() == 0) {
             // 'Map<T, T>' needs the same argument for each occurrence of the variable
-            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen)) && isWithinBound(bounds.get(variable.getName()), seen);
+            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen)) && isWithinBound(bounds.get(variable.getName()), variable.getName(), seen);
         }
         if (expected instanceof ObjectType expectedObject && seen instanceof ObjectType seenObject && expectedObject.getInternalName().equals(seenObject.getInternalName())
                 && expectedObject.getDimension() == seenObject.getDimension()) {
@@ -3230,21 +3230,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** @return false if the inherited argument is no sub type of the bound of the type variable of the invoked method: 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T extends Number&gt;' */
-    private boolean isWithinBound(BaseType bound, TypeArgument seen) {
+    private boolean isWithinBound(BaseType bound, String variable, TypeArgument seen) {
         if (bound == null || !(seen instanceof ObjectType seenObject)) {
             return true;
         }
         // 'T extends Number &amp; Runnable' has every one of its bounds to satisfy
         for (Type constituent : bound) {
-            if (constituent instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, seenObject))) {
+            if (constituent instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, variable, seenObject))) {
                 return false;
             }
         }
         return true;
     }
 
-    /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;' */
-    private boolean hasTheTypeArgumentsOfTheBound(ObjectType bound, ObjectType seen) {
+    /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;'; the variable in its own bound ('T extends Comparable&lt;T&gt;') stands for the argument */
+    private boolean hasTheTypeArgumentsOfTheBound(ObjectType bound, String variable, ObjectType seen) {
         if (bound.getTypeArguments() == null) {
             return true;
         }
@@ -3253,7 +3253,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> required = toTypeArgumentList(bound.getTypeArguments());
 
         for (int i = 0; inherited.size() == required.size() && i < required.size(); i++) {
-            if (!satisfies(required.get(i), inherited.get(i))) {
+            if (!satisfies(required.get(i) instanceof GenericType own && own.getName().equals(variable) ? seen : required.get(i), inherited.get(i))) {
                 return false;
             }
         }

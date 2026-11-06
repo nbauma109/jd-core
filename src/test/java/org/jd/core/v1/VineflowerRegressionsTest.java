@@ -302,6 +302,25 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testAliasOfAGenericCallKeepsTheLambdaAdaptation() throws Exception {
+        String source = decompile();
+        String method = source.substring(source.indexOf("lambdaAdaptedThroughAnAliasOfAGenericCall"));
+
+        method = method.substring(0, method.indexOf("adaptDirectly(alias"));
+        assertTrue(method.contains("var produced = identityOf(new Object() {"));
+        assertTrue(method.contains("var alias = produced;"));
+    }
+
+    @Test
+    public void testCheckedCaptureOfTheLambdaIsNotItsParameter() throws Exception {
+        String source = decompile();
+        String method = source.substring(source.indexOf("lambdaWhoseCheckedCaptureIsNotItsParameter"));
+
+        method = method.substring(0, method.indexOf("adaptDirectly(value"));
+        assertTrue(method.contains("Object value = origin;"));
+    }
+
+    @Test
     public void testFieldReadKeepsTheAnonymousCheck() throws Exception {
         String source = decompile();
 
@@ -455,6 +474,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("intersectionBounded((List)value)"));
         assertTrue(source.contains("parameterizedBound((List)value)"));
         assertTrue(source.contains("wildcardBound((List)value)"));
+        assertTrue(source.contains("recursiveBound((List)value)"));
     }
 
     @Test

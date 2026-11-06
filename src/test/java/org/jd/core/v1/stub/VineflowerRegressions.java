@@ -2102,6 +2102,19 @@ public class VineflowerRegressions {
         // throws one of them
     }
 
+    static class MixedArguments extends java.util.HashMap<String, Integer> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <T> int sameArguments(java.util.Map<T, T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsWhichDisagree(MixedArguments value) {
+        return sameArguments((java.util.Map) value);
+    }
+
     public int genericThrowsOfAnInheritedNestedContainer(NestedFailures failures) {
         try (var inheritedNested = new AutoCloseable() {
             @Override

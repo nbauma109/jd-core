@@ -437,6 +437,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testInheritedArgumentsWhichDisagreeKeepTheRawCast() throws Exception {
+        String source = decompile();
+
+        // 'Map<T, T>' cannot be bound to 'HashMap<String, Integer>': the raw cast stays
+        assertTrue(source.contains("sameArguments((Map)value)"));
+    }
+
+    @Test
     public void testRecompilation() throws Exception {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(INTERNAL_CLASS_NAME, decompile())));

@@ -3063,6 +3063,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
+                        } else if (!isJavaLangObject(type) && inheritsWithConflictingBindings(unboundType instanceof ObjectType conflicting ? conflicting : objectType, expressionObjectType)) {
+                            // 'Mixed extends HashMap<String, Integer>' is no 'Map<T, T>': only a raw cast makes the call compile
+                            expression = addCastExpression(objectType.createType(null), expression);
+                            expression.getExpression().accept(this);
+                            return expression;
                         } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType)
                                 && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
                                 || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType)
@@ -3178,13 +3183,40 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), expression, new HashSet<String>());
         List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
 
-        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i)));
+        Map<String, TypeArgument> bindings = new HashMap<>();
+
+        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings));
+    }
+
+    /**
+     * @return true if the class, which has no type arguments of its own, inherits the target type with different arguments where the target has the same type variable of the
+     * invoked method: 'Mixed extends HashMap&lt;String, Integer&gt;' is no 'Map&lt;T, T&gt;', the raw cast has to stay
+     */
+    private boolean inheritsWithConflictingBindings(ObjectType target, ObjectType expression) {
+        if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
+            return false;
+        }
+
+        List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), expression, new HashSet<String>());
+        List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+        Map<String, TypeArgument> bindings = new HashMap<>();
+
+        for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
+            TypeArgument argument = seen.get(i);
+
+            if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
+                    && !argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @return true if the type argument which a class inherits is the expected one, where a type variable of the invoked method (declared by no scope around the call) stands for anything */
-    private boolean isBindableTo(TypeArgument expected, TypeArgument seen) {
+    private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings) {
         if (expected instanceof GenericType variable && variable.getDimension() == 0) {
-            return innermostScopeDeclaring(variable.getName()) == null;
+            // 'Map<T, T>' needs the same argument for each occurrence of the variable
+            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen));
         }
         if (expected instanceof ObjectType expectedObject && seen instanceof ObjectType seenObject && expectedObject.getInternalName().equals(seenObject.getInternalName())
                 && expectedObject.getDimension() == seenObject.getDimension()) {
@@ -3192,7 +3224,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             List<TypeArgument> seenArguments = toTypeArgumentList(seenObject.getTypeArguments());
 
             return expectedArguments.size() == seenArguments.size()
-                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i)));
+                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i), bindings));
         }
         return expected.equals(seen);
     }

@@ -359,7 +359,8 @@ public final class ClassMetadata {
      */
     private static boolean superclassImplementsClose(Loader loader, String internalName, String subclass) {
         String current = internalName;
-        String subclassPackage = packageOfClass(subclass);
+        // The packages of the classes which the member passes through: a package-private one is inherited by a subclass of its own package only
+        Set<String> crossed = new HashSet<>(Set.of(packageOfClass(subclass)));
 
         while (current != null && !OBJECT.equals(current)) {
             JavaClass javaClass = parse(loader, current);
@@ -368,12 +369,14 @@ public final class ClassMetadata {
                 return false;
             }
 
-            boolean samePackage = packageOfClass(current).equals(subclassPackage);
+            String currentPackage = packageOfClass(current);
+            boolean inherited = crossed.stream().allMatch(currentPackage::equals);
 
             if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && !method.isPrivate() && CLOSE.equals(method.getName())
-                    && "()V".equals(method.getSignature()) && (method.isPublic() || method.isProtected() || samePackage))) {
+                    && "()V".equals(method.getSignature()) && (method.isPublic() || method.isProtected() || inherited))) {
                 return true;
             }
+            crossed.add(currentPackage);
             current = internalNameOf(javaClass.getSuperclassName());
         }
         return false;

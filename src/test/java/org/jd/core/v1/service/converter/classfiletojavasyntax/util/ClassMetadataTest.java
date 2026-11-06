@@ -431,6 +431,9 @@ public class ClassMetadataTest {
                 "p/Base", generated("p.Base", "java.lang.Object", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[0], true, 0),
                 "q/C", generated("q.C", "p.Base", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[] {io.replace('/', '.'), sql.replace('/', '.')}, false, 0),
                 "p/PublicBase", generated("p.PublicBase", "java.lang.Object", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[0], true, Const.ACC_PUBLIC),
+                "p/Mid", generated("p.Mid", "p.Base", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[0], false, 0),
+                "q/E", generated("q.E", "p.Mid", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[0], false, 0),
+                "p/F", generated("p.F", "q.E", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[] {io.replace('/', '.'), sql.replace('/', '.')}, false, 0),
                 "q/D", generated("q.D", "p.PublicBase", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[] {io.replace('/', '.'), sql.replace('/', '.')}, false, 0));
         Loader loader = new Loader() {
             @Override
@@ -446,6 +449,8 @@ public class ClassMetadataTest {
 
         // 'p.Base.close()' is no member of 'q.C': the closes of its interfaces are the ones it inherits, and no exception is allowed by both of them
         assertEquals(Optional.of(List.of()), ClassMetadata.inheritedCloseThrown(loader, "q/C", List.of(), Map.of()));
+        // 'p.F extends q.E extends p.Mid extends p.Base': the method does not pass through 'q.E', although 'p.F' is in its package again
+        assertEquals(Optional.of(List.of()), ClassMetadata.inheritedCloseThrown(loader, "p/F", List.of(), Map.of()));
         // a public one is a member, and implements both
         assertEquals(Optional.empty(), ClassMetadata.inheritedCloseThrown(loader, "q/D", List.of(), Map.of()));
     }

@@ -2150,6 +2150,15 @@ public class VineflowerRegressions {
         return parameterizedBound((java.util.List) value);
     }
 
+    static <T extends Comparable<? extends CharSequence>> int wildcardBound(java.util.List<T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideAWildcardBound(IntegerList value) {
+        return wildcardBound((java.util.List) value);
+    }
+
     public int genericThrowsOfAnInheritedNestedContainer(NestedFailures failures) {
         try (var inheritedNested = new AutoCloseable() {
             @Override

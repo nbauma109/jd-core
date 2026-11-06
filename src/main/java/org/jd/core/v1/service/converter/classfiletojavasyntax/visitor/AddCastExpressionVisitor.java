@@ -3253,10 +3253,23 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> required = toTypeArgumentList(bound.getTypeArguments());
 
         for (int i = 0; inherited.size() == required.size() && i < required.size(); i++) {
-            // (a type variable or a wildcard of the bound is satisfied by the argument)
-            if (required.get(i) instanceof ObjectType && !required.get(i).equals(inherited.get(i))) {
+            if (!satisfies(required.get(i), inherited.get(i))) {
                 return false;
             }
+        }
+        return true;
+    }
+
+    /** @return false if the inherited type argument is none of the one which the bound requires: a type must be equal, a wildcard bounds it (a type variable is satisfied by any) */
+    private boolean satisfies(TypeArgument required, TypeArgument inherited) {
+        if (required instanceof ObjectType) {
+            return required.equals(inherited);
+        }
+        if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof ObjectType upper && inherited instanceof ObjectType argument) {
+            return typeMaker.isRawTypeAssignable(upper, argument);
+        }
+        if (required instanceof WildcardSuperTypeArgument wildcard && wildcard.type() instanceof ObjectType lower && inherited instanceof ObjectType argument) {
+            return typeMaker.isRawTypeAssignable(argument, lower);
         }
         return true;
     }

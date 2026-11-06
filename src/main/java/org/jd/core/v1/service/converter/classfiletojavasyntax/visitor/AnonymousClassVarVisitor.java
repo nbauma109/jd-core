@@ -2006,11 +2006,33 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 List<Expression> elements = new ArrayList<>();
 
                 call.getParameters().forEach(elements::add);
-                if (elements.stream().anyMatch(element -> references(element, variableNames) != null)) {
-                    return typeArguments(parameter).stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null);
+                for (int i = 0; i < elements.size(); i++) {
+                    if (references(elements.get(i), variableNames) != null) {
+                        return containerTypeArgument(call, i, parameter);
+                    }
                 }
             }
             return null;
+        }
+
+        /** @return the type variable of the parameter which the element at the index of the container call feeds: 'Map.of(k, v)' for 'Map<K,V>' gives V for the second element */
+        private String containerTypeArgument(MethodInvocationExpression call, int index, String parameter) {
+            List<String> typeArguments = typeArguments(parameter);
+            String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+            if (signature != null && signature.contains(")")) {
+                List<String> callParameters = spreadVarargs(parameterSignatures(signature), index + 1);
+                List<String> returnedArguments = typeArguments(returnedType(signature));
+
+                if (index < callParameters.size() && returnedArguments.size() == typeArguments.size()) {
+                    int position = returnedArguments.indexOf(callParameters.get(index));
+
+                    if (position >= 0) {
+                        return typeArguments.get(position).startsWith("T") ? typeArguments.get(position) : null;
+                    }
+                }
+            }
+            return typeArguments.stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null);
         }
 
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */

@@ -2380,13 +2380,15 @@ public class VineflowerRegressions {
         return adaptToContainer(new java.util.ArrayList<>(java.util.List.of(adapted)), x -> "ok");
     }
 
-    public String lambdaAdaptedThroughAResourceAlias() throws Exception {
+    public String lambdaAdaptedThroughAResourceAlias() {
         var origin = new AutoCloseable() {
             @Override
             public void close() {
+                java.util.Objects.requireNonNull(this);
             }
 
             void added() {
+                java.util.Objects.requireNonNull(this);
             }
         };
         origin.added();

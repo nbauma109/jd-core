@@ -2431,6 +2431,12 @@ public class VineflowerRegressions {
         return adaptToKeyedValue(new KeyedValue<>("key", adapted), x -> "ok");
     }
 
+    public String lambdaAdaptedThroughBothTypeArguments() {
+        var adapted = new Object() {
+        };
+        return adaptToMap(java.util.Map.of(adapted, adapted), x -> "ok");
+    }
+
     @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> String adaptToVarargs(java.util.function.Function<T, String> function, T... values) {

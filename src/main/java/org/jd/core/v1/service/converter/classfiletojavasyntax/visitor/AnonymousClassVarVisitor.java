@@ -70,6 +70,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1977,10 +1978,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             List<String> parameters = spreadVarargs(parameterSignatures(signature), arguments.size());
 
             for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
-                String variable = typeVariableFedBy(arguments.get(i), parameters.get(i));
-
-                if (variable != null && hasALambdaOfTheTypeVariable(arguments, parameters, i, variable)) {
-                    return true;
+                for (String variable : typeVariablesFedBy(arguments.get(i), parameters.get(i))) {
+                    if (hasALambdaOfTheTypeVariable(arguments, parameters, i, variable)) {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -2001,49 +2002,44 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /**
-         * @return the type variable of the parameter which the argument gives the type of the variable to: the variable itself ('T'), or an element of the container which a call
-         * builds from it ('List.of(value)' for 'List&lt;T&gt;'); null if none
+         * @return the type variables of the parameter which the argument gives the type of the variable to: the variable itself ('T'), or the elements of the container which a
+         * call builds from it ('List.of(value)' for 'List&lt;T&gt;', 'Map.of(value, value)' for 'Map&lt;K,V&gt;' gives both); empty if none
          */
-        private String typeVariableFedBy(Expression argument, String parameter) {
+        private Set<String> typeVariablesFedBy(Expression argument, String parameter) {
+            Set<String> variables = new LinkedHashSet<>();
+
             if (parameter.startsWith("T")) {
-                return references(argument, variableNames) != null ? parameter : null;
-            }
-            if (!parameter.startsWith("L")) {
-                return null;
-            }
-            if (argument instanceof MethodInvocationExpression call && call.getParameters() != null) {
+                if (references(argument, variableNames) != null) {
+                    variables.add(parameter);
+                }
+            } else if (parameter.startsWith("L") && argument instanceof MethodInvocationExpression call && call.getParameters() != null) {
                 List<Expression> elements = new ArrayList<>();
 
                 call.getParameters().forEach(elements::add);
                 for (int i = 0; i < elements.size(); i++) {
-                    String variable = typeVariableOfTheElement(call, elements.get(i), i, parameter);
-
-                    if (variable != null) {
-                        return variable;
-                    }
+                    variables.addAll(typeVariablesOfTheElement(call, elements.get(i), i, parameter));
                 }
+            } else if (parameter.startsWith("L") && argument instanceof NewExpression creation) {
+                variables.addAll(typeVariablesFedByConstructor(creation, parameter));
             }
-            return argument instanceof NewExpression creation ? typeVariableFedByConstructor(creation, parameter) : null;
+            return variables;
         }
 
         /** 'new ArrayList<>(List.of(value))': the copy has the type arguments of the container it copies */
-        private String typeVariableFedByConstructor(NewExpression creation, String parameter) {
-            if (creation.getParameters() == null) {
-                return null;
-            }
+        private Set<String> typeVariablesFedByConstructor(NewExpression creation, String parameter) {
+            Set<String> variables = new LinkedHashSet<>();
 
-            List<Expression> elements = new ArrayList<>();
+            if (creation.getParameters() != null) {
+                List<Expression> elements = new ArrayList<>();
 
-            creation.getParameters().forEach(elements::add);
-            for (int i = 0; i < elements.size(); i++) {
-                String argument = constructorTypeArgument(creation, i, parameter);
-                String variable = argument == null ? typeVariableWithoutMapping(elements.get(i), parameter) : typeVariableOfTheArgument(elements.get(i), argument);
+                creation.getParameters().forEach(elements::add);
+                for (int i = 0; i < elements.size(); i++) {
+                    String argument = constructorTypeArgument(creation, i, parameter);
 
-                if (variable != null) {
-                    return variable;
+                    variables.addAll(argument == null ? typeVariablesWithoutMapping(elements.get(i), parameter) : typeVariablesOfTheArgument(elements.get(i), argument));
                 }
             }
-            return null;
+            return variables;
         }
 
         /** @return the type argument which the parameter of the constructor at the index is the type of: 'Pair(K key, V value)' for 'Pair<K,V>' gives V for the second one; null if unknown */
@@ -2074,29 +2070,31 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /**
-         * @return the type variable which an element of a container call feeds: the type argument which the element corresponds to when it is the variable, what a nested
+         * @return the type variables which an element of a container call feeds: the type argument which the element corresponds to when it is the variable, what a nested
          * container ('List.of(List.of(value))' for 'List<List<T>>') feeds when it is a call
          */
-        private String typeVariableOfTheElement(MethodInvocationExpression call, Expression element, int index, String parameter) {
+        private Set<String> typeVariablesOfTheElement(MethodInvocationExpression call, Expression element, int index, String parameter) {
             String typeArgument = containerTypeArgument(call, index, parameter);
 
-            if (typeArgument == null) {
-                return null;
-            }
-            return typeVariableOfTheArgument(element, typeArgument);
+            return typeArgument == null ? Set.of() : typeVariablesOfTheArgument(element, typeArgument);
         }
 
         /** @return the type argument if the element is the variable and the argument a type variable, what a nested container feeds if the element is a call and the argument a container */
-        private String typeVariableOfTheArgument(Expression element, String typeArgument) {
+        private Set<String> typeVariablesOfTheArgument(Expression element, String typeArgument) {
             if (references(element, variableNames) != null) {
-                return typeArgument.startsWith("T") ? typeArgument : null;
+                return typeArgument.startsWith("T") ? Set.of(typeArgument) : Set.of();
             }
-            return typeArgument.startsWith("L") ? typeVariableFedBy(element, typeArgument) : null;
+            return typeArgument.startsWith("L") ? typeVariablesFedBy(element, typeArgument) : Set.of();
         }
 
         /** The copy of a container has the type arguments of the container it copies when the constructor is unknown */
-        private String typeVariableWithoutMapping(Expression element, String parameter) {
-            return references(element, variableNames) != null ? firstTypeVariable(parameter) : typeVariableFedBy(element, parameter);
+        private Set<String> typeVariablesWithoutMapping(Expression element, String parameter) {
+            if (references(element, variableNames) != null) {
+                String variable = firstTypeVariable(parameter);
+
+                return variable == null ? Set.of() : Set.of(variable);
+            }
+            return typeVariablesFedBy(element, parameter);
         }
 
         /** @return the type argument of the parameter which the element at the index of the container call feeds: 'Map.of(k, v)' for 'Map<K,V>' gives V for the second element */

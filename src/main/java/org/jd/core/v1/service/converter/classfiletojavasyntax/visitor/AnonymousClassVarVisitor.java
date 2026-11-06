@@ -1513,9 +1513,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         Set<String> members = anonymousVariables.get(origin);
         MemberUseSearch search = new MemberUseSearch(resource.getName(), members);
 
+        // The alias gives the type of its origin to a lambda as well
+        search.anonymousName = anonymousClassNames.get(origin);
+        search.lambdaAdaptation = search.anonymousName != null;
         uses.accept(search);
         if (search.found) {
             anonymousVariables.put(resource.getName(), members);
+            if (search.anonymousName != null) {
+                anonymousClassNames.put(resource.getName(), search.anonymousName);
+            }
         }
         return search.found;
     }
@@ -2002,7 +2008,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (parameter.startsWith("T")) {
                 return references(argument, variableNames) != null ? parameter : null;
             }
-            if (parameter.startsWith("L") && argument instanceof MethodInvocationExpression call && call.getParameters() != null) {
+            if (!parameter.startsWith("L")) {
+                return null;
+            }
+            if (argument instanceof MethodInvocationExpression call && call.getParameters() != null) {
                 List<Expression> elements = new ArrayList<>();
 
                 call.getParameters().forEach(elements::add);
@@ -2012,22 +2021,30 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     }
                 }
             }
-            if (parameter.startsWith("L") && argument instanceof NewExpression creation && creation.getParameters() != null) {
-                // 'new ArrayList<>(List.of(value))': the copy has the type arguments of the container it copies
-                List<Expression> elements = new ArrayList<>();
+            return argument instanceof NewExpression creation ? typeVariableFedByConstructor(creation, parameter) : null;
+        }
 
-                creation.getParameters().forEach(elements::add);
-                for (Expression element : elements) {
-                    String variable = references(element, variableNames) != null
-                            ? typeArguments(parameter).stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null)
-                            : typeVariableFedBy(element, parameter);
+        /** 'new ArrayList<>(List.of(value))': the copy has the type arguments of the container it copies */
+        private String typeVariableFedByConstructor(NewExpression creation, String parameter) {
+            if (creation.getParameters() == null) {
+                return null;
+            }
 
-                    if (variable != null) {
-                        return variable;
-                    }
+            List<Expression> elements = new ArrayList<>();
+
+            creation.getParameters().forEach(elements::add);
+            for (Expression element : elements) {
+                String variable = references(element, variableNames) != null ? firstTypeVariable(parameter) : typeVariableFedBy(element, parameter);
+
+                if (variable != null) {
+                    return variable;
                 }
             }
             return null;
+        }
+
+        private String firstTypeVariable(String parameter) {
+            return typeArguments(parameter).stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null);
         }
 
         /** @return the type variable of the parameter which the element at the index of the container call feeds: 'Map.of(k, v)' for 'Map<K,V>' gives V for the second element */
@@ -2047,7 +2064,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     }
                 }
             }
-            return typeArguments.stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null);
+            return firstTypeVariable(parameter);
         }
 
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */

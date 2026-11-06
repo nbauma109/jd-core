@@ -442,6 +442,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
 
         // 'Map<T, T>' cannot be bound to 'HashMap<String, Integer>': the raw cast stays
         assertTrue(source.contains("sameArguments((Map)value)"));
+        // ... and neither can 'ArrayList<String>' be a 'List<T extends Number>'
+        assertTrue(source.contains("boundedArguments((List)value)"));
     }
 
     @Test
@@ -454,6 +456,12 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // The lambda is compiled for 'Object' for 'value' and for the anonymous class for 'origin': only 'origin' keeps its type
         assertTrue(method.contains("var origin = new Object() {"));
         assertTrue(method.contains("Object value = origin;"));
+
+        String reference = source.substring(source.indexOf("methodReferenceAdaptedOnlyForTheSecondParameter"));
+
+        reference = reference.substring(0, reference.indexOf("adaptToBoth(value"));
+        assertTrue(reference.contains("var origin = new Object() {"));
+        assertTrue(reference.contains("Object value = origin;"));
     }
 
     @Test

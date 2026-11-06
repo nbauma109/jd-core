@@ -2115,6 +2115,19 @@ public class VineflowerRegressions {
         return sameArguments((java.util.Map) value);
     }
 
+    static class StringList extends java.util.ArrayList<String> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <T extends Number> int boundedArguments(java.util.List<T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideTheBound(StringList value) {
+        return boundedArguments((java.util.List) value);
+    }
+
     public int genericThrowsOfAnInheritedNestedContainer(NestedFailures failures) {
         try (var inheritedNested = new AutoCloseable() {
             @Override
@@ -2461,6 +2474,17 @@ public class VineflowerRegressions {
         };
         Object value = origin;
         return adaptToBoth(value, origin, (x, y) -> "ok");
+    }
+
+    static String combine(Object first, Object second) {
+        return String.valueOf(first) + second;
+    }
+
+    public String methodReferenceAdaptedOnlyForTheSecondParameter() {
+        var origin = new Object() {
+        };
+        Object value = origin;
+        return adaptToBoth(value, origin, VineflowerRegressions::combine);
     }
 
     @SafeVarargs

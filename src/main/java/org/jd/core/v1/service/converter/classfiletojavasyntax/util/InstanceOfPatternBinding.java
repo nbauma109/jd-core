@@ -450,20 +450,14 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     }
 
     /**
-     * 'String s = "old"; use(s); if (o instanceof String) { s = (String) o; }': without the local variable table the stores to the slot are the ones of one
-     * variable, which is declared by the first of them: a store which is no binding and is followed by a read, before the test, declares it.
+     * 'String s = sideEffect(); if (o instanceof String) { s = (String) o; ... }': without the local variable table the stores to the slot are the ones of one
+     * variable, which is declared by the first of them: a store which is no binding and comes before the test declares it, read or not (a pattern would
+     * leave its initializer before its own scope).
      */
     private static boolean isUsedBeforeTheTest(int instanceOfOffset, InstanceOfPatternBinding binding, Iterable<InstanceOfPatternBinding> candidates, byte[] code,
             boolean[] starts) {
-        boolean stored = false;
-
         for (int p = 0; p < instanceOfOffset; p++) {
-            if (!starts[p]) {
-                continue;
-            }
-            if (storedIndex(code, p) == binding.storeIndex() && !isStoreOfBinding(p, candidates)) {
-                stored = true;
-            } else if (stored && loadedIndex(code, p) == binding.storeIndex()) {
+            if (starts[p] && storedIndex(code, p) == binding.storeIndex() && !isStoreOfBinding(p, candidates)) {
                 return true;
             }
         }

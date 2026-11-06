@@ -3063,12 +3063,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!isJavaLangObject(type) && inheritsWithConflictingBindings(unboundType instanceof ObjectType conflicting ? conflicting : objectType, expressionObjectType)) {
+                        } else if (!isJavaLangObject(type) && inheritsWithConflictingBindings(unboundType instanceof ObjectType conflicting ? conflicting : objectType, expressionObjectType, localTypeBounds)) {
                             // 'Mixed extends HashMap<String, Integer>' is no 'Map<T, T>': only a raw cast makes the call compile
                             expression = addCastExpression(objectType.createType(null), expression);
                             expression.getExpression().accept(this);
                             return expression;
-                        } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType)
+                        } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType, localTypeBounds)
                                 && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
                                 || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType)
                                 || isWildcardWhereConcreteExpected(objectType, expressionObjectType))) {
@@ -3175,7 +3175,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * @return true if the class, which has no type arguments of its own, inherits the target type with arguments which the variables of the invoked method can stand for:
      * 'NestedFailures extends ArrayList&lt;List&lt;IOException&gt;&gt;' is a 'List&lt;List&lt;E&gt;&gt;' for the 'E' of 'raise(List&lt;List&lt;E&gt;&gt;)'; no cast is needed
      */
-    private boolean inheritsWithBindableArguments(ObjectType target, ObjectType expression) {
+    private boolean inheritsWithBindableArguments(ObjectType target, ObjectType expression, Map<String, BaseType> bounds) {
         if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
             return false;
         }
@@ -3185,14 +3185,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         Map<String, TypeArgument> bindings = new HashMap<>();
 
-        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings));
+        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings, bounds));
     }
 
     /**
      * @return true if the class, which has no type arguments of its own, inherits the target type with different arguments where the target has the same type variable of the
-     * invoked method: 'Mixed extends HashMap&lt;String, Integer&gt;' is no 'Map&lt;T, T&gt;', the raw cast has to stay
+     * invoked method, or with an argument outside its bound: 'Mixed extends HashMap&lt;String, Integer&gt;' is no 'Map&lt;T, T&gt;', the raw cast has to stay
      */
-    private boolean inheritsWithConflictingBindings(ObjectType target, ObjectType expression) {
+    private boolean inheritsWithConflictingBindings(ObjectType target, ObjectType expression, Map<String, BaseType> bounds) {
         if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
             return false;
         }
@@ -3205,7 +3205,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             TypeArgument argument = seen.get(i);
 
             if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
-                    && !argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument))) {
+                    && (!argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument)) || !isWithinBound(bounds.get(variable.getName()), argument))) {
                 return true;
             }
         }
@@ -3213,10 +3213,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** @return true if the type argument which a class inherits is the expected one, where a type variable of the invoked method (declared by no scope around the call) stands for anything */
-    private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings) {
+    private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings, Map<String, BaseType> bounds) {
         if (expected instanceof GenericType variable && variable.getDimension() == 0) {
             // 'Map<T, T>' needs the same argument for each occurrence of the variable
-            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen));
+            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen)) && isWithinBound(bounds.get(variable.getName()), seen);
         }
         if (expected instanceof ObjectType expectedObject && seen instanceof ObjectType seenObject && expectedObject.getInternalName().equals(seenObject.getInternalName())
                 && expectedObject.getDimension() == seenObject.getDimension()) {
@@ -3224,9 +3224,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             List<TypeArgument> seenArguments = toTypeArgumentList(seenObject.getTypeArguments());
 
             return expectedArguments.size() == seenArguments.size()
-                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i), bindings));
+                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i), bindings, bounds));
         }
         return expected.equals(seen);
+    }
+
+    /** @return false if the inherited argument is no sub type of the bound of the type variable of the invoked method: 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T extends Number&gt;' */
+    private boolean isWithinBound(BaseType bound, TypeArgument seen) {
+        return !(bound instanceof ObjectType boundObject && seen instanceof ObjectType seenObject && !typeMaker.isRawTypeAssignable(boundObject, seenObject));
     }
 
     /** @return true if one of the type variables of the type is declared by a method (class type variables are shared with the inner classes) */

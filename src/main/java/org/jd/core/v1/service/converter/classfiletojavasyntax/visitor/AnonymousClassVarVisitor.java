@@ -2120,7 +2120,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */
         private boolean hasALambdaOfTheTypeVariable(List<Expression> arguments, List<String> parameters, int index, String variable) {
             for (int j = 0; j < arguments.size() && j < parameters.size(); j++) {
-                if (j != index && lambdaAdaptation && parameters.get(j).contains(variable) && isInstantiatedWithTheDeclaredType(arguments.get(j))) {
+                if (j != index && lambdaAdaptation && parameters.get(j).contains(variable) && isInstantiatedWithTheDeclaredType(arguments.get(j), parameters.get(j), variable)) {
                     return true;
                 }
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(variable)
@@ -2148,7 +2148,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /** @return true if a method or constructor reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */
-        private boolean isInstantiatedWithTheDeclaredType(Expression argument) {
+        private boolean isInstantiatedWithTheDeclaredType(Expression argument, String functionalInterface, String variable) {
             String descriptor = null;
 
             if (argument instanceof ClassFileMethodReferenceExpression reference) {
@@ -2156,7 +2156,35 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             } else if (argument instanceof ClassFileConstructorReferenceExpression reference) {
                 descriptor = reference.getInstantiatedDescriptor();
             }
-            return anonymousName != null && descriptor != null && descriptor.contains("L" + anonymousName + ";");
+            if (anonymousName == null || descriptor == null) {
+                return false;
+            }
+
+            String anonymousType = "L" + anonymousName + ";";
+            List<String> descriptorParameters = parameterSignatures(descriptor);
+            List<Integer> positions = positionsOfTheType(functionalInterface, variable);
+
+            if (positions.isEmpty() || descriptorParameters.size() < positions.get(positions.size() - 1) + 1) {
+                return descriptor.contains(anonymousType);
+            }
+            // Only the parameters of the type variable of the tracked value count: '(Object, Anonymous)' of a 'BiFunction<T, U, R>' adapts the second one
+            return positions.stream().anyMatch(position -> descriptorParameters.get(position).equals(anonymousType));
+        }
+
+        /** @return the positions of the parameters of the functional method of the interface which have the type variable ('BiFunction&lt;T, U, R&gt;' gives 0 for T) */
+        private List<Integer> positionsOfTheType(String functionalInterface, String typeVariable) {
+            List<String> typeArguments = typeArguments(functionalInterface);
+            String interfaceName = functionalInterface.startsWith("L") && functionalInterface.contains("<") ? functionalInterface.substring(1, functionalInterface.indexOf('<')) : null;
+            List<String> methodParameters = ClassMetadata.functionalMethodParameters(loader, interfaceName);
+            List<String> typeParameters = ClassMetadata.typeParameterNames(loader, interfaceName);
+            List<Integer> positions = new ArrayList<>();
+
+            for (int i = 0; i < methodParameters.size(); i++) {
+                if (parameterType(i, methodParameters, typeParameters, typeArguments).replaceFirst("^\\[+", "").equals(typeVariable)) {
+                    positions.add(i);
+                }
+            }
+            return positions;
         }
 
         /** @return false if the lambda was compiled for 'Object' ('Object value = new Object() {}': nothing is adapted to the anonymous class); true when its types are unknown */

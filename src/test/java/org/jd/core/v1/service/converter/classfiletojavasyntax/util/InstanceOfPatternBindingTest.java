@@ -277,6 +277,15 @@ public class InstanceOfPatternBindingTest {
             return null;
         }
 
+        String assignedBeforeTheTestWithoutARead(Object o) {
+            String s = String.valueOf(o.hashCode());
+            if (o instanceof String) {
+                s = (String) o;
+                System.out.println(s);
+            }
+            return null;
+        }
+
         String patternInALongSlot(Object o, long a, long b, long c) {
             if (o instanceof String) {
                 String s = (String) o;
@@ -448,6 +457,8 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeAConditionalExit"));
         // the variable is used before the test
         assertEquals(0, bindingsWithoutDebugInformation("usedBeforeTheTest"));
+        // the variable is assigned before the test, read or not: the pattern would leave the assignment outside its scope
+        assertEquals(0, bindingsWithoutDebugInformation("assignedBeforeTheTestWithoutARead"));
         // a handler of a later range reads the variable
         assertEquals(0, bindingsWithoutDebugInformation("sharedWithALaterHandler"));
         // two patterns which reuse the slot are still patterns

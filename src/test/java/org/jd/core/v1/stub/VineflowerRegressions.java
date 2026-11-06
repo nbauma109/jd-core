@@ -2374,6 +2374,12 @@ public class VineflowerRegressions {
         return adaptToMap(java.util.Map.of("key", adapted), x -> "ok");
     }
 
+    public String lambdaAdaptedThroughACopiedContainer() {
+        var adapted = new Object() {
+        };
+        return adaptToContainer(new java.util.ArrayList<>(java.util.List.of(adapted)), x -> "ok");
+    }
+
     @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> String adaptToVarargs(java.util.function.Function<T, String> function, T... values) {

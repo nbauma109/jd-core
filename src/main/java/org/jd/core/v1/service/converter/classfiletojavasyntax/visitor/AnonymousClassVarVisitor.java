@@ -2012,6 +2012,21 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     }
                 }
             }
+            if (parameter.startsWith("L") && argument instanceof NewExpression creation && creation.getParameters() != null) {
+                // 'new ArrayList<>(List.of(value))': the copy has the type arguments of the container it copies
+                List<Expression> elements = new ArrayList<>();
+
+                creation.getParameters().forEach(elements::add);
+                for (Expression element : elements) {
+                    String variable = references(element, variableNames) != null
+                            ? typeArguments(parameter).stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null)
+                            : typeVariableFedBy(element, parameter);
+
+                    if (variable != null) {
+                        return variable;
+                    }
+                }
+            }
             return null;
         }
 

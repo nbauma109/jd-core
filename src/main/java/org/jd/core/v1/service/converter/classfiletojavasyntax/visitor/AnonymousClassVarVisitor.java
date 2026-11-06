@@ -55,6 +55,7 @@ import org.jd.core.v1.model.javasyntax.type.WildcardExtendsTypeArgument;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileBodyDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileFieldDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileConstructorOrMethodDeclaration;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileFieldReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
@@ -871,6 +872,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             values.addAll(switchResults(switchExpression));
         } else if (value instanceof MethodInvocationExpression call) {
             values.addAll(callResults(call));
+        } else if (value instanceof ClassFileFieldReferenceExpression field) {
+            values.addAll(fieldResults(field));
         } else if (value instanceof NewInitializedArray array) {
             // The elements of an array which a generic method receives for its varargs parameter ('T...') give their type to its result
             for (VariableInitializer element : array.getArrayInitializer()) {
@@ -941,6 +944,16 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             index = end;
         }
         return arguments;
+    }
+
+    /** @return the expressions which give their type to a field of a type variable of its class, read from a generic call ('holderOf(origin).held' for a 'T held' field) */
+    private List<Expression> fieldResults(ClassFileFieldReferenceExpression field) {
+        String signature = ClassMetadata.declaredFieldSignature(loader, field.getInternalTypeName(), field.getName());
+
+        if (signature == null || !signature.startsWith("T") || !(field.getExpression() instanceof MethodInvocationExpression receiver)) {
+            return List.of();
+        }
+        return matchingArguments(receiver, false, ClassMetadata.typeParameterNames(loader, field.getInternalTypeName()).indexOf(signature.substring(1, signature.length() - 1)));
     }
 
     /** @return the signatures of the parameters of a generic method signature */
@@ -1043,7 +1056,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return true if the byte code which gives the value casts a call result to an anonymous class: the casts of the arguments which give no type to it do not count */
     private boolean hasAnonymousCast(Expression value) {
-        if (value instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast()) {
+        if (value instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast() || value instanceof ClassFileFieldReferenceExpression) {
             return true;
         }
         if (value instanceof MethodInvocationExpression call) {
@@ -2138,6 +2151,13 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             boolean[] checks = new boolean[1];
 
             lambda.accept(new AbstractJavaSyntaxVisitor() {
+                @Override
+                public void visit(FieldReferenceExpression expression) {
+                    checks[0] |= expression instanceof ClassFileFieldReferenceExpression field
+                            && (anonymousName == null || anonymousName.equals(field.getAnonymousCastName()));
+                    super.visit(expression);
+                }
+
                 @Override
                 public void visit(MethodInvocationExpression expression) {
                     checks[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast()

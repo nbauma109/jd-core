@@ -87,6 +87,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.d
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration.ClassFileTypeDeclaration;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileCmpExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileFieldReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorReferenceExpression;
@@ -1004,6 +1005,9 @@ public class ByteCodeParser {
                                 if (expression1 instanceof ClassFileMethodInvocationExpression call) {
                                     call.setAnonymousCast(true);
                                     call.setAnonymousCastName(anonymous.getInternalName());
+                                } else if (expression1 instanceof FieldReferenceExpression field && !(expression1 instanceof ClassFileFieldReferenceExpression)) {
+                                    stack.pop();
+                                    stack.push(new ClassFileFieldReferenceExpression(field, anonymous.getInternalName()));
                                 }
                             }
                             if (castNeeded) {

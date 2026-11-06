@@ -302,6 +302,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testFieldReadKeepsTheAnonymousCheck() throws Exception {
+        String source = decompile();
+
+        assertTrue(source.contains("var anonymous = new Object() {"));
+        assertTrue(source.contains("var result = (holderOf(anonymous)).held;"));
+    }
+
+    @Test
     public void testResourcesWhichInheritedClosesDecide() throws Exception {
         String source = decompile();
 

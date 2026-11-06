@@ -654,6 +654,25 @@ public final class ClassMetadata {
         return exceptions;
     }
 
+    /** @return the generic signature of the field of this name ('TT;' for a 'T' field) which the class declares; null if it has none or is unknown */
+    public static String declaredFieldSignature(Loader loader, String internalName, String fieldName) {
+        JavaClass javaClass = internalName == null ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return null;
+        }
+        for (Field field : javaClass.getFields()) {
+            if (field.getName().equals(fieldName)) {
+                for (Attribute attribute : field.getAttributes()) {
+                    if (attribute instanceof Signature signature) {
+                        return signature.getSignature();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     /** @return the generic signature of the method of this name and descriptor which the class, a super class or an interface declares; null if it has none or is unknown */
     public static String declaredGenericSignature(Loader loader, String internalName, String name, String descriptor) {
         Method method = resolve(loader, internalName, name, descriptor, true, new HashSet<>());

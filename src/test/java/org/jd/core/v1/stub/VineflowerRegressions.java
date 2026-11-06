@@ -1046,6 +1046,41 @@ public class VineflowerRegressions {
         return apply(fielded, x -> x.added);
     }
 
+    public static class FieldHolder<T> {
+        public T held;
+
+        public T get() {
+            return held;
+        }
+    }
+
+    private static <T> FieldHolder<T> holderOf(T value) {
+        FieldHolder<T> holder = new FieldHolder<>();
+        holder.held = value;
+        return holder;
+    }
+
+    /** The field read is cast to the anonymous class, a check which only a 'var' keeps */
+    public String fieldReadWhichKeepsTheAnonymousCheck() {
+        var anonymous = new Object() {
+            String label() {
+                return "anonymous";
+            }
+        };
+        var result = holderOf(anonymous).held;
+        return result.label();
+    }
+
+    public String callWhichKeepsTheAnonymousCheck() {
+        var anonymous = new Object() {
+            String label() {
+                return "anonymous";
+            }
+        };
+        var result = holderOf(anonymous).get();
+        return result.label();
+    }
+
     static class Box<T> {
         final int value;
 

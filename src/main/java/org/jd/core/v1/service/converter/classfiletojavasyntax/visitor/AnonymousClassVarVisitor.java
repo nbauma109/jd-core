@@ -106,6 +106,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
     /** A type variable is written by its name only: no import */
     private static final GenericType VAR = new GenericType("var");
     private static final String INIT = "<init>";
+    private static final String LEADING_ARRAY_BRACKETS = "^\\[+";
     private static final String RUNTIME_EXCEPTION = "java/lang/RuntimeException";
     private static final String CLONE = "clone()Ljava/lang/Object;";
     private static final String FINALIZE = "finalize()V";
@@ -1291,7 +1292,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
             if (parameter.equals(typeVariable)) {
                 addType(constraints, argument);
-            } else if (parameter.startsWith("[") && parameter.replaceFirst("^\\[+", "").equals(typeVariable)) {
+            } else if (parameter.startsWith("[") && parameter.replaceFirst(LEADING_ARRAY_BRACKETS, "").equals(typeVariable)) {
                 addElementTypes(constraints, argument);
             } else if (parameter.startsWith("L") && parameter.contains("<")) {
                 addContainedTypes(constraints, parameter, argument, typeVariable);
@@ -1692,7 +1693,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
      */
     private List<String> parametersOfTheType(LambdaIdentifiersExpression lambda, String functionalInterface, String typeVariable) {
         // 'ToIntFunction<T[]>': the parameter is an array of the type, its elements have it
-        return new ArrayList<>(parametersWhere(lambda, functionalInterface, type -> type.replaceFirst("^\\[+", "").equals(typeVariable)).keySet());
+        return new ArrayList<>(parametersWhere(lambda, functionalInterface, type -> type.replaceFirst(LEADING_ARRAY_BRACKETS, "").equals(typeVariable)).keySet());
     }
 
     /**
@@ -2180,7 +2181,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             List<Integer> positions = new ArrayList<>();
 
             for (int i = 0; i < methodParameters.size(); i++) {
-                if (parameterType(i, methodParameters, typeParameters, typeArguments).replaceFirst("^\\[+", "").equals(typeVariable)) {
+                if (parameterType(i, methodParameters, typeParameters, typeArguments).replaceFirst(LEADING_ARRAY_BRACKETS, "").equals(typeVariable)) {
                     positions.add(i);
                 }
             }

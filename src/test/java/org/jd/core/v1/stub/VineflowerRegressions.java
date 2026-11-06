@@ -2205,6 +2205,28 @@ public class VineflowerRegressions {
         return recursiveBound((java.util.List) value);
     }
 
+    static <T> int sharedVariable(java.util.List<T> values, T other) {
+        return values.size() + other.hashCode();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOtherThanTheOtherArgument(StringList value) {
+        return sharedVariable((java.util.List) value, 1);
+    }
+
+    static class NumberToString extends java.util.HashMap<Number, String> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <U extends Number, T extends U> int variableBound(java.util.Map<U, T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideAVariableBound(NumberToString value) {
+        return variableBound((java.util.Map) value);
+    }
+
     static <T, U extends Comparable<T>> int dependentBound(java.util.Map<T, U> value) {
         return value.size();
     }

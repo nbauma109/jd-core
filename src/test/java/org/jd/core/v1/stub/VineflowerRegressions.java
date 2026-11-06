@@ -2409,6 +2409,28 @@ public class VineflowerRegressions {
         return adaptToNestedContainer(java.util.List.of(java.util.List.of(adapted)), x -> "ok");
     }
 
+    static final class KeyedValue<K, V> {
+        final K key;
+        final V value;
+
+        KeyedValue(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <K, V> String adaptToKeyedValue(KeyedValue<K, V> keyed, java.util.function.Function<V, String> function) {
+        java.util.Objects.requireNonNull(keyed);
+        return (String) ((java.util.function.Function) function).apply(new Object());
+    }
+
+    public String lambdaAdaptedThroughAConstructorArgument() {
+        var adapted = new Object() {
+        };
+        return adaptToKeyedValue(new KeyedValue<>("key", adapted), x -> "ok");
+    }
+
     @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> String adaptToVarargs(java.util.function.Function<T, String> function, T... values) {

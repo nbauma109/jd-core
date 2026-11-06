@@ -2035,14 +2035,45 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             List<Expression> elements = new ArrayList<>();
 
             creation.getParameters().forEach(elements::add);
-            for (Expression element : elements) {
-                String variable = references(element, variableNames) != null ? firstTypeVariable(parameter) : typeVariableFedBy(element, parameter);
+            for (int i = 0; i < elements.size(); i++) {
+                Expression element = elements.get(i);
+                String argument = constructorTypeArgument(creation, i, parameter);
+                String variable;
+
+                if (argument != null) {
+                    variable = references(element, variableNames) != null ? (argument.startsWith("T") ? argument : null)
+                            : (argument.startsWith("L") ? typeVariableFedBy(element, argument) : null);
+                } else {
+                    variable = references(element, variableNames) != null ? firstTypeVariable(parameter) : typeVariableFedBy(element, parameter);
+                }
 
                 if (variable != null) {
                     return variable;
                 }
             }
             return null;
+        }
+
+        /** @return the type argument which the parameter of the constructor at the index is the type of: 'Pair(K key, V value)' for 'Pair<K,V>' gives V for the second one; null if unknown */
+        private String constructorTypeArgument(NewExpression creation, int index, String parameter) {
+            String signature = creation.getObjectType() == null ? null
+                    : ClassMetadata.declaredGenericSignature(loader, creation.getObjectType().getInternalName(), "<init>", creation.getDescriptor());
+
+            if (signature == null || !signature.contains(")")) {
+                return null;
+            }
+
+            List<String> constructorParameters = spreadVarargs(parameterSignatures(signature), index + 1);
+            List<String> typeArguments = typeArguments(parameter);
+            List<String> names = ClassMetadata.typeParameterNames(loader, creation.getObjectType().getInternalName());
+
+            if (index >= constructorParameters.size() || !constructorParameters.get(index).startsWith("T") || names.size() != typeArguments.size()) {
+                return null;
+            }
+
+            int position = names.indexOf(constructorParameters.get(index).substring(1, constructorParameters.get(index).length() - 1));
+
+            return position < 0 ? null : typeArguments.get(position);
         }
 
         private String firstTypeVariable(String parameter) {

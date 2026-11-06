@@ -445,6 +445,18 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testLambdaAdaptedOnlyForTheSecondParameterKeepsTheFirstAlias() throws Exception {
+        String source = decompile();
+        String method = source.substring(source.indexOf("lambdaAdaptedOnlyForTheSecondParameter"));
+
+        method = method.substring(0, method.indexOf("adaptToBoth(value"));
+
+        // The lambda is compiled for 'Object' for 'value' and for the anonymous class for 'origin': only 'origin' keeps its type
+        assertTrue(method.contains("var origin = new Object() {"));
+        assertTrue(method.contains("Object value = origin;"));
+    }
+
+    @Test
     public void testRecompilation() throws Exception {
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(INTERNAL_CLASS_NAME, decompile())));

@@ -2124,7 +2124,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     return true;
                 }
                 if (j != index && arguments.get(j) instanceof LambdaIdentifiersExpression lambda && parameters.get(j).contains(variable)
-                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda)) || checksTheAnonymousType(lambda) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
+                        && ((lambdaAdaptation && isCompiledWithTheDeclaredType(lambda, parametersOfTheType(lambda, parameters.get(j), variable))) || checksTheAnonymousType(lambda) || callsAMember(lambda, parametersOfTheType(lambda, parameters.get(j), variable),
                                 containerParametersOfTheType(lambda, parameters.get(j), variable, variable)))) {
                     return true;
                 }
@@ -2160,11 +2160,26 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         /** @return false if the lambda was compiled for 'Object' ('Object value = new Object() {}': nothing is adapted to the anonymous class); true when its types are unknown */
-        private boolean isCompiledWithTheDeclaredType(LambdaIdentifiersExpression lambda) {
+        private boolean isCompiledWithTheDeclaredType(LambdaIdentifiersExpression lambda, List<String> parameterNames) {
             var types = lambda.getParameterTypes();
 
-            return types == null || anonymousName == null
-                    || types.stream().anyMatch(type -> type instanceof ObjectType objectType && objectType.getInternalName().equals(anonymousName));
+            if (types == null || anonymousName == null) {
+                return true;
+            }
+
+            List<String> allNames = new ArrayList<>(lambda.getParameterNames());
+
+            // Only the parameters of the type variable of the tracked value count: another one is typed on its own ('(x, y)' of a 'BiFunction<T, U, R>')
+            for (int i = 0; i < allNames.size(); i++) {
+                if ((parameterNames.isEmpty() || parameterNames.contains(allNames.get(i))) && isTheAnonymousType(types, i)) {
+                    return true;
+                }
+            }
+            return types.size() != allNames.size() && types.stream().anyMatch(type -> type instanceof ObjectType objectType && objectType.getInternalName().equals(anonymousName));
+        }
+
+        private boolean isTheAnonymousType(List<org.jd.core.v1.model.javasyntax.type.Type> types, int index) {
+            return index < types.size() && types.get(index) instanceof ObjectType objectType && objectType.getInternalName().equals(anonymousName);
         }
 
         /** @return true if the body of the lambda uses a member of the anonymous class on one of these parameters of the lambda */

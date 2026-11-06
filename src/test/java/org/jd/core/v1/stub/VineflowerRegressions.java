@@ -2450,6 +2450,19 @@ public class VineflowerRegressions {
         return adaptToMap(java.util.Map.of(adapted, adapted), x -> "ok");
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T, U> String adaptToBoth(T first, U second, java.util.function.BiFunction<T, U, String> function) {
+        java.util.Objects.requireNonNull(first);
+        return (String) ((java.util.function.BiFunction) function).apply(new Object(), second);
+    }
+
+    public String lambdaAdaptedOnlyForTheSecondParameter() {
+        var origin = new Object() {
+        };
+        Object value = origin;
+        return adaptToBoth(value, origin, (x, y) -> "ok");
+    }
+
     @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> String adaptToVarargs(java.util.function.Function<T, String> function, T... values) {

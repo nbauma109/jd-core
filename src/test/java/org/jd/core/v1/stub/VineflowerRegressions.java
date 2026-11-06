@@ -2690,6 +2690,14 @@ public class VineflowerRegressions {
         };
     }
 
+    public String lambdaAdaptedThroughAnAliasAfterACheckedCall() {
+        var checkedOrigin = new Object() {
+        };
+        java.util.Objects.requireNonNull(checkedOrigin).toString();
+        var checkedAlias = checkedOrigin;
+        return adaptAndApply(checkedAlias, x -> "ok");
+    }
+
     public String lambdaAdaptedToObject() {
         Object broad = new Object() {
         };

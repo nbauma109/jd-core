@@ -551,6 +551,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         });
     }
 
+    /** The alias has the anonymous class of its origin, when it is known */
+    private void rememberClassName(String alias, String origin) {
+        String className = anonymousClassNames.get(origin);
+
+        if (className != null) {
+            anonymousClassNames.put(alias, className);
+        }
+    }
+
     private boolean aliasNeedsVar(BaseLocalVariableDeclarator declarators, Consumer<MemberUseSearch> uses) {
         if (!(declarators instanceof LocalVariableDeclarator declarator) || declarator.getDimension() != 0
                 || !(declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer)
@@ -587,7 +596,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         }
         boolean found = dependsOnAnAnonymousCast(declarator.getName(), remaining(statements, nextIndex));
         if (found) {
-            anonymousVariables.put(declarator.getName(), addedMembers((ClassFileBodyDeclaration) creation.getBodyDeclaration(), creation.getObjectType().getInternalName()));
+            ClassFileBodyDeclaration body = (ClassFileBodyDeclaration) creation.getBodyDeclaration();
+
+            anonymousVariables.put(declarator.getName(), addedMembers(body, creation.getObjectType().getInternalName()));
+            anonymousClassNames.put(declarator.getName(), body.getInternalTypeName());
         }
         return found;
     }
@@ -750,7 +762,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return false;
         }
         if (dependsOnAnAnonymousCast(declarator.getName(), remaining(statements, nextIndex))) {
-            anonymousVariables.put(declarator.getName(), anonymousVariables.get(references(initializer.getExpression(), anonymousVariables.keySet())));
+            String origin = references(initializer.getExpression(), anonymousVariables.keySet());
+
+            anonymousVariables.put(declarator.getName(), anonymousVariables.get(origin));
+            rememberClassName(declarator.getName(), origin);
             return true;
         }
         return false;
@@ -805,7 +820,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         if (newExpression == null && hasAnonymousCast(value) && references(value, anonymousVariables.keySet()) != null) {
             // The anonymous type comes through a variable which is 'var'
-            anonymousVariables.put(name, anonymousVariables.get(references(value, anonymousVariables.keySet())));
+            String origin = references(value, anonymousVariables.keySet());
+
+            anonymousVariables.put(name, anonymousVariables.get(origin));
+            rememberClassName(name, origin);
             return true;
         }
         if (newExpression == null || !(newExpression.getBodyDeclaration() instanceof ClassFileBodyDeclaration body)) {

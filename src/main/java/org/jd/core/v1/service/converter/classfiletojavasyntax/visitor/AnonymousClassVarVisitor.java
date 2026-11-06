@@ -875,17 +875,24 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         } else if (value instanceof ClassFileFieldReferenceExpression field) {
             values.addAll(fieldResults(field));
         } else if (value instanceof NewInitializedArray array) {
-            // The elements of an array which a generic method receives for its varargs parameter ('T...') give their type to its result
-            for (VariableInitializer element : array.getArrayInitializer()) {
-                if (element instanceof ExpressionVariableInitializer initializer) {
-                    values.addAll(underlyingValues(initializer.getExpression()));
-                }
-            }
+            values.addAll(elementValues(array));
         } else if (value != null && value.isArrayExpression()) {
             // An element of an array has the type of its elements: 'var y = xs[0];'
             values.addAll(underlyingValues(value.getExpression()));
         } else if (!(value instanceof CastExpression) && !(value instanceof MethodInvocationExpression)) {
             values.add(value);
+        }
+        return values;
+    }
+
+    /** @return the expressions of the elements of an array which a generic method receives for its varargs parameter ('T...'): they give their type to its result */
+    private List<Expression> elementValues(NewInitializedArray array) {
+        List<Expression> values = new ArrayList<>();
+
+        for (VariableInitializer element : array.getArrayInitializer()) {
+            if (element instanceof ExpressionVariableInitializer initializer) {
+                values.addAll(underlyingValues(initializer.getExpression()));
+            }
         }
         return values;
     }

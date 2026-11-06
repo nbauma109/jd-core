@@ -459,6 +459,8 @@ public class InstanceOfPatternBindingTest {
         assertEquals(0, bindingsWithoutDebugInformation("usedBeforeTheTest"));
         // the variable is assigned before the test, read or not: the pattern would leave the assignment outside its scope
         assertEquals(0, bindingsWithoutDebugInformation("assignedBeforeTheTestWithoutARead"));
+        // the first cast is rejected: it is the assignment of the variable which the second test would declare
+        assertEquals(0, bindingsWithoutDebugInformation("assignedByTwoCasts"));
         // a handler of a later range reads the variable
         assertEquals(0, bindingsWithoutDebugInformation("sharedWithALaterHandler"));
         // two patterns which reuse the slot are still patterns

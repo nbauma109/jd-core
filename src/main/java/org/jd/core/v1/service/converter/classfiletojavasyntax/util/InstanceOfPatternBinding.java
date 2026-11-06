@@ -331,8 +331,12 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             bindings.values().removeIf(binding -> isAssignedElsewhere(binding, candidates.values(), code, starts, variables));
         } else {
             // Without the table, the slot of the variable is the only evidence
-            bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts)
-                    || isUsedBeforeTheTest(entry.getKey(), entry.getValue(), candidates.values(), code, starts));
+            bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts));
+
+            // The store of a rejected candidate is the assignment of the variable now: the candidates which remain are the only stores of patterns
+            Map<Integer, InstanceOfPatternBinding> remaining = new HashMap<>(bindings);
+
+            bindings.entrySet().removeIf(entry -> isUsedBeforeTheTest(entry.getKey(), entry.getValue(), remaining.values(), code, starts));
         }
         return bindings;
     }

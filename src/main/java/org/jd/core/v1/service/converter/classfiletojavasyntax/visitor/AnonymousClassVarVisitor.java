@@ -2169,7 +2169,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 return descriptor.contains(anonymousType);
             }
             // Only the parameters of the type variable of the tracked value count: '(Object, Anonymous)' of a 'BiFunction<T, U, R>' adapts the second one
-            return positions.stream().anyMatch(position -> descriptorParameters.get(position).equals(anonymousType));
+            return positions.stream().anyMatch(position -> descriptorParameters.get(position).replaceFirst(LEADING_ARRAY_BRACKETS, "").equals(anonymousType));
         }
 
         /** @return the positions of the parameters of the functional method of the interface which have the type variable ('BiFunction&lt;T, U, R&gt;' gives 0 for T) */

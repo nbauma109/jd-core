@@ -3231,7 +3231,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return false if the inherited argument is no sub type of the bound of the type variable of the invoked method: 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T extends Number&gt;' */
     private boolean isWithinBound(BaseType bound, TypeArgument seen) {
-        return !(bound instanceof ObjectType boundObject && seen instanceof ObjectType seenObject && !typeMaker.isRawTypeAssignable(boundObject, seenObject));
+        if (bound == null || !(seen instanceof ObjectType seenObject)) {
+            return true;
+        }
+        // 'T extends Number &amp; Runnable' has every one of its bounds to satisfy
+        for (Type constituent : bound) {
+            if (constituent instanceof ObjectType boundObject && !typeMaker.isRawTypeAssignable(boundObject, seenObject)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** @return true if one of the type variables of the type is declared by a method (class type variables are shared with the inner classes) */

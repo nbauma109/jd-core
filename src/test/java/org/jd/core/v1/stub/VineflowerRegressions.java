@@ -2128,6 +2128,19 @@ public class VineflowerRegressions {
         return boundedArguments((java.util.List) value);
     }
 
+    static class IntegerList extends java.util.ArrayList<Integer> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <T extends Number & Runnable> int intersectionBounded(java.util.List<T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideAnIntersectionBound(IntegerList value) {
+        return intersectionBounded((java.util.List) value);
+    }
+
     public int genericThrowsOfAnInheritedNestedContainer(NestedFailures failures) {
         try (var inheritedNested = new AutoCloseable() {
             @Override
@@ -2485,6 +2498,18 @@ public class VineflowerRegressions {
         };
         Object value = origin;
         return adaptToBoth(value, origin, VineflowerRegressions::combine);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptToArray(T ignored, java.util.function.Function<T[], String> function) {
+        java.util.Objects.requireNonNull(ignored);
+        return (String) ((java.util.function.Function) function).apply(new Object[0]);
+    }
+
+    public String methodReferenceAdaptedToAnArrayOfTheAnonymousType() {
+        var adapted = new Object() {
+        };
+        return adaptToArray(adapted, Object::toString);
     }
 
     @SafeVarargs

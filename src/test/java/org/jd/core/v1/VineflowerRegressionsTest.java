@@ -314,7 +314,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("try (var shadowed = new AutoCloseable() {"));
         assertTrue(source.contains("try (var value = origin) {"));
         assertTrue(source.contains("var value = origin;"));
-        assertEquals(11, source.split("var adapted = new Object\\(\\) \\{", -1).length - 1);
+        assertEquals(12, source.split("var adapted = new Object\\(\\) \\{", -1).length - 1);
         assertTrue(source.contains("Object broad = new Object() {"));
         assertTrue(source.contains("try (InheritedClosing intersectedClose = new InheritedClosing() {"));
         assertTrue(source.contains("try (var bounded = new AutoCloseable() {"));
@@ -444,6 +444,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("sameArguments((Map)value)"));
         // ... and neither can 'ArrayList<String>' be a 'List<T extends Number>'
         assertTrue(source.contains("boundedArguments((List)value)"));
+        assertTrue(source.contains("intersectionBounded((List)value)"));
     }
 
     @Test

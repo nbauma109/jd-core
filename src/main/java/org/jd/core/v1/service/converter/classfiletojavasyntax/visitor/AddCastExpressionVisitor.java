@@ -2943,10 +2943,63 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** Bundles the three cast-insertion flags shared by {@link #updateParameters} and its helpers. */
+    private Map<String, TypeArgument> argumentFixedVariables = Collections.emptyMap();
+
     private record CastFlags(boolean forceCast, boolean unique, boolean rawCast) {
     }
 
     protected BaseExpression updateParameters(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
+        Map<String, TypeArgument> outerFixed = argumentFixedVariables;
+
+        argumentFixedVariables = variablesFixedByTheArguments(unboundTypes, expressions);
+        try {
+            return updateEachParameter(typeBindings, localTypeBounds, types, unboundTypes, expressions, flags);
+        } finally {
+            argumentFixedVariables = outerFixed;
+        }
+    }
+
+    /** @return the type which each variable of the call, which a parameter has as its own type ('T other'), is given by the argument of the call: a variable two arguments disagree on is none */
+    private static Map<String, TypeArgument> variablesFixedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
+        Map<String, TypeArgument> fixed = new HashMap<>();
+        Set<String> ambiguous = new HashSet<>();
+
+        if (unboundTypes != null && expressions != null) {
+            List<Type> parameters = new ArrayList<>();
+            List<Expression> arguments = new ArrayList<>();
+
+            unboundTypes.forEach(parameters::add);
+            expressions.forEach(arguments::add);
+
+            for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
+                if (parameters.get(i) instanceof GenericType variable && variable.getDimension() == 0 && boxedType(arguments.get(i).getType()) instanceof ObjectType argument
+                        && !argument.equals(fixed.putIfAbsent(variable.getName(), argument)) && fixed.get(variable.getName()) != argument) {
+                    ambiguous.add(variable.getName());
+                }
+            }
+        }
+        ambiguous.forEach(fixed::remove);
+        return fixed;
+    }
+
+    private static Type boxedType(Type type) {
+        if (type instanceof ObjectType) {
+            return type;
+        }
+        return switch (type == null ? "" : type.getDescriptor()) {
+            case "I" -> ObjectType.TYPE_INTEGER;
+            case "J" -> ObjectType.TYPE_LONG;
+            case "D" -> ObjectType.TYPE_DOUBLE;
+            case "F" -> ObjectType.TYPE_FLOAT;
+            case "Z" -> ObjectType.TYPE_BOOLEAN;
+            case "C" -> ObjectType.TYPE_CHARACTER;
+            case "B" -> ObjectType.TYPE_BYTE;
+            case "S" -> ObjectType.TYPE_SHORT;
+            default -> null;
+        };
+    }
+
+    private BaseExpression updateEachParameter(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
         if (expressions == null) {
             return null;
         }
@@ -3063,12 +3116,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!isJavaLangObject(type) && inheritsWithConflictingBindings(unboundType instanceof ObjectType conflicting ? conflicting : objectType, expressionObjectType, typeBindings, localTypeBounds)) {
+                        } else if (!isJavaLangObject(type) && inheritsWithConflictingBindings(unboundType instanceof ObjectType conflicting ? conflicting : objectType, expressionObjectType, argumentFixedVariables, localTypeBounds)) {
                             // 'Mixed extends HashMap<String, Integer>' is no 'Map<T, T>': only a raw cast makes the call compile
                             expression = addCastExpression(objectType.createType(null), expression);
                             expression.getExpression().accept(this);
                             return expression;
-                        } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType, typeBindings, localTypeBounds)
+                        } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType, argumentFixedVariables, localTypeBounds)
                                 && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
                                 || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType)
                                 || isWildcardWhereConcreteExpected(objectType, expressionObjectType))) {
@@ -3223,14 +3276,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * @return true if the class inherits, for a type variable of the call, an argument which is unrelated to the one which the other arguments of the call give it: a
-     * 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T&gt;' for the 'T' which the argument '1' of 'accept(List&lt;T&gt;, T)' fixes to 'Integer'
+     * @return true if the class inherits, for a type variable of the call, an argument which does not accept the one which the other arguments of the call give it: a
+     * 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T&gt;' for the 'T' which the argument '1' (or an 'Object') of 'accept(List&lt;T&gt;, T)' fixes
      */
     private boolean contradictsTheKnownBindings(List<TypeArgument> expected, List<TypeArgument> seen, Map<String, TypeArgument> known) {
         for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
             if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
                     && known.get(variable.getName()) instanceof ObjectType fixed && seen.get(i) instanceof ObjectType inherited
-                    && !typeMaker.isRawTypeAssignable(fixed, inherited) && !typeMaker.isRawTypeAssignable(inherited, fixed)) {
+                    && !typeMaker.isRawTypeAssignable(inherited, fixed)) {
                 return true;
             }
         }
@@ -3281,13 +3334,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> required = toTypeArgumentList(bound.getTypeArguments());
 
         for (int i = 0; inherited.size() == required.size() && i < required.size(); i++) {
-            TypeArgument requirement = required.get(i) instanceof GenericType own && bindings.containsKey(own.getName()) ? bindings.get(own.getName()) : required.get(i);
-
-            if (!satisfies(requirement, inherited.get(i))) {
+            if (!satisfies(substituted(required.get(i), bindings), inherited.get(i))) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** @return the type argument where the variables of the call are replaced by their arguments, inside a wildcard bound too ('Comparable&lt;? super T&gt;') */
+    private static TypeArgument substituted(TypeArgument required, Map<String, TypeArgument> bindings) {
+        if (required instanceof GenericType variable && bindings.containsKey(variable.getName())) {
+            return bindings.get(variable.getName());
+        }
+        if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument) {
+            return new WildcardExtendsTypeArgument(argument);
+        }
+        if (required instanceof WildcardSuperTypeArgument wildcard && wildcard.type() instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument) {
+            return new WildcardSuperTypeArgument(argument);
+        }
+        return required;
     }
 
     /** @return false if the inherited type argument is none of the one which the bound requires: a type must be equal, a wildcard bounds it (a type variable is satisfied by any) */

@@ -2214,6 +2214,31 @@ public class VineflowerRegressions {
         return sharedVariable((java.util.List) value, 1);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsWhichTheOtherArgumentDoesNotFit(StringList value, Object other) {
+        return sharedVariable((java.util.List) value, other);
+    }
+
+    static class SuperBound implements Comparable<String> {
+        @Override
+        public int compareTo(String other) {
+            return other.length();
+        }
+    }
+
+    static class SuperBounds extends java.util.ArrayList<SuperBound> {
+        private static final long serialVersionUID = 1L;
+    }
+
+    static <T extends Comparable<? super T>> int wildcardRecursiveBound(java.util.List<T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideAWildcardRecursiveBound(SuperBounds value) {
+        return wildcardRecursiveBound((java.util.List) value);
+    }
+
     static class NumberToString extends java.util.HashMap<Number, String> {
         private static final long serialVersionUID = 1L;
     }

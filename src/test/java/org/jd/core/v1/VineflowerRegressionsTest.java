@@ -478,6 +478,8 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("dependentBound((Map)value)"));
         assertTrue(source.contains("variableBound((Map)value)"));
         assertTrue(source.contains("sharedVariable((List)value, 1)"));
+        assertTrue(source.contains("sharedVariable((List)value, other)"));
+        assertTrue(source.contains("wildcardRecursiveBound((List)value)"));
     }
 
     @Test

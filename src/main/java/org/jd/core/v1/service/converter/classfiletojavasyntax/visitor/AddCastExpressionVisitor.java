@@ -3185,7 +3185,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         Map<String, TypeArgument> bindings = new HashMap<>();
 
-        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings, bounds));
+        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings))
+                && areWithinTheirBounds(bindings, bounds);
     }
 
     /**
@@ -3205,18 +3206,24 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             TypeArgument argument = seen.get(i);
 
             if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
-                    && (!argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument)) || !isWithinBound(bounds.get(variable.getName()), variable.getName(), argument))) {
+                    && !argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument))) {
                 return true;
             }
         }
-        return false;
+        // The bounds are checked once every variable is bound: 'U extends Comparable<T>' needs the argument of 'T'
+        return !areWithinTheirBounds(bindings, bounds);
+    }
+
+    /** @return true if the argument which each type variable of the invoked method stands for is within its bound, the other variables of the bound replaced by their arguments */
+    private boolean areWithinTheirBounds(Map<String, TypeArgument> bindings, Map<String, BaseType> bounds) {
+        return bindings.entrySet().stream().allMatch(binding -> isWithinBound(bounds.get(binding.getKey()), bindings, binding.getValue()));
     }
 
     /** @return true if the type argument which a class inherits is the expected one, where a type variable of the invoked method (declared by no scope around the call) stands for anything */
-    private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings, Map<String, BaseType> bounds) {
+    private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings) {
         if (expected instanceof GenericType variable && variable.getDimension() == 0) {
             // 'Map<T, T>' needs the same argument for each occurrence of the variable
-            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen)) && isWithinBound(bounds.get(variable.getName()), variable.getName(), seen);
+            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen));
         }
         if (expected instanceof ObjectType expectedObject && seen instanceof ObjectType seenObject && expectedObject.getInternalName().equals(seenObject.getInternalName())
                 && expectedObject.getDimension() == seenObject.getDimension()) {
@@ -3224,27 +3231,27 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             List<TypeArgument> seenArguments = toTypeArgumentList(seenObject.getTypeArguments());
 
             return expectedArguments.size() == seenArguments.size()
-                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i), bindings, bounds));
+                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i), bindings));
         }
         return expected.equals(seen);
     }
 
     /** @return false if the inherited argument is no sub type of the bound of the type variable of the invoked method: 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T extends Number&gt;' */
-    private boolean isWithinBound(BaseType bound, String variable, TypeArgument seen) {
+    private boolean isWithinBound(BaseType bound, Map<String, TypeArgument> bindings, TypeArgument seen) {
         if (bound == null || !(seen instanceof ObjectType seenObject)) {
             return true;
         }
         // 'T extends Number &amp; Runnable' has every one of its bounds to satisfy
         for (Type constituent : bound) {
-            if (constituent instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, variable, seenObject))) {
+            if (constituent instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, bindings, seenObject))) {
                 return false;
             }
         }
         return true;
     }
 
-    /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;'; the variable in its own bound ('T extends Comparable&lt;T&gt;') stands for the argument */
-    private boolean hasTheTypeArgumentsOfTheBound(ObjectType bound, String variable, ObjectType seen) {
+    /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;'; the variables of the bound ('T extends Comparable&lt;T&gt;') stand for their arguments */
+    private boolean hasTheTypeArgumentsOfTheBound(ObjectType bound, Map<String, TypeArgument> bindings, ObjectType seen) {
         if (bound.getTypeArguments() == null) {
             return true;
         }
@@ -3253,7 +3260,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> required = toTypeArgumentList(bound.getTypeArguments());
 
         for (int i = 0; inherited.size() == required.size() && i < required.size(); i++) {
-            if (!satisfies(required.get(i) instanceof GenericType own && own.getName().equals(variable) ? seen : required.get(i), inherited.get(i))) {
+            TypeArgument requirement = required.get(i) instanceof GenericType own && bindings.containsKey(own.getName()) ? bindings.get(own.getName()) : required.get(i);
+
+            if (!satisfies(requirement, inherited.get(i))) {
                 return false;
             }
         }

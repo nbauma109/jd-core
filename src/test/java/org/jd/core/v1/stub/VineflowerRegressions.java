@@ -2205,6 +2205,15 @@ public class VineflowerRegressions {
         return recursiveBound((java.util.List) value);
     }
 
+    static <T, U extends Comparable<T>> int dependentBound(java.util.Map<T, U> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideADependentBound(MixedArguments value) {
+        return dependentBound((java.util.Map) value);
+    }
+
     static <T extends Comparable<? extends CharSequence>> int wildcardBound(java.util.List<T> value) {
         return value.size();
     }

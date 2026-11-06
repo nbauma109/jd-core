@@ -2190,15 +2190,15 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         /** @return true if the expression reads one of the variables */
         private boolean mentions(Expression expression, Set<String> names) {
-            boolean[] found = new boolean[1];
+            boolean[] mentioned = new boolean[1];
 
             expression.accept(new AbstractJavaSyntaxVisitor() {
                 @Override
                 public void visit(LocalVariableReferenceExpression reference) {
-                    found[0] |= names.contains(reference.getName());
+                    mentioned[0] |= names.contains(reference.getName());
                 }
             });
-            return found[0];
+            return mentioned[0];
         }
 
         /** @return true if a method or constructor reference was instantiated for the anonymous class ('apply(value, Object::toString)' checks its argument at run time) */

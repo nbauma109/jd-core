@@ -2036,16 +2036,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
             creation.getParameters().forEach(elements::add);
             for (int i = 0; i < elements.size(); i++) {
-                Expression element = elements.get(i);
                 String argument = constructorTypeArgument(creation, i, parameter);
-                String variable;
-
-                if (argument != null) {
-                    variable = references(element, variableNames) != null ? (argument.startsWith("T") ? argument : null)
-                            : (argument.startsWith("L") ? typeVariableFedBy(element, argument) : null);
-                } else {
-                    variable = references(element, variableNames) != null ? firstTypeVariable(parameter) : typeVariableFedBy(element, parameter);
-                }
+                String variable = argument == null ? typeVariableWithoutMapping(elements.get(i), parameter) : typeVariableOfTheArgument(elements.get(i), argument);
 
                 if (variable != null) {
                     return variable;
@@ -2056,8 +2048,8 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         /** @return the type argument which the parameter of the constructor at the index is the type of: 'Pair(K key, V value)' for 'Pair<K,V>' gives V for the second one; null if unknown */
         private String constructorTypeArgument(NewExpression creation, int index, String parameter) {
-            String signature = creation.getObjectType() == null ? null
-                    : ClassMetadata.declaredGenericSignature(loader, creation.getObjectType().getInternalName(), "<init>", creation.getDescriptor());
+            String className = creation.getObjectType() == null ? null : creation.getObjectType().getInternalName();
+            String signature = className == null ? null : ClassMetadata.declaredGenericSignature(loader, className, INIT, creation.getDescriptor());
 
             if (signature == null || !signature.contains(")")) {
                 return null;
@@ -2065,13 +2057,14 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
             List<String> constructorParameters = spreadVarargs(parameterSignatures(signature), index + 1);
             List<String> typeArguments = typeArguments(parameter);
-            List<String> names = ClassMetadata.typeParameterNames(loader, creation.getObjectType().getInternalName());
+            List<String> names = ClassMetadata.typeParameterNames(loader, className);
 
             if (index >= constructorParameters.size() || !constructorParameters.get(index).startsWith("T") || names.size() != typeArguments.size()) {
                 return null;
             }
 
-            int position = names.indexOf(constructorParameters.get(index).substring(1, constructorParameters.get(index).length() - 1));
+            String formal = constructorParameters.get(index);
+            int position = names.indexOf(formal.substring(1, formal.length() - 1));
 
             return position < 0 ? null : typeArguments.get(position);
         }
@@ -2090,10 +2083,20 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             if (typeArgument == null) {
                 return null;
             }
+            return typeVariableOfTheArgument(element, typeArgument);
+        }
+
+        /** @return the type argument if the element is the variable and the argument a type variable, what a nested container feeds if the element is a call and the argument a container */
+        private String typeVariableOfTheArgument(Expression element, String typeArgument) {
             if (references(element, variableNames) != null) {
                 return typeArgument.startsWith("T") ? typeArgument : null;
             }
             return typeArgument.startsWith("L") ? typeVariableFedBy(element, typeArgument) : null;
+        }
+
+        /** The copy of a container has the type arguments of the container it copies when the constructor is unknown */
+        private String typeVariableWithoutMapping(Expression element, String parameter) {
+            return references(element, variableNames) != null ? firstTypeVariable(parameter) : typeVariableFedBy(element, parameter);
         }
 
         /** @return the type argument of the parameter which the element at the index of the container call feeds: 'Map.of(k, v)' for 'Map<K,V>' gives V for the second element */

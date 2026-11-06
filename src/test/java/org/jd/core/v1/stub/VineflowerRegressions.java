@@ -2395,6 +2395,18 @@ public class VineflowerRegressions {
         }
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static <T> String adaptToNestedContainer(java.util.List<java.util.List<T>> values, java.util.function.Function<T, String> function) {
+        java.util.Objects.requireNonNull(values);
+        return (String) ((java.util.function.Function) function).apply(new Object());
+    }
+
+    public String lambdaAdaptedThroughANestedContainer() {
+        var adapted = new Object() {
+        };
+        return adaptToNestedContainer(java.util.List.of(java.util.List.of(adapted)), x -> "ok");
+    }
+
     @SafeVarargs
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> String adaptToVarargs(java.util.function.Function<T, String> function, T... values) {

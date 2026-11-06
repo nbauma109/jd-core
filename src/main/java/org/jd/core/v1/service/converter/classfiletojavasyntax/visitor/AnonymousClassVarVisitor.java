@@ -2016,8 +2016,10 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
                 call.getParameters().forEach(elements::add);
                 for (int i = 0; i < elements.size(); i++) {
-                    if (references(elements.get(i), variableNames) != null) {
-                        return containerTypeArgument(call, i, parameter);
+                    String variable = typeVariableOfTheElement(call, elements.get(i), i, parameter);
+
+                    if (variable != null) {
+                        return variable;
                     }
                 }
             }
@@ -2047,7 +2049,23 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
             return typeArguments(parameter).stream().filter(typeArgument -> typeArgument.startsWith("T")).findFirst().orElse(null);
         }
 
-        /** @return the type variable of the parameter which the element at the index of the container call feeds: 'Map.of(k, v)' for 'Map<K,V>' gives V for the second element */
+        /**
+         * @return the type variable which an element of a container call feeds: the type argument which the element corresponds to when it is the variable, what a nested
+         * container ('List.of(List.of(value))' for 'List<List<T>>') feeds when it is a call
+         */
+        private String typeVariableOfTheElement(MethodInvocationExpression call, Expression element, int index, String parameter) {
+            String typeArgument = containerTypeArgument(call, index, parameter);
+
+            if (typeArgument == null) {
+                return null;
+            }
+            if (references(element, variableNames) != null) {
+                return typeArgument.startsWith("T") ? typeArgument : null;
+            }
+            return typeArgument.startsWith("L") ? typeVariableFedBy(element, typeArgument) : null;
+        }
+
+        /** @return the type argument of the parameter which the element at the index of the container call feeds: 'Map.of(k, v)' for 'Map<K,V>' gives V for the second element */
         private String containerTypeArgument(MethodInvocationExpression call, int index, String parameter) {
             List<String> typeArguments = typeArguments(parameter);
             String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
@@ -2060,11 +2078,11 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                     int position = returnedArguments.indexOf(callParameters.get(index));
 
                     if (position >= 0) {
-                        return typeArguments.get(position).startsWith("T") ? typeArguments.get(position) : null;
+                        return typeArguments.get(position);
                     }
                 }
             }
-            return firstTypeVariable(parameter);
+            return typeArguments.isEmpty() ? null : typeArguments.get(0);
         }
 
         /** @return true if a lambda which uses a member is passed to a parameter whose type contains the type variable of the parameter at the index */

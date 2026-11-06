@@ -2141,6 +2141,15 @@ public class VineflowerRegressions {
         return intersectionBounded((java.util.List) value);
     }
 
+    static <T extends Comparable<String>> int parameterizedBound(java.util.List<T> value) {
+        return value.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOutsideAParameterizedBound(IntegerList value) {
+        return parameterizedBound((java.util.List) value);
+    }
+
     public int genericThrowsOfAnInheritedNestedContainer(NestedFailures failures) {
         try (var inheritedNested = new AutoCloseable() {
             @Override

@@ -343,7 +343,7 @@ public final class ClassMetadata {
 
         String superName = internalNameOf(javaClass.getSuperclassName());
 
-        if (superclassImplementsClose(loader, superName)) {
+        if (superclassImplementsClose(loader, superName, internalName)) {
             // The close which a superclass implements is the one of the class: the contracts of the interfaces do not matter
             return new ArrayList<>();
         }
@@ -353,9 +353,13 @@ public final class ClassMetadata {
         return methods;
     }
 
-    /** @return true if a class of the chain declares a close() which it implements */
-    private static boolean superclassImplementsClose(Loader loader, String internalName) {
+    /**
+     * @return true if a class of the chain declares a close() which it implements and which the class inherits: a package-private one of another package is no
+     * member of the class
+     */
+    private static boolean superclassImplementsClose(Loader loader, String internalName, String subclass) {
         String current = internalName;
+        String subclassPackage = packageOfClass(subclass);
 
         while (current != null && !OBJECT.equals(current)) {
             JavaClass javaClass = parse(loader, current);
@@ -363,13 +367,20 @@ public final class ClassMetadata {
             if (javaClass == null) {
                 return false;
             }
+
+            boolean samePackage = packageOfClass(current).equals(subclassPackage);
+
             if (Arrays.stream(javaClass.getMethods()).anyMatch(method -> !method.isAbstract() && !method.isStatic() && !method.isPrivate() && CLOSE.equals(method.getName())
-                    && "()V".equals(method.getSignature()))) {
+                    && "()V".equals(method.getSignature()) && (method.isPublic() || method.isProtected() || samePackage))) {
                 return true;
             }
             current = internalNameOf(javaClass.getSuperclassName());
         }
         return false;
+    }
+
+    private static String packageOfClass(String internalName) {
+        return internalName.contains("/") ? internalName.substring(0, internalName.lastIndexOf('/')) : "";
     }
 
     private static List<String> thrownByAll(Loader loader, String internalName, List<Map.Entry<String, Method>> declarations, List<String> targetArguments,

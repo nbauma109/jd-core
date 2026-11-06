@@ -3236,7 +3236,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         // 'T extends Number &amp; Runnable' has every one of its bounds to satisfy
         for (Type constituent : bound) {
-            if (constituent instanceof ObjectType boundObject && !typeMaker.isRawTypeAssignable(boundObject, seenObject)) {
+            if (constituent instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, seenObject))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;' */
+    private boolean hasTheTypeArgumentsOfTheBound(ObjectType bound, ObjectType seen) {
+        if (bound.getTypeArguments() == null) {
+            return true;
+        }
+
+        List<TypeArgument> inherited = typeArgumentsSeenAs(bound.getInternalName(), seen, new HashSet<String>());
+        List<TypeArgument> required = toTypeArgumentList(bound.getTypeArguments());
+
+        for (int i = 0; inherited.size() == required.size() && i < required.size(); i++) {
+            // (a type variable or a wildcard of the bound is satisfied by the argument)
+            if (required.get(i) instanceof ObjectType && !required.get(i).equals(inherited.get(i))) {
                 return false;
             }
         }

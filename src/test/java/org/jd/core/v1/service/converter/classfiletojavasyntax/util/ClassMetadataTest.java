@@ -7,11 +7,21 @@
 
 package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
+import org.apache.bcel.Const;
+import org.apache.bcel.generic.ClassGen;
+import org.apache.bcel.generic.ConstantPoolGen;
+import org.apache.bcel.generic.InstructionList;
+import org.apache.bcel.generic.MethodGen;
+import org.apache.bcel.generic.Type;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.loader.ClassPathLoader;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -391,5 +401,52 @@ public class ClassMetadataTest {
 
         assertEquals(Collections.singleton("java/io/IOException"), ClassMetadata.declaredExceptions(LOADER, owner, "io", "()V"));
         assertTrue(ClassMetadata.declaredExceptions(LOADER, subclass, "io", "()V").isEmpty());
+    }
+
+    private static byte[] generated(String name, String superName, int flags, String[] interfaces, boolean withClose, int closeFlags) {
+        ClassGen generator = new ClassGen(name, superName, "Generated.java", flags, interfaces);
+
+        if (withClose) {
+            ConstantPoolGen pool = generator.getConstantPool();
+            InstructionList code = new InstructionList();
+            MethodGen close = new MethodGen(closeFlags, Type.VOID, Type.NO_ARGS, new String[0], "close", name, code, pool);
+
+            code.append(org.apache.bcel.generic.InstructionConst.RETURN);
+            close.setMaxStack();
+            close.setMaxLocals();
+            generator.addMethod(close.getMethod());
+        }
+        try {
+            return generator.getJavaClass().getBytes();
+        } catch (RuntimeException e) {
+            throw new UncheckedIOException(new IOException(e));
+        }
+    }
+
+    @Test
+    public void testPackagePrivateCloseOfAnotherPackageIsNotInherited() {
+        String io = "org/jd/core/v1/stub/VineflowerRegressions$IoClosing";
+        String sql = "org/jd/core/v1/stub/VineflowerRegressions$SqlClosing";
+        Map<String, byte[]> classes = Map.of(
+                "p/Base", generated("p.Base", "java.lang.Object", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[0], true, 0),
+                "q/C", generated("q.C", "p.Base", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[] {io.replace('/', '.'), sql.replace('/', '.')}, false, 0),
+                "p/PublicBase", generated("p.PublicBase", "java.lang.Object", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[0], true, Const.ACC_PUBLIC),
+                "q/D", generated("q.D", "p.PublicBase", Const.ACC_PUBLIC | Const.ACC_ABSTRACT, new String[] {io.replace('/', '.'), sql.replace('/', '.')}, false, 0));
+        Loader loader = new Loader() {
+            @Override
+            public boolean canLoad(String internalName) {
+                return classes.containsKey(internalName) || LOADER.canLoad(internalName);
+            }
+
+            @Override
+            public byte[] load(String internalName) throws IOException {
+                return classes.containsKey(internalName) ? classes.get(internalName) : LOADER.load(internalName);
+            }
+        };
+
+        // 'p.Base.close()' is no member of 'q.C': the closes of its interfaces are the ones it inherits, and no exception is allowed by both of them
+        assertEquals(Optional.of(List.of()), ClassMetadata.inheritedCloseThrown(loader, "q/C", List.of(), Map.of()));
+        // a public one is a member, and implements both
+        assertEquals(Optional.empty(), ClassMetadata.inheritedCloseThrown(loader, "q/D", List.of(), Map.of()));
     }
 }

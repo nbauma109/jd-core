@@ -445,6 +445,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         // ... and neither can 'ArrayList<String>' be a 'List<T extends Number>'
         assertTrue(source.contains("boundedArguments((List)value)"));
         assertTrue(source.contains("intersectionBounded((List)value)"));
+        assertTrue(source.contains("parameterizedBound((List)value)"));
     }
 
     @Test

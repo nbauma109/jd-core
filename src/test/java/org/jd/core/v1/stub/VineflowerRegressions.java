@@ -2219,6 +2219,34 @@ public class VineflowerRegressions {
         return sharedVariable((java.util.List) value, other);
     }
 
+    static <T> int twoArguments(java.util.List<T> values, T first, T second) {
+        return values.size() + first.hashCode() + second.hashCode();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsWhichTwoArgumentsDisagreeOn(StringList value, Object object, String string) {
+        return twoArguments((java.util.List) value, object, string);
+    }
+
+    static class NestedBad implements Comparable<java.util.ArrayList<String>> {
+        @Override
+        public int compareTo(java.util.ArrayList<String> other) {
+            return 0;
+        }
+    }
+
+    static class NestedBads extends java.util.ArrayList<NestedBad> {
+    }
+
+    static <T extends Comparable<? extends java.util.List<CharSequence>>> int nestedWildcardBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsWithNestedWildcardBound(NestedBads value) {
+        return nestedWildcardBound((java.util.List) value);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

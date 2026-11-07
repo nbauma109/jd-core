@@ -483,6 +483,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testArgumentsOfDifferentTypesAndNestedWildcardBoundsKeepTheRawCast() throws Exception {
+        String source = decompile();
+
+        assertTrue(source.contains("twoArguments((List)value, object, string)"));
+        assertTrue(source.contains("nestedWildcardBound((List)value)"));
+    }
+
+    @Test
     public void testNullArgumentFixesNoVariable() throws Exception {
         String source = decompile();
 

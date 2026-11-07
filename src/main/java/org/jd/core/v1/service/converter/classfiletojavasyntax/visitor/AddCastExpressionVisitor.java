@@ -2953,6 +2953,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     /** The arguments which the inherited type arguments gave to the variables of the call so far: 'accept(List&lt;T&gt;, List&lt;T&gt;)' needs the same one from each parameter */
     private Map<String, TypeArgument> argumentInheritedBindings = new HashMap<>();
 
+    /** The arguments which the inherited type arguments of every parameter give to the variables of the call: 'U extends Comparable&lt;T&gt;' is checked against the 'T' of another parameter */
+    private Map<String, TypeArgument> callInheritedBindings = new HashMap<>();
+
     private record CastFlags(boolean forceCast, boolean unique, boolean rawCast) {
     }
 
@@ -2962,12 +2965,42 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         argumentFixedVariables = variablesFixedByTheArguments(unboundTypes, expressions);
         argumentInheritedBindings = new HashMap<>();
+        Map<String, TypeArgument> outerCall = callInheritedBindings;
+
+        callInheritedBindings = bindingsInheritedByTheArguments(unboundTypes, expressions);
         try {
             return updateEachParameter(typeBindings, localTypeBounds, types, unboundTypes, expressions, flags);
         } finally {
             argumentFixedVariables = outerFixed;
             argumentInheritedBindings = outerInherited;
+            callInheritedBindings = outerCall;
         }
+    }
+
+    /** @return the arguments which the types inherited by the arguments of the call give to its type variables, whichever the parameter */
+    private Map<String, TypeArgument> bindingsInheritedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
+        Map<String, TypeArgument> bindings = new HashMap<>();
+
+        if (unboundTypes != null && expressions != null) {
+            List<Type> parameters = new ArrayList<>();
+            List<Expression> arguments = new ArrayList<>();
+
+            unboundTypes.forEach(parameters::add);
+            expressions.forEach(arguments::add);
+
+            for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
+                if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType inheriting
+                        && inheriting.getTypeArguments() == null && !target.getInternalName().equals(inheriting.getInternalName())) {
+                    List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), inheriting, new HashSet<String>());
+                    List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+
+                    for (int j = 0; seen.size() == expected.size() && j < seen.size(); j++) {
+                        isBindableTo(expected.get(j), seen.get(j), bindings);
+                    }
+                }
+            }
+        }
+        return bindings;
     }
 
     /** @return the types of the arguments for each variable of the call which a parameter has as its own type ('T other'): all of them must be assignable to what the variable stands for */
@@ -3321,7 +3354,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return true if the argument which each type variable of the invoked method stands for is within its bound, the other variables of the bound replaced by their arguments */
     private boolean areWithinTheirBounds(Map<String, TypeArgument> bindings, Map<String, BaseType> bounds) {
-        return bindings.entrySet().stream().allMatch(binding -> isWithinBound(bounds.get(binding.getKey()), bindings, binding.getValue()));
+        Map<String, TypeArgument> inTheCall = new HashMap<>(callInheritedBindings);
+
+        inTheCall.putAll(bindings);
+        return bindings.entrySet().stream().allMatch(binding -> isWithinBound(bounds.get(binding.getKey()), inTheCall, binding.getValue()));
     }
 
     /** @return true if what the variable stands for ('inherited') does not accept the type of another argument: a primitive array is accepted by itself, an Object, a Cloneable or a Serializable only */

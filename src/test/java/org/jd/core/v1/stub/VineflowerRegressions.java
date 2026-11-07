@@ -2371,6 +2371,22 @@ public class VineflowerRegressions {
         return values.size() + other.hashCode();
     }
 
+    static class OnlyBads extends java.util.ArrayList<ArrayBad> {
+    }
+
+    static <T, U extends Comparable<T>> int boundOfAnotherParameter(java.util.List<U> first, java.util.List<T> second) {
+        return first.size() + second.size();
+    }
+
+    static <T, U extends Comparable<T>> int boundOfALaterParameter(java.util.List<T> first, java.util.List<U> second) {
+        return first.size() + second.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedBoundsAcrossParameters(OnlyBads bads, OnlyIntegers integers) {
+        return boundOfAnotherParameter((java.util.List) bads, (java.util.List) integers) + boundOfALaterParameter((java.util.List) integers, (java.util.List) bads);
+    }
+
     static class StringLists extends java.util.ArrayList<java.util.List<String>> {
     }
 

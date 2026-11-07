@@ -2219,6 +2219,31 @@ public class VineflowerRegressions {
         return sharedVariable((java.util.List) value, other);
     }
 
+    interface Factory<M, T> {
+        M create(T data);
+    }
+
+    static class ManagerBase {
+        static <M extends ManagerBase, T> M manage(String name, Factory<M, T> factory, T data) {
+            return factory.create(data);
+        }
+    }
+
+    static class DataManager extends ManagerBase {
+        private static final DataManagerFactory FACTORY = new DataManagerFactory();
+
+        static DataManager nullDataKeepsTheFactoryBinding(String name) {
+            return manage(name, FACTORY, null);
+        }
+
+        private static class DataManagerFactory implements Factory<DataManager, java.util.Properties> {
+            @Override
+            public DataManager create(java.util.Properties data) {
+                return new DataManager();
+            }
+        }
+    }
+
     static class SuperBound implements Comparable<String> {
         @Override
         public int compareTo(String other) {

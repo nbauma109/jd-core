@@ -2972,7 +2972,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             expressions.forEach(arguments::add);
 
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
-                if (parameters.get(i) instanceof GenericType variable && variable.getDimension() == 0 && boxedType(arguments.get(i).getType()) instanceof ObjectType argument
+                if (parameters.get(i) instanceof GenericType variable && variable.getDimension() == 0 && !(arguments.get(i) instanceof NullExpression) && boxedType(arguments.get(i).getType()) instanceof ObjectType argument
                         && !argument.equals(fixed.putIfAbsent(variable.getName(), argument)) && fixed.get(variable.getName()) != argument) {
                     ambiguous.add(variable.getName());
                 }

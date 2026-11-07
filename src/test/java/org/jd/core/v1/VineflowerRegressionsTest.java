@@ -483,6 +483,14 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testNullArgumentFixesNoVariable() throws Exception {
+        String source = decompile();
+
+        assertFalse(source.contains("(VineflowerRegressions.Factory)FACTORY"));
+        assertTrue(source.contains("return manage(name, FACTORY, null);"));
+    }
+
+    @Test
     public void testLambdaAdaptedOnlyForTheSecondParameterKeepsTheFirstAlias() throws Exception {
         String source = decompile();
         String method = source.substring(source.indexOf("lambdaAdaptedOnlyForTheSecondParameter"));

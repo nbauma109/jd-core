@@ -3025,17 +3025,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             expressionList.set(i, updateParameter(typeBindings, localTypeBounds, typeList.get(i), unboundType, expressionList.get(i), flags.forceCast(), flags.unique(), flags.rawCast()));
         }
         if (conflictingRawCastAdded && unboundTypeList != null) {
-            // The raw argument leaves the call unchecked: the variable is no more the one which the inherited arguments gave, so 'accept((List) xs, object, string)' needs no '(String) object'
-            for (int i = 0; i < expressionList.size(); i++) {
-                if (unboundTypeList.get(i) instanceof GenericType variable && variable.getDimension() == 0 && expressionList.get(i) instanceof CastExpression cast
-                        && cast.getExpression() == originals.get(i)) {
-                    expressionList.set(i, originals.get(i));
-                }
-            }
+            restoreArgumentsOfVariableParameters(unboundTypeList, expressionList, originals);
         }
         conflictingRawCastAdded = outerRawCast;
 
         return expressions;
+    }
+
+    /** The raw argument leaves the call unchecked: the variable is no more the one which the inherited arguments gave, so 'accept((List) xs, object, string)' needs no '(String) object' */
+    private static void restoreArgumentsOfVariableParameters(DefaultList<Type> unboundTypeList, DefaultList<Expression> expressionList, List<Expression> originals) {
+        for (int i = 0; i < expressionList.size(); i++) {
+            if (unboundTypeList.get(i) instanceof GenericType variable && variable.getDimension() == 0 && expressionList.get(i) instanceof CastExpression cast
+                    && cast.getExpression() == originals.get(i)) {
+                expressionList.set(i, originals.get(i));
+            }
+        }
     }
 
     private Expression updateParameter(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {

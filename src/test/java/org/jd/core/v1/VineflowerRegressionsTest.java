@@ -495,7 +495,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         String source = decompile();
 
         assertFalse(source.contains("(VineflowerRegressions.Factory)FACTORY"));
-        assertTrue(source.contains("return manage(name, FACTORY, null);"));
+        assertTrue(source.contains("return manage(FACTORY, null);"));
     }
 
     @Test

@@ -2252,7 +2252,7 @@ public class VineflowerRegressions {
     }
 
     static class ManagerBase {
-        static <M extends ManagerBase, T> M manage(String name, Factory<M, T> factory, T data) {
+        static <M extends ManagerBase, T> M manage(Factory<M, T> factory, T data) {
             return factory.create(data);
         }
     }
@@ -2260,8 +2260,8 @@ public class VineflowerRegressions {
     static class DataManager extends ManagerBase {
         private static final DataManagerFactory FACTORY = new DataManagerFactory();
 
-        static DataManager nullDataKeepsTheFactoryBinding(String name) {
-            return manage(name, FACTORY, null);
+        static DataManager nullDataKeepsTheFactoryBinding() {
+            return manage(FACTORY, null);
         }
 
         private static class DataManagerFactory implements Factory<DataManager, java.util.Properties> {

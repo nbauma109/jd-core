@@ -3348,15 +3348,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             // A bound which is another variable of the call ('T extends U') is the argument of that variable
             Type resolved = constituent instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument ? argument : constituent;
 
-            if (resolved instanceof PrimitiveType array && array.getDimension() > 0 && !array.equals(seenObject)) {
-                // 'U' bound to 'int[]' is a bound which only the same array satisfies
-                return false;
-            }
-            if (resolved instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, bindings, seenObject))) {
+            if (!isSatisfiedBy(resolved, bindings, seenObject)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** @return false if the argument is none of the bound: an array bound ('U' bound to 'int[]') is satisfied by the same array only */
+    private boolean isSatisfiedBy(Type bound, Map<String, TypeArgument> bindings, ObjectType seen) {
+        if (bound instanceof PrimitiveType array && array.getDimension() > 0) {
+            return array.equals(seen);
+        }
+        return !(bound instanceof ObjectType boundObject) || typeMaker.isRawTypeAssignable(boundObject, seen) && hasTheTypeArgumentsOfTheBound(boundObject, bindings, seen);
     }
 
     /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;'; the variables of the bound ('T extends Comparable&lt;T&gt;') stand for their arguments */

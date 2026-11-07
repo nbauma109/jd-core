@@ -2316,6 +2316,28 @@ public class VineflowerRegressions {
         return wildcardNumberBound((java.util.List) value);
     }
 
+    static <T> int arrayKnownBinding(java.util.List<T> values, T other) {
+        return values.size() + other.hashCode();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedPrimitiveArrayAgainstAnObject(IntArrays value, Object other) {
+        return arrayKnownBinding((java.util.List) value, other);
+    }
+
+    static <T extends Comparable<? extends int[]>> int upperArrayBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    static <T extends Comparable<? super int[]>> int lowerArrayBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsAgainstAnArrayWildcardBound(ArrayBads value) {
+        return upperArrayBound((java.util.List) value) + lowerArrayBound((java.util.List) value);
+    }
+
     static class StringLists extends java.util.ArrayList<java.util.List<String>> {
     }
 

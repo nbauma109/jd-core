@@ -3313,8 +3313,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      */
     private boolean contradictsTheKnownBindings(Map<String, TypeArgument> bindings, Map<String, List<ObjectType>> known) {
         for (Map.Entry<String, TypeArgument> binding : bindings.entrySet()) {
-            if (binding.getValue() instanceof ObjectType inherited
-                    && known.getOrDefault(binding.getKey(), Collections.emptyList()).stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed) || !hasTheTypeArgumentsOf(inherited, fixed))) {
+            List<ObjectType> fixedTypes = known.getOrDefault(binding.getKey(), Collections.emptyList());
+
+            if (binding.getValue() instanceof ObjectType inherited) {
+                if (fixedTypes.stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed) || !hasTheTypeArgumentsOf(inherited, fixed))) {
+                    return true;
+                }
+            } else if (binding.getValue() instanceof Type array && array.getDimension() > 0 && !fixedTypes.isEmpty()) {
+                // 'int[]' accepts no object type: an 'Object' given for the same variable is no 'int[]'
                 return true;
             }
         }
@@ -3399,11 +3405,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (inherited instanceof PrimitiveType array) {
             // 'int[]' is no more than an Object, a Cloneable or a Serializable
             if (required instanceof WildcardExtendsTypeArgument wildcard) {
-                return wildcard.type() instanceof ObjectType upper && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
+                return wildcard.type().equals(array) || wildcard.type() instanceof ObjectType upper && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
             }
             if (required instanceof WildcardSuperTypeArgument wildcard) {
                 return wildcard.type().equals(array);
             }
+        }
+        if (inherited instanceof ObjectType object && !isWithinAnArrayWildcard(required, object)) {
+            return false;
         }
         if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof ObjectType upper && inherited instanceof ObjectType argument) {
             return typeMaker.isRawTypeAssignable(upper, argument) && hasTheTypeArgumentsOf(upper, argument);
@@ -3412,6 +3421,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return typeMaker.isRawTypeAssignable(argument, lower) && hasTheTypeArgumentsOf(argument, lower);
         }
         return true;
+    }
+
+    /** @return false if the wildcard bounds an array ('? extends int[]', '? super int[]') which the object type cannot satisfy: only an Object, a Cloneable or a Serializable is a super type of an array */
+    private static boolean isWithinAnArrayWildcard(TypeArgument required, ObjectType object) {
+        if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof PrimitiveType array && array.getDimension() > 0) {
+            return false;
+        }
+        return !(required instanceof WildcardSuperTypeArgument wildcard && wildcard.type() instanceof PrimitiveType array && array.getDimension() > 0)
+                || object.getDimension() == 0 && ARRAY_SUPER_TYPES.contains(object.getInternalName());
     }
 
     /** @return false if the type, which a bound requires with type arguments free of type variables, is not a super type of the other with those arguments: 'ArrayList&lt;String&gt;' is no 'List&lt;CharSequence&gt;' */

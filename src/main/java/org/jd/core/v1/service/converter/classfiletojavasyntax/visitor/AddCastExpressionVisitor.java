@@ -2950,17 +2950,23 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     private boolean conflictingRawCastAdded;
 
+    /** The arguments which the inherited type arguments gave to the variables of the call so far: 'accept(List&lt;T&gt;, List&lt;T&gt;)' needs the same one from each parameter */
+    private Map<String, TypeArgument> argumentInheritedBindings = new HashMap<>();
+
     private record CastFlags(boolean forceCast, boolean unique, boolean rawCast) {
     }
 
     protected BaseExpression updateParameters(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
         Map<String, List<ObjectType>> outerFixed = argumentFixedVariables;
+        Map<String, TypeArgument> outerInherited = argumentInheritedBindings;
 
         argumentFixedVariables = variablesFixedByTheArguments(unboundTypes, expressions);
+        argumentInheritedBindings = new HashMap<>();
         try {
             return updateEachParameter(typeBindings, localTypeBounds, types, unboundTypes, expressions, flags);
         } finally {
             argumentFixedVariables = outerFixed;
+            argumentInheritedBindings = outerInherited;
         }
     }
 
@@ -3287,7 +3293,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
             isBindableTo(expected.get(i), seen.get(i), nested);
         }
-        if (contradictsTheKnownBindings(nested, known)) {
+        if (contradictsTheKnownBindings(nested, known) || contradictsTheOtherParameters(nested)) {
             return true;
         }
         for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
@@ -3299,7 +3305,17 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
         // The bounds are checked once every variable is bound: 'U extends Comparable<T>' needs the argument of 'T'
-        return !areWithinTheirBounds(bindings, bounds);
+        if (!areWithinTheirBounds(bindings, bounds)) {
+            return true;
+        }
+        argumentInheritedBindings.putAll(nested);
+        return false;
+    }
+
+    /** @return true if another parameter of the call was given other arguments for the same variables: 'accept((List) strings, (List) integers)' for 'accept(List&lt;T&gt;, List&lt;T&gt;)' */
+    private boolean contradictsTheOtherParameters(Map<String, TypeArgument> nested) {
+        return nested.entrySet().stream().anyMatch(binding -> argumentInheritedBindings.containsKey(binding.getKey())
+                && !argumentInheritedBindings.get(binding.getKey()).equals(binding.getValue()));
     }
 
     /** @return true if the argument which each type variable of the invoked method stands for is within its bound, the other variables of the bound replaced by their arguments */

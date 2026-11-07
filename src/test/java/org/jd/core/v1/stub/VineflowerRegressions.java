@@ -2347,6 +2347,21 @@ public class VineflowerRegressions {
         return objectArrayBound((java.util.List) value);
     }
 
+    static class OnlyStrings extends java.util.ArrayList<String> {
+    }
+
+    static class OnlyIntegers extends java.util.ArrayList<Integer> {
+    }
+
+    static <T> int twoLists(java.util.List<T> first, java.util.List<T> second) {
+        return first.size() + second.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOfTwoParameters(OnlyStrings first, OnlyIntegers second) {
+        return twoLists((java.util.List) first, (java.util.List) second);
+    }
+
     static class StringLists extends java.util.ArrayList<java.util.List<String>> {
     }
 

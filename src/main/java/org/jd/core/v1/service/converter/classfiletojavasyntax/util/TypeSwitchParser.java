@@ -25,6 +25,7 @@ import org.apache.bcel.generic.InstructionList;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.Expressions;
+import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
 
@@ -119,7 +120,11 @@ final class TypeSwitchParser {
         Constant constant = constants.getConstant(argument);
 
         if (constant instanceof ConstantClass) {
-            return typeMaker.makeFromDescriptorOrInternalTypeName(constants.getConstantString(argument, CONSTANT_Class));
+            String name = constants.getConstantString(argument, CONSTANT_Class);
+            Type type = typeMaker.makeFromDescriptorOrInternalTypeName(name);
+
+            // 'case int[] xs' gives the descriptor of a primitive array
+            return type == null ? PrimitiveTypeUtil.getPrimitiveTypeFromDescriptor(name) : type;
         }
         if (constant instanceof ConstantString) {
             return constants.getConstantString(argument, CONSTANT_String);

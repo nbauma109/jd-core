@@ -886,6 +886,10 @@ public class StatementMaker {
         if (label instanceof ObjectType type) {
             return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), patternType(type, patternVariable), patternVariable);
         }
+        if (label instanceof Type arrayType && arrayType.getDimension() > 0) {
+            // 'case int[] xs'
+            return new ClassFileInstanceOfPatternExpression(UNKNOWN_LINE_NUMBER, typeSwitch.operand(), arrayType, patternVariable);
+        }
         if (label instanceof ClassFileTypeSwitchExpression.EnumLabel enumLabel) {
             ObjectType enumType = enumLabel.type();
 

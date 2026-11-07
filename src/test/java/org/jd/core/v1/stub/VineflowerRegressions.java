@@ -2297,6 +2297,25 @@ public class VineflowerRegressions {
         return arrayBound((java.util.List) value);
     }
 
+    static class ArrayComparable implements Comparable<int[]> {
+        @Override
+        public int compareTo(int[] other) {
+            return 0;
+        }
+    }
+
+    static class ArrayComparables extends java.util.ArrayList<ArrayComparable> {
+    }
+
+    static <T extends Comparable<? extends Number>> int wildcardNumberBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedPrimitiveArrayForAWildcardBound(ArrayComparables value) {
+        return wildcardNumberBound((java.util.List) value);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

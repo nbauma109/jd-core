@@ -3380,6 +3380,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (required instanceof ObjectType || required instanceof PrimitiveType) {
             return required.equals(inherited);
         }
+        if (inherited instanceof PrimitiveType array) {
+            // 'int[]' is no more than an Object, a Cloneable or a Serializable
+            if (required instanceof WildcardExtendsTypeArgument wildcard) {
+                return wildcard.type() instanceof ObjectType upper && Set.of("java/lang/Object", "java/lang/Cloneable", "java/io/Serializable").contains(upper.getInternalName());
+            }
+            if (required instanceof WildcardSuperTypeArgument wildcard) {
+                return wildcard.type().equals(array);
+            }
+        }
         if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof ObjectType upper && inherited instanceof ObjectType argument) {
             return typeMaker.isRawTypeAssignable(upper, argument) && hasTheTypeArgumentsOf(upper, argument);
         }

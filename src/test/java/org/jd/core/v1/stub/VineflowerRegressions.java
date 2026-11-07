@@ -2362,6 +2362,15 @@ public class VineflowerRegressions {
         return twoLists((java.util.List) first, (java.util.List) second);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsAgainstAPrimitiveArray(OnlyStrings value, int[] other) {
+        return fixedByAnArray((java.util.List) value, other);
+    }
+
+    static <T> int fixedByAnArray(java.util.List<T> values, T other) {
+        return values.size() + other.hashCode();
+    }
+
     static class StringLists extends java.util.ArrayList<java.util.List<String>> {
     }
 

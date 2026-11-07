@@ -2946,7 +2946,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** Bundles the three cast-insertion flags shared by {@link #updateParameters} and its helpers. */
-    private Map<String, List<ObjectType>> argumentFixedVariables = Collections.emptyMap();
+    private Map<String, List<Type>> argumentFixedVariables = Collections.emptyMap();
 
     private boolean conflictingRawCastAdded;
 
@@ -2957,7 +2957,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     protected BaseExpression updateParameters(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
-        Map<String, List<ObjectType>> outerFixed = argumentFixedVariables;
+        Map<String, List<Type>> outerFixed = argumentFixedVariables;
         Map<String, TypeArgument> outerInherited = argumentInheritedBindings;
 
         argumentFixedVariables = variablesFixedByTheArguments(unboundTypes, expressions);
@@ -2971,8 +2971,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** @return the types of the arguments for each variable of the call which a parameter has as its own type ('T other'): all of them must be assignable to what the variable stands for */
-    private static Map<String, List<ObjectType>> variablesFixedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
-        Map<String, List<ObjectType>> fixed = new HashMap<>();
+    private static Map<String, List<Type>> variablesFixedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
+        Map<String, List<Type>> fixed = new HashMap<>();
 
         if (unboundTypes != null && expressions != null) {
             List<Type> parameters = new ArrayList<>();
@@ -2983,8 +2983,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
                 if (parameters.get(i) instanceof GenericType variable && variable.getDimension() == 0 && !(arguments.get(i) instanceof NullExpression)
-                        && boxedType(arguments.get(i).getType()) instanceof ObjectType argument) {
-                    List<ObjectType> types = fixed.computeIfAbsent(variable.getName(), name -> new ArrayList<>());
+                        && boxedType(arguments.get(i).getType()) != null) {
+                    Type argument = boxedType(arguments.get(i).getType());
+                    List<Type> types = fixed.computeIfAbsent(variable.getName(), name -> new ArrayList<>());
 
                     if (!types.contains(argument)) {
                         types.add(argument);
@@ -2996,7 +2997,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private static Type boxedType(Type type) {
-        if (type instanceof ObjectType) {
+        if (type instanceof ObjectType || type instanceof PrimitiveType array && array.getDimension() > 0) {
             return type;
         }
         return switch (type == null ? "" : type.getDescriptor()) {
@@ -3260,7 +3261,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * @return true if the class, which has no type arguments of its own, inherits the target type with arguments which the variables of the invoked method can stand for:
      * 'NestedFailures extends ArrayList&lt;List&lt;IOException&gt;&gt;' is a 'List&lt;List&lt;E&gt;&gt;' for the 'E' of 'raise(List&lt;List&lt;E&gt;&gt;)'; no cast is needed
      */
-    private boolean inheritsWithBindableArguments(ObjectType target, ObjectType expression, Map<String, List<ObjectType>> known, Map<String, BaseType> bounds) {
+    private boolean inheritsWithBindableArguments(ObjectType target, ObjectType expression, Map<String, List<Type>> known, Map<String, BaseType> bounds) {
         if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
             return false;
         }
@@ -3278,7 +3279,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * @return true if the class, which has no type arguments of its own, inherits the target type with different arguments where the target has the same type variable of the
      * invoked method, or with an argument outside its bound, or other than the one which the other arguments of the call fix ('known'): 'Mixed extends HashMap&lt;String, Integer&gt;' is no 'Map&lt;T, T&gt;', the raw cast has to stay
      */
-    private boolean inheritsWithConflictingBindings(ObjectType target, ObjectType expression, Map<String, List<ObjectType>> known, Map<String, BaseType> bounds) {
+    private boolean inheritsWithConflictingBindings(ObjectType target, ObjectType expression, Map<String, List<Type>> known, Map<String, BaseType> bounds) {
         if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
             return false;
         }
@@ -3323,20 +3324,32 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return bindings.entrySet().stream().allMatch(binding -> isWithinBound(bounds.get(binding.getKey()), bindings, binding.getValue()));
     }
 
+    /** @return true if what the variable stands for ('inherited') does not accept the type of another argument: a primitive array is accepted by itself, an Object, a Cloneable or a Serializable only */
+    private boolean contradicts(TypeArgument inherited, Type fixed) {
+        boolean inheritedArray = inherited instanceof PrimitiveType array && array.getDimension() > 0;
+
+        if (fixed instanceof ObjectType fixedObject) {
+            if (inherited instanceof ObjectType inheritedObject) {
+                return !typeMaker.isRawTypeAssignable(inheritedObject, fixedObject) || !hasTheTypeArgumentsOf(inheritedObject, fixedObject);
+            }
+            // 'int[]' accepts no object type: an 'Object' given for the same variable is no 'int[]'
+            return inheritedArray;
+        }
+        if (inherited instanceof ObjectType inheritedObject) {
+            return inheritedObject.getDimension() > 0 || !ARRAY_SUPER_TYPES.contains(inheritedObject.getInternalName());
+        }
+        return inheritedArray && !inherited.equals(fixed);
+    }
+
     /**
      * @return true if the class inherits, for a type variable of the call, an argument which does not accept the one which the other arguments of the call give it: a
      * 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T&gt;' for the 'T' which the argument '1' (or an 'Object') of 'accept(List&lt;T&gt;, T)' fixes
      */
-    private boolean contradictsTheKnownBindings(Map<String, TypeArgument> bindings, Map<String, List<ObjectType>> known) {
+    private boolean contradictsTheKnownBindings(Map<String, TypeArgument> bindings, Map<String, List<Type>> known) {
         for (Map.Entry<String, TypeArgument> binding : bindings.entrySet()) {
-            List<ObjectType> fixedTypes = known.getOrDefault(binding.getKey(), Collections.emptyList());
+            List<Type> fixedTypes = known.getOrDefault(binding.getKey(), Collections.emptyList());
 
-            if (binding.getValue() instanceof ObjectType inherited) {
-                if (fixedTypes.stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed) || !hasTheTypeArgumentsOf(inherited, fixed))) {
-                    return true;
-                }
-            } else if (binding.getValue() instanceof Type array && array.getDimension() > 0 && !fixedTypes.isEmpty()) {
-                // 'int[]' accepts no object type: an 'Object' given for the same variable is no 'int[]'
+            if (fixedTypes.stream().anyMatch(fixed -> contradicts(binding.getValue(), fixed))) {
                 return true;
             }
         }

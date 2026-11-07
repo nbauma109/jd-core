@@ -1,0 +1,173 @@
+/*
+ * Copyright (c) 2026 Nicolas Baumann (@nbauma109), with Claude Sonnet 5.5.
+ * This project is distributed under the GPLv3 license.
+ * This is a Copyleft license that gives the user the right to use,
+ * copy and modify the code freely for non-commercial purposes.
+ */
+package org.jd.core.v1.service.converter.classfiletojavasyntax.visitor;
+
+import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
+import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
+import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
+import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
+import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
+import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
+import org.jd.core.v1.model.javasyntax.statement.TryStatement;
+import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
+import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
+import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Gives its name to the variable of 'o instanceof T v' and of 'case T v', once the local variables are named */
+public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVisitor {
+    private final Set<String> reservedNames = new HashSet<>();
+    private int unusedCount;
+
+    /** The names of the parameters and of the variables of the method: a pattern which binds no variable is named by none of them */
+    public void reserveNamesOf(BaseStatement statements, BaseFormalParameter parameters) {
+        reservedNames.clear();
+        unusedCount = 0;
+
+        AbstractJavaSyntaxVisitor collector = new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(FormalParameter parameter) {
+                reservedNames.add(parameter.getName());
+            }
+
+            @Override
+            public void visit(LocalVariableDeclarator declarator) {
+                reservedNames.add(declarator.getName());
+                super.visit(declarator);
+            }
+
+            @Override
+            public void visit(LocalVariableReferenceExpression expression) {
+                reservedNames.add(expression.getName());
+            }
+
+            /** The variable of a pattern whose binding was removed has no declarator and no reference left, but its name is taken */
+            @Override
+            public void visit(InstanceOfExpression expression) {
+                if (expression instanceof ClassFileInstanceOfPatternExpression pattern && pattern.getLocalVariable() != null && pattern.getLocalVariable().getName() != null) {
+                    reservedNames.add(pattern.getLocalVariable().getName());
+                }
+                super.visit(expression);
+            }
+
+            @Override
+            public void visit(TryStatement.CatchClause catchClause) {
+                reservedNames.add(catchClause.getName());
+                super.visit(catchClause);
+            }
+
+            @Override
+            public void visit(ForEachStatement statement) {
+                reservedNames.add(statement.getName());
+                super.visit(statement);
+            }
+        };
+
+        if (parameters != null) {
+            parameters.accept(collector);
+        }
+        if (statements != null) {
+            statements.accept(collector);
+        }
+    }
+
+    @Override
+    protected Expression updateExpression(Expression expression) {
+        if (expression instanceof ClassFileInstanceOfPatternExpression pattern && pattern.getLocalVariable() != null && pattern.getLocalVariable().getName() != null) {
+            return new InstanceOfExpression(pattern.getLineNumber(), pattern.getExpression(), pattern.getInstanceOfType(), pattern.getLocalVariable().getName(), false);
+        }
+        if (expression instanceof SwitchExpression switchExpression) {
+            return resolve(switchExpression);
+        }
+        return expression;
+    }
+
+    /** A pattern switch which a rule yields after other statements ('yield switch (b) { case String t -> ... }') is resolved like the one which a rule gives */
+    @Override
+    public void visit(YieldExpressionStatement statement) {
+        statement.setExpression(updateExpression(statement.getExpression()));
+        statement.getExpression().accept(this);
+    }
+
+    @Override
+    public void visit(SwitchStatement statement) {
+        List<SwitchStatement.Block> blocks = statement.getBlocks();
+
+        blocks.replaceAll(this::resolveBlock);
+        super.visit(statement);
+    }
+
+    private SwitchStatement.Block resolveBlock(SwitchStatement.Block block) {
+        if (block instanceof SwitchStatement.LabelBlock labelBlock && labelBlock.getLabel() instanceof SwitchStatement.ExpressionLabel label
+                && label.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern) {
+            return new SwitchStatement.LabelBlock(new SwitchStatement.PatternLabel(pattern(pattern)), labelBlock.getWhenCondition(), labelBlock.getStatements());
+        }
+        return block;
+    }
+
+    private static boolean hasUnresolvedLabel(List<SwitchExpression.Label> labels) {
+        return labels.stream().anyMatch(label -> label instanceof SwitchExpression.ExpressionLabel expressionLabel
+                && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression);
+    }
+
+    /** @return the switch whose pattern labels are resolved, and the expressions of whose rules are, a switch expression which a rule gives included; the switch itself if nothing changes */
+    private SwitchExpression resolve(SwitchExpression switchExpression) {
+        List<SwitchExpression.Rule> rules = new ArrayList<>();
+        boolean changed = false;
+
+        for (SwitchExpression.Rule rule : switchExpression.getRules()) {
+            SwitchExpression.Rule resolved = resolve(rule);
+
+            changed |= resolved != rule;
+            rules.add(resolved);
+        }
+        return changed ? new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), rules, switchExpression.getType()) : switchExpression;
+    }
+
+    /** @return the rule with its pattern labels and its expression resolved; the rule itself if nothing changes */
+    private SwitchExpression.Rule resolve(SwitchExpression.Rule rule) {
+        boolean labelsChanged = hasUnresolvedLabel(rule.getLabels());
+        List<SwitchExpression.Label> labels = new ArrayList<>();
+
+        for (SwitchExpression.Label label : rule.getLabels()) {
+            labels.add(label instanceof SwitchExpression.ExpressionLabel expressionLabel && expressionLabel.getExpression() instanceof ClassFileInstanceOfPatternExpression pattern
+                    ? new SwitchExpression.PatternLabel(pattern(pattern)) : label);
+        }
+        if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
+            Expression updated = updateExpression(ruleExpression.getExpression());
+
+            return labelsChanged || updated != ruleExpression.getExpression() ? new SwitchExpression.RuleExpression(labels, ruleExpression.getWhenCondition(), updated) : rule;
+        }
+        if (rule instanceof SwitchExpression.RuleStatement ruleStatement && labelsChanged) {
+            return new SwitchExpression.RuleStatement(labels, ruleStatement.getWhenCondition(), ruleStatement.getStatements());
+        }
+        return rule;
+    }
+
+    /** The name of a pattern which binds no variable ('case String _' of Java 22): it is used nowhere, it only has not to be the name of another variable */
+    private TypePattern pattern(ClassFileInstanceOfPatternExpression expression) {
+        if (expression.getLocalVariable() != null && expression.getLocalVariable().getName() != null) {
+            return new TypePattern(expression.getInstanceOfType(), expression.getLocalVariable().getName());
+        }
+
+        String name;
+
+        do {
+            name = "unused" + unusedCount++;
+        } while (reservedNames.contains(name));
+        return new TypePattern(expression.getInstanceOfType(), name);
+    }
+}

@@ -225,8 +225,15 @@ public abstract class ControlFlowGraphReducer {
     }
 
 
+    private boolean instanceOfPatterns;
+
+    /** @param instanceOfPatterns whether the byte code of the method is the one of Java 16+, which binds the variable of 'x instanceof T v' */
+    public void setInstanceOfPatterns(boolean instanceOfPatterns) {
+        this.instanceOfPatterns = instanceOfPatterns;
+    }
+
     private void reduceGotoLoop(Method method, boolean splitReturns) {
-        controlFlowGraph = new ControlFlowGraphMaker().make(method);
+        controlFlowGraph = new ControlFlowGraphMaker(instanceOfPatterns).make(method);
         ControlFlowGraphGotoReducer.reduce(controlFlowGraph, splitReturns);
         ControlFlowGraphLoopReducer.reduce(controlFlowGraph, pruneSharedLoopCode());
     }
@@ -298,7 +305,6 @@ public abstract class ControlFlowGraphReducer {
             setter.accept(basicBlock, mergedTernaryOp);
             mergedTernaryOp.setSub1(linkedBlock.getSub1().getSub1());
             mergedTernaryOp.setSub2(linkedBlock.getSub1().getSub2());
-            mergedTernaryOp.getSub1().inverseCondition();
             mergedTernaryOp.setCondition(mergedCondition);
         }
         mergeTernaryOperators(linkedBlock, BasicBlock::getSub1, BasicBlock::setSub1);
@@ -796,8 +802,8 @@ public abstract class ControlFlowGraphReducer {
         BasicBlock next = basicBlock.getNext();
         BasicBlock branch = basicBlock.getBranch();
 
-        ControlFlowGraph cfg = basicBlock.getControlFlowGraph();
-        BasicBlock condition = cfg.newBasicBlock(TYPE_CONDITION, basicBlock.getFromOffset(), basicBlock.getToOffset());
+        // 'basicBlock' may already be a compound condition ('a && b'): keep its structure instead of flattening it
+        BasicBlock condition = createLeftInverseCondition(basicBlock);
 
         condition.endCondition();
 

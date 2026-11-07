@@ -91,7 +91,8 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
 
                 // Store empty default constructor
                 int constructorAccessFlags = declaration.getFlags() & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE);
-                if (statements.isEmpty() && Utils.isEmpty(cfcd.getFormalParameters())
+                // A constructor which declares exceptions is no default constructor: removing it would change what the creations throw
+                if (statements.isEmpty() && Utils.isEmpty(cfcd.getFormalParameters()) && cfcd.getExceptionTypes() == null
                         && (constructorAccessFlags != Const.ACC_PROTECTED || constructorAccessFlags == classAccessFlags)) {
                     constructor = cfcd;
                 }

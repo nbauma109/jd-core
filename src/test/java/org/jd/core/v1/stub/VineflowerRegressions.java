@@ -2821,6 +2821,7 @@ public class VineflowerRegressions {
     }
 
     static <T> T secondOf(Object ignored, T actual) {
+        ignored.hashCode();
         return actual;
     }
 

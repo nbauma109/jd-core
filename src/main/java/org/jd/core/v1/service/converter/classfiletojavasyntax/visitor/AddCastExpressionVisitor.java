@@ -2984,6 +2984,25 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    /** Binds the variables of the parameter type to the type arguments of its argument: given directly ('List&lt;Integer&gt;'), or inherited by a class without type arguments of its own */
+    private void bindArgument(ObjectType target, ObjectType given, Map<String, TypeArgument> inherited) {
+        List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+        boolean direct = given.getTypeArguments() != null;
+
+        if (direct && !target.getInternalName().equals(given.getInternalName())) {
+            return;
+        }
+
+        List<TypeArgument> actual = direct ? toTypeArgumentList(given.getTypeArguments()) : typeArgumentsSeenAs(target.getInternalName(), given, new HashSet<String>());
+        Map<String, TypeArgument> bindings = direct ? callDirectBindings : inherited;
+
+        if (direct || !target.getInternalName().equals(given.getInternalName())) {
+            for (int j = 0; actual.size() == expected.size() && j < actual.size(); j++) {
+                isBindableTo(expected.get(j), actual.get(j), bindings);
+            }
+        }
+    }
+
     /** @return the arguments which the types inherited by the arguments of the call give to its type variables, whichever the parameter */
     private Map<String, TypeArgument> bindingsInheritedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
         Map<String, TypeArgument> bindings = new HashMap<>();
@@ -2996,22 +3015,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             expressions.forEach(arguments::add);
 
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
-                if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType given
-                        && given.getTypeArguments() != null && target.getInternalName().equals(given.getInternalName())) {
-                    List<TypeArgument> actual = toTypeArgumentList(given.getTypeArguments());
-                    List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
-
-                    for (int j = 0; actual.size() == expected.size() && j < actual.size(); j++) {
-                        isBindableTo(expected.get(j), actual.get(j), callDirectBindings);
-                    }
-                } else if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType inheriting
-                        && inheriting.getTypeArguments() == null && !target.getInternalName().equals(inheriting.getInternalName())) {
-                    List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), inheriting, new HashSet<String>());
-                    List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
-
-                    for (int j = 0; seen.size() == expected.size() && j < seen.size(); j++) {
-                        isBindableTo(expected.get(j), seen.get(j), bindings);
-                    }
+                if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType given) {
+                    bindArgument(target, given, bindings);
                 }
             }
         }

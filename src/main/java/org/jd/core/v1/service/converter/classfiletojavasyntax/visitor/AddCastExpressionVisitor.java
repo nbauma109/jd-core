@@ -150,6 +150,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Expression memberReceiver;
     private boolean visitingWitnessedInvocation;
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
+    /** The types which an array is */
+    private static final Set<String> ARRAY_SUPER_TYPES = Set.of("java/lang/Object", "java/lang/Cloneable", "java/io/Serializable");
+
     private final Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
     /**
@@ -3306,7 +3309,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
             if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
                     && seen.get(i) instanceof ObjectType inherited
-                    && known.getOrDefault(variable.getName(), Collections.emptyList()).stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed))) {
+                    && known.getOrDefault(variable.getName(), Collections.emptyList()).stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed) || !hasTheTypeArgumentsOf(inherited, fixed))) {
                 return true;
             }
         }
@@ -3335,7 +3338,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (bound != null && seen instanceof Type array && array.getDimension() > 0 && !(seen instanceof ObjectType)) {
             // 'int[]' is no more than an Object, a Cloneable or a Serializable
             return StreamSupport.stream(bound.spliterator(), false).allMatch(constituent -> constituent instanceof ObjectType boundObject
-                    && Set.of("java/lang/Object", "java/lang/Cloneable", "java/io/Serializable").contains(boundObject.getInternalName()));
+                    && ARRAY_SUPER_TYPES.contains(boundObject.getInternalName()));
         }
         if (bound == null || !(seen instanceof ObjectType seenObject)) {
             return true;
@@ -3343,8 +3346,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         // 'T extends Number &amp; Runnable' has every one of its bounds to satisfy
         for (Type constituent : bound) {
             // A bound which is another variable of the call ('T extends U') is the argument of that variable
-            Type resolved = constituent instanceof GenericType variable && bindings.get(variable.getName()) instanceof ObjectType argument ? argument : constituent;
+            Type resolved = constituent instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument ? argument : constituent;
 
+            if (resolved instanceof PrimitiveType array && array.getDimension() > 0 && !array.equals(seenObject)) {
+                // 'U' bound to 'int[]' is a bound which only the same array satisfies
+                return false;
+            }
             if (resolved instanceof ObjectType boundObject && (!typeMaker.isRawTypeAssignable(boundObject, seenObject) || !hasTheTypeArgumentsOfTheBound(boundObject, bindings, seenObject))) {
                 return false;
             }
@@ -3383,7 +3390,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (inherited instanceof PrimitiveType array) {
             // 'int[]' is no more than an Object, a Cloneable or a Serializable
             if (required instanceof WildcardExtendsTypeArgument wildcard) {
-                return wildcard.type() instanceof ObjectType upper && Set.of("java/lang/Object", "java/lang/Cloneable", "java/io/Serializable").contains(upper.getInternalName());
+                return wildcard.type() instanceof ObjectType upper && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
             }
             if (required instanceof WildcardSuperTypeArgument wildcard) {
                 return wildcard.type().equals(array);

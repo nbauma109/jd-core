@@ -2316,6 +2316,30 @@ public class VineflowerRegressions {
         return wildcardNumberBound((java.util.List) value);
     }
 
+    static class StringLists extends java.util.ArrayList<java.util.List<String>> {
+    }
+
+    static <T> int sharedParameterization(java.util.List<T> values, T other) {
+        return values.size() + other.hashCode();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsOfAnotherParameterization(StringLists value, java.util.List<Integer> other) {
+        return sharedParameterization((java.util.List) value, other);
+    }
+
+    static class ArrayKeys extends java.util.HashMap<int[], String> {
+    }
+
+    static <U, T extends U> int arrayVariableBound(java.util.Map<U, T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedPrimitiveArrayForAVariableBound(ArrayKeys value) {
+        return arrayVariableBound((java.util.Map) value);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

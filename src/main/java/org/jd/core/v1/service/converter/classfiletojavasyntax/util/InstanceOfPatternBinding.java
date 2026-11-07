@@ -333,6 +333,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             // Without the table, the slot of the variable is the only evidence
             bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts));
 
+            // The stores which follow the failed branch are none of the pattern: 'String s; if (o instanceof String) { s = (String) o; } s = "fallback";' is one variable
+            Map<Integer, InstanceOfPatternBinding> patternStores = new HashMap<>(bindings);
+
+            bindings.entrySet().removeIf(entry -> isAssignedAfterTheFailedBranch(entry.getKey(), entry.getValue(), patternStores.values(), code, starts));
+
             // The store of a rejected candidate is the assignment of the variable now: the candidates which remain are the only stores of patterns
             Map<Integer, InstanceOfPatternBinding> remaining = new HashMap<>(bindings);
 
@@ -461,6 +466,20 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     private static boolean isUsedBeforeTheTest(int instanceOfOffset, InstanceOfPatternBinding binding, Iterable<InstanceOfPatternBinding> candidates, byte[] code,
             boolean[] starts) {
         for (int p = 0; p < instanceOfOffset; p++) {
+            if (starts[p] && storedIndex(code, p) == binding.storeIndex() && !isStoreOfBinding(p, candidates)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return true if a store of the slot, which is none of a pattern, follows the target of the failed test: the variable of the pattern cannot be told from the one which the code assigns there */
+    private static boolean isAssignedAfterTheFailedBranch(int instanceOfOffset, InstanceOfPatternBinding binding, Iterable<InstanceOfPatternBinding> candidates, byte[] code,
+            boolean[] starts) {
+        int ifOffset = instanceOfOffset + 3;
+        int elseOffset = ifOffset + (short) ((code[ifOffset + 1] & 255) << 8 | code[ifOffset + 2] & 255);
+
+        for (int p = Math.max(elseOffset, binding.storeEndOffset()); p < code.length; p++) {
             if (starts[p] && storedIndex(code, p) == binding.storeIndex() && !isStoreOfBinding(p, candidates)) {
                 return true;
             }

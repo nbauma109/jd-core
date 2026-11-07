@@ -224,6 +224,16 @@ public class InstanceOfPatternBindingTest {
             return s;
         }
 
+        String assignedAfterTheBranch(Object o) {
+            String s;
+            if (o instanceof String) {
+                s = (String) o;
+                System.out.println(s);
+            }
+            s = "fallback";
+            return s;
+        }
+
         String initializedBeforeTheTest(Object o) {
             String s = "fallback";
             if (o instanceof String) {
@@ -453,6 +463,8 @@ public class InstanceOfPatternBindingTest {
         // another store to the slot of the variable is an assignment of it
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranches"));
         assertEquals(0, bindingsWithoutDebugInformation("assignedByBothBranchesWithMoreCode"));
+        // the store which follows the branch is an assignment of the same variable, outside the scope of a pattern
+        assertEquals(0, bindingsWithoutDebugInformation("assignedAfterTheBranch"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeTheTest"));
         assertEquals(0, bindingsWithoutDebugInformation("initializedBeforeAConditionalExit"));
         // the variable is used before the test

@@ -3366,16 +3366,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return the type argument where the variables of the call are replaced by their arguments, inside a wildcard bound too ('Comparable&lt;? super T&gt;') */
     private static TypeArgument substituted(TypeArgument required, Map<String, TypeArgument> bindings) {
-        if (required instanceof GenericType variable && bindings.containsKey(variable.getName())) {
-            return bindings.get(variable.getName());
-        }
-        if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument) {
-            return new WildcardExtendsTypeArgument(argument);
-        }
-        if (required instanceof WildcardSuperTypeArgument wildcard && wildcard.type() instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument) {
-            return new WildcardSuperTypeArgument(argument);
-        }
-        return required;
+        return substitute(required, bindings);
     }
 
     /** @return false if the inherited type argument is none of the one which the bound requires: a type must be equal, a wildcard bounds it (a type variable is satisfied by any) */

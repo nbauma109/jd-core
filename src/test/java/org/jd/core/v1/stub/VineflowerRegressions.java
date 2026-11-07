@@ -2247,6 +2247,25 @@ public class VineflowerRegressions {
         return nestedWildcardBound((java.util.List) value);
     }
 
+    static class ListBad implements Comparable<java.util.List<String>> {
+        @Override
+        public int compareTo(java.util.List<String> other) {
+            return 0;
+        }
+    }
+
+    static class ListBads extends java.util.ArrayList<ListBad> {
+    }
+
+    static <T extends Comparable<? extends java.util.List<T>>> int recursiveWildcardBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsWithAVariableInsideTheWildcardBound(ListBads value) {
+        return recursiveWildcardBound((java.util.List) value);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

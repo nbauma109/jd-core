@@ -19,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 
 import java.util.HashSet;
@@ -92,6 +93,13 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
             return resolve(switchExpression);
         }
         return expression;
+    }
+
+    /** A pattern switch which a rule yields after other statements ('yield switch (b) { case String t -> ... }') is resolved like the one which a rule gives */
+    @Override
+    public void visit(YieldExpressionStatement statement) {
+        statement.setExpression(updateExpression(statement.getExpression()));
+        statement.getExpression().accept(this);
     }
 
     @Override

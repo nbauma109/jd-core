@@ -3348,7 +3348,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private boolean isWithinBound(BaseType bound, Map<String, TypeArgument> bindings, TypeArgument seen) {
         if (bound != null && seen instanceof Type array && array.getDimension() > 0 && !(seen instanceof ObjectType)) {
             // 'int[]' is no more than an Object, a Cloneable or a Serializable
-            return StreamSupport.stream(bound.spliterator(), false).allMatch(constituent -> constituent instanceof ObjectType boundObject
+            return StreamSupport.stream(bound.spliterator(), false).allMatch(constituent -> constituent instanceof ObjectType boundObject && boundObject.getDimension() == 0
                     && ARRAY_SUPER_TYPES.contains(boundObject.getInternalName()));
         }
         if (bound == null || !(seen instanceof ObjectType seenObject)) {
@@ -3420,7 +3420,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     /** @return true if the inherited array is within the wildcard: 'int[]' is no more than an Object, a Cloneable or a Serializable */
     private static boolean isArrayWithinWildcard(TypeArgument required, PrimitiveType array) {
         if (required instanceof WildcardExtendsTypeArgument wildcard) {
-            return wildcard.type().equals(array) || wildcard.type() instanceof ObjectType upper && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
+            return wildcard.type().equals(array) || wildcard.type() instanceof ObjectType upper && upper.getDimension() == 0 && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
         }
         return ((WildcardSuperTypeArgument) required).type().equals(array);
     }

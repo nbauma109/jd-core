@@ -2338,6 +2338,15 @@ public class VineflowerRegressions {
         return upperArrayBound((java.util.List) value) + lowerArrayBound((java.util.List) value);
     }
 
+    static <T extends Comparable<? extends Object[]>> int objectArrayBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedPrimitiveArrayForAnObjectArrayBound(ArrayComparables value) {
+        return objectArrayBound((java.util.List) value);
+    }
+
     static class StringLists extends java.util.ArrayList<java.util.List<String>> {
     }
 

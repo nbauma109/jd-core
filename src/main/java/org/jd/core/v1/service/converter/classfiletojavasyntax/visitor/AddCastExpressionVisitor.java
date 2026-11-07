@@ -3402,14 +3402,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (required instanceof ObjectType || required instanceof PrimitiveType) {
             return required.equals(inherited);
         }
-        if (inherited instanceof PrimitiveType array) {
-            // 'int[]' is no more than an Object, a Cloneable or a Serializable
-            if (required instanceof WildcardExtendsTypeArgument wildcard) {
-                return wildcard.type().equals(array) || wildcard.type() instanceof ObjectType upper && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
-            }
-            if (required instanceof WildcardSuperTypeArgument wildcard) {
-                return wildcard.type().equals(array);
-            }
+        if (inherited instanceof PrimitiveType array && (required instanceof WildcardExtendsTypeArgument || required instanceof WildcardSuperTypeArgument)) {
+            return isArrayWithinWildcard(required, array);
         }
         if (inherited instanceof ObjectType object && !isWithinAnArrayWildcard(required, object)) {
             return false;
@@ -3421,6 +3415,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             return typeMaker.isRawTypeAssignable(argument, lower) && hasTheTypeArgumentsOf(argument, lower);
         }
         return true;
+    }
+
+    /** @return true if the inherited array is within the wildcard: 'int[]' is no more than an Object, a Cloneable or a Serializable */
+    private static boolean isArrayWithinWildcard(TypeArgument required, PrimitiveType array) {
+        if (required instanceof WildcardExtendsTypeArgument wildcard) {
+            return wildcard.type().equals(array) || wildcard.type() instanceof ObjectType upper && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
+        }
+        return ((WildcardSuperTypeArgument) required).type().equals(array);
     }
 
     /** @return false if the wildcard bounds an array ('? extends int[]', '? super int[]') which the object type cannot satisfy: only an Object, a Cloneable or a Serializable is a super type of an array */

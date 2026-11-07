@@ -3376,7 +3376,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return false if the inherited type argument is none of the one which the bound requires: a type must be equal, a wildcard bounds it (a type variable is satisfied by any) */
     private boolean satisfies(TypeArgument required, TypeArgument inherited) {
-        if (required instanceof ObjectType) {
+        // (a primitive type is an argument only as an array: 'Comparable<int[]>')
+        if (required instanceof ObjectType || required instanceof PrimitiveType) {
             return required.equals(inherited);
         }
         if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof ObjectType upper && inherited instanceof ObjectType argument) {

@@ -2278,6 +2278,25 @@ public class VineflowerRegressions {
         return numberBound((java.util.List) value);
     }
 
+    static class ArrayBad implements Comparable<String> {
+        @Override
+        public int compareTo(String other) {
+            return 0;
+        }
+    }
+
+    static class ArrayBads extends java.util.ArrayList<ArrayBad> {
+    }
+
+    static <T extends Comparable<int[]>> int arrayBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsWithAPrimitiveArrayInTheBound(ArrayBads value) {
+        return arrayBound((java.util.List) value);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

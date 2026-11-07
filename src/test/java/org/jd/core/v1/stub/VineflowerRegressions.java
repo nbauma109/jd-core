@@ -2266,6 +2266,18 @@ public class VineflowerRegressions {
         return recursiveWildcardBound((java.util.List) value);
     }
 
+    static class IntArrays extends java.util.ArrayList<int[]> {
+    }
+
+    static <T extends Number> int numberBound(java.util.List<T> values) {
+        return values.size();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedPrimitiveArraysOutsideTheBound(IntArrays value) {
+        return numberBound((java.util.List) value);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

@@ -36,15 +36,15 @@ public class ResolveInstanceOfPatternVisitorTest {
                 new SwitchExpression.RuleExpression(List.of(new SwitchExpression.ExpressionLabel(new ClassFileInstanceOfPatternExpression(0, selector, STRING, variable))),
                         new IntegerConstantExpression(1)),
                 new SwitchExpression.RuleExpression(List.of(SwitchExpression.DEFAULT_LABEL), new IntegerConstantExpression(0))), PrimitiveType.TYPE_INT);
-        YieldExpressionStatement yield = new YieldExpressionStatement(inner);
+        YieldExpressionStatement yielded = new YieldExpressionStatement(inner);
         SwitchExpression outer = new SwitchExpression(0, new LocalVariableReferenceExpression(ObjectType.TYPE_OBJECT, "a"), List.of(
-                new SwitchExpression.RuleStatement(List.of(SwitchExpression.DEFAULT_LABEL), yield)), PrimitiveType.TYPE_INT);
+                new SwitchExpression.RuleStatement(List.of(SwitchExpression.DEFAULT_LABEL), yielded)), PrimitiveType.TYPE_INT);
         Statements statements = new Statements();
 
         statements.add(new ReturnExpressionStatement(outer));
         new ResolveInstanceOfPatternVisitor().visit(statements);
 
-        SwitchExpression resolved = (SwitchExpression) yield.getExpression();
+        SwitchExpression resolved = (SwitchExpression) yielded.getExpression();
 
         assertTrue(resolved.getRules().get(0).getLabels().get(0) instanceof SwitchExpression.PatternLabel);
     }

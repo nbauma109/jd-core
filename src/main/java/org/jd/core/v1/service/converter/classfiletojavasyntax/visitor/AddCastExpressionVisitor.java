@@ -3332,6 +3332,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return false if the inherited argument is no sub type of the bound of the type variable of the invoked method: 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T extends Number&gt;' */
     private boolean isWithinBound(BaseType bound, Map<String, TypeArgument> bindings, TypeArgument seen) {
+        if (bound != null && seen instanceof Type array && array.getDimension() > 0 && !(seen instanceof ObjectType)) {
+            // 'int[]' is no more than an Object, a Cloneable or a Serializable
+            return StreamSupport.stream(bound.spliterator(), false).allMatch(constituent -> constituent instanceof ObjectType boundObject
+                    && Set.of("java/lang/Object", "java/lang/Cloneable", "java/io/Serializable").contains(boundObject.getInternalName()));
+        }
         if (bound == null || !(seen instanceof ObjectType seenObject)) {
             return true;
         }

@@ -333,7 +333,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             // Without the table, the slot of the variable is the only evidence
             bindings.entrySet().removeIf(entry -> isStoredInTheOtherBranch(entry.getKey(), entry.getValue(), code, starts));
 
-            // The stores which follow the failed branch are none of the pattern: 'String s; if (o instanceof String) { s = (String) o; } s = "fallback";' is one variable
+            // The stores which follow the failed branch are none of the pattern: a variable which the code assigns after the test is one variable
             Map<Integer, InstanceOfPatternBinding> patternStores = new HashMap<>(bindings);
 
             bindings.entrySet().removeIf(entry -> isAssignedAfterTheFailedBranch(entry.getKey(), entry.getValue(), patternStores.values(), code, starts));

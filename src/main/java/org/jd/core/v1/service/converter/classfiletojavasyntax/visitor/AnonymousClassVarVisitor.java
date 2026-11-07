@@ -2181,11 +2181,39 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
                 public void visit(MethodInvocationExpression expression) {
                     checks[0] |= expression instanceof ClassFileMethodInvocationExpression call && call.isAnonymousCast()
                             && (anonymousName == null || call.getAnonymousCastName() == null || anonymousName.equals(call.getAnonymousCastName()))
-                            && mentions(expression, parameterNames);
+                            && resultDependsOn(call, parameterNames);
                     super.visit(expression);
                 }
             });
             return checks[0];
+        }
+
+        /**
+         * @return true if the type of the result of the call comes from one of the variables: for a generic method returning its own type variable ('&lt;T&gt; T identity(Object ignored, T actual)'),
+         * only the arguments whose parameter has that type variable give it; anything else reads the variables anywhere in the call
+         */
+        private boolean resultDependsOn(ClassFileMethodInvocationExpression call, Set<String> names) {
+            String signature = ClassMetadata.declaredGenericSignature(loader, call.getInternalTypeName(), call.getName(), call.getDescriptor());
+
+            if (signature != null && signature.startsWith("<") && call.getParameters() != null) {
+                String result = signature.substring(signature.lastIndexOf(')') + 1);
+
+                if (result.startsWith("T") && result.endsWith(";") && signature.contains(result.substring(1, result.length() - 1) + ":")) {
+                    List<Expression> arguments = new ArrayList<>();
+
+                    call.getParameters().forEach(arguments::add);
+
+                    List<String> parameters = spreadVarargs(parameterSignatures(signature), arguments.size());
+
+                    for (int i = 0; i < arguments.size() && i < parameters.size(); i++) {
+                        if (parameters.get(i).contains(result) && mentions(arguments.get(i), names)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }
+            return mentions(call, names);
         }
 
         /** @return true if the expression reads one of the variables */

@@ -2387,6 +2387,15 @@ public class VineflowerRegressions {
         return boundOfAnotherParameter((java.util.List) bads, (java.util.List) integers) + boundOfALaterParameter((java.util.List) integers, (java.util.List) bads);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedArgumentsAgainstAParameterizedArgument(OnlyStrings first, java.util.List<Integer> second) {
+        return twoParameterizedLists((java.util.List) first, second);
+    }
+
+    static <T> int twoParameterizedLists(java.util.List<T> first, java.util.List<T> second) {
+        return first.size() + second.size();
+    }
+
     static class StringLists extends java.util.ArrayList<java.util.List<String>> {
     }
 
@@ -2809,6 +2818,17 @@ public class VineflowerRegressions {
         };
         Object value = origin;
         return adaptDirectly(value, x -> identityOf(origin).toString());
+    }
+
+    static <T> T secondOf(Object ignored, T actual) {
+        return actual;
+    }
+
+    public String lambdaWhoseParameterIsNotTheResultType() {
+        var origin = new Object() {
+        };
+        Object value = origin;
+        return adaptDirectly(value, x -> secondOf(x, origin).toString());
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

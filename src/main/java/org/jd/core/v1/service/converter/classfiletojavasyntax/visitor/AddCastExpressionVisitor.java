@@ -2956,6 +2956,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     /** The arguments which the inherited type arguments of every parameter give to the variables of the call: 'U extends Comparable&lt;T&gt;' is checked against the 'T' of another parameter */
     private Map<String, TypeArgument> callInheritedBindings = new HashMap<>();
 
+    /** The arguments which the parameterized arguments of the call give to its variables ('List&lt;Integer&gt;' for 'List&lt;T&gt;'): what an inherited argument has to agree with */
+    private Map<String, TypeArgument> callDirectBindings = new HashMap<>();
+
     private record CastFlags(boolean forceCast, boolean unique, boolean rawCast) {
     }
 
@@ -2967,6 +2970,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         argumentInheritedBindings = new HashMap<>();
         Map<String, TypeArgument> outerCall = callInheritedBindings;
 
+        Map<String, TypeArgument> outerDirect = callDirectBindings;
+
+        callDirectBindings = new HashMap<>();
         callInheritedBindings = bindingsInheritedByTheArguments(unboundTypes, expressions);
         try {
             return updateEachParameter(typeBindings, localTypeBounds, types, unboundTypes, expressions, flags);
@@ -2974,6 +2980,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             argumentFixedVariables = outerFixed;
             argumentInheritedBindings = outerInherited;
             callInheritedBindings = outerCall;
+            callDirectBindings = outerDirect;
         }
     }
 
@@ -2989,7 +2996,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             expressions.forEach(arguments::add);
 
             for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
-                if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType inheriting
+                if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType given
+                        && given.getTypeArguments() != null && target.getInternalName().equals(given.getInternalName())) {
+                    List<TypeArgument> actual = toTypeArgumentList(given.getTypeArguments());
+                    List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+
+                    for (int j = 0; actual.size() == expected.size() && j < actual.size(); j++) {
+                        isBindableTo(expected.get(j), actual.get(j), callDirectBindings);
+                    }
+                } else if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType inheriting
                         && inheriting.getTypeArguments() == null && !target.getInternalName().equals(inheriting.getInternalName())) {
                     List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), inheriting, new HashSet<String>());
                     List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
@@ -3349,7 +3364,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     /** @return true if another parameter of the call was given other arguments for the same variables: 'accept((List) strings, (List) integers)' for 'accept(List&lt;T&gt;, List&lt;T&gt;)' */
     private boolean contradictsTheOtherParameters(Map<String, TypeArgument> nested) {
         return nested.entrySet().stream().anyMatch(binding -> argumentInheritedBindings.containsKey(binding.getKey())
-                && !argumentInheritedBindings.get(binding.getKey()).equals(binding.getValue()));
+                && !argumentInheritedBindings.get(binding.getKey()).equals(binding.getValue())
+                || callDirectBindings.get(binding.getKey()) instanceof ObjectType direct && !direct.equals(binding.getValue()));
     }
 
     /** @return true if the argument which each type variable of the invoked method stands for is within its bound, the other variables of the bound replaced by their arguments */

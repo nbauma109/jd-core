@@ -321,6 +321,15 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
     }
 
     @Test
+    public void testLambdaParameterOutsideTheResultTypeKeepsTheDeclaredType() throws Exception {
+        String source = decompile();
+        String method = source.substring(source.indexOf("lambdaWhoseParameterIsNotTheResultType"));
+
+        method = method.substring(0, method.indexOf("adaptDirectly(value"));
+        assertTrue(method.contains("Object value = origin;"));
+    }
+
+    @Test
     public void testFieldReadKeepsTheAnonymousCheck() throws Exception {
         String source = decompile();
 
@@ -495,6 +504,7 @@ public class VineflowerRegressionsTest extends AbstractJdTest {
         assertTrue(source.contains("sharedParameterization((List)value, other)"));
         assertTrue(source.contains("arrayKnownBinding((List)value, other)"));
         assertTrue(source.contains("fixedByAnArray((List)value, other)"));
+        assertTrue(source.contains("twoParameterizedLists((List)first, second)"));
         assertTrue(source.contains("boundOfAnotherParameter((List)bads, integers)") || source.contains("boundOfAnotherParameter(bads, (List)integers)"));
         assertTrue(source.contains("boundOfALaterParameter((List)integers, bads)") || source.contains("boundOfALaterParameter(integers, (List)bads)"));
         assertTrue(source.contains("upperArrayBound((List)value)"));

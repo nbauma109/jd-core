@@ -3265,7 +3265,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         Map<String, TypeArgument> bindings = new HashMap<>();
 
         return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings))
-                && areWithinTheirBounds(bindings, bounds) && !contradictsTheKnownBindings(expected, seen, known);
+                && areWithinTheirBounds(bindings, bounds) && !contradictsTheKnownBindings(bindings, known);
     }
 
     /**
@@ -3281,7 +3281,13 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
         Map<String, TypeArgument> bindings = new HashMap<>();
 
-        if (contradictsTheKnownBindings(expected, seen, known)) {
+        Map<String, TypeArgument> nested = new HashMap<>();
+
+        // (the variables nested in an inherited argument, 'List<List<T>>', are bound as well)
+        for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
+            isBindableTo(expected.get(i), seen.get(i), nested);
+        }
+        if (contradictsTheKnownBindings(nested, known)) {
             return true;
         }
         for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
@@ -3305,11 +3311,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * @return true if the class inherits, for a type variable of the call, an argument which does not accept the one which the other arguments of the call give it: a
      * 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T&gt;' for the 'T' which the argument '1' (or an 'Object') of 'accept(List&lt;T&gt;, T)' fixes
      */
-    private boolean contradictsTheKnownBindings(List<TypeArgument> expected, List<TypeArgument> seen, Map<String, List<ObjectType>> known) {
-        for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
-            if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
-                    && seen.get(i) instanceof ObjectType inherited
-                    && known.getOrDefault(variable.getName(), Collections.emptyList()).stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed) || !hasTheTypeArgumentsOf(inherited, fixed))) {
+    private boolean contradictsTheKnownBindings(Map<String, TypeArgument> bindings, Map<String, List<ObjectType>> known) {
+        for (Map.Entry<String, TypeArgument> binding : bindings.entrySet()) {
+            if (binding.getValue() instanceof ObjectType inherited
+                    && known.getOrDefault(binding.getKey(), Collections.emptyList()).stream().anyMatch(fixed -> !typeMaker.isRawTypeAssignable(inherited, fixed) || !hasTheTypeArgumentsOf(inherited, fixed))) {
                 return true;
             }
         }

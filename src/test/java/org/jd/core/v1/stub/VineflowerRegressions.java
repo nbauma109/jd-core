@@ -2340,6 +2340,15 @@ public class VineflowerRegressions {
         return arrayVariableBound((java.util.Map) value);
     }
 
+    static <T> int nestedVariable(java.util.List<java.util.List<T>> values, T other) {
+        return values.size() + other.hashCode();
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public int inheritedNestedArgumentsOtherThanTheOtherArgument(StringLists value, Object other) {
+        return nestedVariable((java.util.List) value, other);
+    }
+
     interface Factory<M, T> {
         M create(T data);
     }

@@ -70,7 +70,8 @@ public final class ByteCodeUtil {
             opcode = code[nextOffset] & 0xFF;
         }
 
-        return isSwitchExpressionJoinOpcode(opcode);
+        // The value of the switch is consumed by the join, for example it is the argument of a call
+        return isSwitchExpressionJoinOpcode(opcode) || getMinDepth(basicBlock) < 0;
     }
 
     public static int searchNextOpcode(final BasicBlock basicBlock, final int maxOffset) {
@@ -174,7 +175,7 @@ public final class ByteCodeUtil {
         };
     }
 
-    private static int computeNextOffset(final byte[] code, int offset, int opcode) {
+    static int computeNextOffset(final byte[] code, int offset, int opcode) {
         switch (opcode) {
             case BIPUSH, LDC,
                  ILOAD, LLOAD, FLOAD, DLOAD, ALOAD,

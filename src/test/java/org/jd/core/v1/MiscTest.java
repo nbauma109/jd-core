@@ -920,18 +920,18 @@ public class MiscTest extends AbstractJdTest {
     @Test
     public void testCSS() throws Exception {
         String internalClassName = javax.swing.text.html.CSS.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, Collections.singletonMap("instanceOfPatterns", Boolean.FALSE));
 
-        // Recompile decompiled source code and check errors
+        // Recompile decompiled source code and check errors (the patterns of 'instanceof' need Java 16)
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 
     @Test
     public void testLimitFinder() throws Exception {
         String internalClassName = LimitFinder.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, Collections.singletonMap("instanceOfPatterns", Boolean.FALSE));
         
-        // Recompile decompiled source code and check errors
+        // Recompile decompiled source code and check errors (the patterns of 'instanceof' need Java 16)
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 

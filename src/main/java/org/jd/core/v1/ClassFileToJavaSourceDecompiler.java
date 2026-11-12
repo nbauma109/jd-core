@@ -20,6 +20,7 @@ import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.model.token.Token;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.ClassFileToJavaSyntaxProcessor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.processor.ConvertClassFileProcessor;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InstanceOfPatternBinding;
 import org.jd.core.v1.service.deserializer.classfile.ClassFileDeserializer;
 import org.jd.core.v1.service.fragmenter.JavaSyntaxToJavaFragmentProcessor;
 import org.jd.core.v1.service.layouter.LayoutFragmentProcessor;
@@ -70,7 +71,18 @@ public class ClassFileToJavaSourceDecompiler implements Decompiler {
         }
         decompileContext.setClassFile(classFile);
         decompileContext.setMainInternalTypeName(classFile.getInternalTypeName());
-        CompilationUnit compilationUnit = converter.process(decompileContext);
+        Map<String, Object> configuration = decompileContext.getConfiguration();
+        InstanceOfPatternBinding.setEnabled(configuration == null || !Boolean.FALSE.equals(configuration.get(InstanceOfPatternBinding.CONFIGURATION_KEY)));
+        InstanceOfPatternBinding.setLoader(decompileContext.getLoader());
+        InstanceOfPatternBinding.setMajorVersion(classFile.getMajorVersion());
+        CompilationUnit compilationUnit;
+        try {
+            compilationUnit = converter.process(decompileContext);
+        } finally {
+            InstanceOfPatternBinding.setEnabled(true);
+            InstanceOfPatternBinding.setLoader(null);
+            InstanceOfPatternBinding.setMajorVersion(Integer.MAX_VALUE);
+        }
         fragmenter.process(compilationUnit, decompileContext);
         layouter.process(decompileContext);
         DefaultList<Token> tokens = tokenizer.process(decompileContext.getBody());

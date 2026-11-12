@@ -21,6 +21,11 @@ public class ClassFileAnnotationDeclaration extends AnnotationDeclaration implem
     }
 
     @Override
+    public void setFlags(int flags) {
+        this.flags = flags;
+    }
+
+    @Override
     public int getFirstLineNumber() {
         return firstLineNumber;
     }

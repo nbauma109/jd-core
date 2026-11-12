@@ -15,6 +15,8 @@ import org.jd.core.v1.util.DefaultList;
 
 public class ClassFileTryStatement extends TryStatement {
     private final boolean jsr;
+    /** True when the exception table protects nothing but the invocations of accessors with the handler of the statement: the lowering of a record pattern */
+    private boolean protectsAccessorsOnly;
 
     public ClassFileTryStatement(BaseStatement tryStatements, DefaultList<TryStatement.CatchClause> catchClauses, BaseStatement finallyStatements, boolean jsr) {
         super(tryStatements, catchClauses, finallyStatements);
@@ -34,6 +36,22 @@ public class ClassFileTryStatement extends TryStatement {
                 this.resources.addAll(resources);
             }
         }
+    }
+
+    public boolean isProtectsAccessorsOnly() {
+        return protectsAccessorsOnly;
+    }
+
+    public void setProtectsAccessorsOnly(boolean protectsAccessorsOnly) {
+        this.protectsAccessorsOnly = protectsAccessorsOnly;
+    }
+
+    /**
+     * @return false for the 'try' of the byte code whose handler also protects other instructions: a hand-written 'try' which looks like the lowering of a record pattern.
+     * The statements which were not made from byte code carry no such information and are accepted.
+     */
+    public static boolean protectsAccessorsOnly(TryStatement statement) {
+        return !(statement instanceof ClassFileTryStatement classFileTry) || classFileTry.isProtectsAccessorsOnly();
     }
 
     public boolean isJsr() {

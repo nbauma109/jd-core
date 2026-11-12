@@ -1,0 +1,124 @@
+/*   1:   0 */ package org.jd.core.v1.stub;
+/*   2:   0 */ 
+/*   3:   0 */ import java.util.function.Supplier;
+/*   4:   0 */ 
+/*   5:   0 */ public class SwitchPatternMatchingEcj {
+/*   6:   0 */   Object field;
+/*   7:   0 */   
+/*   8:   0 */   String expression(Object o) {
+/*   9:   9 */     return switch (o) {
+/*  10:  10 */         case Integer i -> Integer.toString(i);
+/*  11:  11 */         case String s -> s;
+/*  12:  12 */         default -> "other";
+/*  13:   0 */       };
+/*  14:   0 */   }
+/*  15:   0 */   
+/*  16:   0 */   String ofCall(Supplier<Object> supplier) {
+/*  17:  17 */     return switch (supplier.get()) {
+/*  18:  18 */         case Integer i -> Integer.toString(i);
+/*  19:  19 */         case String s -> s;
+/*  20:  20 */         default -> "other";
+/*  21:   0 */       };
+/*  22:   0 */   }
+/*  23:   0 */   
+/*  24:   0 */   String ofField() {
+/*  25:  25 */     return switch (this.field) {
+/*  26:  26 */         case Integer i -> Integer.toString(i);
+/*  27:  27 */         default -> null;
+/*  28:   0 */       };
+/*  29:   0 */   }
+/*  30:   0 */   
+/*  31:   0 */   void nullAndDefault(Object o) {
+/*  32:  32 */     System.out.println(switch (o) {
+/*  33:  33 */           case Integer i -> Integer.toString(i);
+/*  34:  34 */           case null, default -> "null";
+/*  35:   0 */         });
+/*  36:   0 */   }
+/*  37:   0 */   
+/*  38:   0 */   void statement(Object o) {
+/*  39:  39 */     switch (o) {
+/*  40:   0 */       case Integer i:
+/*  41:  41 */         System.out.println(Integer.toString(i));
+/*  42:   0 */         break;
+/*  43:   0 */       case String s:
+/*  44:  44 */         System.out.println(s);
+/*  45:   0 */         break;
+/*  46:   0 */       default:
+/*  47:   0 */         break;
+/*  48:   0 */     } 
+/*  49:   0 */   }
+/*  50:   0 */   
+/*  51:   0 */   void plainSwitchAsArgument(int i) {
+/*  52:  51 */     System.out.println(switch (i) {
+/*  53:  52 */           case 1 -> "one";
+/*  54:  53 */           case 2 -> "two";
+/*  55:  54 */           default -> "many";
+/*  56:   0 */         });
+/*  57:   0 */   }
+/*  58:   0 */   
+/*  59:   0 */   String constantsAndPattern(String string) {
+/*  60:  59 */     return switch (string) {
+/*  61:  60 */         case "one" -> "1";
+/*  62:  61 */         case "two" -> "2";
+/*  63:  62 */         case String s -> s;
+/*  64:   0 */       };
+/*  65:   0 */   }
+/*  66:   0 */   
+/*  67:   0 */   String integerConstants(Integer number) {
+/*  68:  67 */     return switch (number) {
+/*  69:  68 */         case 1 -> "one";
+/*  70:  69 */         case 2 -> "two";
+/*  71:  70 */         case Integer i -> Integer.toString(i);
+/*  72:   0 */       };
+/*  73:   0 */   }
+/*  74:   0 */   
+/*  75:   0 */   String nullCase(Object o) {
+/*  76:  75 */     return switch (o) {
+/*  77:  76 */         case null -> "null";
+/*  78:  77 */         case String s -> s;
+/*  79:  78 */         default -> "other";
+/*  80:   0 */       };
+/*  81:   0 */   }
+/*  82:   0 */   
+/*  83:   0 */   void statementWithNull(Object o) {
+/*  84:  83 */     switch (o) {
+/*  85:   0 */       case String s:
+/*  86:  85 */         System.out.println(s);
+/*  87:   0 */         break;
+/*  88:   0 */       case null:
+/*  89:   0 */       default:
+/*  90:  88 */         System.out.println("null or other");
+/*  91:   0 */         break;
+/*  92:   0 */     } 
+/*  93:   0 */   }
+/*  94:   0 */   
+/*  95:   0 */   void nestedSwitches(Object o, Object p) {
+/*  96:  94 */     switch (o) {
+/*  97:   0 */       case Integer i:
+/*  98:  96 */         switch (p) {
+/*  99:   0 */           case String s:
+/* 100:  98 */             System.out.println(s + String.valueOf(i));
+/* 101:   0 */             break;
+/* 102:   0 */           default:
+/* 103:   0 */             break;
+/* 104:   0 */         } 
+/* 105:   0 */         break;
+/* 106:   0 */       default:
+/* 107:   0 */         break;
+/* 108:   0 */     } 
+/* 109:   0 */   }
+/* 110:   0 */   
+/* 111:   0 */   String sealedLike(Object o) {
+/* 112: 110 */     return switch (o) {
+/* 113:   0 */         case Integer i ->  {
+/* 114: 112 */           System.out.println(i);
+/* 115: 113 */           yield "int";
+/* 116:   0 */         } 
+/* 117:   0 */         case String s ->  {
+/* 118: 116 */           System.out.println(s);
+/* 119: 117 */           yield "string";
+/* 120:   0 */         } 
+/* 121: 119 */         default -> "other";
+/* 122:   0 */       };
+/* 123:   0 */   }
+/* 124:   0 */ }

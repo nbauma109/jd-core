@@ -86,6 +86,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileSuperConstructorInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.InheritedMethodFinder;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.LocalVariableMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.SingleAbstractMethodFinder;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.TypeTypes;
@@ -149,6 +150,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private Expression memberReceiver;
     private boolean visitingWitnessedInvocation;
     private Set<String> typeVariablesSharedAcrossParameters = Collections.emptySet();
+    /** The types which an array is */
+    private static final Set<String> ARRAY_SUPER_TYPES = Set.of("java/lang/Object", "java/lang/Cloneable", "java/io/Serializable");
+
     private final Set<String> fieldNamesInLambda = new HashSet<>();
     private boolean staticContext;
     /**
@@ -2942,10 +2946,127 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** Bundles the three cast-insertion flags shared by {@link #updateParameters} and its helpers. */
+    private Map<String, List<Type>> argumentFixedVariables = Collections.emptyMap();
+
+    private boolean conflictingRawCastAdded;
+
+    /** The arguments which the inherited type arguments gave to the variables of the call so far: 'accept(List&lt;T&gt;, List&lt;T&gt;)' needs the same one from each parameter */
+    private Map<String, TypeArgument> argumentInheritedBindings = new HashMap<>();
+
+    /** The arguments which the inherited type arguments of every parameter give to the variables of the call: 'U extends Comparable&lt;T&gt;' is checked against the 'T' of another parameter */
+    private Map<String, TypeArgument> callInheritedBindings = new HashMap<>();
+
+    /** The arguments which the parameterized arguments of the call give to its variables ('List&lt;Integer&gt;' for 'List&lt;T&gt;'): what an inherited argument has to agree with */
+    private Map<String, TypeArgument> callDirectBindings = new HashMap<>();
+
     private record CastFlags(boolean forceCast, boolean unique, boolean rawCast) {
     }
 
     protected BaseExpression updateParameters(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
+        Map<String, List<Type>> outerFixed = argumentFixedVariables;
+        Map<String, TypeArgument> outerInherited = argumentInheritedBindings;
+
+        argumentFixedVariables = variablesFixedByTheArguments(unboundTypes, expressions);
+        argumentInheritedBindings = new HashMap<>();
+        Map<String, TypeArgument> outerCall = callInheritedBindings;
+
+        Map<String, TypeArgument> outerDirect = callDirectBindings;
+
+        callDirectBindings = new HashMap<>();
+        callInheritedBindings = bindingsInheritedByTheArguments(unboundTypes, expressions);
+        try {
+            return updateEachParameter(typeBindings, localTypeBounds, types, unboundTypes, expressions, flags);
+        } finally {
+            argumentFixedVariables = outerFixed;
+            argumentInheritedBindings = outerInherited;
+            callInheritedBindings = outerCall;
+            callDirectBindings = outerDirect;
+        }
+    }
+
+    /** Binds the variables of the parameter type to the type arguments of its argument: given directly ('List&lt;Integer&gt;'), or inherited by a class without type arguments of its own */
+    private void bindArgument(ObjectType target, ObjectType given, Map<String, TypeArgument> inherited) {
+        List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+        boolean direct = given.getTypeArguments() != null;
+
+        if (direct && !target.getInternalName().equals(given.getInternalName())) {
+            return;
+        }
+
+        List<TypeArgument> actual = direct ? toTypeArgumentList(given.getTypeArguments()) : typeArgumentsSeenAs(target.getInternalName(), given, new HashSet<String>());
+        Map<String, TypeArgument> bindings = direct ? callDirectBindings : inherited;
+
+        if (direct || !target.getInternalName().equals(given.getInternalName())) {
+            for (int j = 0; actual.size() == expected.size() && j < actual.size(); j++) {
+                isBindableTo(expected.get(j), actual.get(j), bindings);
+            }
+        }
+    }
+
+    /** @return the arguments which the types inherited by the arguments of the call give to its type variables, whichever the parameter */
+    private Map<String, TypeArgument> bindingsInheritedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
+        Map<String, TypeArgument> bindings = new HashMap<>();
+
+        if (unboundTypes != null && expressions != null) {
+            List<Type> parameters = new ArrayList<>();
+            List<Expression> arguments = new ArrayList<>();
+
+            unboundTypes.forEach(parameters::add);
+            expressions.forEach(arguments::add);
+
+            for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
+                if (parameters.get(i) instanceof ObjectType target && target.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType given) {
+                    bindArgument(target, given, bindings);
+                }
+            }
+        }
+        return bindings;
+    }
+
+    /** @return the types of the arguments for each variable of the call which a parameter has as its own type ('T other'): all of them must be assignable to what the variable stands for */
+    private static Map<String, List<Type>> variablesFixedByTheArguments(BaseType unboundTypes, BaseExpression expressions) {
+        Map<String, List<Type>> fixed = new HashMap<>();
+
+        if (unboundTypes != null && expressions != null) {
+            List<Type> parameters = new ArrayList<>();
+            List<Expression> arguments = new ArrayList<>();
+
+            unboundTypes.forEach(parameters::add);
+            expressions.forEach(arguments::add);
+
+            for (int i = 0; i < parameters.size() && i < arguments.size(); i++) {
+                if (parameters.get(i) instanceof GenericType variable && variable.getDimension() == 0 && !(arguments.get(i) instanceof NullExpression)
+                        && boxedType(arguments.get(i).getType()) != null) {
+                    Type argument = boxedType(arguments.get(i).getType());
+                    List<Type> types = fixed.computeIfAbsent(variable.getName(), name -> new ArrayList<>());
+
+                    if (!types.contains(argument)) {
+                        types.add(argument);
+                    }
+                }
+            }
+        }
+        return fixed;
+    }
+
+    private static Type boxedType(Type type) {
+        if (type instanceof ObjectType || type instanceof PrimitiveType array && array.getDimension() > 0) {
+            return type;
+        }
+        return switch (type == null ? "" : type.getDescriptor()) {
+            case "I" -> ObjectType.TYPE_INTEGER;
+            case "J" -> ObjectType.TYPE_LONG;
+            case "D" -> ObjectType.TYPE_DOUBLE;
+            case "F" -> ObjectType.TYPE_FLOAT;
+            case "Z" -> ObjectType.TYPE_BOOLEAN;
+            case "C" -> ObjectType.TYPE_CHARACTER;
+            case "B" -> ObjectType.TYPE_BYTE;
+            case "S" -> ObjectType.TYPE_SHORT;
+            default -> null;
+        };
+    }
+
+    private BaseExpression updateEachParameter(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, BaseType types, BaseType unboundTypes, BaseExpression expressions, CastFlags flags) {
         if (expressions == null) {
             return null;
         }
@@ -2958,12 +3079,30 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         DefaultList<Type> unboundTypeList = unboundTypes == null ? null : unboundTypes.getList();
         DefaultList<Expression> expressionList = expressions.getList();
 
+        boolean outerRawCast = conflictingRawCastAdded;
+        List<Expression> originals = new ArrayList<>(expressionList);
+
+        conflictingRawCastAdded = false;
         for (int i = expressionList.size() - 1; i >= 0; i--) {
             Type unboundType = unboundTypeList == null ? null : unboundTypeList.get(i);
             expressionList.set(i, updateParameter(typeBindings, localTypeBounds, typeList.get(i), unboundType, expressionList.get(i), flags.forceCast(), flags.unique(), flags.rawCast()));
         }
+        if (conflictingRawCastAdded && unboundTypeList != null) {
+            restoreArgumentsOfVariableParameters(unboundTypeList, expressionList, originals);
+        }
+        conflictingRawCastAdded = outerRawCast;
 
         return expressions;
+    }
+
+    /** The raw argument leaves the call unchecked: the variable is no more the one which the inherited arguments gave, so 'accept((List) xs, object, string)' needs no '(String) object' */
+    private static void restoreArgumentsOfVariableParameters(DefaultList<Type> unboundTypeList, DefaultList<Expression> expressionList, List<Expression> originals) {
+        for (int i = 0; i < expressionList.size(); i++) {
+            if (unboundTypeList.get(i) instanceof GenericType variable && variable.getDimension() == 0 && expressionList.get(i) instanceof CastExpression cast
+                    && cast.getExpression() == originals.get(i)) {
+                expressionList.set(i, originals.get(i));
+            }
+        }
     }
 
     private Expression updateParameter(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {
@@ -3062,7 +3201,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             } else {
                                 expression = addCastExpression(objectType.createType(null), expression);
                             }
-                        } else if (!isJavaLangObject(type) && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
+                        } else if (!isJavaLangObject(type) && inheritsWithConflictingBindings(unboundType instanceof ObjectType conflicting ? conflicting : objectType, expressionObjectType, argumentFixedVariables, localTypeBounds)) {
+                            // 'Mixed extends HashMap<String, Integer>' is no 'Map<T, T>': only a raw cast makes the call compile
+                            conflictingRawCastAdded = true;
+                            expression = addCastExpression(objectType.createType(null), expression);
+                            expression.getExpression().accept(this);
+                            return expression;
+                        } else if (!isJavaLangObject(type) && !inheritsWithBindableArguments(unboundType instanceof ObjectType unbound ? unbound : objectType, expressionObjectType, argumentFixedVariables, localTypeBounds)
+                                && (!typeMaker.isAssignable(typeBindings, localTypeBounds, objectType, unboundType, expressionObjectType)
                                 || isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType)
                                 || isWildcardWhereConcreteExpected(objectType, expressionObjectType))) {
                             BaseTypeArgument ta1 = objectType.getTypeArguments();
@@ -3126,7 +3272,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                         boolean cast = true;
                         if (expressionType instanceof GenericType gt) {
                             BaseType boundType = typeBounds.get(gt.getName());
-                            if (boundType instanceof ObjectType boundObjectType && boundObjectType.rawEquals(type)) {
+                            // 'E extends IOException' is an 'Exception' without a cast: the cast to the erased parameter type would change what a generic call infers,
+                            // unless the call is overloaded: the cast then selects the overload
+                            if (boundType instanceof ObjectType boundObjectType && (boundObjectType.rawEquals(type)
+                                    || unique && type instanceof ObjectType targetType && typeMaker.isRawTypeAssignable(targetType, boundObjectType))) {
                                 cast = false;
                             }
                         }
@@ -3159,6 +3308,222 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
 
         return expression;
+    }
+
+    /**
+     * @return true if the class, which has no type arguments of its own, inherits the target type with arguments which the variables of the invoked method can stand for:
+     * 'NestedFailures extends ArrayList&lt;List&lt;IOException&gt;&gt;' is a 'List&lt;List&lt;E&gt;&gt;' for the 'E' of 'raise(List&lt;List&lt;E&gt;&gt;)'; no cast is needed
+     */
+    private boolean inheritsWithBindableArguments(ObjectType target, ObjectType expression, Map<String, List<Type>> known, Map<String, BaseType> bounds) {
+        if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
+            return false;
+        }
+
+        List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), expression, new HashSet<String>());
+        List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+
+        Map<String, TypeArgument> bindings = new HashMap<>();
+
+        return !seen.isEmpty() && seen.size() == expected.size() && IntStream.range(0, seen.size()).allMatch(i -> isBindableTo(expected.get(i), seen.get(i), bindings))
+                && areWithinTheirBounds(bindings, bounds) && !contradictsTheKnownBindings(bindings, known);
+    }
+
+    /**
+     * @return true if the class, which has no type arguments of its own, inherits the target type with different arguments where the target has the same type variable of the
+     * invoked method, or with an argument outside its bound, or other than the one which the other arguments of the call fix ('known'): 'Mixed extends HashMap&lt;String, Integer&gt;' is no 'Map&lt;T, T&gt;', the raw cast has to stay
+     */
+    private boolean inheritsWithConflictingBindings(ObjectType target, ObjectType expression, Map<String, List<Type>> known, Map<String, BaseType> bounds) {
+        if (target.getTypeArguments() == null || expression.getTypeArguments() != null || target.getInternalName().equals(expression.getInternalName())) {
+            return false;
+        }
+
+        List<TypeArgument> seen = typeArgumentsSeenAs(target.getInternalName(), expression, new HashSet<String>());
+        List<TypeArgument> expected = toTypeArgumentList(target.getTypeArguments());
+        Map<String, TypeArgument> bindings = new HashMap<>();
+
+        Map<String, TypeArgument> nested = new HashMap<>();
+
+        // (the variables nested in an inherited argument, 'List<List<T>>', are bound as well)
+        for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
+            isBindableTo(expected.get(i), seen.get(i), nested);
+        }
+        if (contradictsTheKnownBindings(nested, known) || contradictsTheOtherParameters(nested)) {
+            return true;
+        }
+        for (int i = 0; seen.size() == expected.size() && i < seen.size(); i++) {
+            TypeArgument argument = seen.get(i);
+
+            if (expected.get(i) instanceof GenericType variable && variable.getDimension() == 0 && innermostScopeDeclaring(variable.getName()) == null
+                    && !argument.equals(bindings.computeIfAbsent(variable.getName(), name -> argument))) {
+                return true;
+            }
+        }
+        // The bounds are checked once every variable is bound: 'U extends Comparable<T>' needs the argument of 'T'
+        if (!areWithinTheirBounds(bindings, bounds)) {
+            return true;
+        }
+        argumentInheritedBindings.putAll(nested);
+        return false;
+    }
+
+    /** @return true if another parameter of the call was given other arguments for the same variables: 'accept((List) strings, (List) integers)' for 'accept(List&lt;T&gt;, List&lt;T&gt;)' */
+    private boolean contradictsTheOtherParameters(Map<String, TypeArgument> nested) {
+        return nested.entrySet().stream().anyMatch(binding -> argumentInheritedBindings.containsKey(binding.getKey())
+                && !argumentInheritedBindings.get(binding.getKey()).equals(binding.getValue())
+                || callDirectBindings.get(binding.getKey()) instanceof ObjectType direct && !direct.equals(binding.getValue()));
+    }
+
+    /** @return true if the argument which each type variable of the invoked method stands for is within its bound, the other variables of the bound replaced by their arguments */
+    private boolean areWithinTheirBounds(Map<String, TypeArgument> bindings, Map<String, BaseType> bounds) {
+        Map<String, TypeArgument> inTheCall = new HashMap<>(callInheritedBindings);
+
+        inTheCall.putAll(bindings);
+        return bindings.entrySet().stream().allMatch(binding -> isWithinBound(bounds.get(binding.getKey()), inTheCall, binding.getValue()));
+    }
+
+    /** @return true if what the variable stands for ('inherited') does not accept the type of another argument: a primitive array is accepted by itself, an Object, a Cloneable or a Serializable only */
+    private boolean contradicts(TypeArgument inherited, Type fixed) {
+        boolean inheritedArray = inherited instanceof PrimitiveType array && array.getDimension() > 0;
+
+        if (fixed instanceof ObjectType fixedObject) {
+            if (inherited instanceof ObjectType inheritedObject) {
+                return !typeMaker.isRawTypeAssignable(inheritedObject, fixedObject) || !hasTheTypeArgumentsOf(inheritedObject, fixedObject);
+            }
+            // 'int[]' accepts no object type: an 'Object' given for the same variable is no 'int[]'
+            return inheritedArray;
+        }
+        if (inherited instanceof ObjectType inheritedObject) {
+            return inheritedObject.getDimension() > 0 || !ARRAY_SUPER_TYPES.contains(inheritedObject.getInternalName());
+        }
+        return inheritedArray && !inherited.equals(fixed);
+    }
+
+    /**
+     * @return true if the class inherits, for a type variable of the call, an argument which does not accept the one which the other arguments of the call give it: a
+     * 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T&gt;' for the 'T' which the argument '1' (or an 'Object') of 'accept(List&lt;T&gt;, T)' fixes
+     */
+    private boolean contradictsTheKnownBindings(Map<String, TypeArgument> bindings, Map<String, List<Type>> known) {
+        for (Map.Entry<String, TypeArgument> binding : bindings.entrySet()) {
+            List<Type> fixedTypes = known.getOrDefault(binding.getKey(), Collections.emptyList());
+
+            if (fixedTypes.stream().anyMatch(fixed -> contradicts(binding.getValue(), fixed))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @return true if the type argument which a class inherits is the expected one, where a type variable of the invoked method (declared by no scope around the call) stands for anything */
+    private boolean isBindableTo(TypeArgument expected, TypeArgument seen, Map<String, TypeArgument> bindings) {
+        if (expected instanceof GenericType variable && variable.getDimension() == 0) {
+            // 'Map<T, T>' needs the same argument for each occurrence of the variable
+            return innermostScopeDeclaring(variable.getName()) == null && seen.equals(bindings.computeIfAbsent(variable.getName(), name -> seen));
+        }
+        if (expected instanceof ObjectType expectedObject && seen instanceof ObjectType seenObject && expectedObject.getInternalName().equals(seenObject.getInternalName())
+                && expectedObject.getDimension() == seenObject.getDimension()) {
+            List<TypeArgument> expectedArguments = toTypeArgumentList(expectedObject.getTypeArguments());
+            List<TypeArgument> seenArguments = toTypeArgumentList(seenObject.getTypeArguments());
+
+            return expectedArguments.size() == seenArguments.size()
+                    && IntStream.range(0, seenArguments.size()).allMatch(i -> isBindableTo(expectedArguments.get(i), seenArguments.get(i), bindings));
+        }
+        return expected.equals(seen);
+    }
+
+    /** @return false if the inherited argument is no sub type of the bound of the type variable of the invoked method: 'Strings extends ArrayList&lt;String&gt;' is no 'List&lt;T extends Number&gt;' */
+    private boolean isWithinBound(BaseType bound, Map<String, TypeArgument> bindings, TypeArgument seen) {
+        if (bound != null && seen instanceof Type array && array.getDimension() > 0 && !(seen instanceof ObjectType)) {
+            // 'int[]' is no more than an Object, a Cloneable or a Serializable
+            return StreamSupport.stream(bound.spliterator(), false).allMatch(constituent -> constituent instanceof ObjectType boundObject && boundObject.getDimension() == 0
+                    && ARRAY_SUPER_TYPES.contains(boundObject.getInternalName()));
+        }
+        if (bound == null || !(seen instanceof ObjectType seenObject)) {
+            return true;
+        }
+        // 'T extends Number &amp; Runnable' has every one of its bounds to satisfy
+        for (Type constituent : bound) {
+            // A bound which is another variable of the call ('T extends U') is the argument of that variable
+            Type resolved = constituent instanceof GenericType variable && bindings.get(variable.getName()) instanceof Type argument ? argument : constituent;
+
+            if (!isSatisfiedBy(resolved, bindings, seenObject)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @return false if the argument is none of the bound: an array bound ('U' bound to 'int[]') is satisfied by the same array only */
+    private boolean isSatisfiedBy(Type bound, Map<String, TypeArgument> bindings, ObjectType seen) {
+        if (bound instanceof PrimitiveType array && array.getDimension() > 0) {
+            return array.equals(seen);
+        }
+        return !(bound instanceof ObjectType boundObject) || typeMaker.isRawTypeAssignable(boundObject, seen) && hasTheTypeArgumentsOfTheBound(boundObject, bindings, seen);
+    }
+
+    /** @return false if the argument inherits the bound with other type arguments: 'Integer' is a 'Comparable&lt;Integer&gt;', no 'Comparable&lt;String&gt;'; the variables of the bound ('T extends Comparable&lt;T&gt;') stand for their arguments */
+    private boolean hasTheTypeArgumentsOfTheBound(ObjectType bound, Map<String, TypeArgument> bindings, ObjectType seen) {
+        if (bound.getTypeArguments() == null) {
+            return true;
+        }
+
+        List<TypeArgument> inherited = typeArgumentsSeenAs(bound.getInternalName(), seen, new HashSet<String>());
+        List<TypeArgument> required = toTypeArgumentList(bound.getTypeArguments());
+
+        for (int i = 0; inherited.size() == required.size() && i < required.size(); i++) {
+            if (!satisfies(substituted(required.get(i), bindings), inherited.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** @return the type argument where the variables of the call are replaced by their arguments, inside a wildcard bound too ('Comparable&lt;? super T&gt;') */
+    private static TypeArgument substituted(TypeArgument required, Map<String, TypeArgument> bindings) {
+        return substitute(required, bindings);
+    }
+
+    /** @return false if the inherited type argument is none of the one which the bound requires: a type must be equal, a wildcard bounds it (a type variable is satisfied by any) */
+    private boolean satisfies(TypeArgument required, TypeArgument inherited) {
+        // (a primitive type is an argument only as an array: 'Comparable<int[]>')
+        if (required instanceof ObjectType || required instanceof PrimitiveType) {
+            return required.equals(inherited);
+        }
+        if (inherited instanceof PrimitiveType array && (required instanceof WildcardExtendsTypeArgument || required instanceof WildcardSuperTypeArgument)) {
+            return isArrayWithinWildcard(required, array);
+        }
+        if (inherited instanceof ObjectType object && !isWithinAnArrayWildcard(required, object)) {
+            return false;
+        }
+        if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof ObjectType upper && inherited instanceof ObjectType argument) {
+            return typeMaker.isRawTypeAssignable(upper, argument) && hasTheTypeArgumentsOf(upper, argument);
+        }
+        if (required instanceof WildcardSuperTypeArgument wildcard && wildcard.type() instanceof ObjectType lower && inherited instanceof ObjectType argument) {
+            return typeMaker.isRawTypeAssignable(argument, lower) && hasTheTypeArgumentsOf(argument, lower);
+        }
+        return true;
+    }
+
+    /** @return true if the inherited array is within the wildcard: 'int[]' is no more than an Object, a Cloneable or a Serializable */
+    private static boolean isArrayWithinWildcard(TypeArgument required, PrimitiveType array) {
+        if (required instanceof WildcardExtendsTypeArgument wildcard) {
+            return wildcard.type().equals(array) || wildcard.type() instanceof ObjectType upper && upper.getDimension() == 0 && ARRAY_SUPER_TYPES.contains(upper.getInternalName());
+        }
+        return ((WildcardSuperTypeArgument) required).type().equals(array);
+    }
+
+    /** @return false if the wildcard bounds an array ('? extends int[]', '? super int[]') which the object type cannot satisfy: only an Object, a Cloneable or a Serializable is a super type of an array */
+    private static boolean isWithinAnArrayWildcard(TypeArgument required, ObjectType object) {
+        if (required instanceof WildcardExtendsTypeArgument wildcard && wildcard.type() instanceof PrimitiveType array && array.getDimension() > 0) {
+            return false;
+        }
+        return !(required instanceof WildcardSuperTypeArgument wildcard && wildcard.type() instanceof PrimitiveType array && array.getDimension() > 0)
+                || object.getDimension() == 0 && ARRAY_SUPER_TYPES.contains(object.getInternalName());
+    }
+
+    /** @return false if the type, which a bound requires with type arguments free of type variables, is not a super type of the other with those arguments: 'ArrayList&lt;String&gt;' is no 'List&lt;CharSequence&gt;' */
+    private boolean hasTheTypeArgumentsOf(ObjectType required, ObjectType other) {
+        return required.getTypeArguments() == null || !required.findTypeParametersInType().isEmpty()
+                || typeMaker.isAssignable(Collections.emptyMap(), Collections.emptyMap(), required, required, other);
     }
 
     /** @return true if one of the type variables of the type is declared by a method (class type variables are shared with the inner classes) */
@@ -4028,6 +4393,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     private Expression addCastExpression(Type type, Expression expression) {
+        if (visitingVarArgsInvocation && expression instanceof LocalVariableReferenceExpression && type instanceof ObjectType objectType
+                && LocalVariableMaker.isAnonymousClassName(objectType.getInternalName())) {
+            // The elements of the array of a varargs call are printed one by one: a cast to an anonymous class cannot be written, and its type comes from the variable
+            return expression;
+        }
         if (!expression.isCastExpression()) {
             searchFirstLineNumberVisitor.init();
             expression.accept(searchFirstLineNumberVisitor);

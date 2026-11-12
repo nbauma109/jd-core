@@ -211,6 +211,25 @@ public class LocalVariableMaker {
         return typeMaker;
     }
 
+    private AbstractLocalVariable createLocalVariable(LocalVariable localVariable, int index, int startPc) {
+        String descriptor = localVariable.getSignature();
+        String name = localVariable.getName();
+
+        if (descriptor.charAt(descriptor.length() - 1) == ';') {
+            Type variableType = typeMaker.makeFromDescriptor(descriptor);
+            // 'this' and the parameters are in scope from the first instruction: only a local variable is declared by its initializer
+            boolean local = startPc > 0;
+            return new ObjectLocalVariable(typeMaker, index, startPc, local ? anonymousClassToSuperType(variableType) : variableType, name);
+        }
+
+        int dimension = TypeMaker.countDimension(descriptor);
+
+        if (dimension == 0) {
+            return new PrimitiveLocalVariable(index, startPc, PrimitiveType.getPrimitiveType(descriptor.charAt(0)), name);
+        }
+        return new ObjectLocalVariable(typeMaker, index, startPc, typeMaker.makeFromSignature(descriptor.substring(dimension)).createType(dimension), name);
+    }
+
     protected void initLocalVariablesFromAttributes(Method method) {
         Code code = method.getCode();
 
@@ -221,30 +240,12 @@ public class LocalVariableMaker {
             if (localVariableTable != null) {
                 boolean staticFlag = (method.getAccessFlags() & ACC_STATIC) != 0;
 
-                int index;
-                int startPc;
-                String descriptor;
-                String name;
-                AbstractLocalVariable lv;
                 for (LocalVariable localVariable : localVariableTable.getLocalVariableTable()) {
-                    index = localVariable.getIndex();
-                    startPc = !staticFlag && index==0 ? 0 : localVariable.getStartPC();
-                    descriptor = localVariable.getSignature();
-                    name = localVariable.getName();
-                    if (descriptor.charAt(descriptor.length() - 1) == ';') {
-                        lv = new ObjectLocalVariable(typeMaker, index, startPc, typeMaker.makeFromDescriptor(descriptor), name);
-                    } else {
-                        int dimension = TypeMaker.countDimension(descriptor);
+                    int index = localVariable.getIndex();
+                    int startPc = !staticFlag && index==0 ? 0 : localVariable.getStartPC();
 
-                        if (dimension == 0) {
-                            lv = new PrimitiveLocalVariable(index, startPc, PrimitiveType.getPrimitiveType(descriptor.charAt(0)), name);
-                        } else {
-                            lv = new ObjectLocalVariable(typeMaker, index, startPc, typeMaker.makeFromSignature(descriptor.substring(dimension)).createType(dimension), name);
-                        }
-                    }
-
-                    localVariableSet.add(index, lv);
-                    names.add(name);
+                    localVariableSet.add(index, createLocalVariable(localVariable, index, startPc));
+                    names.add(localVariable.getName());
                 }
             }
 
@@ -259,6 +260,34 @@ public class LocalVariableMaker {
                 }
             }
         }
+    }
+
+    /**
+     * 'var printer = new Object() {...}': the type of the variable is the anonymous class, which has no name. An instance of it is created as
+     * an instance of its interface or of its superclass.
+     */
+    private Type anonymousClassToSuperType(Type type) {
+        if (!(type instanceof ObjectType objectType) || objectType.getDimension() != 0 || !isAnonymousClassName(objectType.getInternalName())) {
+            return type;
+        }
+
+        TypeMaker.TypeTypes typeTypes = typeMaker.makeTypeTypes(objectType.getInternalName());
+
+        if (typeTypes == null) {
+            return type;
+        }
+        if (typeTypes.getInterfaces() != null && typeTypes.getInterfaces().size() == 1 && typeTypes.getInterfaces().getFirst() instanceof ObjectType interfaceType) {
+            return interfaceType;
+        }
+        return typeTypes.getSuperType() != null ? typeTypes.getSuperType() : ObjectType.TYPE_OBJECT;
+    }
+
+    /** The name of an anonymous class ends with the number after the last '$', and the class does not name itself in its 'InnerClasses' entry: 'Named.$1' does */
+    public static boolean isAnonymousClassName(String internalName) {
+        int start = internalName.lastIndexOf('$') + 1;
+
+        return start > 0 && start < internalName.length() && internalName.substring(start).chars().allMatch(Character::isDigit)
+                && ClassMetadata.isAnonymousOrUnknown(InstanceOfPatternBinding.getLoader(), internalName);
     }
 
     private static boolean containsWildcardTypeArgument(BaseTypeArgument typeArguments) {

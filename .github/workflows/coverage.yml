@@ -104,8 +104,9 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
-          # Temurin 17.0.21 supports the SHAKE message digests: the tests of Commons Codec which expect them to be missing on JDK 17 fail with it
-          java-version: ${{ matrix.testMethod == 'testCommonsCodec' && '17.0.20' || matrix.java }}
+          # Temurin 17.0.21 supports the SHAKE message digests: the tests of Commons Codec which expect them to be missing on JDK 17 fail with it.
+          # The time zone tests of Commons Lang fail with it too since the end of the daylight saving time: they expect daylight names which it no longer gives.
+          java-version: ${{ (matrix.testMethod == 'testCommonsCodec' || matrix.testMethod == 'testCommonsLang3') && '17.0.20' || matrix.java }}
       - name: Build with Maven (JarFileToJavaSourceTest#${{ matrix.testMethod }})
         run: mvn "-Dtest=JarFileToJavaSourceTest#${{ matrix.testMethod }}" test jacoco:report --no-transfer-progress
 

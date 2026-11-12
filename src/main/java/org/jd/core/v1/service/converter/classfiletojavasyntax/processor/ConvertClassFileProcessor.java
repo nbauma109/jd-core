@@ -355,7 +355,7 @@ public class ConvertClassFileProcessor {
                 String recordComponentSignature = classFile.getConstantPool().getConstantString(descriptorIndex, Const.CONSTANT_Utf8);
                 ObjectType recordComponentType = parser.makeFromDescriptor(recordComponentSignature);
                 annotationReferences = converter.withMarkers(annotationReferences,
-                        TypeAnnotationReader.of(recordComponentInfo.getAttributes(), classFile.getConstantPool()).getDeclarationAnnotations(), recordComponentType);
+                        TypeAnnotationReader.of(recordComponentInfo.getAttributes()).getDeclarationAnnotations(), recordComponentType);
                 recordComponents.add(new RecordComponent(annotationReferences, recordComponentType, recordComponentName));
             }
         }
@@ -495,7 +495,7 @@ public class ConvertClassFileProcessor {
     protected BaseTypeParameter withBoundAnnotations(AnnotationConverter converter, BaseTypeParameter typeParameters, ClassFile classFile) {
         org.apache.bcel.classfile.Signature signature = classFile.getAttribute(Const.ATTR_SIGNATURE);
 
-        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(classFile.getAttributes(), classFile.getConstantPool()),
+        return withBoundAnnotations(converter, typeParameters, TypeAnnotationReader.of(classFile.getAttributes()),
                 signature == null ? null : signature.getSignature());
     }
 

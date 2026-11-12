@@ -11,11 +11,15 @@ import org.apache.bcel.classfile.Attribute;
 import org.apache.bcel.classfile.Constant;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.ConstantUtf8;
+import org.apache.bcel.classfile.RuntimeInvisibleTypeAnnotations;
+import org.apache.bcel.classfile.RuntimeVisibleTypeAnnotations;
 import org.apache.bcel.classfile.Unknown;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeAnnotationReader;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
@@ -24,7 +28,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-/** The type annotation attributes are made of bytes, as the class files of the compilers write them */
+/** The type annotation attributes are the ones of BCEL, parsed from the bytes the compilers write in the class files */
 public class TypeAnnotationReaderTest {
     private static final int FIELD = 0x13;
     private static final int FORMAL_PARAMETER = 0x16;
@@ -51,8 +55,8 @@ public class TypeAnnotationReaderTest {
         return of(bytes.toByteArray());
     }
 
-    private static TypeAnnotationReader of(byte[] content) {
-        return TypeAnnotationReader.of(new Attribute[] {new Unknown(ATTRIBUTE_NAME, content.length, content, CONSTANTS)}, CONSTANTS);
+    private static TypeAnnotationReader of(byte[] content) throws IOException {
+        return TypeAnnotationReader.of(new Attribute[] {new RuntimeVisibleTypeAnnotations(ATTRIBUTE_NAME, content.length, new DataInputStream(new ByteArrayInputStream(content)), CONSTANTS)});
     }
 
     private static void marker(DataOutputStream out, int target, int info, int type) throws IOException {
@@ -207,48 +211,25 @@ public class TypeAnnotationReaderTest {
     }
 
     @Test
-    public void testAnAttributeWhichCannotBeReadIsDropped() {
-        // truncated: one annotation announced
-        TypeAnnotationReader truncated = of(new byte[] {0, 1, FIELD});
-        // a descriptor which is not in the constant pool
-        TypeAnnotationReader unknownType = of(new byte[] {0, 1, FIELD, 0, 0, 99, 0, 0});
+    public void testTheInvisibleAnnotationsAreReadToo() throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(bytes);
 
-        assertTrue(truncated.getDeclarationAnnotations().isEmpty());
-        assertTrue(unknownType.getDeclarationAnnotations().isEmpty());
-    }
+        out.writeShort(1);
+        marker(out, FIELD, 0, NULLABLE);
 
-    @Test
-    public void testNothingIsKeptOfAnAttributeWhichIsMalformedAfterAValidAnnotation() throws IOException {
-        // a valid annotation, then an entry which stops after its target
-        TypeAnnotationReader reader = read(2, out -> {
-            marker(out, FIELD, 0, NULLABLE);
-            out.writeByte(FIELD);
-        });
+        byte[] content = bytes.toByteArray();
+        TypeAnnotationReader reader = TypeAnnotationReader.of(new Attribute[] {
+            new RuntimeInvisibleTypeAnnotations(ATTRIBUTE_NAME, content.length, new DataInputStream(new ByteArrayInputStream(content)), CONSTANTS)});
 
-        assertTrue(reader.getDeclarationAnnotations().isEmpty());
-    }
-
-    @Test
-    public void testNothingIsKeptOfAnAttributeWhichStopsInAnElementValue() throws IOException {
-        // a valid annotation, then one whose last element value stops after its tag
-        TypeAnnotationReader reader = read(2, out -> {
-            marker(out, FIELD, 0, NULLABLE);
-            out.writeByte(FIELD);
-            out.writeByte(0);
-            out.writeShort(OTHER);
-            out.writeShort(1);
-            out.writeShort(OTHER);
-            out.writeByte('s');
-        });
-
-        assertTrue(reader.getDeclarationAnnotations().isEmpty());
+        assertEquals(List.of("Lp/Nullable;"), reader.getDeclarationAnnotations());
     }
 
     @Test
     public void testOtherAttributesAreIgnored() {
         byte[] content = {0, 0};
         TypeAnnotationReader reader = TypeAnnotationReader.of(new Attribute[] {new Unknown(ATTRIBUTE_NAME, 2, content, new ConstantPool(new Constant[] {
-            null, new ConstantUtf8("Other")}))}, CONSTANTS);
+            null, new ConstantUtf8("Other")}))});
 
         assertTrue(reader.getDeclarationAnnotations().isEmpty());
         assertFalse(reader.hasParameterAnnotations());

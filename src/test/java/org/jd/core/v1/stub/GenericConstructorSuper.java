@@ -19,12 +19,15 @@ public class GenericConstructorSuper<T> extends GenericConstructorSuperBase {
         String name;
     }
 
+    String label;
+
     private GenericConstructorSuper(Builder<T> builder) {
         super(Objects.requireNonNull(builder, "builder"));
     }
 
-    private <U extends GenericConstructorSuperBase.AbstractBuilder<U>> GenericConstructorSuper(GenericConstructorSuperBase.AbstractBuilder<U> builder, int unused) {
+    private <U extends GenericConstructorSuperBase.AbstractBuilder<U>> GenericConstructorSuper(GenericConstructorSuperBase.AbstractBuilder<U> builder, int length) {
         super(builder);
+        builder.flag = length > 0;
     }
 
     GenericConstructorSuper(Builder<T> builder, String name) {
@@ -33,5 +36,6 @@ public class GenericConstructorSuper<T> extends GenericConstructorSuperBase {
 
     GenericConstructorSuper(String name) {
         this(new Builder<T>());
+        this.label = name;
     }
 }

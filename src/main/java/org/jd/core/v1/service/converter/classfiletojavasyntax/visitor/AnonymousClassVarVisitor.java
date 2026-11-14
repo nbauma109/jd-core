@@ -1010,7 +1010,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         while (index < signature.indexOf(')')) {
             int end = endOfSignatureType(signature, index);
             String parameter = signature.substring(index, end);
-            boolean matches = exact ? returned.equals(parameter) || parameter.equals("[" + returned) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter)
+            boolean matches = exact ? returned.equals(parameter) || ("[" + returned).equals(parameter) : parameter.startsWith("T") && returned.contains(parameter) && !returned.equals(parameter)
                     && (typeArgument < 0 || typeArgument >= counted.size() || counted.get(typeArgument).equals(parameter));
 
             if (matches && position < arguments.size()) {
@@ -1910,7 +1910,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
 
         /** An override of 'close()' which declares fewer exceptions than the one of its super type has to be called through its own type */
         boolean callsClose() {
-            return members.stream().anyMatch(member -> member.equals("close()V") || member.endsWith(".close()V"));
+            return members.stream().anyMatch(member -> "close()V".equals(member) || member.endsWith(".close()V"));
         }
 
         /** The 'try' statements which the search has entered: their handlers protect what it meets in their resources and body */
@@ -1920,7 +1920,7 @@ public class AnonymousClassVarVisitor extends AbstractJavaSyntaxVisitor {
         @Override
         public void visit(TryStatement statement) {
             if (statement.getResources() != null && hasNoCheckedHandler(statement, Set.of()) && callsClose()
-                    && !(declaredType != null && closeIsPermitted(statement, declaredType, nestedTries))
+                    && ((declaredType == null) || !closeIsPermitted(statement, declaredType, nestedTries))
                     && statement.getResources().stream().anyMatch(resource -> resource.getExpression() != null && references(resource.getExpression(), variableNames) != null)) {
                 found = true;
             }

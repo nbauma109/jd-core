@@ -450,7 +450,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 successors.addAll(Arrays.asList(select.getTargets()));
             }
         }
-        if (!(instruction instanceof GotoInstruction || instruction instanceof ReturnInstruction || instruction instanceof ATHROW || instruction instanceof Select)) {
+        if ((!(instruction instanceof GotoInstruction) && !(instruction instanceof ReturnInstruction) && !(instruction instanceof ATHROW)
+                && !(instruction instanceof Select))) {
             successors.add(handle.getNext());
         }
         successors.addAll(handlersAt(list, handlers, handle.getPosition()));

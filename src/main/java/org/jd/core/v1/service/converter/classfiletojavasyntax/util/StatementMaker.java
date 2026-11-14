@@ -605,8 +605,8 @@ public class StatementMaker {
 
     /** @return the operand where the first use of the variable of the increment 'i++' is '++i', null if the statement is no increment of a variable of the operand */
     private static Expression foldIncrement(Expression increment, Expression operand) {
-        if (!(increment.isPostOperatorExpression() || increment.isPreOperatorExpression())
-                || !("++".equals(increment.getOperator()) || "--".equals(increment.getOperator()))
+        if ((!increment.isPostOperatorExpression() && !increment.isPreOperatorExpression())
+                || (!"++".equals(increment.getOperator()) && !"--".equals(increment.getOperator()))
                 || !(increment.getExpression() instanceof ClassFileLocalVariableReferenceExpression reference)) {
             return null;
         }

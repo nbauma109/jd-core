@@ -1,8 +1,5 @@
 package org.jd.core.test;
 
-import org.apache.commons.imaging.FormatCompliance;
-import org.apache.commons.imaging.common.bytesource.ByteSource;
-
 import java.io.IOException;
 import java.io.InputStream;
 

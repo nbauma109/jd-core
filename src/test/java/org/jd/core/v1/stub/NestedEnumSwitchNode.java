@@ -1,0 +1,14 @@
+/*
+ * Copyright (c) 2026 Nicolas Baumann (@nbauma109), with Claude Sonnet 5.5.
+ * This project is distributed under the GPLv3 license.
+ * This is a Copyleft license that gives the user the right to use,
+ * copy and modify the code freely for non-commercial purposes.
+ */
+
+package org.jd.core.v1.stub;
+/** Declared in its own file, like the enums: a member type would make the bounds below inner types */
+public interface NestedEnumSwitchNode<K, N extends NestedEnumSwitchNode<K, N>> {
+    N childOrNull(NestedEnumSwitchSide side);
+
+    N create(N left, N right);
+}

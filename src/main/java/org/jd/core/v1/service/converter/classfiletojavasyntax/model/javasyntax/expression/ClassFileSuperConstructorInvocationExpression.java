@@ -10,15 +10,20 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.SuperConstructorInvocationExpression;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
+import org.jd.core.v1.model.javasyntax.type.BaseTypeParameter;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 
 public class ClassFileSuperConstructorInvocationExpression extends SuperConstructorInvocationExpression {
     private BaseType parameterTypes;
+    private final BaseTypeParameter typeParameters;
 
-    public ClassFileSuperConstructorInvocationExpression(int lineNumber, ObjectType type, String descriptor, BaseType parameterTypes, BaseExpression parameters, boolean varArgs) {
+    public ClassFileSuperConstructorInvocationExpression(int lineNumber, ObjectType type, String descriptor, BaseType parameterTypes, BaseTypeParameter typeParameters, BaseExpression parameters, boolean varArgs) {
         super(lineNumber, type, descriptor, parameters, varArgs);
         this.parameterTypes = parameterTypes;
+        this.typeParameters = typeParameters;
     }
+
+    public BaseTypeParameter getTypeParameters() { return typeParameters; }
 
     public BaseType getParameterTypes() {
         return parameterTypes;

@@ -654,7 +654,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * whose T is the one of the constructor (or its bound) and which the source does not spell: the cast keeps its erased type.
      */
     private void eraseCastsToTypeVariablesOfTheConstructor(BaseExpression parameters) {
-        if (typeVariablesOfTheCall.isEmpty() || parameters == null) {
+        if (typeVariablesOfTheCall.isEmpty()) {
             return;
         }
         for (Expression parameter : parameters) {

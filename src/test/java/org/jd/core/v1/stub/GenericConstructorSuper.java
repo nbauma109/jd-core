@@ -34,6 +34,15 @@ public class GenericConstructorSuper<T> extends GenericConstructorSuperBase {
         this(Objects.requireNonNull(builder, "builder"), name.length());
     }
 
+    GenericConstructorSuper() {
+        this("default");
+    }
+
+    GenericConstructorSuper(int length) {
+        this();
+        this.label = String.valueOf(length);
+    }
+
     GenericConstructorSuper(String name) {
         this(new Builder<T>());
         this.label = name;

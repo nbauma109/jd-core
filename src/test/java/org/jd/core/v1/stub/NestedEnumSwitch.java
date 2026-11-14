@@ -9,20 +9,15 @@ package org.jd.core.v1.stub;
 
 /**
  * Minimal reproduction of a switch-enum inside another switch-enum, with generic locals declared in a single statement
- * (the shape of Guava 12's BstMutationResult.lift, which this fixture replaces).
+ * (the shape of Guava 12's BstMutationResult.lift, which this fixture replaces). The type returned by the factory of nodes is bound
+ * from the call, whose bound ('NestedEnumSwitchNode&lt;?, N&gt;') differs from the one of the class ('NestedEnumSwitchNode&lt;K, N&gt;'): comparing them goes through the lists of type arguments.
  */
-public class NestedEnumSwitch<N extends NestedEnumSwitch.Node<N>> {
-
-    public interface Node<N> {
-        N childOrNull(NestedEnumSwitchSide side);
-
-        N create(N left, N right);
-    }
+public class NestedEnumSwitch<K, N extends NestedEnumSwitchNode<K, N>> {
 
     private N changedRoot;
     private NestedEnumSwitchKind kind;
 
-    public NestedEnumSwitch<N> lift(N originalRoot, NestedEnumSwitchSide side) {
+    public NestedEnumSwitch<K, N> lift(N originalRoot, NestedEnumSwitchSide side, NestedEnumSwitchNodeFactory<N> nodeFactory) {
         switch (kind) {
             case IDENTITY:
                 this.changedRoot = originalRoot;
@@ -40,7 +35,7 @@ public class NestedEnumSwitch<N extends NestedEnumSwitch.Node<N>> {
                     default:
                         throw new AssertionError();
                 }
-                this.changedRoot = originalRoot.create(resultLeft, resultRight);
+                this.changedRoot = nodeFactory.createNode(originalRoot, resultLeft, resultRight);
                 return this;
             default:
                 throw new AssertionError();

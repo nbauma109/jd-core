@@ -15,21 +15,15 @@ import org.jd.core.v1.model.javasyntax.type.ObjectType;
 
 public class ClassFileConstructorInvocationExpression extends ConstructorInvocationExpression {
     private BaseType parameterTypes;
-    private BaseTypeParameter typeParameters;
+    private final BaseTypeParameter typeParameters;
 
-    public ClassFileConstructorInvocationExpression(int lineNumber, ObjectType type, String descriptor, BaseType parameterTypes, BaseExpression parameters, boolean varArgs) {
+    public ClassFileConstructorInvocationExpression(int lineNumber, ObjectType type, String descriptor, BaseType parameterTypes, BaseTypeParameter typeParameters, BaseExpression parameters, boolean varArgs) {
         super(lineNumber, type, descriptor, parameters, varArgs);
         this.parameterTypes = parameterTypes;
-    }
-
-    /** The type parameters of the constructor itself ('&lt;T extends Foo&lt;T&gt;&gt; Base(Foo&lt;T&gt; foo)'), or null */
-    public BaseTypeParameter getTypeParameters() {
-        return typeParameters;
-    }
-
-    public void setTypeParameters(BaseTypeParameter typeParameters) {
         this.typeParameters = typeParameters;
     }
+
+    public BaseTypeParameter getTypeParameters() { return typeParameters; }
 
     public BaseType getParameterTypes() {
         return parameterTypes;

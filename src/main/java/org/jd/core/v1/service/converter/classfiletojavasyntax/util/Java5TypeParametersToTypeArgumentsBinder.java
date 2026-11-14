@@ -141,9 +141,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         parameterTypes = bind(bindings, parameterTypes);
         bindParameters(parameterTypes, parameters);
 
-        ClassFileConstructorInvocationExpression expression = new ClassFileConstructorInvocationExpression(lineNumber, objectType, descriptor, parameterTypes, parameters, methodTypes.isVarArgs());
-        expression.setTypeParameters(methodTypes.getTypeParameters());
-        return expression;
+        return new ClassFileConstructorInvocationExpression(lineNumber, objectType, descriptor, parameterTypes, methodTypes.getTypeParameters(), parameters, methodTypes.isVarArgs());
     }
 
     @Override
@@ -172,9 +170,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         parameterTypes = bind(bindings, parameterTypes);
         bindParameters(parameterTypes, parameters);
 
-        ClassFileSuperConstructorInvocationExpression expression = new ClassFileSuperConstructorInvocationExpression(lineNumber, objectType, descriptor, parameterTypes, parameters, methodTypes.isVarArgs());
-        expression.setTypeParameters(methodTypes.getTypeParameters());
-        return expression;
+        return new ClassFileSuperConstructorInvocationExpression(lineNumber, objectType, descriptor, parameterTypes, methodTypes.getTypeParameters(), parameters, methodTypes.isVarArgs());
     }
 
     @Override

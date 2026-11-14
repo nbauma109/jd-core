@@ -57,17 +57,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsIO() throws Exception {
-        test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", "2.22.0");
+        test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", pomVersion("commons-io", "commons-io"));
     }
 
     @Test
     public void testCommonsCodec() throws Exception {
-        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", "1.23.0");
+        test("https://github.com/apache/commons-codec", "commons-codec", "rel/commons-codec-", "commons-codec", "commons-codec", pomVersion("commons-codec", "commons-codec"));
     }
 
     @Test
     public void testCommonsCollections4() throws Exception {
-        test("https://github.com/apache/commons-collections", "commons-collections", "rel/commons-collections-", "org.apache.commons", "commons-collections4", "4.6.0");
+        test("https://github.com/apache/commons-collections", "commons-collections", "rel/commons-collections-", "org.apache.commons", "commons-collections4", pomVersion("org.apache.commons", "commons-collections4"));
     }
 
     @Test
@@ -88,17 +88,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testDiskLruCache() throws Exception {
-        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", "2.0.2", false);
+        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", pomVersion("com.jakewharton", "disklrucache"), false);
     }
 
     @Test
     public void testJavaPoet() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", "1.13.0", false);
+        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", pomVersion("com.squareup", "javapoet"), false);
     }
 
     @Test
     public void testJavaWriter() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", "2.5.1", false);
+        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", pomVersion("com.squareup", "javawriter"), false);
     }
 
     @Test
@@ -110,10 +110,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJodaTime() throws Exception {
-        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", "2.15.0");
+        String jodaVersion = pomVersion("joda-time", "joda-time");
+        test("https://github.com/JodaOrg/joda-time", "joda-time", "v", "joda-time", "joda-time", jodaVersion);
 
         String source = Files.readString(Paths.get(
-                "target/joda-time/joda-time-2.15.0/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
+                "target/joda-time/joda-time-" + jodaVersion + "/src/main/java/org/joda/time/format/DateTimeFormatterBuilder.java"));
         int classStart = source.indexOf("static class TimeZoneOffset");
         int methodStart = source.indexOf("public int parseInto(", classStart);
         int methodEnd = source.indexOf("private int digitCount(", methodStart);
@@ -129,37 +130,37 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJSoup() throws Exception {
-        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", "1.23.2");
+        test("https://github.com/jhy/jsoup", "jsoup", "jsoup-", "org.jsoup", "jsoup", pomVersion("org.jsoup", "jsoup"));
     }
 
     @Test
     public void testJUnit4() throws Exception {
-        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", "4.13.2", false);
+        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", pomVersion("junit", "junit"), false);
     }
 
     @Test
     public void testMimecraft() throws Exception {
-        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", "1.1.1", false);
+        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", pomVersion("com.squareup.mimecraft", "mimecraft"), false);
     }
 
     @Test
     public void testScribe() throws Exception {
-        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", "1.3.7", false);
+        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", pomVersion("org.scribe", "scribe"), false);
     }
 
     @Test
     public void testSparkCore() throws Exception {
-        test("https://github.com/perwendel/spark", "spark", "", "com.sparkjava", "spark-core", "2.9.4", false);
+        test("https://github.com/perwendel/spark", "spark", "", "com.sparkjava", "spark-core", pomVersion("com.sparkjava", "spark-core"), false);
     }
 
     @Test
     public void testLog4jApi() throws Exception {
-        test("org.apache.logging.log4j", "log4j-api", "2.26.1");
+        test("org.apache.logging.log4j", "log4j-api", pomVersion("org.apache.logging.log4j", "log4j-core"));
     }
 
     @Test
     public void testLog4jCore() throws Exception {
-        test("org.apache.logging.log4j", "log4j-core", "2.26.1");
+        test("org.apache.logging.log4j", "log4j-core", pomVersion("org.apache.logging.log4j", "log4j-core"));
     }
 
     @Test
@@ -167,6 +168,40 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
                 new ProjectLayout("guava", "src", true, "package", List.of("-pl", "guava-tests", "-am")));
+    }
+
+    /**
+     * Version of a dependency declared in pom.xml (properties resolved), so that the library tested here is always the one
+     * Dependabot bumps, instead of a copy hardcoded in this class.
+     */
+    private static String pomVersion(String groupId, String artifactId) {
+        try {
+            org.w3c.dom.Document pom = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File("pom.xml"));
+            org.w3c.dom.NodeList dependencies = pom.getElementsByTagName("dependency");
+            for (int i = 0; i < dependencies.getLength(); i++) {
+                org.w3c.dom.Element dependency = (org.w3c.dom.Element) dependencies.item(i);
+                if (groupId.equals(childText(dependency, "groupId")) && artifactId.equals(childText(dependency, "artifactId"))) {
+                    String version = childText(dependency, "version");
+                    Matcher property = Pattern.compile("\\$\\{(.+)}").matcher(version);
+                    if (property.matches()) {
+                        version = childText((org.w3c.dom.Element) pom.getElementsByTagName("properties").item(0), property.group(1));
+                    }
+                    return version;
+                }
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot read pom.xml", e);
+        }
+        throw new IllegalArgumentException("No version of " + groupId + ":" + artifactId + " in pom.xml");
+    }
+
+    private static String childText(org.w3c.dom.Element parent, String name) {
+        for (org.w3c.dom.Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child instanceof org.w3c.dom.Element element && name.equals(element.getTagName())) {
+                return element.getTextContent().trim();
+            }
+        }
+        return null;
     }
 
     protected void test(String groupId, String artifactId, String version) throws Exception {

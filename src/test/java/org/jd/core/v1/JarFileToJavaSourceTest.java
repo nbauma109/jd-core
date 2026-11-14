@@ -7,7 +7,9 @@
 
 package org.jd.core.v1;
 
+import org.apache.bcel.Const;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
@@ -17,6 +19,12 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.LicenseExtractor;
 import org.jd.core.v1.util.StringConstants;
 import org.junit.Test;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import java.io.File;
 import java.io.BufferedReader;
@@ -52,7 +60,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testBCEL() throws Exception {
-        test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", "6.12.0");
+        test("https://github.com/apache/commons-bcel", "commons-bcel", "rel/commons-bcel-", "org.apache.bcel", "bcel", classpathVersion(Const.class));
     }
 
     @Test
@@ -72,12 +80,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsImaging() throws Exception {
-        test("https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-", "org.apache.commons", "commons-imaging", "1.0.0-alpha6");
+        test("https://github.com/apache/commons-imaging", "commons-imaging", "rel/commons-imaging-", "org.apache.commons", "commons-imaging", pomVersion("org.apache.commons", "commons-imaging"));
     }
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", "3.20.0");
+        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", classpathVersion(StringUtils.class));
     }
 
     @Test
@@ -176,15 +184,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
      */
     private static String pomVersion(String groupId, String artifactId) {
         try {
-            org.w3c.dom.Document pom = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File("pom.xml"));
-            org.w3c.dom.NodeList dependencies = pom.getElementsByTagName("dependency");
+            Document pom = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new File("pom.xml"));
+            NodeList dependencies = pom.getElementsByTagName("dependency");
             for (int i = 0; i < dependencies.getLength(); i++) {
-                org.w3c.dom.Element dependency = (org.w3c.dom.Element) dependencies.item(i);
+                Element dependency = (Element) dependencies.item(i);
                 if (groupId.equals(childText(dependency, "groupId")) && artifactId.equals(childText(dependency, "artifactId"))) {
                     String version = childText(dependency, "version");
                     Matcher property = Pattern.compile("\\$\\{(.+)}").matcher(version);
                     if (property.matches()) {
-                        version = childText((org.w3c.dom.Element) pom.getElementsByTagName("properties").item(0), property.group(1));
+                        version = childText((Element) pom.getElementsByTagName("properties").item(0), property.group(1));
                     }
                     return version;
                 }
@@ -195,9 +203,21 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         throw new IllegalArgumentException("No version of " + groupId + ":" + artifactId + " in pom.xml");
     }
 
-    private static String childText(org.w3c.dom.Element parent, String name) {
-        for (org.w3c.dom.Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
-            if (child instanceof org.w3c.dom.Element element && name.equals(element.getTagName())) {
+    /**
+     * Version of a transitive dependency (bcel and commons-lang3 come with jd-util), read from the manifest of the jar
+     * which provides the class on the test classpath.
+     */
+    private static String classpathVersion(Class<?> libraryClass) {
+        String version = libraryClass.getPackage().getImplementationVersion();
+        if (version == null) {
+            throw new IllegalStateException("No implementation version in the jar of " + libraryClass.getName());
+        }
+        return version;
+    }
+
+    private static String childText(Element parent, String name) {
+        for (Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child instanceof Element element && name.equals(element.getTagName())) {
                 return element.getTextContent().trim();
             }
         }

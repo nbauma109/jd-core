@@ -200,8 +200,15 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-imaging</artifactId>
-      <version>1.0-alpha3</version>
+      <version>1.0.0-alpha6</version>
       <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <!-- Only here for the version tested by JarFileToJavaSourceTest: jd-util's bcel decides the version of commons-lang3 -->
+          <groupId>org.apache.commons</groupId>
+          <artifactId>commons-lang3</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.jakewharton</groupId>
@@ -387,12 +394,6 @@
       <groupId>com.fasterxml.jackson.dataformat</groupId>
       <artifactId>jackson-dataformat-yaml</artifactId>
       <version>${jackson.data.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-      <version>12.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>

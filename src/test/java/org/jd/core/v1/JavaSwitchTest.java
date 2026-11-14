@@ -10,14 +10,13 @@ package org.jd.core.v1;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.regex.PatternMaker;
 import org.junit.Test;
 
-import java.io.FileInputStream;
 import java.io.InputStream;
-import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Map;
 
@@ -139,22 +138,18 @@ public class JavaSwitchTest extends AbstractJdTest {
 
     @Test
     // Test switch-enum in an other switch-enum
-    public void testBstMutationResult() throws Exception {
-        String internalClassName = "com/google/common/collect/BstMutationResult";
-        Class<?> mainClass = com.google.common.collect.Collections2.class;
-        try (InputStream is = new FileInputStream(Paths.get(mainClass.getProtectionDomain().getCodeSource().getLocation().toURI()).toFile())) {
-            Loader loader = new ZipLoader(is);
-            Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
-            String source = decompileSuccess(loader, new PlainTextPrinter(), internalClassName, configuration);
+    public void testNestedEnumSwitch() throws Exception {
+        String internalClassName = "org/jd/core/v1/stub/NestedEnumSwitch";
+        Map<String, Object> configuration = Collections.singletonMap("realignLineNumbers", Boolean.TRUE);
+        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName, configuration);
 
-            // Check decompiled source code
-            assertNotEquals(-1, source.indexOf("N resultLeft, resultRight;"));
-            assertEquals(-1, source.indexOf("assert false;"));
-            assertTrue(source.matches(PatternMaker.make("/* 131:", "resultLeft = liftOriginalRoot.childOrNull(BstSide.LEFT);")));
-            assertTrue(source.matches(PatternMaker.make("/* 134:", "case LEFT:")));
+        // Check decompiled source code
+        assertNotEquals(-1, source.indexOf("N resultLeft, resultRight;"));
+        assertEquals(-1, source.indexOf("assert false;"));
+        assertTrue(source.matches(PatternMaker.make("/* 32:", "resultLeft = originalRoot.childOrNull(NestedEnumSwitchSide.LEFT);")));
+        assertTrue(source.matches(PatternMaker.make("/* 35:", "case LEFT:")));
 
-            // Recompile decompiled source code and check errors
-            assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
-        }
+        // Recompile decompiled source code and check errors
+        assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));
     }
 }

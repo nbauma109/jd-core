@@ -85,7 +85,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsLang3() throws Exception {
-        test("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-", "org.apache.commons", "commons-lang3", classpathVersion(StringUtils.class));
+        String version = classpathVersion(StringUtils.class);
+        // FastTimeZoneTest.testJavadocReflectsLenientBehavior searches the Javadoc in the source file, which the decompiler cannot restore
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test",
+                List.of("-Dtest=!FastTimeZoneTest#testJavadocReflectsLenientBehavior"));
+        testAtTag("https://github.com/apache/commons-lang", "commons-lang", "rel/commons-lang-" + version, "org.apache.commons", "commons-lang3", version, true, null, layout);
     }
 
     @Test
@@ -467,7 +471,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     command.add("-DargLine=--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED"
                             + " --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.time.chrono=ALL-UNNAMED"
                             + " --add-opens java.base/java.time.format=ALL-UNNAMED --add-opens java.base/java.time.temporal=ALL-UNNAMED"
-                            + " --add-opens java.base/java.time.zone=ALL-UNNAMED");
+                            + " --add-opens java.base/java.time.zone=ALL-UNNAMED --add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED");
                 }
                 command.add("-Danimal.sniffer.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);

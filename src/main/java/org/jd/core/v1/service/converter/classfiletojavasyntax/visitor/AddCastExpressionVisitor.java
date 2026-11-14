@@ -649,6 +649,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    /**
+     * The bytecode cast of an argument of a generic constructor ('&lt;T extends Foo&lt;T&gt;&gt; Base(Foo&lt;T&gt; foo)') was typed with the parameter type,
+     * whose T is the one of the constructor and which the source does not spell: the cast keeps its erased type.
+     */
+    private void eraseCastsToTypeVariablesOfTheConstructor(BaseExpression parameters) {
+        if (typeVariablesOfTheCall.isEmpty() || parameters == null) {
+            return;
+        }
+        for (Expression parameter : parameters) {
+            if (parameter instanceof CastExpression cast && cast.isByteCodeCheckCast() && cast.getType() instanceof ObjectType castType
+                    && castType.getTypeArguments() != null && !Collections.disjoint(castType.findTypeParametersInType(), typeVariablesOfTheCall)) {
+                cast.setType(castType.createType((BaseTypeArgument) null));
+            }
+        }
+    }
+
     @Override
     public void visit(SuperConstructorInvocationExpression expression) {
         BaseExpression parameters = expression.getParameters();
@@ -657,8 +673,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
             boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
             boolean rawCast = false;
-            BaseType parameterTypes = ((ClassFileSuperConstructorInvocationExpression)expression).getParameterTypes();
-            expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast)));
+            ClassFileSuperConstructorInvocationExpression call = (ClassFileSuperConstructorInvocationExpression)expression;
+            BaseType parameterTypes = call.getParameterTypes();
+            Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
+            // The type variables of the constructor itself are inferred: a cast to them would name the ones of the class by mistake
+            typeVariablesOfTheCall = call.getTypeParameters() == null ? Collections.emptySet() : new HashSet<>(identifiersOf(call.getTypeParameters()));
+            try {
+                BaseExpression updated = updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast));
+                eraseCastsToTypeVariablesOfTheConstructor(updated);
+                expression.setParameters(updated);
+            } finally {
+                typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
+            }
         }
     }
 
@@ -670,8 +696,18 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
             boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
             boolean rawCast = false;
-            BaseType parameterTypes = ((ClassFileConstructorInvocationExpression)expression).getParameterTypes();
-            expression.setParameters(updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast)));
+            ClassFileConstructorInvocationExpression call = (ClassFileConstructorInvocationExpression)expression;
+            BaseType parameterTypes = call.getParameterTypes();
+            Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
+            // The type variables of the constructor itself are inferred: a cast to them would name the ones of the class by mistake
+            typeVariablesOfTheCall = call.getTypeParameters() == null ? Collections.emptySet() : new HashSet<>(identifiersOf(call.getTypeParameters()));
+            try {
+                BaseExpression updated = updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast));
+                eraseCastsToTypeVariablesOfTheConstructor(updated);
+                expression.setParameters(updated);
+            } finally {
+                typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
+            }
         }
     }
 

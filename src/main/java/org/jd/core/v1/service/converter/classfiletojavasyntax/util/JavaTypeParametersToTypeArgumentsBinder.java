@@ -20,13 +20,17 @@ public class JavaTypeParametersToTypeArgumentsBinder extends AbstractTypeParamet
     @Override
     public ClassFileConstructorInvocationExpression newConstructorInvocationExpression(
             int lineNumber, ObjectType objectType, String descriptor, TypeMaker.MethodTypes methodTypes, BaseExpression parameters) {
-        return new ClassFileConstructorInvocationExpression(lineNumber, objectType, descriptor, clone(methodTypes.getParameterTypes()), parameters, methodTypes.isVarArgs());
+        ClassFileConstructorInvocationExpression expression = new ClassFileConstructorInvocationExpression(lineNumber, objectType, descriptor, clone(methodTypes.getParameterTypes()), parameters, methodTypes.isVarArgs());
+        expression.setTypeParameters(methodTypes.getTypeParameters());
+        return expression;
     }
 
     @Override
     public ClassFileSuperConstructorInvocationExpression newSuperConstructorInvocationExpression(
             int lineNumber, ObjectType objectType, String descriptor, TypeMaker.MethodTypes methodTypes, BaseExpression parameters) {
-        return new ClassFileSuperConstructorInvocationExpression(lineNumber, objectType, descriptor, clone(methodTypes.getParameterTypes()), parameters, methodTypes.isVarArgs());
+        ClassFileSuperConstructorInvocationExpression expression = new ClassFileSuperConstructorInvocationExpression(lineNumber, objectType, descriptor, clone(methodTypes.getParameterTypes()), parameters, methodTypes.isVarArgs());
+        expression.setTypeParameters(methodTypes.getTypeParameters());
+        return expression;
     }
 
     @Override

@@ -22,4 +22,16 @@ public class GenericConstructorSuper<T> extends GenericConstructorSuperBase {
     private GenericConstructorSuper(Builder<T> builder) {
         super(Objects.requireNonNull(builder, "builder"));
     }
+
+    private <U extends GenericConstructorSuperBase.AbstractBuilder<U>> GenericConstructorSuper(GenericConstructorSuperBase.AbstractBuilder<U> builder, int unused) {
+        super(builder);
+    }
+
+    GenericConstructorSuper(Builder<T> builder, String name) {
+        this(Objects.requireNonNull(builder, "builder"), name.length());
+    }
+
+    GenericConstructorSuper(String name) {
+        this(new Builder<T>());
+    }
 }

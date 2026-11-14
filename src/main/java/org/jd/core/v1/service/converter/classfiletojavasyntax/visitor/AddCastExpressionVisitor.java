@@ -651,7 +651,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /**
      * The bytecode cast of an argument of a generic constructor ('&lt;T extends Foo&lt;T&gt;&gt; Base(Foo&lt;T&gt; foo)') was typed with the parameter type,
-     * whose T is the one of the constructor and which the source does not spell: the cast keeps its erased type.
+     * whose T is the one of the constructor (or its bound) and which the source does not spell: the cast keeps its erased type.
      */
     private void eraseCastsToTypeVariablesOfTheConstructor(BaseExpression parameters) {
         if (typeVariablesOfTheCall.isEmpty() || parameters == null) {
@@ -659,7 +659,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         for (Expression parameter : parameters) {
             if (parameter instanceof CastExpression cast && cast.isByteCodeCheckCast() && cast.getType() instanceof ObjectType castType
-                    && castType.getTypeArguments() != null && !Collections.disjoint(castType.findTypeParametersInType(), typeVariablesOfTheCall)) {
+                    && castType.getTypeArguments() != null) {
                 cast.setType(castType.createType((BaseTypeArgument) null));
             }
         }

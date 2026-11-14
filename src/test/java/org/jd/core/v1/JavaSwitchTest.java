@@ -146,8 +146,8 @@ public class JavaSwitchTest extends AbstractJdTest {
         // Check decompiled source code
         assertNotEquals(-1, source.indexOf("N resultLeft, resultRight;"));
         assertEquals(-1, source.indexOf("assert false;"));
-        assertTrue(source.matches(PatternMaker.make("/* 32:", "resultLeft = originalRoot.childOrNull(NestedEnumSwitchSide.LEFT);")));
-        assertTrue(source.matches(PatternMaker.make("/* 35:", "case LEFT:")));
+        assertTrue(source.matches(PatternMaker.make("/* 31:", "resultLeft = originalRoot.childOrNull(NestedEnumSwitchSide.LEFT);")));
+        assertTrue(source.matches(PatternMaker.make("/* 34:", "case LEFT:")));
 
         // Recompile decompiled source code and check errors
         assertTrue(CompilerUtil.compile("1.8", new InMemoryJavaSourceFileObject(internalClassName, source)));

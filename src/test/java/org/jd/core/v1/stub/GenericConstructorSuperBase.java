@@ -7,8 +7,6 @@
 
 package org.jd.core.v1.stub;
 
-import java.util.Objects;
-
 /**
  * A constructor with its own type parameter, the shape of commons-lang3 3.21.0's AbstractReflection.
  */

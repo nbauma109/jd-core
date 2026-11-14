@@ -27,8 +27,7 @@ public class NestedEnumSwitch<N extends NestedEnumSwitch.Node<N>> {
             case IDENTITY:
                 this.changedRoot = originalRoot;
                 return this;
-            case REBUILDING_CHANGE:
-            case REBALANCING_CHANGE:
+            case REBUILDING_CHANGE, REBALANCING_CHANGE:
                 N resultLeft = originalRoot.childOrNull(NestedEnumSwitchSide.LEFT);
                 N resultRight = originalRoot.childOrNull(NestedEnumSwitchSide.RIGHT);
                 switch (side) {

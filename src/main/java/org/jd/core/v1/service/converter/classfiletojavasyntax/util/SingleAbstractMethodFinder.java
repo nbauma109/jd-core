@@ -23,7 +23,7 @@ import java.util.Set;
 
 /** Finds the only abstract method of a functional interface, the inherited ones included. */
 public class SingleAbstractMethodFinder {
-    private static final String[] NONE = new String[0];
+    private static final String[] NONE = {};
     /** The parameters of the public methods of Object: a covariant redeclaration (String toString()) is one of them too */
     private static final Set<String> OBJECT_METHODS = Set.of("equals(Ljava/lang/Object;)", "hashCode()", "toString()");
 
@@ -56,7 +56,7 @@ public class SingleAbstractMethodFinder {
 
         for (Member member : members.values()) {
             if (member.isAbstract) {
-                if (found != null && !(found.method.name().equals(member.method.name()) && arity(found.method.descriptor()) == arity(member.method.descriptor()))) {
+                if (found != null && (!found.method.name().equals(member.method.name()) || (arity(found.method.descriptor()) != arity(member.method.descriptor())))) {
                     return NONE;
                 }
                 found = found == null ? member : moreSpecific(found, member);

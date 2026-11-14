@@ -667,47 +667,34 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     @Override
     public void visit(SuperConstructorInvocationExpression expression) {
-        BaseExpression parameters = expression.getParameters();
+        ClassFileSuperConstructorInvocationExpression call = (ClassFileSuperConstructorInvocationExpression)expression;
 
-        if (!Utils.isEmpty(parameters)) {
-            boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
-            boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
-            boolean rawCast = false;
-            ClassFileSuperConstructorInvocationExpression call = (ClassFileSuperConstructorInvocationExpression)expression;
-            BaseType parameterTypes = call.getParameterTypes();
-            Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
-            // The type variables of the constructor itself are inferred: a cast to them would name the ones of the class by mistake
-            typeVariablesOfTheCall = call.getTypeParameters() == null ? Collections.emptySet() : new HashSet<>(identifiersOf(call.getTypeParameters()));
-            try {
-                BaseExpression updated = updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast));
-                eraseCastsToTypeVariablesOfTheConstructor(updated);
-                expression.setParameters(updated);
-            } finally {
-                typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
-            }
-        }
+        expression.setParameters(updateConstructorParameters(expression.getObjectType(), expression.getParameters(), call.getParameterTypes(), call.getTypeParameters()));
     }
 
     @Override
     public void visit(ConstructorInvocationExpression expression) {
-        BaseExpression parameters = expression.getParameters();
+        ClassFileConstructorInvocationExpression call = (ClassFileConstructorInvocationExpression)expression;
 
-        if (!Utils.isEmpty(parameters)) {
-            boolean unique = typeMaker.matchCount(expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
-            boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, expression.getObjectType().getInternalName(), StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
-            boolean rawCast = false;
-            ClassFileConstructorInvocationExpression call = (ClassFileConstructorInvocationExpression)expression;
-            BaseType parameterTypes = call.getParameterTypes();
-            Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
-            // The type variables of the constructor itself are inferred: a cast to them would name the ones of the class by mistake
-            typeVariablesOfTheCall = call.getTypeParameters() == null ? Collections.emptySet() : new HashSet<>(identifiersOf(call.getTypeParameters()));
-            try {
-                BaseExpression updated = updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, rawCast));
-                eraseCastsToTypeVariablesOfTheConstructor(updated);
-                expression.setParameters(updated);
-            } finally {
-                typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
-            }
+        expression.setParameters(updateConstructorParameters(expression.getObjectType(), expression.getParameters(), call.getParameterTypes(), call.getTypeParameters()));
+    }
+
+    private BaseExpression updateConstructorParameters(ObjectType objectType, BaseExpression parameters, BaseType parameterTypes, BaseTypeParameter constructorTypeParameters) {
+        if (Utils.isEmpty(parameters)) {
+            return parameters;
+        }
+        String internalTypeName = objectType.getInternalName();
+        boolean unique = typeMaker.matchCount(internalTypeName, StringConstants.INSTANCE_CONSTRUCTOR, parameters.size(), true) <= 1;
+        boolean forceCast = !unique && typeMaker.matchCount(Collections.emptyMap(), typeBounds, internalTypeName, StringConstants.INSTANCE_CONSTRUCTOR, parameters, true) > 1;
+        Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
+        // The type variables of the constructor itself are inferred: a cast to them would name the ones of the class by mistake
+        typeVariablesOfTheCall = constructorTypeParameters == null ? Collections.emptySet() : new HashSet<>(identifiersOf(constructorTypeParameters));
+        try {
+            BaseExpression updated = updateParameters(Collections.emptyMap(), typeBounds, parameterTypes, null, parameters, new CastFlags(forceCast, unique, false));
+            eraseCastsToTypeVariablesOfTheConstructor(updated);
+            return updated;
+        } finally {
+            typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
         }
     }
 

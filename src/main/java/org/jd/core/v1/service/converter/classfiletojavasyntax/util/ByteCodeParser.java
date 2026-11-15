@@ -347,6 +347,7 @@ public class ByteCodeParser {
                     break;
                 case ISTORE, LSTORE, FSTORE, DSTORE:
                     valueRef = stack.pop();
+                    valueRef = widenIntegerLimit(valueRef, opcode == LSTORE ? TYPE_LONG : opcode == FSTORE ? TYPE_FLOAT : opcode == DSTORE ? TYPE_DOUBLE : TYPE_INT);
                     localVariable = getLocalVariableInAssignment(code[++offset] & 255, offset + 2, valueRef);
                     localVariable.setAssigned(true);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
@@ -363,16 +364,19 @@ public class ByteCodeParser {
                     break;
                 case LSTORE_0, LSTORE_1, LSTORE_2, LSTORE_3:
                     valueRef = stack.pop();
+                    valueRef = widenIntegerLimit(valueRef, TYPE_LONG);
                     localVariable = getLocalVariableInAssignment(opcode - 63, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
                 case FSTORE_0, FSTORE_1, FSTORE_2, FSTORE_3:
                     valueRef = stack.pop();
+                    valueRef = widenIntegerLimit(valueRef, TYPE_FLOAT);
                     localVariable = getLocalVariableInAssignment(opcode - 67, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
                 case DSTORE_0, DSTORE_1, DSTORE_2, DSTORE_3:
                     valueRef = stack.pop();
+                    valueRef = widenIntegerLimit(valueRef, TYPE_DOUBLE);
                     localVariable = getLocalVariableInAssignment(opcode - 71, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
@@ -1419,6 +1423,18 @@ public class ByteCodeParser {
         } else {
             stack.push(new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable));
         }
+    }
+
+    /**
+     * The long (float, double) constant which is 'Integer.MAX_VALUE' is written with the int field: the variable it is stored in is a long (float, double), not
+     * an int; the expression keeps its int type elsewhere, where 'Long.valueOf(Integer.MAX_VALUE)' is a boxing of an int constant
+     */
+    private static Expression widenIntegerLimit(Expression valueRef, Type type) {
+        if (type != TYPE_INT && valueRef instanceof FieldReferenceExpression field && TYPE_INT.equals(field.getType())
+                && StringConstants.JAVA_LANG_INTEGER.equals(field.getInternalTypeName())) {
+            return new FieldReferenceExpression(field.getLineNumber(), type, field.getExpression(), field.getInternalTypeName(), field.getName(), field.getDescriptor());
+        }
+        return valueRef;
     }
 
     private void parseSTORE(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, Expression valueRef) {

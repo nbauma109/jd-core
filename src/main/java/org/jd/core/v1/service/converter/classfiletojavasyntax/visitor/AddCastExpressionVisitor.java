@@ -123,8 +123,12 @@ import static org.apache.bcel.Const.ACC_PRIVATE;
 import static org.apache.bcel.Const.ACC_STATIC;
 import static org.apache.bcel.Const.ACC_SYNTHETIC;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BYTE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_CHAR;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_DOUBLE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_FLOAT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_INT;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_LONG;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_SHORT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_BOOLEAN;
 
@@ -424,7 +428,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         boolean ulr = castToGenericInLambda;
         castToGenericInLambda = visitingLambda && lambdaReturnFromTarget;
         try {
-            return updateExpression(typeBindings, localTypeBounds, returnedType, null, expression, false, true, false);
+            return castConstantsToNarrowTarget(updateExpression(typeBindings, localTypeBounds, returnedType, null, expression, false, true, false), returnedType);
         } finally {
             castToGenericInLambda = ulr;
         }
@@ -642,7 +646,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             // The declared type of a local variable is known even inside a lambda body
             castToGenericInLambda = visitingLambda && type != null && type.isGenericType();
             try {
-                declaration.setExpression(updateExpression(Collections.emptyMap(), typeBounds, type, null, expression, false, true, false));
+                declaration.setExpression(castConstantsToNarrowTarget(updateExpression(Collections.emptyMap(), typeBounds, type, null, expression, false, true, false), type));
             } finally {
                 castToGenericInLambda = ctgil;
             }
@@ -1589,7 +1593,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 return;
             }
 
-            expression.setRightExpression(updateExpression(Collections.emptyMap(), typeBounds, expression.getLeftExpression().getType(), null, rightExpression, false, true, false));
+            expression.setRightExpression(castConstantsToNarrowTarget(updateExpression(Collections.emptyMap(), typeBounds, expression.getLeftExpression().getType(), null, rightExpression, false, true, false), expression.getLeftExpression().getType()));
             return;
         }
 
@@ -1634,6 +1638,19 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         normalizeTernaryBooleanConstants(expression, expression.getType());
         expression.setTrueExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getTrueExpression(), false, true, false));
         expression.setFalseExpression(updateExpression(Collections.emptyMap(), typeBounds, expressionType, null, expression.getFalseExpression(), false, true, false));
+    }
+
+    /** 'byte b = flag ? 53 : 48;' is an error: the type of a ternary of two int constants is int, which javac does not narrow (as a argument, the whole ternary is cast) */
+    private static Expression castConstantsToNarrowTarget(Expression expression, Type target) {
+        if (expression instanceof TernaryOperatorExpression ternary && target instanceof PrimitiveType primitive && primitive.getDimension() == 0
+                && (primitive == TYPE_BYTE || primitive == TYPE_SHORT || primitive == TYPE_CHAR)
+                && ternary.getTrueExpression() instanceof IntegerConstantExpression trueValue
+                && ternary.getFalseExpression() instanceof IntegerConstantExpression falseValue
+                && (primitive != TYPE_CHAR || !TYPE_CHAR.equals(trueValue.getType()) || !TYPE_CHAR.equals(falseValue.getType()))) {
+            ternary.setTrueExpression(new CastExpression(trueValue.getLineNumber(), primitive, trueValue));
+            ternary.setFalseExpression(new CastExpression(falseValue.getLineNumber(), primitive, falseValue));
+        }
+        return expression;
     }
 
     /** A type variable with a bound (<C extends Comparable>) cannot be inferred from any target type */
@@ -1695,7 +1712,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * implementing 'Predicate&lt;Object&gt;'): the source has an unchecked cast, which the bytecode does not
      */
     private boolean isUncheckedTypeVariableMismatch(ObjectType target, Expression expression, ObjectType expressionType) {
-        if ((!(expression instanceof FieldReferenceExpression) && !expression.isThisExpression() && !expression.isLocalVariableReferenceExpression())
+        if ((!(expression instanceof FieldReferenceExpression) && !expression.isThisExpression() && !expression.isLocalVariableReferenceExpression() && !expression.isNewExpression())
                 || target.getTypeArguments() == null || target.getDimension() != 0 || expressionType.getDimension() != 0) {
             return false;
         }
@@ -3131,6 +3148,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         expression = updateExpression(typeBindings, localTypeBounds, type, unboundType, expression, forceCast, unique, rawCast);
 
+        if (forceCast && (type == TYPE_LONG || type == TYPE_FLOAT || type == TYPE_DOUBLE) && expression instanceof FieldReferenceExpression field
+                && TYPE_INT.equals(field.getType()) && StringConstants.JAVA_LANG_INTEGER.equals(field.getInternalTypeName())) {
+            // The long constant 2147483647 is written 'Integer.MAX_VALUE', which an overload for an int would take: 'skip((long)Integer.MAX_VALUE)'
+            expression = new CastExpression(type, expression);
+        }
+
         if (type == TYPE_BYTE) {
             if (expression.isIntegerConstantExpression()) {
                 expression = new CastExpression(TYPE_BYTE, expression);
@@ -3269,6 +3292,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             boolean explicitTypeArguments = expression instanceof ClassFileNewExpression newExpression
                                     && newExpression.getBodyDeclaration() != null && ta1 != null && ta1.isGenericTypeArgument() && ta2 != null;
                             fixedSupertypes |= explicitTypeArguments;
+                            // 'new IntegerIterator()' is an Iterator<Integer>, never an Iterator<E> of the class: the source casts it, the bytecode does not
+                            fixedSupertypes |= expression instanceof ClassFileNewExpression && ta1 != null && expressionObjectType.getTypeArguments() == null
+                                    && isUncheckedTypeVariableMismatch(objectType, expression, expressionObjectType);
                             // 'new Foo<>(wildcardParameterizedArgument)' is a Foo<capture>, which no target type can be inferred for
                             fixedSupertypes |= expression instanceof ClassFileNewExpression && ta1 != null && ta2 != null
                                     && ta2.equals(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT) && !hasWildcardTypeArgument(objectType);
@@ -3322,7 +3348,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (!unique && isProperMethodReference(expression) && type instanceof ObjectType targetType
                     && expression.getType() instanceof ObjectType expressionObjectType
                     && targetType.rawEquals(expressionObjectType) && hasKnownTypeParameters(type)
-                    && !hasWildcardTypeArgument(targetType) && !containsErasedRawGenericType(targetType, unboundType)) {
+                    && !hasWildcardTypeArgument(targetType) && !containsErasedRawGenericType(targetType, unboundType)
+                    && !isBoundOfVariableNobodyBinds(targetType, unboundType, localTypeBounds)) {
                 // A method reference may be compatible with several overloads: cast to the target functional interface type
                 expression = addCastExpression(type, expression);
             }
@@ -3601,6 +3628,29 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      * declared parameter type (erasure fallback); a raw type written in the method's declaration is legal
      * in a disambiguating cast.
      */
+    /**
+     * 'Supplier&lt;T&gt;' of 'void expand(Supplier&lt;T&gt;, Consumer&lt;T&gt;)' with 'T extends ArchiveEntry' and nothing which binds T: 'Supplier&lt;ArchiveEntry&gt;' is only what
+     * the bound makes of it, and a cast to it would fix the T which javac infers (as 'SevenZArchiveEntry') to the bound
+     */
+    private boolean isBoundOfVariableNobodyBinds(ObjectType targetType, Type unboundType, Map<String, BaseType> localTypeBounds) {
+        if (!(unboundType instanceof ObjectType unboundObjectType)) {
+            return false;
+        }
+        List<TypeArgument> targetArgs = toTypeArgumentList(targetType.getTypeArguments());
+        List<TypeArgument> unboundArgs = toTypeArgumentList(unboundObjectType.getTypeArguments());
+
+        if (targetArgs.size() != unboundArgs.size()) {
+            return false;
+        }
+        for (int i = 0; i < targetArgs.size(); i++) {
+            if (unboundArgs.get(i) instanceof GenericType variable && variable.getDimension() == 0 && typeVariablesOfTheCall.contains(variable.getName())
+                    && targetArgs.get(i).equals(localTypeBounds.get(variable.getName()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private boolean containsErasedRawGenericType(ObjectType targetType, Type unboundType) {
         if (isRawGenericType(targetType)) {
             if (unboundType == null) {

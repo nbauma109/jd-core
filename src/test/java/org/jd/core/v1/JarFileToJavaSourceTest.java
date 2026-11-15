@@ -93,6 +93,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testCommonsCompress() throws Exception {
+        String version = pomVersion("org.apache.commons", "commons-compress");
+        testAtTag("https://github.com/apache/commons-compress", "commons-compress", "rel/commons-compress-" + version, "org.apache.commons", "commons-compress", version, true, null);
+    }
+
+    @Test
     public void testCommonsMath3() throws Exception {
         testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_3_6_1",
                 "org.apache.commons", "commons-math3", "3.6.1", true, findJava8Home());

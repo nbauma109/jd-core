@@ -2328,6 +2328,27 @@ public class ByteCodeParser {
         return opcode == DUP || opcode == DUP_X1 || opcode == DUP_X2 || opcode == DUP2 || opcode == DUP2_X1 || opcode == DUP2_X2;
     }
 
+    /** @return the value to assign, which may be the one of the previous statement folded in it, or null when the previous statement took the assignment ('a = b = c') */
+    private Expression foldPreviousStatement(Statements statements, int lineNumber, Expression leftExpression, Expression rightExpression) {
+        if (statements.isEmpty() || !statements.getLast().isExpressionStatement()) {
+            return rightExpression;
+        }
+        ExpressionStatement lastES = (ExpressionStatement) statements.getLast();
+        Expression lastExpression = lastES.getExpression();
+
+        if (lastExpression.isBinaryOperatorExpression()) {
+            return mergeMultiAssignment(lineNumber, leftExpression, rightExpression, lastES, lastExpression) ? null : rightExpression;
+        }
+        if (lastExpression.isPreOperatorExpression()) {
+            return foldPreOperator(statements, lastExpression, rightExpression);
+        }
+        if (lastExpression.isPostOperatorExpression() && ((PostOperatorExpression) lastExpression).getExpression() == rightExpression) {
+            statements.removeLast();
+            return lastExpression;
+        }
+        return rightExpression;
+    }
+
     private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression, boolean valueOfStoreIsUsedOnce) {
         leftExpression = rewriteArrayIndexPostOperator(statements, leftExpression);
         String assignmentOperator = "=";
@@ -2349,23 +2370,11 @@ public class ByteCodeParser {
             return;
         }
 
-        if ("=".equals(assignmentOperator) && !statements.isEmpty() && statements.getLast().isExpressionStatement()) {
-            ExpressionStatement lastES = (ExpressionStatement) statements.getLast();
-            Expression lastExpression = lastES.getExpression();
+        if ("=".equals(assignmentOperator)) {
+            rightExpression = foldPreviousStatement(statements, lineNumber, leftExpression, rightExpression);
 
-            if (lastExpression.isBinaryOperatorExpression()) {
-                if (mergeMultiAssignment(lineNumber, leftExpression, rightExpression, lastES, lastExpression)) {
-                    return;
-                }
-            } else if (lastExpression.isPreOperatorExpression()) {
-                rightExpression = foldPreOperator(statements, lastExpression, rightExpression);
-            } else if (lastExpression.isPostOperatorExpression()) {
-                PostOperatorExpression poe = (PostOperatorExpression)lastExpression;
-
-                if (poe.getExpression() == rightExpression) {
-                    rightExpression = poe;
-                    statements.removeLast();
-                }
+            if (rightExpression == null) {
+                return;
             }
         }
 

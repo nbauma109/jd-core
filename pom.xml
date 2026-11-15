@@ -212,6 +212,19 @@
     </dependency>
     <dependency>
       <groupId>org.apache.commons</groupId>
+      <artifactId>commons-compress</artifactId>
+      <version>1.28.0</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <!-- Only here for the version tested by JarFileToJavaSourceTest: jd-util's bcel decides the version of commons-lang3 -->
+          <groupId>org.apache.commons</groupId>
+          <artifactId>commons-lang3</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
       <artifactId>commons-text</artifactId>
       <version>1.15.0</version>
       <scope>test</scope>

@@ -26,7 +26,7 @@ public class AccessorStaticsTest extends AbstractJdTest {
 
             assertFalse(source, source.contains("access$"));
             assertTrue(source, source.contains("AccessorStatics.counter++"));
-            assertTrue(source, source.contains("AccessorStatics.total++"));
+            assertTrue(source, source.contains("++AccessorStatics.total;") || source.contains("AccessorStatics.total++"));
             assertTrue(source, source.contains("AccessorStatics.total += "));
             assertTrue(source, source.contains("AccessorStatics.twice("));
         }

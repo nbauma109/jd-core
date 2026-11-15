@@ -64,6 +64,7 @@ jobs:
           - testCommonsIO
           - testCommonsCodec
           - testCommonsCollections4
+          - testCommonsCompress
           - testCommonsImaging
           - testCommonsLang3
           - testCommonsMath3

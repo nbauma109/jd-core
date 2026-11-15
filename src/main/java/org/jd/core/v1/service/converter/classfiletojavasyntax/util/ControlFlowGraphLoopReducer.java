@@ -839,7 +839,19 @@ public final class ControlFlowGraphLoopReducer {
         return newEnd;
     }
 
-    private static BasicBlock reduceLoop(Loop loop) {
+    /** The 'end' of the loops which contain this one: 'break READ_LOOP' of a loop which is nested in an infinite one jumps to its 'end' */
+    private static Set<BasicBlock> endsOfEnclosingLoops(Loop loop, List<Loop> loops) {
+        Set<BasicBlock> ends = new HashSet<>();
+
+        for (Loop other : loops) {
+            if (other != loop && other.getEnd() != null && other.getEnd() != END && other.getMembers().contains(loop.getStart()) && !other.getMembers().contains(other.getEnd())) {
+                ends.add(other.getEnd());
+            }
+        }
+        return ends;
+    }
+
+    private static BasicBlock reduceLoop(Loop loop, List<Loop> loops) {
         BasicBlock start = loop.getStart();
         Set<BasicBlock> members = loop.getMembers();
         BasicBlock end = loop.getEnd();
@@ -847,6 +859,9 @@ public final class ControlFlowGraphLoopReducer {
 
         // Recheck 'end' block
         end = recheckEndBlock(loop, start, members, end);
+
+        // The code which follows an enclosing loop is reached by a 'break' of that loop, even when it is reached from this loop only
+        Set<BasicBlock> endsOfEnclosingLoops = endsOfEnclosingLoops(loop, loops);
 
         // Build new basic block for loop
         BasicBlock loopBB = start.getControlFlowGraph().newBasicBlock(TYPE_LOOP, start.getFromOffset(), start.getToOffset());
@@ -876,7 +891,7 @@ public final class ControlFlowGraphLoopReducer {
                     member.setNext(LOOP_START);
                 } else if (bb == end) {
                     member.setNext(LOOP_END);
-                } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
+                } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
                     member.setNext(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
                 }
             } else if (member.getType() == TYPE_CONDITIONAL_BRANCH) {
@@ -886,7 +901,7 @@ public final class ControlFlowGraphLoopReducer {
                     member.setNext(LOOP_START);
                 } else if (bb == end) {
                     member.setNext(LOOP_END);
-                } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
+                } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
                     member.setNext(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
                 }
 
@@ -896,7 +911,7 @@ public final class ControlFlowGraphLoopReducer {
                     member.setBranch(LOOP_START);
                 } else if (bb == end) {
                     member.setBranch(LOOP_END);
-                } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
+                } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
                     member.setBranch(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
                 }
             } else if (member.getType() == TYPE_SWITCH_DECLARATION) {
@@ -908,7 +923,7 @@ public final class ControlFlowGraphLoopReducer {
                         switchCase.setBasicBlock(LOOP_START);
                     } else if (bb == end) {
                         switchCase.setBasicBlock(LOOP_END);
-                    } else if (!members.contains(bb) && bb.getPredecessors().size() > 1) {
+                    } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
                         switchCase.setBasicBlock(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
                     }
                 }
@@ -953,7 +968,7 @@ public final class ControlFlowGraphLoopReducer {
         for (int i=0, loopsLength=loops.size(); i<loopsLength; i++) {
             loop = loops.get(i);
             startBB = loop.getStart();
-            loopBB = reduceLoop(loop);
+            loopBB = reduceLoop(loop, loops);
 
             // Update other loops
             for (int j=loopsLength-1; j>i; j--) {

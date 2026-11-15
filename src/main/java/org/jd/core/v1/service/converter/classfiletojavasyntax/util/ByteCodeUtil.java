@@ -256,9 +256,11 @@ public final class ByteCodeUtil {
         ConstantNameAndType constantNameAndType;
         String descriptor;
         int depth = 0;
+        boolean previousWide = false;
 
         for (int offset=bb.getFromOffset(), toOffset=bb.getToOffset(); offset<toOffset; offset++) {
             int opcode = code[offset] & 255;
+            boolean wide = isWideResult(opcode);
 
             switch (opcode) {
                 case ACONST_NULL,
@@ -338,7 +340,7 @@ public final class ByteCodeUtil {
                     depth -= 2;
                     break;
                 case POP2:
-                    depth -= 2;
+                    depth -= previousWide ? 1 : 2;
                     break;
                 case RET,
                      NEWARRAY:
@@ -371,6 +373,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case INVOKESTATIC:
@@ -381,6 +384,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case INVOKEINTERFACE:
@@ -392,6 +396,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case INVOKEDYNAMIC:
@@ -403,6 +408,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case WIDE:
@@ -437,10 +443,32 @@ public final class ByteCodeUtil {
                     offset += 4;
                     break;
             }
+            previousWide = wide;
         }
 
         return depth;
     }
+
+    /** The instructions which push a long or a double: one value for the decompiler, which a POP2 pops alone */
+    private static boolean isWideResult(int opcode) {
+        return switch (opcode) {
+            case LCONST_0, LCONST_1, DCONST_0, DCONST_1, LDC2_W,
+                 LLOAD, DLOAD, LLOAD_0, LLOAD_1, LLOAD_2, LLOAD_3, DLOAD_0, DLOAD_1, DLOAD_2, DLOAD_3,
+                 LALOAD, DALOAD,
+                 LADD, DADD, LSUB, DSUB, LMUL, DMUL, LDIV, DDIV, LREM, DREM, LNEG, DNEG,
+                 LSHL, LSHR, LUSHR, LAND, LOR, LXOR,
+                 I2L, I2D, F2L, F2D, L2D, D2L -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean returnsWide(String descriptor) {
+        int length = descriptor.length();
+        char last = descriptor.charAt(length - 1);
+
+        return (last == 'J' || last == 'D') && descriptor.charAt(length - 2) != '[';
+    }
+
 
     public static int getMinDepth(final BasicBlock bb) {
         final Method method = bb.getControlFlowGraph().getMethod();
@@ -456,9 +484,11 @@ public final class ByteCodeUtil {
         String descriptor;
         int depth = 0;
         int minDepth = 0;
+        boolean previousWide = false;
 
         for (int offset=bb.getFromOffset(), toOffset=bb.getToOffset(); offset<toOffset; offset++) {
             int opcode = code[offset] & 255;
+            boolean wide = isWideResult(opcode);
 
             switch (opcode) {
                 case ACONST_NULL,
@@ -604,7 +634,7 @@ public final class ByteCodeUtil {
                     }
                     break;
                 case POP2:
-                    depth -= 2;
+                    depth -= previousWide ? 1 : 2;
                     if (minDepth > depth) {
                         minDepth = depth;
                     }
@@ -656,6 +686,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case INVOKESTATIC:
@@ -669,6 +700,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case INVOKEINTERFACE:
@@ -683,6 +715,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case INVOKEDYNAMIC:
@@ -697,6 +730,7 @@ public final class ByteCodeUtil {
 
                     if (descriptor.charAt(descriptor.length()-1) != 'V') {
                         depth++;
+                        wide = returnsWide(descriptor);
                     }
                     break;
                 case WIDE:
@@ -738,6 +772,7 @@ public final class ByteCodeUtil {
                     offset += 4;
                     break;
             }
+            previousWide = wide;
         }
 
         return minDepth;

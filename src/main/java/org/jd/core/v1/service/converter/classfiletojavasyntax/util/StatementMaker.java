@@ -1877,16 +1877,10 @@ public class StatementMaker {
                 Expression poe = statement.getExpression();
                 String operator = poe.getOperator();
 
-                if ("++".equals(operator) || "--".equals(operator)) {
-                    if (statement.isExpressionStatement()) {
-                        ExpressionStatement es = (ExpressionStatement) statement;
-                        // Replace pre-operator statement with post-operator statement
-                        es.setExpression(new PostOperatorExpression(poe.getLineNumber(), poe.getExpression(), operator));
-                    } else if (statement.isReturnExpressionStatement()) {
-                        ReturnExpressionStatement res = (ReturnExpressionStatement) statement;
-                        // Replace pre-operator statement with post-operator statement
-                        res.setExpression(new PostOperatorExpression(poe.getLineNumber(), poe.getExpression(), operator));
-                    }
+                if (("++".equals(operator) || "--".equals(operator)) && statement.isExpressionStatement()) {
+                    ExpressionStatement es = (ExpressionStatement) statement;
+                    // Replace pre-operator statement with post-operator statement
+                    es.setExpression(new PostOperatorExpression(poe.getLineNumber(), poe.getExpression(), operator));
                 }
             }
         }

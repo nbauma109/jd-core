@@ -93,6 +93,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testCommonsCompress() throws Exception {
+        String version = pomVersion("org.apache.commons", "commons-compress");
+        testAtTag("https://github.com/apache/commons-compress", "commons-compress", "rel/commons-compress-" + version, "org.apache.commons", "commons-compress", version, true, null);
+    }
+
+    @Test
     public void testCommonsMath3() throws Exception {
         testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_3_6_1",
                 "org.apache.commons", "commons-math3", "3.6.1", true, findJava8Home());
@@ -101,9 +107,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     @Test
     public void testCommonsText() throws Exception {
         String version = pomVersion("org.apache.commons", "commons-text");
-        // EntityArraysTest.testForDuplicatedDeclaredMapKeys parses the lines of the source file, which carry the line numbers of the decompiler
+        // One test of the entity arrays parses the lines of the source file, which carry the line numbers of the decompiler,
+        // and one test of the URL lookup gets a page of a web site, which the network of the runner does not always give
         ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test",
-                List.of("-Dtest=!EntityArraysTest#testForDuplicatedDeclaredMapKeys"));
+                List.of("-Dtest=!EntityArraysTest#testForDuplicatedDeclaredMapKeys,!UrlStringLookupTest#testHttpScheme"));
         testAtTag("https://github.com/apache/commons-text", "commons-text", "rel/commons-text-" + version, "org.apache.commons", "commons-text", version, true, null, layout);
     }
 

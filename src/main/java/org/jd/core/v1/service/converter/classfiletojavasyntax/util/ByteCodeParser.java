@@ -347,6 +347,7 @@ public class ByteCodeParser {
                     break;
                 case ISTORE, LSTORE, FSTORE, DSTORE:
                     valueRef = stack.pop();
+                    valueRef = widenStoredValue(stack, valueRef, typeStoredBy(opcode));
                     localVariable = getLocalVariableInAssignment(code[++offset] & 255, offset + 2, valueRef);
                     localVariable.setAssigned(true);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
@@ -363,16 +364,19 @@ public class ByteCodeParser {
                     break;
                 case LSTORE_0, LSTORE_1, LSTORE_2, LSTORE_3:
                     valueRef = stack.pop();
+                    valueRef = widenStoredValue(stack, valueRef, TYPE_LONG);
                     localVariable = getLocalVariableInAssignment(opcode - 63, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
                 case FSTORE_0, FSTORE_1, FSTORE_2, FSTORE_3:
                     valueRef = stack.pop();
+                    valueRef = widenStoredValue(stack, valueRef, TYPE_FLOAT);
                     localVariable = getLocalVariableInAssignment(opcode - 67, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
                 case DSTORE_0, DSTORE_1, DSTORE_2, DSTORE_3:
                     valueRef = stack.pop();
+                    valueRef = widenStoredValue(stack, valueRef, TYPE_DOUBLE);
                     localVariable = getLocalVariableInAssignment(opcode - 71, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
@@ -385,7 +389,7 @@ public class ByteCodeParser {
                     valueRef = stack.pop();
                     indexRef = stack.pop();
                     arrayRef = stack.pop();
-                    createAssignment(statements, stack, lineNumber, new ArrayExpression(lineNumber, arrayRef, indexRef), valueRef);
+                    createAssignment(statements, stack, lineNumber, new ArrayExpression(lineNumber, arrayRef, indexRef), valueRef, !isDuplicate(code, offset + 1));
                     break;
                 case AASTORE:
                     valueRef = stack.pop();
@@ -1421,6 +1425,37 @@ public class ByteCodeParser {
         }
     }
 
+    /**
+     * The long (float, double) constant which is 'Integer.MAX_VALUE' is written with the int field: the variable it is stored in is a long (float, double), not
+     * an int; the expression keeps its int type elsewhere, where 'Long.valueOf(Integer.MAX_VALUE)' is a boxing of an int constant
+     */
+    private static Type typeStoredBy(int opcode) {
+        return switch (opcode) {
+            case LSTORE -> TYPE_LONG;
+            case FSTORE -> TYPE_FLOAT;
+            case DSTORE -> TYPE_DOUBLE;
+            default -> TYPE_INT;
+        };
+    }
+
+    /** The value which the store keeps on the stack (a DUP) is the same expression: it is replaced there too */
+    private static Expression widenStoredValue(DefaultStack<Expression> stack, Expression valueRef, Type type) {
+        Expression widened = widenIntegerLimit(valueRef, type);
+
+        if (widened != valueRef) {
+            stack.replace(valueRef, widened);
+        }
+        return widened;
+    }
+
+    private static Expression widenIntegerLimit(Expression valueRef, Type type) {
+        if (type != TYPE_INT && valueRef instanceof FieldReferenceExpression field && TYPE_INT.equals(field.getType())
+                && StringConstants.JAVA_LANG_INTEGER.equals(field.getInternalTypeName())) {
+            return new FieldReferenceExpression(field.getLineNumber(), type, field.getExpression(), field.getInternalTypeName(), field.getName(), field.getDescriptor());
+        }
+        return valueRef;
+    }
+
     private void parseSTORE(Statements statements, DefaultStack<Expression> stack, int lineNumber, int offset, AbstractLocalVariable localVariable, Expression valueRef) {
         ClassFileLocalVariableReferenceExpression vre = new ClassFileLocalVariableReferenceExpression(lineNumber, offset, localVariable);
 
@@ -2242,6 +2277,18 @@ public class ByteCodeParser {
     }
 
     private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression) {
+        createAssignment(statements, stack, lineNumber, leftExpression, rightExpression, false);
+    }
+
+    /** The value which an array store leaves on the stack is duplicated again ('array[i++] |= x' goes on with a DUP2 for the element): it is not a value of the store */
+    private static final Set<Integer> DUPLICATING_OPCODES = Set.of((int) DUP, (int) DUP_X1, (int) DUP_X2, (int) DUP2, (int) DUP2_X1, (int) DUP2_X2);
+
+    private static boolean isDuplicate(byte[] code, int offset) {
+        // (an array store is never the last instruction of a method)
+        return DUPLICATING_OPCODES.contains(code[offset] & 255);
+    }
+
+    private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression, boolean valueOfStoreIsUsedOnce) {
         leftExpression = rewriteArrayIndexPostOperator(statements, leftExpression);
         String assignmentOperator = "=";
 
@@ -2249,6 +2296,9 @@ public class ByteCodeParser {
             BinaryOperatorExpression boe = (BinaryOperatorExpression) rightExpression;
             String compoundOperator = toCompoundAssignmentOperator(boe.getOperator());
             if (compoundOperator != null && sameExpression(stripArrayIndexPostOperator(leftExpression), boe.getLeftExpression())) {
+                if (valueOfStoreIsUsedOnce && leftExpression instanceof ArrayExpression && pushValueOfCompoundAssignmentOfArrayElement(stack, lineNumber, leftExpression, boe, compoundOperator)) {
+                    return;
+                }
                 assignmentOperator = compoundOperator;
                 rightExpression = boe.getRightExpression();
             }
@@ -2326,6 +2376,38 @@ public class ByteCodeParser {
         }
 
         statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, assignmentOperator, rightExpression, 16)));
+    }
+
+    private static String unaryOperatorOf(String compoundOperator) {
+        if ("+=".equals(compoundOperator)) {
+            return "++";
+        }
+        return "-=".equals(compoundOperator) ? "--" : null;
+    }
+
+    private boolean pushValueOfCompoundAssignmentOfArrayElement(DefaultStack<Expression> stack, int lineNumber, Expression arrayElement, BinaryOperatorExpression operation, String compoundOperator) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        Expression kept = stack.peek();
+        String unaryOperator = null;
+
+        if (isPositiveOne(operation.getRightExpression())) {
+            unaryOperator = unaryOperatorOf(compoundOperator);
+        }
+        if (kept == operation.getLeftExpression() && unaryOperator != null) {
+            stack.pop();
+            stack.push(new PostOperatorExpression(lineNumber, arrayElement, unaryOperator));
+            return true;
+        }
+        if (kept == operation) {
+            stack.pop();
+            stack.push(unaryOperator != null
+                    ? new PreOperatorExpression(lineNumber, unaryOperator, arrayElement)
+                    : new BinaryOperatorExpression(lineNumber, arrayElement.getType(), arrayElement, compoundOperator, operation.getRightExpression(), 16));
+            return true;
+        }
+        return false;
     }
 
     private Expression rewriteArrayIndexPostOperator(Statements statements, Expression leftExpression) {

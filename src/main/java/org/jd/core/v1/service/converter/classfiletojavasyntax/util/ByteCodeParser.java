@@ -2280,83 +2280,12 @@ public class ByteCodeParser {
         createAssignment(statements, stack, lineNumber, leftExpression, rightExpression, false);
     }
 
-    /** 'a = b = c': the previous statement assigned the value which this one assigns */
-    private static boolean mergeMultiAssignment(int lineNumber, Expression leftExpression, Expression rightExpression, ExpressionStatement lastES, Expression lastExpression) {
-        if (getLastRightExpression(lastExpression) == rightExpression || isSameVariableAssignedTwice(lineNumber, rightExpression, lastExpression)) {
-            lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
-            return true;
-        }
-        return false;
-    }
-
-    private static boolean isSameVariableAssignedTwice(int lineNumber, Expression rightExpression, Expression lastExpression) {
-        if (lineNumber <= 0 || lastExpression.getLineNumber() != lineNumber || lastExpression.getLeftExpression().getClass() != rightExpression.getClass()) {
-            return false;
-        }
-        if (rightExpression.isLocalVariableReferenceExpression()) {
-            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression) lastExpression.getLeftExpression();
-            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression) rightExpression;
-
-            return lvr1.getLocalVariable() == lvr2.getLocalVariable();
-        }
-        if (rightExpression.isFieldReferenceExpression()) {
-            FieldReferenceExpression fr1 = (FieldReferenceExpression) lastExpression.getLeftExpression();
-            FieldReferenceExpression fr2 = (FieldReferenceExpression) rightExpression;
-
-            return fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType());
-        }
-        return false;
-    }
-
-    /** '++x; y = x' is 'y = ++x' */
-    private Expression foldPreOperator(Statements statements, Expression lastExpression, Expression rightExpression) {
-        if (lastExpression.getExpression().getClass() == rightExpression.getClass() && isSameVariable(lastExpression.getExpression(), rightExpression)) {
-            statements.removeLast();
-            return newPreArithmeticOperatorExpression(lastExpression.getLineNumber(), lastExpression.getOperator(), lastExpression.getExpression());
-        }
-        return rightExpression;
-    }
-
-    private static boolean isSameVariable(Expression first, Expression second) {
-        if (second.isLocalVariableReferenceExpression()) {
-            return ((ClassFileLocalVariableReferenceExpression) first).getLocalVariable() == ((ClassFileLocalVariableReferenceExpression) second).getLocalVariable();
-        }
-        if (second.isFieldReferenceExpression()) {
-            FieldReferenceExpression fr1 = (FieldReferenceExpression) first;
-            FieldReferenceExpression fr2 = (FieldReferenceExpression) second;
-
-            return fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType());
-        }
-        return false;
-    }
-
     /** The value which an array store leaves on the stack is duplicated again ('array[i++] |= x' goes on with a DUP2 for the element): it is not a value of the store */
     private static final Set<Integer> DUPLICATING_OPCODES = Set.of((int) DUP, (int) DUP_X1, (int) DUP_X2, (int) DUP2, (int) DUP2_X1, (int) DUP2_X2);
 
     private static boolean isDuplicate(byte[] code, int offset) {
         // (an array store is never the last instruction of a method)
         return DUPLICATING_OPCODES.contains(code[offset] & 255);
-    }
-
-    /** @return the value to assign, which may be the one of the previous statement folded in it, or null when the previous statement took the assignment ('a = b = c') */
-    private Expression foldPreviousStatement(Statements statements, int lineNumber, Expression leftExpression, Expression rightExpression) {
-        if (statements.isEmpty() || !statements.getLast().isExpressionStatement()) {
-            return rightExpression;
-        }
-        ExpressionStatement lastES = (ExpressionStatement) statements.getLast();
-        Expression lastExpression = lastES.getExpression();
-
-        if (lastExpression.isBinaryOperatorExpression()) {
-            return mergeMultiAssignment(lineNumber, leftExpression, rightExpression, lastES, lastExpression) ? null : rightExpression;
-        }
-        if (lastExpression.isPreOperatorExpression()) {
-            return foldPreOperator(statements, lastExpression, rightExpression);
-        }
-        if (lastExpression.isPostOperatorExpression() && ((PostOperatorExpression) lastExpression).getExpression() == rightExpression) {
-            statements.removeLast();
-            return lastExpression;
-        }
-        return rightExpression;
     }
 
     private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression, boolean valueOfStoreIsUsedOnce) {
@@ -2380,22 +2309,75 @@ public class ByteCodeParser {
             return;
         }
 
-        if ("=".equals(assignmentOperator)) {
-            rightExpression = foldPreviousStatement(statements, lineNumber, leftExpression, rightExpression);
+        if ("=".equals(assignmentOperator) && !statements.isEmpty()) {
+            Statement lastStatement = statements.getLast();
 
-            if (rightExpression == null) {
-                return;
+            if (lastStatement.isExpressionStatement()) {
+                ExpressionStatement lastES = (ExpressionStatement)lastStatement;
+                Expression lastExpression = lastStatement.getExpression();
+
+                if (lastExpression.isBinaryOperatorExpression()) {
+                    if (getLastRightExpression(lastExpression) == rightExpression) {
+                        // Multi assignment
+                        lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
+                        return;
+                    }
+
+                    if (lineNumber > 0 && lastExpression.getLineNumber() == lineNumber && lastExpression.getLeftExpression().getClass() == rightExpression.getClass()) {
+                        if (rightExpression.isLocalVariableReferenceExpression()) {
+                            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression) lastExpression.getLeftExpression();
+                            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression) rightExpression;
+
+                            if (lvr1.getLocalVariable() == lvr2.getLocalVariable()) {
+                                // Multi assignment
+                                lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
+                                return;
+                            }
+                        } else if (rightExpression.isFieldReferenceExpression()) {
+                            FieldReferenceExpression fr1 = (FieldReferenceExpression) lastExpression.getLeftExpression();
+                            FieldReferenceExpression fr2 = (FieldReferenceExpression) rightExpression;
+
+                            if (fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType())) {
+                                // Multi assignment
+                                lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
+                                return;
+                            }
+                        }
+                    }
+                } else if (lastExpression.isPreOperatorExpression()) {
+                    if (lastExpression.getExpression().getClass() == rightExpression.getClass()) {
+                        if (rightExpression.isLocalVariableReferenceExpression()) {
+                            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression)lastExpression.getExpression();
+                            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression)rightExpression;
+
+                            if (lvr1.getLocalVariable() == lvr2.getLocalVariable()) {
+                                rightExpression = newPreArithmeticOperatorExpression(lastExpression.getLineNumber(), lastExpression.getOperator(), lastExpression.getExpression());
+                                statements.removeLast();
+                            }
+                        } else if (rightExpression.isFieldReferenceExpression()) {
+                            FieldReferenceExpression fr1 = (FieldReferenceExpression)lastExpression.getExpression();
+                            FieldReferenceExpression fr2 = (FieldReferenceExpression)rightExpression;
+
+                            if (fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType())) {
+                                rightExpression = newPreArithmeticOperatorExpression(lastExpression.getLineNumber(), lastExpression.getOperator(), lastExpression.getExpression());
+                                statements.removeLast();
+                            }
+                        }
+                    }
+                } else if (lastExpression.isPostOperatorExpression()) {
+                    PostOperatorExpression poe = (PostOperatorExpression)lastExpression;
+
+                    if (poe.getExpression() == rightExpression) {
+                        rightExpression = poe;
+                        statements.removeLast();
+                    }
+                }
             }
         }
 
         statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, assignmentOperator, rightExpression, 16)));
     }
 
-    /**
-     * 'tmp = array[i]++' is 'array[i] = (value = array[i]) + 1' with the value left on the stack by a DUP_X2: the value is the one before the
-     * operation for a post operator, the one after it for a pre operator or a compound assignment ('tmp = array[i] += 2'); either way it is the
-     * expression which the next instruction uses, not a statement
-     */
     private static String unaryOperatorOf(String compoundOperator) {
         if ("+=".equals(compoundOperator)) {
             return "++";

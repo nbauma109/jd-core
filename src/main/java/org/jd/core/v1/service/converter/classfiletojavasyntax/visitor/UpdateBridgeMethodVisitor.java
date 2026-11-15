@@ -372,7 +372,7 @@ public class UpdateBridgeMethodVisitor extends AbstractUpdateExpressionVisitor {
                     FieldReferenceExpression fre = (FieldReferenceExpression) exp.getLeftExpression();
                     return checkLocalVariableReference(fre.getExpression(), 0);
                 }
-            } else if (exp.isPostOperatorExpression() || parameterTypesCount == 1 && exp.isPreOperatorExpression()) {
+            } else if (exp.isPostOperatorExpression() || exp.isPreOperatorExpression()) {
                 exp = exp.getExpression();
 
                 if (exp.isFieldReferenceExpression()) {

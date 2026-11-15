@@ -389,7 +389,7 @@ public class ByteCodeParser {
                     valueRef = stack.pop();
                     indexRef = stack.pop();
                     arrayRef = stack.pop();
-                    createAssignment(statements, stack, lineNumber, new ArrayExpression(lineNumber, arrayRef, indexRef), valueRef);
+                    createAssignment(statements, stack, lineNumber, new ArrayExpression(lineNumber, arrayRef, indexRef), valueRef, !isDuplicate(code, offset + 1));
                     break;
                 case AASTORE:
                     valueRef = stack.pop();
@@ -2258,6 +2258,20 @@ public class ByteCodeParser {
     }
 
     private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression) {
+        createAssignment(statements, stack, lineNumber, leftExpression, rightExpression, false);
+    }
+
+    /** The value which an array store leaves on the stack is duplicated again ('array[i++] |= x' goes on with a DUP2 for the element): it is not a value of the store */
+    private static boolean isDuplicate(byte[] code, int offset) {
+        if (offset >= code.length) {
+            return false;
+        }
+        int opcode = code[offset] & 255;
+
+        return opcode == DUP || opcode == DUP_X1 || opcode == DUP_X2 || opcode == DUP2 || opcode == DUP2_X1 || opcode == DUP2_X2;
+    }
+
+    private void createAssignment(Statements statements, DefaultStack<Expression> stack, int lineNumber, Expression leftExpression, Expression rightExpression, boolean valueOfStoreIsUsedOnce) {
         leftExpression = rewriteArrayIndexPostOperator(statements, leftExpression);
         String assignmentOperator = "=";
 
@@ -2265,6 +2279,9 @@ public class ByteCodeParser {
             BinaryOperatorExpression boe = (BinaryOperatorExpression) rightExpression;
             String compoundOperator = toCompoundAssignmentOperator(boe.getOperator());
             if (compoundOperator != null && sameExpression(stripArrayIndexPostOperator(leftExpression), boe.getLeftExpression())) {
+                if (valueOfStoreIsUsedOnce && leftExpression instanceof ArrayExpression && pushValueOfCompoundAssignmentOfArrayElement(stack, lineNumber, leftExpression, boe, compoundOperator)) {
+                    return;
+                }
                 assignmentOperator = compoundOperator;
                 rightExpression = boe.getRightExpression();
             }
@@ -2342,6 +2359,36 @@ public class ByteCodeParser {
         }
 
         statements.add(new ExpressionStatement(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, assignmentOperator, rightExpression, 16)));
+    }
+
+    /**
+     * 'tmp = array[i]++' is 'array[i] = (value = array[i]) + 1' with the value left on the stack by a DUP_X2: the value is the one before the
+     * operation for a post operator, the one after it for a pre operator or a compound assignment ('tmp = array[i] += 2'); either way it is the
+     * expression which the next instruction uses, not a statement
+     */
+    private boolean pushValueOfCompoundAssignmentOfArrayElement(DefaultStack<Expression> stack, int lineNumber, Expression arrayElement, BinaryOperatorExpression operation, String compoundOperator) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+        Expression kept = stack.peek();
+        String unaryOperator = null;
+
+        if (isPositiveOne(operation.getRightExpression())) {
+            unaryOperator = "+=".equals(compoundOperator) ? "++" : "-=".equals(compoundOperator) ? "--" : null;
+        }
+        if (kept == operation.getLeftExpression() && unaryOperator != null) {
+            stack.pop();
+            stack.push(new PostOperatorExpression(lineNumber, arrayElement, unaryOperator));
+            return true;
+        }
+        if (kept == operation) {
+            stack.pop();
+            stack.push(unaryOperator != null
+                    ? new PreOperatorExpression(lineNumber, unaryOperator, arrayElement)
+                    : new BinaryOperatorExpression(lineNumber, arrayElement.getType(), arrayElement, compoundOperator, operation.getRightExpression(), 16));
+            return true;
+        }
+        return false;
     }
 
     private Expression rewriteArrayIndexPostOperator(Statements statements, Expression leftExpression) {

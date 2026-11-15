@@ -46,6 +46,27 @@ public class CommonsCompressPatternsTest extends AbstractJdTest {
             "    void closeEntry() {",
             "        while (skip((long) Integer.MAX_VALUE) == Integer.MAX_VALUE);",
             "    }",
+            "    static long skipBytes(long n) { return n; }",
+            "    void properties(Iterator<Integer> it) {",
+            "        java.util.BitSet found = null;",
+            "        while (true) {",
+            "            int type = it.next();",
+            "            if (type == 0) { break; }",
+            "            switch (type) {",
+            "            case 14: { found = new java.util.BitSet(); break; }",
+            "            default: { skipBytes(1L); break; }",
+            "            }",
+            "        }",
+            "        System.out.println(found);",
+            "    }",
+            "    int[] counts = new int[300];",
+            "    byte[] bytes = new byte[10];",
+            "    int postOfElement(int i) { final int tmp = counts[bytes[i] & 0xff]++; return tmp; }",
+            "    int preOfElement(int i) { final int tmp = ++counts[i]; return tmp; }",
+            "    int returnedPreOfElement(int i) { return --counts[i]; }",
+            "    int returnedPre(int i) { return ++i; }",
+            "    long[] map = new long[4];",
+            "    void merge(int[] index, long value) { map[index[0]++] |= value; }",
             "    void flag(boolean isDir) {",
             "        this.linkFlag = isDir ? LF_DIR : LF_NORMAL;",
             "    }",
@@ -77,6 +98,15 @@ public class CommonsCompressPatternsTest extends AbstractJdTest {
         assertTrue(source, source.contains("result = Integer.MAX_VALUE;"));
         // 'skip(Integer.MAX_VALUE)' would call the overload for an int
         assertTrue(source, source.contains("skip((long)Integer.MAX_VALUE)"));
+        // The result of 'skipBytes' is a long, which a POP2 discards: it is one value on the stack of the decompiler, and the switch is not lost
+        assertTrue(source, source.contains("case 14:"));
+        // 'tmp = counts[i]++' is the value before the increment, '++counts[i]' the one after it
+        assertTrue(source, source.contains("int tmp = this.counts[this.bytes[i] & 0xFF]++;") || source.contains("return this.counts[this.bytes[i] & 0xFF]++;"));
+        assertTrue(source, source.contains("++this.counts[i];"));
+        assertTrue(source, source.contains("return --this.counts[i];"));
+        assertTrue(source, source.contains("return ++i;"));
+        // The index which is incremented by an element of an array is evaluated once
+        assertTrue(source, source.contains("this.map[index[0]++] |= value;"));
         // A ternary of two int constants is an int: a byte needs the cast
         assertTrue(source, source.contains("this.linkFlag = isDir ? (byte)53 : (byte)48;"));
         // The method reference is no cast to the bound of T, which javac infers as 'Integer' from the method reference

@@ -15,7 +15,6 @@ import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodReferenceExpression;
-import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
@@ -64,22 +63,34 @@ public class RestoreMethodReferenceVisitor extends AbstractUpdateExpressionVisit
     public void visit(Statements statements) {
         super.visit(statements);
         // The receiver is evaluated where the method reference is, and only there: 'tinyBag1 = bag; forEach(tinyBag1::add)' is 'forEach(bag::add)'
-        for (int i = statements.size() - 1; i > 0; i--) {
-            if (statements.get(i - 1) instanceof LocalVariableDeclarationStatement declaration
+        int index = statements.size() - 1;
+
+        while (index > 0) {
+            if (isVariableOfReceiver(statements, index - 1) && statements.get(index - 1) instanceof LocalVariableDeclarationStatement declaration
                     && declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator
-                    && declarator.getDimension() == 0
-                    && receiverVariables.contains(declarator.getName())
-                    && declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer
-                    && isReferencedOnlyAsReceiver(statements, i, declarator.getName())) {
+                    && declarator.getVariableInitializer() instanceof ExpressionVariableInitializer initializer) {
                 ReceiverReplacer replacer = new ReceiverReplacer(declarator.getName(), initializer.getExpression());
 
-                for (int j = i; j < statements.size(); j++) {
+                for (int j = index; j < statements.size(); j++) {
                     statements.get(j).accept(replacer);
                 }
-                statements.remove(i - 1);
-                i--;
+                statements.remove(index - 1);
+                // The statement before the variable is not the variable of a receiver: it may have the same name as the one folded
+                index -= 2;
+            } else {
+                index--;
             }
         }
+    }
+
+    /** 'TinyBag tinyBag1 = bag;' of the receiver of a method reference restored, which is not used anywhere else than by this method reference */
+    private boolean isVariableOfReceiver(Statements statements, int index) {
+        return statements.get(index) instanceof LocalVariableDeclarationStatement declaration
+                && declaration.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator
+                && declarator.getDimension() == 0
+                && receiverVariables.contains(declarator.getName())
+                && declarator.getVariableInitializer() instanceof ExpressionVariableInitializer
+                && isReferencedOnlyAsReceiver(statements, index + 1, declarator.getName());
     }
 
     private static boolean isReferencedOnlyAsReceiver(Statements statements, int from, String name) {
@@ -94,37 +105,49 @@ public class RestoreMethodReferenceVisitor extends AbstractUpdateExpressionVisit
     private Expression toMethodReference(LambdaIdentifiersExpression lambda) {
         List<String> names = lambda.getParameterNames();
 
-        if (names == null || names.isEmpty() || !names.stream().allMatch(name -> name != null && SYNTHETIC_PARAMETER_NAME.matcher(name).matches())) {
+        if (!hasSyntheticParameterNames(names)) {
             return null;
         }
         Statement statement = singleStatement(lambda.getStatements());
 
         if (!(statement instanceof ExpressionStatement || statement instanceof ReturnExpressionStatement || statement instanceof LambdaExpressionStatement)
-                || !(statement.getExpression() instanceof ClassFileMethodInvocationExpression call) || call.isVarArgs()) {
+                || !(statement.getExpression() instanceof ClassFileMethodInvocationExpression call) || call.isVarArgs()
+                || !isReceiverOfMethodReference(call.getExpression(), names) || !callsWithTheParameters(call, names)) {
             return null;
         }
-        Expression receiver = call.getExpression();
+        if (call.getExpression() instanceof ClassFileLocalVariableReferenceExpression reference && reference.getName() != null) {
+            receiverVariables.add(reference.getName());
+        }
+        return new ClassFileMethodReferenceExpression(lambda.getLineNumber(), lambda.getType(), call.getExpression(), call.getInternalTypeName(), call.getName(), call.getDescriptor(), null);
+    }
 
-        if (receiver instanceof NoExpression || !(receiver instanceof ObjectTypeReferenceExpression || receiver.isThisExpression()
-                || receiver instanceof ClassFileLocalVariableReferenceExpression reference && !names.contains(reference.getName()))) {
-            return null;
+    private static boolean hasSyntheticParameterNames(List<String> names) {
+        return names != null && !names.isEmpty() && names.stream().allMatch(name -> name != null && SYNTHETIC_PARAMETER_NAME.matcher(name).matches());
+    }
+
+    /** A type ('Bag::remember'), 'this' or a variable which the lambda captures: not a parameter of the lambda, and not the implicit 'this' */
+    private static boolean isReceiverOfMethodReference(Expression receiver, List<String> names) {
+        if (receiver instanceof ClassFileLocalVariableReferenceExpression reference) {
+            return !names.contains(reference.getName());
         }
+        return receiver instanceof ObjectTypeReferenceExpression || receiver.isThisExpression();
+    }
+
+    /** The arguments of the call are the parameters of the lambda, in the same order */
+    private static boolean callsWithTheParameters(ClassFileMethodInvocationExpression call, List<String> names) {
         BaseExpression arguments = call.getParameters();
 
         if ((arguments == null ? 0 : arguments.size()) != names.size()) {
-            return null;
+            return false;
         }
         for (int i = 0; i < names.size(); i++) {
             Expression argument = arguments.isList() ? arguments.getList().get(i) : arguments.getFirst();
 
             if (!(argument instanceof ClassFileLocalVariableReferenceExpression reference) || !names.get(i).equals(reference.getName())) {
-                return null;
+                return false;
             }
         }
-        if (receiver instanceof ClassFileLocalVariableReferenceExpression reference && reference.getName() != null) {
-            receiverVariables.add(reference.getName());
-        }
-        return new ClassFileMethodReferenceExpression(lambda.getLineNumber(), lambda.getType(), receiver, call.getInternalTypeName(), call.getName(), call.getDescriptor(), null);
+        return true;
     }
 
     /** Counts the references to a variable, and the ones which are the receiver of a method reference */

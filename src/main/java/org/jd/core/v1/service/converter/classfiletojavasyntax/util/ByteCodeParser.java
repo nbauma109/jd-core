@@ -101,6 +101,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.TypeMaker.Typ
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.CreateInstructionsVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.EraseTypeArgumentVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.RenameLocalVariablesVisitor;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.ReplaceLocalVariableVisitor;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.visitor.SearchFirstLineNumberVisitor;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
@@ -1739,6 +1740,12 @@ public class ByteCodeParser {
         // Create method reference
         String instantiatedDescriptor = instantiatedDescriptor(constants, bootstrapArguments);
 
+        // The receiver of a bound method reference ('toMap(map)::get') is not consumed by a call or an assignment: bind the type variables of its own call here
+        if (indyParameters instanceof Expression e && e.isMethodInvocationExpression()) {
+            typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, e);
+        } else if (indyParameters instanceof Expressions e && !e.isEmpty() && e.getFirst().isMethodInvocationExpression()) {
+            typeParametersToTypeArgumentsBinder.bindParameterTypesWithArgumentTypes(TYPE_OBJECT, e.getFirst());
+        }
         if (indyParameters instanceof Expression e) {
             stack.push(new ClassFileMethodReferenceExpression(lineNumber, indyMethodTypes.getReturnedType(), e, typeName, name1, descriptor1, instantiatedDescriptor));
         }
@@ -2003,6 +2010,7 @@ public class ByteCodeParser {
         if (baseStatement != null && formalParameters != null && !Utils.isEmpty(indyParameters)
                 && indyParameters.size() <= formalParameters.size()) {
             Map<String, String> mapping = new HashMap<>();
+            Map<AbstractLocalVariable, Expression> unnamedCaptures = new HashMap<>();
             int capturedParameterCount = Math.max(0, formalParameters.size() - lambdaParameterCount);
             int mappingCount = Math.min(capturedParameterCount, indyParameters.size());
             DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
@@ -2034,6 +2042,11 @@ public class ByteCodeParser {
                     continue;
                 }
                 String newName = expression.getName();
+                if (newName == null && formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
+                    // The captured variable is not named yet (a synthetic temporary of javac, as 'rec$' of 'bag::add'): refer to it by the variable
+                    unnamedCaptures.put(classFileFormalParameter.getLocalVariable(), expression);
+                    continue;
+                }
                 if (formalParameterName != null
                         && newName != null
                         && !formalParameterName.equals(newName)
@@ -2049,6 +2062,9 @@ public class ByteCodeParser {
             if (!mapping.isEmpty()) {
                 renameLocalVariablesVisitor.init(mapping, true);
                 baseStatement.accept(renameLocalVariablesVisitor);
+            }
+            if (!unnamedCaptures.isEmpty()) {
+                baseStatement.accept(new ReplaceLocalVariableVisitor(unnamedCaptures));
             }
         }
 

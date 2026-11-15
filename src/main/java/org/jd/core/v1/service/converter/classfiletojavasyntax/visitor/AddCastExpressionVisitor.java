@@ -3652,16 +3652,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if (!(type instanceof org.apache.bcel.generic.ObjectType objectType)) {
             return false;
         }
-        String internalName = objectType.getClassName().replace('.', '/');
+        JavaClass javaClass = parseClass(objectType.getClassName().replace('.', '/'));
 
+        return javaClass == null || javaClass.isInterface();
+    }
+
+    /** @return the class, or null when the loader does not give it or it cannot be read */
+    private JavaClass parseClass(String internalName) {
         try {
             if (loader.canLoad(internalName)) {
-                return new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse().isInterface();
+                return new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse();
             }
             // (a class of the JDK, which the loader does not give)
-            return Class.forName(objectType.getClassName(), false, ClassLoader.getSystemClassLoader()).isInterface();
-        } catch (IOException | ClassNotFoundException | LinkageError | RuntimeException e) {
-            return true;
+            return new ClassParser(ClassLoader.getSystemResourceAsStream(internalName + ".class"), internalName).parse();
+        } catch (IOException | RuntimeException e) {
+            return null;
         }
     }
 
@@ -3671,27 +3676,23 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
      */
     private boolean overloadsDifferAtArgument() {
         ClassFileMethodInvocationExpression call = invocationOfTheParameters;
+        JavaClass javaClass = call == null || loader == null ? null : parseClass(call.getInternalTypeName());
 
-        if (call == null || loader == null || !loader.canLoad(call.getInternalTypeName())) {
+        if (javaClass == null) {
             return true;
         }
         int index = indexOfTheArgument;
-        try {
-            JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(call.getInternalTypeName())), call.getInternalTypeName()).parse();
-            org.apache.bcel.generic.Type[] invoked = org.apache.bcel.generic.Type.getArgumentTypes(call.getDescriptor());
+        org.apache.bcel.generic.Type[] invoked = org.apache.bcel.generic.Type.getArgumentTypes(call.getDescriptor());
 
-            for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
-                org.apache.bcel.generic.Type[] candidate = method.getArgumentTypes();
+        for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
+            org.apache.bcel.generic.Type[] candidate = method.getArgumentTypes();
 
-                if (method.getName().equals(call.getName()) && candidate.length == invoked.length && !method.getSignature().equals(call.getDescriptor())
-                        && !candidate[index].equals(invoked[index]) && canTakeMethodReference(candidate[index])) {
-                    return true;
-                }
+            if (method.getName().equals(call.getName()) && candidate.length == invoked.length && !method.getSignature().equals(call.getDescriptor())
+                    && !candidate[index].equals(invoked[index]) && canTakeMethodReference(candidate[index])) {
+                return true;
             }
-            return false;
-        } catch (IOException | RuntimeException e) {
-            return true;
         }
+        return false;
     }
 
     /**

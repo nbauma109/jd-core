@@ -2331,11 +2331,11 @@ public class ByteCodeParser {
     }
 
     /** The value which an array store leaves on the stack is duplicated again ('array[i++] |= x' goes on with a DUP2 for the element): it is not a value of the store */
+    private static final Set<Integer> DUPLICATING_OPCODES = Set.of((int) DUP, (int) DUP_X1, (int) DUP_X2, (int) DUP2, (int) DUP2_X1, (int) DUP2_X2);
+
     private static boolean isDuplicate(byte[] code, int offset) {
         // (an array store is never the last instruction of a method)
-        int opcode = code[offset] & 255;
-
-        return opcode == DUP || opcode == DUP_X1 || opcode == DUP_X2 || opcode == DUP2 || opcode == DUP2_X1 || opcode == DUP2_X2;
+        return DUPLICATING_OPCODES.contains(code[offset] & 255);
     }
 
     /** @return the value to assign, which may be the one of the previous statement folded in it, or null when the previous statement took the assignment ('a = b = c') */

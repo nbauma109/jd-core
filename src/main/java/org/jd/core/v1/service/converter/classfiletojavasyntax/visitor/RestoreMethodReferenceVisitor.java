@@ -64,7 +64,9 @@ public class RestoreMethodReferenceVisitor extends AbstractUpdateExpressionVisit
         Statement statement = singleStatement(lambda.getStatements());
 
         if (!(statement instanceof ExpressionStatement || statement instanceof ReturnExpressionStatement || statement instanceof LambdaExpressionStatement)
-                || !(statement.getExpression() instanceof ClassFileMethodInvocationExpression call) || call.isVarArgs()
+                || !(statement.getExpression() instanceof ClassFileMethodInvocationExpression call)
+                // A method reference with a receiver is one whatever the method: its arguments are the parameters of the lambda, an array for a varargs method
+                || !capturesReceiver && call.isVarArgs()
                 || !isReceiverOfMethodReference(call.getExpression(), names, capturesReceiver) || !callsWithTheParameters(call, names)) {
             return null;
         }

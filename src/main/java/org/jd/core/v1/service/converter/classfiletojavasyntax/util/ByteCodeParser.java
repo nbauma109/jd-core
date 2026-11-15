@@ -155,6 +155,8 @@ public class ByteCodeParser {
     private final Map<Expression, Integer> loadStartOffsets = new IdentityHashMap<>();
     /** Offset of the end of the creation of the anonymous classes. Only used to check for explicit line numbers. */
     private final Map<Expression, Integer> anonymousClassEndOffsets = new IdentityHashMap<>();
+    /** The receivers which javac null-checks ('Objects.requireNonNull' or 'getClass()') before it captures them in a method reference */
+    private final Set<Expression> nullCheckedReceivers = Collections.newSetFromMap(new IdentityHashMap<>());
 
     private final TypeMaker typeMaker;
     private final LocalVariableMaker localVariableMaker;
@@ -395,6 +397,7 @@ public class ByteCodeParser {
                 case POP, POP2:
                     expression1 = stack.pop();
                     if (expression1.isMethodInvocationExpression() && expression1.getExpression().getType().isInnerObjectType() && "getClass".equals(expression1.getName())) {
+                        nullCheckedReceivers.add(expression1.getExpression());
                         enclosingInstances.push(expression1.getExpression());
                     } else if (isSyntheticMethodReferenceNullCheck(expression1, stack)) {
                         // javac emits 'dup + Objects.requireNonNull + pop' before bound method references
@@ -402,6 +405,7 @@ public class ByteCodeParser {
                         // Keep it on bytecode stack for invokedynamic capture, but don't print as a source statement.
                         MethodInvocationExpression nullCheck = (MethodInvocationExpression) expression1;
                         Expression outerCandidate = nullCheck.getParameters().getFirst();
+                        nullCheckedReceivers.add(outerCandidate);
                         if (isPendingInnerClassConstruction(stack)) {
                             // Only a 'NEW innerType' still awaiting its INVOKESPECIAL <init> can be
                             // qualified by this outer instance; otherwise this is the receiver of a
@@ -1692,6 +1696,7 @@ public class ByteCodeParser {
 
         if (expression instanceof MethodInvocationExpression mie
          && "getClass".equals(mie.getName()) && "()Ljava/lang/Class;".equals(mie.getDescriptor()) && StringConstants.JAVA_LANG_OBJECT.equals(mie.getInternalTypeName())) {
+            nullCheckedReceivers.add(mie.getExpression());
             statements.removeLast();
         }
     }
@@ -1773,7 +1778,7 @@ public class ByteCodeParser {
             createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
         }
         // Only a lambda which is known to be restored to a method reference may keep the receiver evaluated by the call site in its body (it is evaluated once there)
-        boolean methodReferenceWithReceiver = capturesReceiverOfMethodReference(cfmd, parameterCount);
+        boolean methodReferenceWithReceiver = capturesReceiverOfMethodReference(cfmd, parameterCount) && isReceiverNullChecked(statements, indyParameters);
         if (methodReferenceWithReceiver) {
             indyParameters = unwrapReceiverTemporary(statements, cfmd, indyParameters);
         }
@@ -2060,21 +2065,45 @@ public class ByteCodeParser {
     }
 
     /**
-     * javac stores the receiver of 'bag::add' in a variable it alone knows ('TinyBag tinyBag1 = bag;') before it captures it: it has no name yet, and it is
-     * only used by the lambda, so the lambda captures the receiver itself, which is evaluated once whatever its form (the method reference is restored from the lambda).
+     * A variable of the source named 'rec$' is no evidence: only a method reference makes javac null-check its receiver before it captures it. The receiver is
+     * either captured as it is, or stored first in a variable of javac ('TinyBag tinyBag1 = bag;') which is the one captured.
      */
-    private static BaseExpression unwrapReceiverTemporary(Statements statements, ClassFileMethodDeclaration cfmd, BaseExpression indyParameters) {
-        BaseFormalParameter formalParameters = cfmd.getFormalParameters();
+    private boolean isReceiverNullChecked(Statements statements, BaseExpression indyParameters) {
+        if (!(indyParameters instanceof Expression receiver)) {
+            return false;
+        }
+        if (nullCheckedReceivers.contains(receiver)) {
+            return true;
+        }
+        Expression stored = receiverStoredInTemporary(statements, receiver);
 
-        if (!(indyParameters instanceof ClassFileLocalVariableReferenceExpression temporary) || temporary.getName() != null || statements.isEmpty()
-                || formalParameters == null || !isReceiverOfSyntheticLambda(formalParameters.getFirst())
+        return stored != null && nullCheckedReceivers.contains(stored);
+    }
+
+    /** @return the value of 'tinyBag1 = bag;', the last statement, when 'tinyBag1' is the unnamed variable which the lambda captures */
+    private static Expression receiverStoredInTemporary(Statements statements, Expression captured) {
+        if (!(captured instanceof ClassFileLocalVariableReferenceExpression temporary) || temporary.getName() != null || statements.isEmpty()
                 || !(statements.getLast() instanceof ExpressionStatement last) || !(last.getExpression() instanceof BinaryOperatorExpression assignment)
                 || !"=".equals(assignment.getOperator()) || !(assignment.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression assigned)
                 || assigned.getLocalVariable() != temporary.getLocalVariable()) {
+            return null;
+        }
+        return assignment.getRightExpression();
+    }
+
+    /**
+     * javac stores the receiver of 'bag::add' in a variable it alone knows ('TinyBag tinyBag1 = bag;') before it captures it: it has no name yet, and it is
+     * only used by the lambda, so the lambda captures the receiver itself, which is evaluated once whatever its form (the method reference is restored from the lambda).
+     */
+    private BaseExpression unwrapReceiverTemporary(Statements statements, ClassFileMethodDeclaration cfmd, BaseExpression indyParameters) {
+        BaseFormalParameter formalParameters = cfmd.getFormalParameters();
+        Expression stored = indyParameters instanceof Expression captured ? receiverStoredInTemporary(statements, captured) : null;
+
+        if (stored == null || !nullCheckedReceivers.contains(stored) || formalParameters == null || !isReceiverOfSyntheticLambda(formalParameters.getFirst())) {
             return indyParameters;
         }
         statements.removeLast();
-        return assignment.getRightExpression();
+        return stored;
     }
 
     private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,

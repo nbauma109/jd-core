@@ -36,12 +36,14 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
             "package restore;",
             "import java.util.List;",
             "import java.util.function.BiConsumer;",
+            "import java.util.function.Consumer;",
             "public class Fixture {",
             "    private static class Bag {",
             "        private Object add(Object o) { return o; }",
             "        private static void remember(Object o) { }",
             "        private void two(Object a, Object b) { }",
             "        private void run() { }",
+            "        private void addAll(Object... items) { }",
             "        private static Bag make() { return new Bag(); }",
             "    }",
             "    void bound(List<Object> list) {",
@@ -61,6 +63,12 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
             "    void withoutArgument() {",
             "        Runnable runnable = Bag.make()::run;",
             "        runnable.run();",
+            "    }",
+            "    Consumer<Object[]> varargs() {",
+            "        return Bag.make()::addAll;",
+            "    }",
+            "    Consumer<Object> lambdaCapturingAVariableNamedLikeJavac(Bag rec$) {",
+            "        return o -> rec$.add(o);",
             "    }",
             "    void lambdaOfTheSourceNamedLikeJavac(List<Object> list) {",
             "        list.forEach(x$0 -> Bag.make().add(x$0));",
@@ -84,15 +92,20 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
         String source = decompileSuccess(compileForJava8(), new PlainTextPrinter(), INTERNAL_CLASS_NAME);
 
         // The synthetic parameters of javac are gone, and the variable which holds the receiver is folded in the method reference
-        assertEquals(-1, source.indexOf("rec$"));
+        // (the only 'rec$' left is the variable of the source: the parameter, and its use)
+        assertEquals(2, source.split("rec\\$", -1).length - 1);
         assertTrue(source, source.contains("list.forEach(bag::add);"));
         assertTrue(source, source.contains("list.forEach(Bag::remember);"));
         assertTrue(source, source.contains("list.forEach(Bag.make()::add);"));
         assertTrue(source, source.contains("list.stream().map(bag::add).count()"));
         // The receiver is made once, where the method reference is, even when there is no argument to tell the lambda from one of the source
         assertTrue(source, source.contains("Runnable runnable = Bag.make()::run;"));
+        // ... and for a method with a variable number of arguments, which the lambda receives as an array
+        assertTrue(source, source.contains("return Bag.make()::addAll;"));
         // The lambdas of the source keep their own parameters and bodies, whatever the names of the parameters: 'Bag.make()' is made at each call
         assertTrue(source, source.contains("x$0 -> Bag.make().add(x$0)"));
+        // 'rec$' is a legal name of a variable: javac does not null-check it, as it does the receiver of a method reference
+        assertTrue(source, source.contains("o -> rec$.add(o)"));
         assertTrue(source, source.contains("o -> bag.add(o)"));
         assertTrue(source, source.contains("(first, second) -> bag.two(second, first)"));
         assertTrue(source, source.contains("bag.add(o);"));

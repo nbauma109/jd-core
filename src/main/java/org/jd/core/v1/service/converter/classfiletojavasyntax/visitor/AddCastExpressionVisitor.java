@@ -94,6 +94,8 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,6 +114,8 @@ import java.util.stream.StreamSupport;
 import java.util.stream.IntStream;
 import java.util.function.Predicate;
 
+import org.apache.bcel.classfile.ClassParser;
+import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.generic.ConstantPoolGen;
 import org.apache.bcel.generic.InstructionHandle;
 import org.apache.bcel.generic.InstructionList;
@@ -139,6 +143,12 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private final Loader loader;
     private boolean visitingVarArgsInvocation;
     private Set<String> typeVariablesOfTheCall = Collections.emptySet();
+
+    /** The call whose parameters are updated: another overload of it may be told from this one by the cast of a parameter */
+    private ClassFileMethodInvocationExpression invocationOfTheParameters;
+
+    /** The position of the parameter which is updated in the call */
+    private int indexOfTheArgument;
     private final SingleAbstractMethodFinder singleAbstractMethodFinder;
     private final InheritedMethodFinder inheritedMethodFinder;
     private boolean lambdaReturnFromTarget;
@@ -792,7 +802,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Set<String> oldTypeVariablesOfTheCall = typeVariablesOfTheCall;
             visitingVarArgsInvocation = expression.isVarArgs();
             typeVariablesOfTheCall = getMethodTypeParameterNames((ClassFileMethodInvocationExpression) expression);
+            ClassFileMethodInvocationExpression oldInvocationOfTheParameters = invocationOfTheParameters;
+            invocationOfTheParameters = (ClassFileMethodInvocationExpression) expression;
             expression.setParameters(updateParameters(typeBindings, localTypeBounds, parameterTypes, unboundParameterTypes, parameters, new CastFlags(forceCast, unique, rawCast)));
+            invocationOfTheParameters = oldInvocationOfTheParameters;
             typeVariablesOfTheCall = oldTypeVariablesOfTheCall;
             visitingVarArgsInvocation = oldVisitingVarArgs;
             visitingWitnessedInvocation = oldVisitingWitnessedInvocation;
@@ -3111,7 +3124,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         if (!expressions.isList()) {
             Type unboundType = unboundTypes == null ? null : unboundTypes.getFirst();
-            return updateParameter(typeBindings, localTypeBounds, types.getFirst(), unboundType, expressions.getFirst(), flags.forceCast(), flags.unique(), flags.rawCast());
+            return updateParameterAt(0, typeBindings, localTypeBounds, types.getFirst(), unboundType, expressions.getFirst(), flags);
         }
 
         DefaultList<Type> typeList = types.getList();
@@ -3124,7 +3137,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         conflictingRawCastAdded = false;
         for (int i = expressionList.size() - 1; i >= 0; i--) {
             Type unboundType = unboundTypeList == null ? null : unboundTypeList.get(i);
-            expressionList.set(i, updateParameter(typeBindings, localTypeBounds, typeList.get(i), unboundType, expressionList.get(i), flags.forceCast(), flags.unique(), flags.rawCast()));
+            expressionList.set(i, updateParameterAt(i, typeBindings, localTypeBounds, typeList.get(i), unboundType, expressionList.get(i), flags));
         }
         if (conflictingRawCastAdded && unboundTypeList != null) {
             restoreArgumentsOfVariableParameters(unboundTypeList, expressionList, originals);
@@ -3141,6 +3154,17 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && cast.getExpression() == originals.get(i)) {
                 expressionList.set(i, originals.get(i));
             }
+        }
+    }
+
+    private Expression updateParameterAt(int index, Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, CastFlags flags) {
+        int outerIndex = indexOfTheArgument;
+
+        indexOfTheArgument = index;
+        try {
+            return updateParameter(typeBindings, localTypeBounds, type, unboundType, expression, flags.forceCast(), flags.unique(), flags.rawCast());
+        } finally {
+            indexOfTheArgument = outerIndex;
         }
     }
 
@@ -3349,7 +3373,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && expression.getType() instanceof ObjectType expressionObjectType
                     && targetType.rawEquals(expressionObjectType) && hasKnownTypeParameters(type)
                     && !hasWildcardTypeArgument(targetType) && !containsErasedRawGenericType(targetType, unboundType)
-                    && !isBoundOfVariableNobodyBinds(targetType, unboundType, localTypeBounds)) {
+                    && (!isBoundOfVariableNobodyBinds(targetType, unboundType, localTypeBounds) || overloadsDifferAtArgument())) {
                 // A method reference may be compatible with several overloads: cast to the target functional interface type
                 expression = addCastExpression(type, expression);
             }
@@ -3621,6 +3645,53 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return expression instanceof MethodReferenceExpression
             && !(expression instanceof MethodInvocationExpression)
             && !"new".equals(expression.getName());
+    }
+
+    /** Only an interface can be the target of a method reference: a 'String' does not compete with a functional interface for the argument */
+    private boolean canTakeMethodReference(org.apache.bcel.generic.Type type) {
+        if (!(type instanceof org.apache.bcel.generic.ObjectType objectType)) {
+            return false;
+        }
+        String internalName = objectType.getClassName().replace('.', '/');
+
+        try {
+            if (loader.canLoad(internalName)) {
+                return new ClassParser(new ByteArrayInputStream(loader.load(internalName)), internalName).parse().isInterface();
+            }
+            // (a class of the JDK, which the loader does not give)
+            return Class.forName(objectType.getClassName(), false, ClassLoader.getSystemClassLoader()).isInterface();
+        } catch (IOException | ClassNotFoundException | LinkageError | RuntimeException e) {
+            return true;
+        }
+    }
+
+    /**
+     * Another overload of the invoked method has another type at the position of the argument: the cast of the method reference is what selects the overload
+     * ('pick((Supplier&lt;Number&gt;) Fixture::number)' against 'pick(Callable&lt;T&gt;)'). Unknown overloads are assumed to differ.
+     */
+    private boolean overloadsDifferAtArgument() {
+        ClassFileMethodInvocationExpression call = invocationOfTheParameters;
+
+        if (call == null || loader == null || !loader.canLoad(call.getInternalTypeName())) {
+            return true;
+        }
+        int index = indexOfTheArgument;
+        try {
+            JavaClass javaClass = new ClassParser(new ByteArrayInputStream(loader.load(call.getInternalTypeName())), call.getInternalTypeName()).parse();
+            org.apache.bcel.generic.Type[] invoked = org.apache.bcel.generic.Type.getArgumentTypes(call.getDescriptor());
+
+            for (org.apache.bcel.classfile.Method method : javaClass.getMethods()) {
+                org.apache.bcel.generic.Type[] candidate = method.getArgumentTypes();
+
+                if (method.getName().equals(call.getName()) && candidate.length == invoked.length && !method.getSignature().equals(call.getDescriptor())
+                        && !candidate[index].equals(invoked[index]) && canTakeMethodReference(candidate[index])) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException | RuntimeException e) {
+            return true;
+        }
     }
 
     /**

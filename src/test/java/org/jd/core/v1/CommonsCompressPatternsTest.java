@@ -74,6 +74,14 @@ public class CommonsCompressPatternsTest extends AbstractJdTest {
             "    byte bytes(boolean flag, byte other) { return flag ? (byte) 1 : other; }",
             "    byte constantBytes(boolean flag) { return flag ? (byte) 1 : (byte) 2; }",
             "    long wide(long[] values, int i) { long result = Integer.MAX_VALUE; result += values[i]; values[i]++; return result; }",
+            "    interface Maker<T extends Number> { T make(); }",
+            "    interface Task<T extends Number> { T run() throws Exception; }",
+            "    static <T extends Number> void pick(Maker<T> maker) { }",
+            "    static <T extends Number> void pick(Task<T> task) { }",
+            "    static Number number() { return 1; }",
+            "    void overloaded() { pick((Maker<Number>) Fixture::number); }",
+            "    float pair(float first, float second) { return first; }",
+            "    float widened() { float x = 0; return pair(x, x = -2147483648f); }",
             "    void flag(boolean isDir) {",
             "        this.linkFlag = isDir ? LF_DIR : LF_NORMAL;",
             "    }",
@@ -117,6 +125,10 @@ public class CommonsCompressPatternsTest extends AbstractJdTest {
         assertTrue(source, source.contains("return this.counts[i] += 5;"));
         assertTrue(source, source.contains("this.counts[i]--;"));
         assertTrue(source, source.contains("byte constantBytes(boolean flag)"));
+        // The cast is what selects the overload for a Maker, whatever the bound of the type variable
+        assertTrue(source, source.contains("pick((Maker<Number>)Fixture::number)"));
+        // The value which the assignment keeps for the call is the assignment itself, not a statement before it
+        assertTrue(source, source.contains("pair(x, x = Integer.MIN_VALUE)"));
         // A ternary of two int constants is an int: a byte needs the cast
         assertTrue(source, source.contains("this.linkFlag = isDir ? (byte)53 : (byte)48;"));
         // The method reference is no cast to the bound of T, which javac infers as 'Integer' from the method reference

@@ -347,7 +347,7 @@ public class ByteCodeParser {
                     break;
                 case ISTORE, LSTORE, FSTORE, DSTORE:
                     valueRef = stack.pop();
-                    valueRef = widenIntegerLimit(valueRef, typeStoredBy(opcode));
+                    valueRef = widenStoredValue(stack, valueRef, typeStoredBy(opcode));
                     localVariable = getLocalVariableInAssignment(code[++offset] & 255, offset + 2, valueRef);
                     localVariable.setAssigned(true);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
@@ -364,19 +364,19 @@ public class ByteCodeParser {
                     break;
                 case LSTORE_0, LSTORE_1, LSTORE_2, LSTORE_3:
                     valueRef = stack.pop();
-                    valueRef = widenIntegerLimit(valueRef, TYPE_LONG);
+                    valueRef = widenStoredValue(stack, valueRef, TYPE_LONG);
                     localVariable = getLocalVariableInAssignment(opcode - 63, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
                 case FSTORE_0, FSTORE_1, FSTORE_2, FSTORE_3:
                     valueRef = stack.pop();
-                    valueRef = widenIntegerLimit(valueRef, TYPE_FLOAT);
+                    valueRef = widenStoredValue(stack, valueRef, TYPE_FLOAT);
                     localVariable = getLocalVariableInAssignment(opcode - 67, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
                 case DSTORE_0, DSTORE_1, DSTORE_2, DSTORE_3:
                     valueRef = stack.pop();
-                    valueRef = widenIntegerLimit(valueRef, TYPE_DOUBLE);
+                    valueRef = widenStoredValue(stack, valueRef, TYPE_DOUBLE);
                     localVariable = getLocalVariableInAssignment(opcode - 71, offset + 1, valueRef);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
                     break;
@@ -1436,6 +1436,16 @@ public class ByteCodeParser {
             case DSTORE -> TYPE_DOUBLE;
             default -> TYPE_INT;
         };
+    }
+
+    /** The value which the store keeps on the stack (a DUP) is the same expression: it is replaced there too */
+    private static Expression widenStoredValue(DefaultStack<Expression> stack, Expression valueRef, Type type) {
+        Expression widened = widenIntegerLimit(valueRef, type);
+
+        if (widened != valueRef) {
+            stack.replace(valueRef, widened);
+        }
+        return widened;
     }
 
     private static Expression widenIntegerLimit(Expression valueRef, Type type) {

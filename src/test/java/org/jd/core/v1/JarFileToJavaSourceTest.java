@@ -130,6 +130,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testJacksonCore() throws Exception {
+        String version = pomVersion("com.fasterxml.jackson.core", "jackson-core");
+        testAtTag("https://github.com/FasterXML/jackson-core", "jackson-core", "jackson-core-" + version, "com.fasterxml.jackson.core", "jackson-core", version, true, null);
+    }
+
+    @Test
     public void testGson() throws Exception {
         // Multi-module repository: the gson module lives in the gson/ sub-directory
         testAtTag("https://github.com/google/gson", "gson", "gson-parent-2.14.0",
@@ -408,6 +414,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         // version the override targets. Skip them before decompiling so an overlay entry
                         // can't skew the exception counters either; the base classes still get rebuilt and
                         // exercised, same as running on a JDK/consumer unaware of multi-release JARs.
+                        continue;
+                    }
+
+                    if (projectDir != null && runUnitTests && Files.exists(Paths.get(projectDir.getPath(), layout.sourceDirectory(), internalTypeName + ".java.in"))) {
+                        // The build generates this class from the template which stays next to it (e.g. the PackageVersion of
+                        // Jackson): the decompiled class would be a duplicate of the generated one
                         continue;
                     }
 

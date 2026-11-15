@@ -423,6 +423,16 @@ public class LocalVariableMaker {
     public AbstractLocalVariable getLocalVariable(int index, int offset) {
         AbstractLocalVariable lv = localVariableCache[index];
 
+        if (lv != null && lv.getFromOffset() > offset) {
+            // The last variable stored in the slot is declared further in the code: the read is of an earlier one
+            AbstractLocalVariable earlier = variableDeclaredBefore(currentFrame.getLocalVariable(index), offset);
+
+            if (earlier != null && earlier != lv && earlier.getFromOffset() <= offset) {
+                earlier.setFromToOffset(offset);
+                return earlier;
+            }
+        }
+
         if (lv == null) {
             lv = currentFrame.getLocalVariable(index);
             if (lv == null) {
@@ -443,6 +453,21 @@ public class LocalVariableMaker {
         lv.setFromToOffset(offset);
 
         return lv;
+    }
+
+    /**
+     * The variables which share a slot (a 'char' of a loop, then another 'char' after it) are chained from the last one added: the one which is
+     * read is the last one which was declared before the instruction, not the one of a block which is parsed first and is further in the code
+     */
+    private static AbstractLocalVariable variableDeclaredBefore(AbstractLocalVariable head, int offset) {
+        AbstractLocalVariable best = head;
+
+        for (AbstractLocalVariable lv = head; lv != null; lv = lv.getNext()) {
+            if (lv.getFromOffset() <= offset && (best.getFromOffset() > offset || lv.getFromOffset() > best.getFromOffset())) {
+                best = lv;
+            }
+        }
+        return best;
     }
 
     protected AbstractLocalVariable searchLocalVariable(int index, int offset) {

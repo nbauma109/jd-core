@@ -834,10 +834,6 @@ public final class ControlFlowGraphLoopReducer {
         }
     }
 
-    private static boolean recursiveForwardSearchLastLoopMemberIndexes(Set<BasicBlock> members, BitSet searchZoneIndexes, Set<BasicBlock> set, BasicBlock current, BasicBlock end) {
-        return recursiveForwardSearchLastLoopMemberIndexes(members, searchZoneIndexes, set, current, end, false);
-    }
-
     /** @param allPaths every path from the block has to end in the tail: the code which goes back to the loop with one of them is not a tail */
     private static boolean recursiveForwardSearchLastLoopMemberIndexes(Set<BasicBlock> members, BitSet searchZoneIndexes, Set<BasicBlock> set, BasicBlock current, BasicBlock end, boolean allPaths) {
         if (current == end || members.contains(current) || set.contains(current)) {

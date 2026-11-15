@@ -302,16 +302,16 @@ public final class ControlFlowGraphLoopReducer {
         }
         BasicBlock farthest = Collections.max(exits, Comparator.comparingInt(BasicBlock::getFromOffset));
 
-        if (!isExitOfAnEnclosingLoop(list, start, farthest, arrayOfMemberIndexes)) {
+        if (!isExitOfAnEnclosingLoop(list, start, farthest, loopIndexes, arrayOfMemberIndexes)) {
             return null;
         }
         exits.remove(farthest);
         return Collections.min(exits, Comparator.comparingInt(BasicBlock::getFromOffset));
     }
 
-    private static boolean isExitOfAnEnclosingLoop(List<BasicBlock> list, BasicBlock start, BasicBlock exit, BitSet[] arrayOfMemberIndexes) {
+    private static boolean isExitOfAnEnclosingLoop(List<BasicBlock> list, BasicBlock start, BasicBlock exit, BitSet loopIndexes, BitSet[] arrayOfMemberIndexes) {
         for (BitSet enclosing : arrayOfMemberIndexes) {
-            if (enclosing != null && enclosing.get(start.getIndex()) && !enclosing.get(exit.getIndex())) {
+            if (enclosing != null && enclosing != loopIndexes && enclosing.get(start.getIndex()) && !enclosing.get(exit.getIndex())) {
                 for (int index = enclosing.nextSetBit(0); index >= 0; index = enclosing.nextSetBit(index + 1)) {
                     if (successorsOf(list.get(index)).contains(exit)) {
                         return true;

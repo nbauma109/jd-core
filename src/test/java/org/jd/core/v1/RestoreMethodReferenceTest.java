@@ -41,6 +41,7 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
             "        private Object add(Object o) { return o; }",
             "        private static void remember(Object o) { }",
             "        private void two(Object a, Object b) { }",
+            "        private void run() { }",
             "        private static Bag make() { return new Bag(); }",
             "    }",
             "    void bound(List<Object> list) {",
@@ -56,6 +57,13 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
             "    long returnsAValue(List<Object> list) {",
             "        Bag bag = new Bag();",
             "        return list.stream().map(bag::add).count();",
+            "    }",
+            "    void withoutArgument() {",
+            "        Runnable runnable = Bag.make()::run;",
+            "        runnable.run();",
+            "    }",
+            "    void lambdaOfTheSourceNamedLikeJavac(List<Object> list) {",
+            "        list.forEach(x$0 -> Bag.make().add(x$0));",
             "    }",
             "    void lambdaOfTheSource(List<Object> list) {",
             "        Bag bag = new Bag();",
@@ -77,12 +85,14 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
 
         // The synthetic parameters of javac are gone, and the variable which holds the receiver is folded in the method reference
         assertEquals(-1, source.indexOf("rec$"));
-        assertEquals(-1, source.indexOf("x$"));
         assertTrue(source, source.contains("list.forEach(bag::add);"));
         assertTrue(source, source.contains("list.forEach(Bag::remember);"));
         assertTrue(source, source.contains("list.forEach(Bag.make()::add);"));
         assertTrue(source, source.contains("list.stream().map(bag::add).count()"));
-        // The lambdas of the source keep their own parameters and bodies
+        // The receiver is made once, where the method reference is, even when there is no argument to tell the lambda from one of the source
+        assertTrue(source, source.contains("Runnable runnable = Bag.make()::run;"));
+        // The lambdas of the source keep their own parameters and bodies, whatever the names of the parameters: 'Bag.make()' is made at each call
+        assertTrue(source, source.contains("x$0 -> Bag.make().add(x$0)"));
         assertTrue(source, source.contains("o -> bag.add(o)"));
         assertTrue(source, source.contains("(first, second) -> bag.two(second, first)"));
         assertTrue(source, source.contains("bag.add(o);"));

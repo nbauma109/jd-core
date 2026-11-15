@@ -92,6 +92,7 @@ import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.e
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileConstructorReferenceExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceLambdaExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileNewExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileTypeSwitchExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.statement.ClassFileMonitorEnterStatement;
@@ -107,6 +108,7 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -1770,14 +1772,18 @@ public class ByteCodeParser {
             CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
             createInstructionsVisitor.createParametersVariablesAndStatements(cfmd, false);
         }
-        indyParameters = unwrapReceiverTemporary(statements, cfmd, indyParameters);
+        // Only a lambda which is known to be restored to a method reference may keep the receiver evaluated by the call site in its body (it is evaluated once there)
+        boolean methodReferenceWithReceiver = capturesReceiverOfMethodReference(cfmd, parameterCount);
+        if (methodReferenceWithReceiver) {
+            indyParameters = unwrapReceiverTemporary(statements, cfmd, indyParameters);
+        }
         MethodReferenceExpression arrayConstructorReference = tryMakeArrayConstructorReference(cfmd, lineNumber, indyMethodTypes, indyParameters, descriptor);
         if (arrayConstructorReference != null) {
             return arrayConstructorReference;
         }
         List<String> lambdaParameterNames = prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount);
         BaseStatement lambdaStatements = prepareLambdaStatements(
-                cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames);
+                cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames, methodReferenceWithReceiver);
         Map<String, String> lambdaParameterMapping = prepareUniqueLambdaParameterNames(lambdaParameterNames);
         if (!lambdaParameterMapping.isEmpty() && lambdaStatements != null) {
             renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
@@ -1793,10 +1799,9 @@ public class ByteCodeParser {
         Type cfmdReturnedType = cfmd.getReturnedType();
         Type lambdaReturnedType = cfmdReturnedType != null && !ObjectType.TYPE_OBJECT.equals(cfmdReturnedType)
                 ? cfmdReturnedType : ObjectType.TYPE_OBJECT;
-        LambdaIdentifiersExpression lambda = new LambdaIdentifiersExpression(
-                lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType,
-                lambdaParameterNames,
-                lambdaStatements);
+        LambdaIdentifiersExpression lambda = methodReferenceWithReceiver
+                ? new ClassFileMethodReferenceLambdaExpression(lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType, lambdaParameterNames, lambdaStatements)
+                : new LambdaIdentifiersExpression(lineNumber, indyMethodTypes.getReturnedType(), lambdaReturnedType, lambdaParameterNames, lambdaStatements);
         lambda.setParameterTypes(prepareLambdaParameterTypes(cfmd.getFormalParameters(), parameterCount));
         return lambda;
     }
@@ -2006,6 +2011,43 @@ public class ByteCodeParser {
         return null;
     }
 
+    /**
+     * The synthetic lambda of 'bag::add' is 'lambda$m$0(Bag rec$, Object x$0) { Bag.access$000(rec$, x$0); }' (or 'rec$.add(x$0)' when the member can be called): it
+     * captures the receiver in the parameter 'rec$', and its body calls with the parameters of the lambda, and only them, in the same order.
+     */
+    private static boolean capturesReceiverOfMethodReference(ClassFileMethodDeclaration cfmd, int parameterCount) {
+        BaseFormalParameter formalParameters = cfmd.getFormalParameters();
+        BaseStatement body = cfmd.getStatements();
+        Statement statement = body instanceof Statements list ? (list.size() == 1 ? list.getFirst() : null) : body instanceof Statement single ? single : null;
+
+        if (formalParameters == null || formalParameters.size() != parameterCount + 1 || !isReceiverOfSyntheticLambda(formalParameters.getFirst())
+                || !(statement instanceof ExpressionStatement || statement instanceof ReturnExpressionStatement)
+                || !(statement.getExpression() instanceof ClassFileMethodInvocationExpression call) || call.isVarArgs()) {
+            return false;
+        }
+        List<Expression> operands = new ArrayList<>();
+        BaseExpression arguments = call.getParameters();
+
+        if (call.getExpression() instanceof ClassFileLocalVariableReferenceExpression) {
+            operands.add(call.getExpression());
+        }
+        if (arguments != null) {
+            arguments.forEach(operands::add);
+        }
+        DefaultList<FormalParameter> parameters = formalParameters.getList();
+
+        if (operands.size() != parameters.size()) {
+            return false;
+        }
+        for (int i = 0; i < operands.size(); i++) {
+            if (!(operands.get(i) instanceof ClassFileLocalVariableReferenceExpression reference)
+                    || !(parameters.get(i) instanceof ClassFileFormalParameter parameter) || reference.getLocalVariable() != parameter.getLocalVariable()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static boolean isReceiverOfSyntheticLambda(FormalParameter formalParameter) {
         return "rec$".equals(formalParameter.getName());
     }
@@ -2029,7 +2071,7 @@ public class ByteCodeParser {
     }
 
     private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,
-            BaseStatement baseStatement, int lambdaParameterCount, List<String> lambdaParameterNames) {
+            BaseStatement baseStatement, int lambdaParameterCount, List<String> lambdaParameterNames, boolean methodReferenceWithReceiver) {
         if (baseStatement != null && formalParameters != null && !Utils.isEmpty(indyParameters)
                 && indyParameters.size() <= formalParameters.size()) {
             Map<String, String> mapping = new HashMap<>();
@@ -2050,7 +2092,7 @@ public class ByteCodeParser {
                 Expression expression = indyParameters.isList() ? indyParameters.getList().get(i) : indyParameters.getFirst();
                 FormalParameter formalParameter = formalParameterList.get(i);
                 if (!expression.isLocalVariableReferenceExpression()) {
-                    if (isReceiverOfSyntheticLambda(formalParameter) && formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
+                    if (methodReferenceWithReceiver && isReceiverOfSyntheticLambda(formalParameter) && formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {
                         // 'Bag.make()::add': the receiver, which is evaluated once, is only known to the lambda as 'rec$'
                         unnamedCaptures.put(classFileFormalParameter.getLocalVariable(), expression);
                     }

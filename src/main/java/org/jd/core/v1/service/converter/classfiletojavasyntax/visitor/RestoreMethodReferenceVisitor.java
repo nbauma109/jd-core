@@ -11,6 +11,7 @@ import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.NoExpression;
+import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.LambdaExpressionStatement;
@@ -19,7 +20,10 @@ import org.jd.core.v1.model.javasyntax.statement.Statement;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceExpression;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodReferenceLambdaExpression;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileLocalVariableReferenceExpression;
+
+import org.jd.core.v1.service.converter.classfiletojavasyntax.util.Utils;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -49,37 +53,48 @@ public class RestoreMethodReferenceVisitor extends AbstractUpdateExpressionVisit
     }
 
     private static Expression toMethodReference(LambdaIdentifiersExpression lambda) {
-        List<String> names = lambda.getParameterNames();
+        // A lambda which javac made of a method reference with a receiver captures it in 'rec$': no other lambda is known to be one. The lambda of a static method
+        // ('Bag::remember') has no receiver to evaluate, and only the names of its parameters, 'x$0', 'x$1'..., tell it from a lambda of the source.
+        boolean capturesReceiver = lambda instanceof ClassFileMethodReferenceLambdaExpression;
+        List<String> names = lambda.getParameterNames() == null ? List.of() : lambda.getParameterNames();
 
-        if (!hasSyntheticParameterNames(names)) {
+        if (!capturesReceiver && !hasSyntheticParameterNames(names)) {
             return null;
         }
         Statement statement = singleStatement(lambda.getStatements());
 
         if (!(statement instanceof ExpressionStatement || statement instanceof ReturnExpressionStatement || statement instanceof LambdaExpressionStatement)
                 || !(statement.getExpression() instanceof ClassFileMethodInvocationExpression call) || call.isVarArgs()
-                || !isReceiverOfMethodReference(call.getExpression(), names) || !callsWithTheParameters(call, names)) {
+                || !isReceiverOfMethodReference(call.getExpression(), names, capturesReceiver) || !callsWithTheParameters(call, names)) {
             return null;
         }
         return new ClassFileMethodReferenceExpression(lambda.getLineNumber(), lambda.getType(), call.getExpression(), call.getInternalTypeName(), call.getName(), call.getDescriptor(), null);
     }
 
     private static boolean hasSyntheticParameterNames(List<String> names) {
-        return names != null && !names.isEmpty() && names.stream().allMatch(name -> name != null && SYNTHETIC_PARAMETER_NAME.matcher(name).matches());
+        return !names.isEmpty() && names.stream().allMatch(name -> name != null && SYNTHETIC_PARAMETER_NAME.matcher(name).matches());
     }
 
-    /** A type ('Bag::remember'), 'this', or what the lambda captures (a variable, 'Bag.make()'): not a parameter of the lambda, and not the implicit 'this' */
-    private static boolean isReceiverOfMethodReference(Expression receiver, List<String> names) {
+    /**
+     * What the lambda captured (a variable, 'Bag.make()') for a method reference with a receiver. Otherwise a type ('Bag::remember') or 'this': a receiver
+     * which the lambda evaluates at each call would not be evaluated once, where the method reference is.
+     */
+    private static boolean isReceiverOfMethodReference(Expression receiver, List<String> names, boolean capturesReceiver) {
         if (receiver instanceof NoExpression) {
             return false;
         }
-        return !(receiver instanceof ClassFileLocalVariableReferenceExpression reference) || !names.contains(reference.getName());
+        if (capturesReceiver) {
+            return !(receiver instanceof ClassFileLocalVariableReferenceExpression reference) || !names.contains(reference.getName());
+        }
+        return receiver instanceof ObjectTypeReferenceExpression || receiver.isThisExpression();
     }
 
-    /** The arguments of the call are the parameters of the lambda, in the same order */
     private static boolean callsWithTheParameters(ClassFileMethodInvocationExpression call, List<String> names) {
         BaseExpression arguments = call.getParameters();
 
+        if (names.isEmpty()) {
+            return Utils.isEmpty(arguments);
+        }
         if (arguments == null || arguments.size() != names.size()) {
             return false;
         }

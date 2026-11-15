@@ -107,9 +107,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     @Test
     public void testCommonsText() throws Exception {
         String version = pomVersion("org.apache.commons", "commons-text");
-        // EntityArraysTest.testForDuplicatedDeclaredMapKeys parses the lines of the source file, which carry the line numbers of the decompiler
+        // EntityArraysTest.testForDuplicatedDeclaredMapKeys parses the lines of the source file, which carry the line numbers of the decompiler;
+        // UrlStringLookupTest.testHttpScheme gets https://www.google.com, which the network of the runner does not always give
         ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test",
-                List.of("-Dtest=!EntityArraysTest#testForDuplicatedDeclaredMapKeys"));
+                List.of("-Dtest=!EntityArraysTest#testForDuplicatedDeclaredMapKeys,!UrlStringLookupTest#testHttpScheme"));
         testAtTag("https://github.com/apache/commons-text", "commons-text", "rel/commons-text-" + version, "org.apache.commons", "commons-text", version, true, null, layout);
     }
 

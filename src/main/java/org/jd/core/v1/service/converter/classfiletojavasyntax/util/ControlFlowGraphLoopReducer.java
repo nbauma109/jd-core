@@ -851,6 +851,20 @@ public final class ControlFlowGraphLoopReducer {
         return ends;
     }
 
+    /** The block which a member of the loop goes to: the start or the end of the loop, or a jump out of it */
+    private static BasicBlock loopSuccessor(BasicBlock member, BasicBlock bb, BasicBlock start, BasicBlock end, Set<BasicBlock> members, Set<BasicBlock> endsOfEnclosingLoops) {
+        if (bb == start) {
+            return LOOP_START;
+        }
+        if (bb == end) {
+            return LOOP_END;
+        }
+        if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
+            return bb.getControlFlowGraph().newJumpBasicBlock(member, bb);
+        }
+        return bb;
+    }
+
     private static BasicBlock reduceLoop(Loop loop, List<Loop> loops) {
         BasicBlock start = loop.getStart();
         Set<BasicBlock> members = loop.getMembers();
@@ -885,47 +899,13 @@ public final class ControlFlowGraphLoopReducer {
         // Set LOOP_START, LOOP_END and TYPE_JUMP
         for (BasicBlock member : members) {
             if (member.matchType(GROUP_SINGLE_SUCCESSOR)) {
-                BasicBlock bb = member.getNext();
-
-                if (bb == start) {
-                    member.setNext(LOOP_START);
-                } else if (bb == end) {
-                    member.setNext(LOOP_END);
-                } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
-                    member.setNext(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
-                }
+                member.setNext(loopSuccessor(member, member.getNext(), start, end, members, endsOfEnclosingLoops));
             } else if (member.getType() == TYPE_CONDITIONAL_BRANCH) {
-                BasicBlock bb = member.getNext();
-
-                if (bb == start) {
-                    member.setNext(LOOP_START);
-                } else if (bb == end) {
-                    member.setNext(LOOP_END);
-                } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
-                    member.setNext(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
-                }
-
-                bb = member.getBranch();
-
-                if (bb == start) {
-                    member.setBranch(LOOP_START);
-                } else if (bb == end) {
-                    member.setBranch(LOOP_END);
-                } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
-                    member.setBranch(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
-                }
+                member.setNext(loopSuccessor(member, member.getNext(), start, end, members, endsOfEnclosingLoops));
+                member.setBranch(loopSuccessor(member, member.getBranch(), start, end, members, endsOfEnclosingLoops));
             } else if (member.getType() == TYPE_SWITCH_DECLARATION) {
-                BasicBlock bb;
                 for (SwitchCase switchCase : member.getSwitchCases()) {
-                    bb = switchCase.getBasicBlock();
-
-                    if (bb == start) {
-                        switchCase.setBasicBlock(LOOP_START);
-                    } else if (bb == end) {
-                        switchCase.setBasicBlock(LOOP_END);
-                    } else if (!members.contains(bb) && (bb.getPredecessors().size() > 1 || endsOfEnclosingLoops.contains(bb))) {
-                        switchCase.setBasicBlock(bb.getControlFlowGraph().newJumpBasicBlock(member, bb));
-                    }
+                    switchCase.setBasicBlock(loopSuccessor(member, switchCase.getBasicBlock(), start, end, members, endsOfEnclosingLoops));
                 }
             }
             if (toOffset < member.getToOffset()) {

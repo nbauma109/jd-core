@@ -67,6 +67,13 @@ public class CommonsCompressPatternsTest extends AbstractJdTest {
             "    int returnedPre(int i) { return ++i; }",
             "    long[] map = new long[4];",
             "    void merge(int[] index, long value) { map[index[0]++] |= value; }",
+            "    int compoundOfElement(int i) { return counts[i] += 5; }",
+            "    int postDecrementOfElement(int i) { final int tmp = counts[i]--; return tmp; }",
+            "    char chars(boolean flag) { final char c = flag ? 'a' : 'b'; return c; }",
+            "    short shorts(boolean flag) { final short s = flag ? (short) 300 : (short) 7; return s; }",
+            "    byte bytes(boolean flag, byte other) { return flag ? (byte) 1 : other; }",
+            "    byte constantBytes(boolean flag) { return flag ? (byte) 1 : (byte) 2; }",
+            "    long wide(long[] values, int i) { long result = Integer.MAX_VALUE; result += values[i]; values[i]++; return result; }",
             "    void flag(boolean isDir) {",
             "        this.linkFlag = isDir ? LF_DIR : LF_NORMAL;",
             "    }",
@@ -107,6 +114,9 @@ public class CommonsCompressPatternsTest extends AbstractJdTest {
         assertTrue(source, source.contains("return ++i;"));
         // The index which is incremented by an element of an array is evaluated once
         assertTrue(source, source.contains("this.map[index[0]++] |= value;"));
+        assertTrue(source, source.contains("return this.counts[i] += 5;"));
+        assertTrue(source, source.contains("this.counts[i]--;"));
+        assertTrue(source, source.contains("byte constantBytes(boolean flag)"));
         // A ternary of two int constants is an int: a byte needs the cast
         assertTrue(source, source.contains("this.linkFlag = isDir ? (byte)53 : (byte)48;"));
         // The method reference is no cast to the bound of T, which javac infers as 'Integer' from the method reference

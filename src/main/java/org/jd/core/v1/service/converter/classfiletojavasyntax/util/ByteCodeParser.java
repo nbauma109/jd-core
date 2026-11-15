@@ -347,7 +347,7 @@ public class ByteCodeParser {
                     break;
                 case ISTORE, LSTORE, FSTORE, DSTORE:
                     valueRef = stack.pop();
-                    valueRef = widenIntegerLimit(valueRef, opcode == LSTORE ? TYPE_LONG : opcode == FSTORE ? TYPE_FLOAT : opcode == DSTORE ? TYPE_DOUBLE : TYPE_INT);
+                    valueRef = widenIntegerLimit(valueRef, typeStoredBy(opcode));
                     localVariable = getLocalVariableInAssignment(code[++offset] & 255, offset + 2, valueRef);
                     localVariable.setAssigned(true);
                     parseSTORE(statements, stack, lineNumber, offset, localVariable, valueRef);
@@ -1429,6 +1429,15 @@ public class ByteCodeParser {
      * The long (float, double) constant which is 'Integer.MAX_VALUE' is written with the int field: the variable it is stored in is a long (float, double), not
      * an int; the expression keeps its int type elsewhere, where 'Long.valueOf(Integer.MAX_VALUE)' is a boxing of an int constant
      */
+    private static Type typeStoredBy(int opcode) {
+        return switch (opcode) {
+            case LSTORE -> TYPE_LONG;
+            case FSTORE -> TYPE_FLOAT;
+            case DSTORE -> TYPE_DOUBLE;
+            default -> TYPE_INT;
+        };
+    }
+
     private static Expression widenIntegerLimit(Expression valueRef, Type type) {
         if (type != TYPE_INT && valueRef instanceof FieldReferenceExpression field && TYPE_INT.equals(field.getType())
                 && StringConstants.JAVA_LANG_INTEGER.equals(field.getInternalTypeName())) {
@@ -2261,11 +2270,59 @@ public class ByteCodeParser {
         createAssignment(statements, stack, lineNumber, leftExpression, rightExpression, false);
     }
 
-    /** The value which an array store leaves on the stack is duplicated again ('array[i++] |= x' goes on with a DUP2 for the element): it is not a value of the store */
-    private static boolean isDuplicate(byte[] code, int offset) {
-        if (offset >= code.length) {
+    /** 'a = b = c': the previous statement assigned the value which this one assigns */
+    private static boolean mergeMultiAssignment(int lineNumber, Expression leftExpression, Expression rightExpression, ExpressionStatement lastES, Expression lastExpression) {
+        if (getLastRightExpression(lastExpression) == rightExpression || isSameVariableAssignedTwice(lineNumber, rightExpression, lastExpression)) {
+            lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isSameVariableAssignedTwice(int lineNumber, Expression rightExpression, Expression lastExpression) {
+        if (lineNumber <= 0 || lastExpression.getLineNumber() != lineNumber || lastExpression.getLeftExpression().getClass() != rightExpression.getClass()) {
             return false;
         }
+        if (rightExpression.isLocalVariableReferenceExpression()) {
+            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression) lastExpression.getLeftExpression();
+            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression) rightExpression;
+
+            return lvr1.getLocalVariable() == lvr2.getLocalVariable();
+        }
+        if (rightExpression.isFieldReferenceExpression()) {
+            FieldReferenceExpression fr1 = (FieldReferenceExpression) lastExpression.getLeftExpression();
+            FieldReferenceExpression fr2 = (FieldReferenceExpression) rightExpression;
+
+            return fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType());
+        }
+        return false;
+    }
+
+    /** '++x; y = x' is 'y = ++x' */
+    private Expression foldPreOperator(Statements statements, Expression lastExpression, Expression rightExpression) {
+        if (lastExpression.getExpression().getClass() == rightExpression.getClass() && isSameVariable(lastExpression.getExpression(), rightExpression)) {
+            statements.removeLast();
+            return newPreArithmeticOperatorExpression(lastExpression.getLineNumber(), lastExpression.getOperator(), lastExpression.getExpression());
+        }
+        return rightExpression;
+    }
+
+    private static boolean isSameVariable(Expression first, Expression second) {
+        if (second.isLocalVariableReferenceExpression()) {
+            return ((ClassFileLocalVariableReferenceExpression) first).getLocalVariable() == ((ClassFileLocalVariableReferenceExpression) second).getLocalVariable();
+        }
+        if (second.isFieldReferenceExpression()) {
+            FieldReferenceExpression fr1 = (FieldReferenceExpression) first;
+            FieldReferenceExpression fr2 = (FieldReferenceExpression) second;
+
+            return fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType());
+        }
+        return false;
+    }
+
+    /** The value which an array store leaves on the stack is duplicated again ('array[i++] |= x' goes on with a DUP2 for the element): it is not a value of the store */
+    private static boolean isDuplicate(byte[] code, int offset) {
+        // (an array store is never the last instruction of a method)
         int opcode = code[offset] & 255;
 
         return opcode == DUP || opcode == DUP_X1 || opcode == DUP_X2 || opcode == DUP2 || opcode == DUP2_X1 || opcode == DUP2_X2;
@@ -2292,68 +2349,22 @@ public class ByteCodeParser {
             return;
         }
 
-        if ("=".equals(assignmentOperator) && !statements.isEmpty()) {
-            Statement lastStatement = statements.getLast();
+        if ("=".equals(assignmentOperator) && !statements.isEmpty() && statements.getLast().isExpressionStatement()) {
+            ExpressionStatement lastES = (ExpressionStatement) statements.getLast();
+            Expression lastExpression = lastES.getExpression();
 
-            if (lastStatement.isExpressionStatement()) {
-                ExpressionStatement lastES = (ExpressionStatement)lastStatement;
-                Expression lastExpression = lastStatement.getExpression();
+            if (lastExpression.isBinaryOperatorExpression()) {
+                if (mergeMultiAssignment(lineNumber, leftExpression, rightExpression, lastES, lastExpression)) {
+                    return;
+                }
+            } else if (lastExpression.isPreOperatorExpression()) {
+                rightExpression = foldPreOperator(statements, lastExpression, rightExpression);
+            } else if (lastExpression.isPostOperatorExpression()) {
+                PostOperatorExpression poe = (PostOperatorExpression)lastExpression;
 
-                if (lastExpression.isBinaryOperatorExpression()) {
-                    if (getLastRightExpression(lastExpression) == rightExpression) {
-                        // Multi assignment
-                        lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
-                        return;
-                    }
-
-                    if (lineNumber > 0 && lastExpression.getLineNumber() == lineNumber && lastExpression.getLeftExpression().getClass() == rightExpression.getClass()) {
-                        if (rightExpression.isLocalVariableReferenceExpression()) {
-                            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression) lastExpression.getLeftExpression();
-                            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression) rightExpression;
-
-                            if (lvr1.getLocalVariable() == lvr2.getLocalVariable()) {
-                                // Multi assignment
-                                lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
-                                return;
-                            }
-                        } else if (rightExpression.isFieldReferenceExpression()) {
-                            FieldReferenceExpression fr1 = (FieldReferenceExpression) lastExpression.getLeftExpression();
-                            FieldReferenceExpression fr2 = (FieldReferenceExpression) rightExpression;
-
-                            if (fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType())) {
-                                // Multi assignment
-                                lastES.setExpression(new BinaryOperatorExpression(lineNumber, leftExpression.getType(), leftExpression, "=", lastExpression, 16));
-                                return;
-                            }
-                        }
-                    }
-                } else if (lastExpression.isPreOperatorExpression()) {
-                    if (lastExpression.getExpression().getClass() == rightExpression.getClass()) {
-                        if (rightExpression.isLocalVariableReferenceExpression()) {
-                            ClassFileLocalVariableReferenceExpression lvr1 = (ClassFileLocalVariableReferenceExpression)lastExpression.getExpression();
-                            ClassFileLocalVariableReferenceExpression lvr2 = (ClassFileLocalVariableReferenceExpression)rightExpression;
-
-                            if (lvr1.getLocalVariable() == lvr2.getLocalVariable()) {
-                                rightExpression = newPreArithmeticOperatorExpression(lastExpression.getLineNumber(), lastExpression.getOperator(), lastExpression.getExpression());
-                                statements.removeLast();
-                            }
-                        } else if (rightExpression.isFieldReferenceExpression()) {
-                            FieldReferenceExpression fr1 = (FieldReferenceExpression)lastExpression.getExpression();
-                            FieldReferenceExpression fr2 = (FieldReferenceExpression)rightExpression;
-
-                            if (fr1.getName().equals(fr2.getName()) && fr1.getExpression().getType().equals(fr2.getExpression().getType())) {
-                                rightExpression = newPreArithmeticOperatorExpression(lastExpression.getLineNumber(), lastExpression.getOperator(), lastExpression.getExpression());
-                                statements.removeLast();
-                            }
-                        }
-                    }
-                } else if (lastExpression.isPostOperatorExpression()) {
-                    PostOperatorExpression poe = (PostOperatorExpression)lastExpression;
-
-                    if (poe.getExpression() == rightExpression) {
-                        rightExpression = poe;
-                        statements.removeLast();
-                    }
+                if (poe.getExpression() == rightExpression) {
+                    rightExpression = poe;
+                    statements.removeLast();
                 }
             }
         }
@@ -2366,6 +2377,13 @@ public class ByteCodeParser {
      * operation for a post operator, the one after it for a pre operator or a compound assignment ('tmp = array[i] += 2'); either way it is the
      * expression which the next instruction uses, not a statement
      */
+    private static String unaryOperatorOf(String compoundOperator) {
+        if ("+=".equals(compoundOperator)) {
+            return "++";
+        }
+        return "-=".equals(compoundOperator) ? "--" : null;
+    }
+
     private boolean pushValueOfCompoundAssignmentOfArrayElement(DefaultStack<Expression> stack, int lineNumber, Expression arrayElement, BinaryOperatorExpression operation, String compoundOperator) {
         if (stack.isEmpty()) {
             return false;
@@ -2374,7 +2392,7 @@ public class ByteCodeParser {
         String unaryOperator = null;
 
         if (isPositiveOne(operation.getRightExpression())) {
-            unaryOperator = "+=".equals(compoundOperator) ? "++" : "-=".equals(compoundOperator) ? "--" : null;
+            unaryOperator = unaryOperatorOf(compoundOperator);
         }
         if (kept == operation.getLeftExpression() && unaryOperator != null) {
             stack.pop();

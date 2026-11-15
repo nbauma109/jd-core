@@ -3624,11 +3624,6 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /**
-     * A raw generic type in the cast target only blocks the cast when it replaced a type variable of the
-     * declared parameter type (erasure fallback); a raw type written in the method's declaration is legal
-     * in a disambiguating cast.
-     */
-    /**
      * 'Supplier&lt;T&gt;' of 'void expand(Supplier&lt;T&gt;, Consumer&lt;T&gt;)' with 'T extends ArchiveEntry' and nothing which binds T: 'Supplier&lt;ArchiveEntry&gt;' is only what
      * the bound makes of it, and a cast to it would fix the T which javac infers (as 'SevenZArchiveEntry') to the bound
      */
@@ -3651,6 +3646,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return false;
     }
 
+    /**
+     * A raw generic type in the cast target only blocks the cast when it replaced a type variable of the
+     * declared parameter type (erasure fallback); a raw type written in the method's declaration is legal
+     * in a disambiguating cast.
+     */
     private boolean containsErasedRawGenericType(ObjectType targetType, Type unboundType) {
         if (isRawGenericType(targetType)) {
             if (unboundType == null) {

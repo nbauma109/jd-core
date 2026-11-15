@@ -104,6 +104,12 @@ import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_INT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_LONG;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.FLAG_SHORT;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_BOOLEAN_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_BYTE_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_CHAR_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_NEGATIVE_BOOLEAN_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_NEGATIVE_BYTE_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_NEGATIVE_SHORT_TYPE;
+import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.MAYBE_SHORT_TYPE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BOOLEAN;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_BYTE;
 import static org.jd.core.v1.model.javasyntax.type.PrimitiveType.TYPE_CHAR;
@@ -153,6 +159,11 @@ import static org.jd.core.v1.service.converter.classfiletojavasyntax.model.cfg.B
 public class StatementMaker {
     /** The length of 'invokevirtual': the range which javac protects for an accessor of a record pattern */
     private static final int INVOKEVIRTUAL_LENGTH = 3;
+
+    /** The types of the constants which can still be a 'byte', a 'char', a 'short' or an 'int' ('MAYBE_INT_TYPE' is an 'int') */
+    private static final PrimitiveType[] UNDECIDED_PRIMITIVE_TYPES = {
+        MAYBE_BOOLEAN_TYPE, MAYBE_NEGATIVE_BOOLEAN_TYPE, MAYBE_BYTE_TYPE, MAYBE_NEGATIVE_BYTE_TYPE, MAYBE_CHAR_TYPE, MAYBE_SHORT_TYPE, MAYBE_NEGATIVE_SHORT_TYPE
+    };
 
     protected static final SwitchCaseComparator SWITCH_CASE_COMPARATOR = new SwitchCaseComparator();
     protected static final NullExpression FINALLY_EXCEPTION_EXPRESSION = new NullExpression(new ObjectType(StringConstants.JAVA_LANG_EXCEPTION, "java.lang.Exception", "Exception"));
@@ -1761,8 +1772,12 @@ public class StatementMaker {
                 type = TYPE_LONG;
             } else {
                 flags = ((PrimitiveType)expressionTrueType).getFlags() & ((PrimitiveType)expressionFalseType).getFlags();
+                PrimitiveType undecidedType = undecidedPrimitiveType(flags);
 
-                if ((flags & FLAG_INT) != 0) {
+                if (undecidedType != null) {
+                    // Both are constants like 'cond ? 32 : 0': the type is not known yet and a 'char' variable can still receive the value
+                    type = undecidedType;
+                } else if ((flags & FLAG_INT) != 0) {
                     type = TYPE_INT;
                 } else if ((flags & FLAG_SHORT) != 0) {
                     type = TYPE_SHORT;
@@ -1787,6 +1802,15 @@ public class StatementMaker {
         }
 
         return new TernaryOperatorExpression(lineNumber, type, condition, expressionTrue, expressionFalse);
+    }
+
+    private static PrimitiveType undecidedPrimitiveType(int flags) {
+        for (PrimitiveType candidate : UNDECIDED_PRIMITIVE_TYPES) {
+            if (candidate.getFlags() == flags) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     protected Type getTernaryOperatorExpressionType(ObjectType ot1, ObjectType ot2) {

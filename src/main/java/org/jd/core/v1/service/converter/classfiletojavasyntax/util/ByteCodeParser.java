@@ -2018,7 +2018,7 @@ public class ByteCodeParser {
     private static boolean capturesReceiverOfMethodReference(ClassFileMethodDeclaration cfmd, int parameterCount) {
         BaseFormalParameter formalParameters = cfmd.getFormalParameters();
         BaseStatement body = cfmd.getStatements();
-        Statement statement = body instanceof Statements list ? (list.size() == 1 ? list.getFirst() : null) : body instanceof Statement single ? single : null;
+        Statement statement = singleStatement(body);
 
         if (formalParameters == null || formalParameters.size() != parameterCount + 1 || !isReceiverOfSyntheticLambda(formalParameters.getFirst())
                 || !(statement instanceof ExpressionStatement || statement instanceof ReturnExpressionStatement)
@@ -2046,6 +2046,13 @@ public class ByteCodeParser {
             }
         }
         return true;
+    }
+
+    private static Statement singleStatement(BaseStatement baseStatement) {
+        if (baseStatement instanceof Statements list) {
+            return list.size() == 1 ? list.getFirst() : null;
+        }
+        return baseStatement instanceof Statement statement ? statement : null;
     }
 
     private static boolean isReceiverOfSyntheticLambda(FormalParameter formalParameter) {

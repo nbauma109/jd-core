@@ -214,7 +214,7 @@ public class RestoreMethodReferenceTest extends AbstractJdTest {
     }
 
     /** The class files of the JDK's javac for Java 8: the compiler of the other tests may be the one of Eclipse, which names the synthetic members differently */
-    private static Loader compileForJava8(String debugOption, Map<String, String> sources) throws IOException {
+    static Loader compileForJava8(String debugOption, Map<String, String> sources) throws IOException {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         Path directory = Files.createTempDirectory("restore-method-reference");
         List<SimpleJavaFileObject> sourceFiles = new ArrayList<>();

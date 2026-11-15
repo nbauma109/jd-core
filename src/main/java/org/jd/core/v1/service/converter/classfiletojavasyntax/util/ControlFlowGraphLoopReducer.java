@@ -249,7 +249,7 @@ public final class ControlFlowGraphLoopReducer {
                         loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes));
                     }
                 } else {
-                    loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes));
+                    loops.add(makeLoop(list, start, searchZoneIndexes, memberIndexes, endNearerThanTheExitOfAnEnclosingLoop(list, start, memberIndexes, arrayOfMemberIndexes)));
                 }
 
                 // (the loop which has a condition is left by it: its 'continue' goes to the condition, and an inner loop has no header of its own)
@@ -276,6 +276,50 @@ public final class ControlFlowGraphLoopReducer {
     /** The start of the loop is a condition which leaves the loop */
     private static boolean isLoopCondition(BasicBlock start, BitSet memberIndexes) {
         return start.getType() == TYPE_CONDITIONAL_BRANCH && (!memberIndexes.get(start.getNext().getIndex()) || !memberIndexes.get(start.getBranch().getIndex()));
+    }
+
+    /**
+     * 'main: while (...) { tight: while (true) { ... if (...) break tight; ... if (...) break main; } ...code of main... }': the farthest exit of the loop
+     * is the one of the enclosing loop (a 'break main'), not the end of this one, which is the code which follows it.
+     *
+     * @return the nearest exit of the loop, when its farthest exit is the exit of an enclosing loop, or null
+     */
+    private static BasicBlock endNearerThanTheExitOfAnEnclosingLoop(List<BasicBlock> list, BasicBlock start, BitSet loopIndexes, BitSet[] arrayOfMemberIndexes) {
+        if (start.getType() == TYPE_CONDITIONAL_BRANCH) {
+            return null;
+        }
+        Set<BasicBlock> exits = new HashSet<>();
+
+        for (int index = loopIndexes.nextSetBit(0); index >= 0; index = loopIndexes.nextSetBit(index + 1)) {
+            for (BasicBlock successor : successorsOf(list.get(index))) {
+                if (successor != null && successor.getIndex() >= 0 && !loopIndexes.get(successor.getIndex()) && !successor.matchType(GROUP_END) && successor.getFromOffset() > start.getFromOffset()) {
+                    exits.add(successor);
+                }
+            }
+        }
+        if (exits.size() < 2) {
+            return null;
+        }
+        BasicBlock farthest = Collections.max(exits, Comparator.comparingInt(BasicBlock::getFromOffset));
+
+        if (!isExitOfAnEnclosingLoop(list, start, farthest, arrayOfMemberIndexes)) {
+            return null;
+        }
+        exits.remove(farthest);
+        return Collections.min(exits, Comparator.comparingInt(BasicBlock::getFromOffset));
+    }
+
+    private static boolean isExitOfAnEnclosingLoop(List<BasicBlock> list, BasicBlock start, BasicBlock exit, BitSet[] arrayOfMemberIndexes) {
+        for (BitSet enclosing : arrayOfMemberIndexes) {
+            if (enclosing != null && enclosing.get(start.getIndex()) && !enclosing.get(exit.getIndex())) {
+                for (int index = enclosing.nextSetBit(0); index >= 0; index = enclosing.nextSetBit(index + 1)) {
+                    if (successorsOf(list.get(index)).contains(exit)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /** A back edge to the header of a loop, and the blocks which reach it without leaving the loop */
@@ -417,6 +461,11 @@ public final class ControlFlowGraphLoopReducer {
     }
 
     private static Loop makeLoop(List<BasicBlock> list, BasicBlock start, BitSet searchZoneIndexes, BitSet memberIndexes) {
+        return makeLoop(list, start, searchZoneIndexes, memberIndexes, null);
+    }
+
+    /** @param endOverride the end of the loop, when it is not the exit which is the farthest */
+    private static Loop makeLoop(List<BasicBlock> list, BasicBlock start, BitSet searchZoneIndexes, BitSet memberIndexes, BasicBlock endOverride) {
         int length = list.size();
         int maxOffset = -1;
 
@@ -459,7 +508,7 @@ public final class ControlFlowGraphLoopReducer {
 
         if (end == END) {
             // Not found, check all member blocks
-            end = searchEndBasicBlock(memberIndexes, maxOffset, members);
+            end = endOverride != null ? endOverride : searchEndBasicBlock(memberIndexes, maxOffset, members);
 
             if (end != END) {
                 end = preferTheExitToTheEnclosingLoop(start, members, end);
@@ -597,6 +646,27 @@ public final class ControlFlowGraphLoopReducer {
         }
 
         return null;
+    }
+
+    /**
+     * 'while (off &lt; max) { ... if (c &gt;= 0x80) break; ... } continue outer;': the condition goes on with the enclosing loop, and the 'break' goes to code
+     * which follows in this one (it cannot be written after the loop, where both would go): the loop is left by the 'break', and the condition is
+     * a 'continue' of the enclosing loop.
+     */
+    private static BasicBlock preferTheExitWhichTheCodeFollows(Loop loop, List<Loop> loops, BasicBlock end) {
+        BasicBlock start = loop.getStart();
+        Set<BasicBlock> members = loop.getMembers();
+
+        if (end != null && end != END && isUpdateOfEnclosingLoop(start, end)) {
+            BasicBlock exit = searchOtherExit(members, end);
+
+            // (the code which follows is a part of the enclosing loop: the 'break' of this loop is not one of the enclosing loop)
+            if (exit != null && !exit.matchType(GROUP_END) && exit.getFromOffset() > start.getFromOffset() && exit.getPredecessors().size() > 1 && !isUpdateOfEnclosingLoop(start, exit)
+                    && loops.stream().anyMatch(other -> other != loop && other.getMembers().contains(start) && other.getMembers().contains(exit))) {
+                return exit;
+            }
+        }
+        return end;
     }
 
     private static BasicBlock searchEndBasicBlock(BitSet memberIndexes, int maxOffset, Set<BasicBlock> members) {
@@ -1012,6 +1082,9 @@ public final class ControlFlowGraphLoopReducer {
 
         // Recheck 'end' block
         end = recheckEndBlock(loop, start, members, end);
+        if (start.getType() == TYPE_CONDITIONAL_BRANCH) {
+            end = preferTheExitWhichTheCodeFollows(loop, loops, end);
+        }
 
         // The code which follows an enclosing loop is reached by a 'break' of that loop, even when it is reached from this loop only
         Set<BasicBlock> endsOfEnclosingLoops = endsOfEnclosingLoops(loop, loops);

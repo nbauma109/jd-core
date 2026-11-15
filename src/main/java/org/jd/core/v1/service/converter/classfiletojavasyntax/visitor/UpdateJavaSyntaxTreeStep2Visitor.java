@@ -39,6 +39,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final AutoboxingVisitor autoboxingVisitor;
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
     private final WidenedFloatConstantVisitor widenedFloatConstantVisitor = new WidenedFloatConstantVisitor();
+    private final RestoreMethodReferenceVisitor restoreMethodReferenceVisitor = new RestoreMethodReferenceVisitor();
     private final AnonymousClassVarVisitor anonymousClassVarVisitor;
     private final EmptyThenWithPatternVisitor emptyThenWithPatternVisitor = new EmptyThenWithPatternVisitor();
     private final RecordPatternIfVisitor recordPatternIfVisitor;
@@ -86,6 +87,8 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
                 // Replace bridge method invocation
                 replaceBridgeMethodVisitor.visit(bodyDeclaration);
             }
+            // Turn back the synthetic lambdas which javac makes of method references to the method references
+            restoreMethodReferenceVisitor.visit(declaration);
             hoistUndeclaredLocalVariablesVisitor.visit(declaration);
             // Add cast expressions
             addCastExpressionVisitor.visit(declaration);

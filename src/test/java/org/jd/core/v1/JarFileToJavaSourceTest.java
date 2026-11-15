@@ -99,6 +99,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testCommonsText() throws Exception {
+        String version = pomVersion("org.apache.commons", "commons-text");
+        // EntityArraysTest.testForDuplicatedDeclaredMapKeys parses the lines of the source file, which carry the line numbers of the decompiler
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test",
+                List.of("-Dtest=!EntityArraysTest#testForDuplicatedDeclaredMapKeys"));
+        testAtTag("https://github.com/apache/commons-text", "commons-text", "rel/commons-text-" + version, "org.apache.commons", "commons-text", version, true, null, layout);
+    }
+
+    @Test
     public void testDiskLruCache() throws Exception {
         test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", pomVersion("com.jakewharton", "disklrucache"), false);
     }

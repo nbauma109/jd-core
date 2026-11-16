@@ -503,7 +503,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         }
 
         private boolean endsTheMethod(WhileStatement statement) {
-            return methodStatements != null && !methodStatements.isEmpty() && methodStatements.getLast() == statement;
+            return methodStatements.getLast() == statement;
         }
 
         @Override

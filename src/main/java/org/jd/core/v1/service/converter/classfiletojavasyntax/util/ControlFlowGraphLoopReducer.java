@@ -260,7 +260,7 @@ public final class ControlFlowGraphLoopReducer {
                     Loop innerLoop = makeLoop(list, start, searchZoneIndexes, innerMemberIndexes);
 
                     // The end which is searched is the one of the loop when the inner loop is left by a 'break' of both
-                    if (innerEnd != null && (innerLoop.getEnd() == null || innerLoop.getEnd().getIndex() < 0 || !memberIndexes.get(innerLoop.getEnd().getIndex()))) {
+                    if (innerEnd != null && (innerLoop.getEnd().getIndex() < 0 || !memberIndexes.get(innerLoop.getEnd().getIndex()))) {
                         innerLoop.setEnd(innerEnd);
                     }
                     loops.add(innerLoop);
@@ -391,8 +391,8 @@ public final class ControlFlowGraphLoopReducer {
 
         successors.add(block.getNext());
         successors.add(block.getBranch());
-        if (block.getSwitchCases() != null) {
-            block.getSwitchCases().forEach(switchCase -> successors.add(switchCase.getBasicBlock()));
+        for (SwitchCase switchCase : block.getSwitchCases()) {
+            successors.add(switchCase.getBasicBlock());
         }
         return successors;
     }

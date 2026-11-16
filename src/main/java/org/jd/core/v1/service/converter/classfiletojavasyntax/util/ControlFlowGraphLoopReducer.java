@@ -285,9 +285,6 @@ public final class ControlFlowGraphLoopReducer {
      * @return the nearest exit of the loop, when its farthest exit is the exit of an enclosing loop, or null
      */
     private static BasicBlock endNearerThanTheExitOfAnEnclosingLoop(List<BasicBlock> list, BasicBlock start, BitSet loopIndexes, BitSet[] arrayOfMemberIndexes) {
-        if (start.getType() == TYPE_CONDITIONAL_BRANCH) {
-            return null;
-        }
         Set<BasicBlock> exits = new HashSet<>();
 
         for (int index = loopIndexes.nextSetBit(0); index >= 0; index = loopIndexes.nextSetBit(index + 1)) {

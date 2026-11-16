@@ -423,6 +423,16 @@ public class LocalVariableMaker {
     public AbstractLocalVariable getLocalVariable(int index, int offset) {
         AbstractLocalVariable lv = localVariableCache[index];
 
+        if (lv != null && lv.getFromOffset() > offset) {
+            // The last variable stored in the slot is declared further in the code: the read is of an earlier one
+            AbstractLocalVariable earlier = currentFrame.getLocalVariable(index);
+
+            if (earlier != null && earlier != lv && earlier.getFromOffset() <= offset) {
+                earlier.setFromToOffset(offset);
+                return earlier;
+            }
+        }
+
         if (lv == null) {
             lv = currentFrame.getLocalVariable(index);
             if (lv == null) {

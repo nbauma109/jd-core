@@ -67,6 +67,14 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         process(methodStatements);
     }
 
+    /** The loop has code after it, which the break of its exit goes to */
+    private void processWithCodeAfter(Statement loop) {
+        Statements methodStatements = new Statements();
+        methodStatements.add(loop);
+        methodStatements.add(new ExpressionStatement(invocation("after", PrimitiveType.TYPE_BOOLEAN)));
+        process(methodStatements);
+    }
+
     private void process(Statements methodStatements) {
         MethodDeclaration method = new MethodDeclaration(0, "test", PrimitiveType.TYPE_VOID, "()V", methodStatements);
         new HoistUndeclaredLocalVariablesVisitor().visit(method);
@@ -80,7 +88,7 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         body.add(exit);
         WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, body);
 
-        process(loop);
+        processWithCodeAfter(loop);
 
         IfStatement transformedExit = (IfStatement) body.getLast();
         Statements exitStatements = (Statements) transformedExit.getStatements();
@@ -99,10 +107,25 @@ public class HoistUndeclaredLocalVariablesVisitorTest extends TestCase {
         body.add(exit);
         WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, body);
 
-        process(loop);
+        processWithCodeAfter(loop);
 
         assertEquals(2, exitStatements.size());
         assertSame(BreakStatement.BREAK, exitStatements.getLast());
+    }
+
+    @Test
+    public void testInfiniteLoopWhichEndsTheMethodGetsNoBreak() {
+        ExpressionStatement exitExpression = new ExpressionStatement(invocation("stop", PrimitiveType.TYPE_BOOLEAN));
+        Statements exitStatements = new Statements();
+        exitStatements.add(exitExpression);
+        IfStatement exit = new IfStatement(equalityCondition(), exitStatements);
+        Statements body = new Statements();
+        body.add(exit);
+        WhileStatement loop = new WhileStatement(BooleanExpression.TRUE, body);
+
+        process(loop);
+
+        assertEquals(1, exitStatements.size());
     }
 
     @Test

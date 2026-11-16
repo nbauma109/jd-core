@@ -62,12 +62,15 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
     private static void hoist(BaseStatement statement) {
         if (statement instanceof Statements methodStatements) {
             Collector collector = new Collector();
+            collector.methodStatements = methodStatements;
             methodStatements.accept(collector);
             collector.hoistInto(methodStatements);
         }
     }
 
     private static final class Collector extends AbstractJavaSyntaxVisitor {
+        /** The statements of the method: the loop which ends them has no code after it to go to by a break */
+        private Statements methodStatements;
         private final Map<String, DeclarationLocation> declarations = new LinkedHashMap<>();
         private final Map<String, Boolean> referencedBeforeDeclaration = new LinkedHashMap<>();
         private final Map<String, Boolean> seenDeclarations = new LinkedHashMap<>();
@@ -499,9 +502,13 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
             }
         }
 
+        private boolean endsTheMethod(WhileStatement statement) {
+            return methodStatements.getLast() == statement;
+        }
+
         @Override
         public void visit(WhileStatement statement) {
-            if (statement.getCondition() instanceof BooleanExpression condition && condition.isTrue()
+            if (statement.getCondition() instanceof BooleanExpression condition && condition.isTrue() && !endsTheMethod(statement)
                     && statement.getStatements() instanceof Statements statements && !statements.isEmpty()
                     && statements.getLast() instanceof IfStatement ifStatement
                     && ifStatement.getCondition().isBinaryOperatorExpression()

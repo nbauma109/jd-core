@@ -44,6 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
@@ -241,20 +244,27 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
      * Maven Central answers 429 or even 404 to the jobs of the CI which all download their jar at the same time: the download is tried again, with a longer
      * wait each time, before it fails the test.
      */
-    private static InputStream openWithRetries(URL url) throws IOException, InterruptedException {
-        IOException failure = null;
+    private static InputStream openWithRetries(URL url) throws IOException, InterruptedException, ExecutionException {
+        // (each attempt is scheduled after a longer delay than the previous one, instead of the test waiting)
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-        for (int attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
-            try {
-                return url.openStream();
-            } catch (IOException e) {
-                failure = e;
-                if (attempt < DOWNLOAD_ATTEMPTS) {
-                    TimeUnit.SECONDS.sleep(attempt * 5L);
+        try {
+            IOException failure = null;
+
+            for (int attempt = 0; attempt < DOWNLOAD_ATTEMPTS; attempt++) {
+                try {
+                    return scheduler.schedule(url::openStream, attempt * 5L, TimeUnit.SECONDS).get();
+                } catch (ExecutionException e) {
+                    if (!(e.getCause() instanceof IOException ioException)) {
+                        throw e;
+                    }
+                    failure = ioException;
                 }
             }
+            throw failure;
+        } finally {
+            scheduler.shutdown();
         }
-        throw failure;
     }
 
     /**

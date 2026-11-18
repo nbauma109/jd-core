@@ -608,6 +608,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // The decompiled sources have no license header: the Apache RAT check of the Commons projects would fail the build
                 command.add("-Drat.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);
+                // Maven Central answers 429 to the jobs of the CI which all resolve the artifacts of the library at the same time: Maven tries again, later
+                command.add("-Daether.connector.http.retryHandler.count=10");
+                command.add("-Daether.connector.http.retryHandler.interval=10000");
+                command.add("-Daether.connector.http.retryHandler.serviceUnavailable=429,503");
                 command.addAll(layout.mavenArguments());
                 ProcessBuilder pbTest = new ProcessBuilder(command);
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");

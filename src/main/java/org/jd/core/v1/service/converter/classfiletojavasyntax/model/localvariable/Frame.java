@@ -539,7 +539,7 @@ public class Frame {
                     if (!statement.isExpressionStatement()) {
                         // A variable assigned in the branches of a statement ('if (c) { s = a; } else { s = b; }') is declared before it,
                         // not before the later statement whose condition assigns it again ('while ((s = next()) != null)')
-                        undeclaredLocalVariablesInStatement.addAll(referencedIn(statement, undeclaredLocalVariables));
+                        undeclaredLocalVariablesInStatement.addAll(assignedIn(statement, undeclaredLocalVariables));
                     }
 
                     if (!undeclaredLocalVariablesInStatement.isEmpty()) {
@@ -584,16 +584,18 @@ public class Frame {
         }
     }
 
-    /** @return the variables of the given ones which the statement references, in its body too */
-    private static Set<AbstractLocalVariable> referencedIn(Statement statement, Set<AbstractLocalVariable> variables) {
+    /** @return the variables of the given ones which the statement assigns, in its body too */
+    private static Set<AbstractLocalVariable> assignedIn(Statement statement, Set<AbstractLocalVariable> variables) {
         Set<AbstractLocalVariable> referenced = new HashSet<>();
 
         statement.accept(new AbstractJavaSyntaxVisitor() {
             @Override
-            public void visit(LocalVariableReferenceExpression expression) {
-                if (expression instanceof ClassFileLocalVariableReferenceExpression reference && variables.contains(reference.getLocalVariable())) {
+            public void visit(BinaryOperatorExpression expression) {
+                if ("=".equals(expression.getOperator()) && expression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression reference
+                        && variables.contains(reference.getLocalVariable())) {
                     referenced.add(reference.getLocalVariable());
                 }
+                super.visit(expression);
             }
         });
         return referenced;

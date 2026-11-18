@@ -212,4 +212,95 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
         // 'break' of the loop is followed by the poll, 'continue' of the 'do' skips it
         assertTrue(source, normalized.matches(".*case 1: .*continue label\\d+; case 4: break label\\d+;.*"));
     }
+
+    @Test
+    public void testUncheckedCastsOfGenericTypesAreKept() throws Exception {
+        // 'JacksonAnnotationIntrospector', 'DateDeserializers', 'SimpleDeserializers', 'BeanSerializerFactory', 'EnumValues', 'NumberSerializer': the bytecode has none of these casts
+        String source = decompile("jackson/UncheckedCasts", String.join("\n",
+                "package jackson;",
+                "import java.lang.annotation.Annotation;",
+                "import java.lang.reflect.Constructor;",
+                "import java.math.BigDecimal;",
+                "import java.util.*;",
+                "public class UncheckedCasts<N extends Number> {",
+                "    interface Ser<T> {}",
+                "    static abstract class Std<T> implements Ser<T> {}",
+                "    static class EntrySer extends Std<Map.Entry<?, ?>> { static EntrySer create(String s) { return null; } }",
+                "    @SuppressWarnings(\"unchecked\")",
+                "    static final Class<? extends Annotation>[] ANN = (Class<? extends Annotation>[]) new Class<?>[] { Deprecated.class, FunctionalInterface.class };",
+                "    static <T> Constructor<T> find(Class<T> cls) { return null; }",
+                "    static class Cal { final Constructor<Calendar> ctor;",
+                "        @SuppressWarnings(\"unchecked\")",
+                "        Cal(Class<? extends Calendar> cc) { ctor = (Constructor<Calendar>) find(cc); } }",
+                "    static class Reg {",
+                "        <T> void add(Class<T> forClass, List<? extends T> deser) {}",
+                "        @SuppressWarnings(\"unchecked\")",
+                "        void addAll(Class<?> cls, List<?> values) { List<Object> deser = (List<Object>) values; add((Class<Object>) cls, deser); }",
+                "    }",
+                "    @SuppressWarnings(\"unchecked\")",
+                "    static Ser<Object> entry(String s) { return (Ser<Object>) (Ser<?>) EntrySer.create(s); }",
+                "    @SuppressWarnings({\"unchecked\", \"rawtypes\"})",
+                "    static Object enumMap(Map<Enum<?>, String> map) { return new EnumMap(map); }",
+                "    Class<N> handled() { return null; }",
+                "    boolean isBig() { return ((Class<?>) handled()) == BigDecimal.class; }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, normalized.contains("(Class<? extends Annotation>[])new Class<?>[]"));
+        assertTrue(source, normalized.contains("(Constructor<Calendar>)"));
+        assertTrue(source, normalized.contains("(Class<Object>)cls"));
+        assertTrue(source, normalized.contains("(Ser<Object>)(Ser<?>)EntrySer.create(s)"));
+        assertTrue(source, normalized.contains("new EnumMap(map)"));
+        assertTrue(source, normalized.contains("(Class<?>)handled()"));
+    }
+
+    @Test
+    public void testWildcardParameterizedValueGivenToARawGenericParameterKeepsItsCast() throws Exception {
+        // 'StaticListSerializerBase.createContextual': a 'JsonSerializer<Object>' parameter is no different from a raw one for the types, a 'JsonSerializer<?>' is no 'JsonSerializer<Object>'
+        String source = decompile("jackson/RawParameter", String.join("\n",
+                "package jackson;",
+                "import java.util.*;",
+                "public class RawParameter<T extends Collection<?>> {",
+                "    interface Ser<X> {}",
+                "    static class Coll { Coll(boolean flag, Ser<Object> serializer) {} }",
+                "    @SuppressWarnings(\"unchecked\")",
+                "    Object create(Ser<?> ser) { return new Coll(true, (Ser<Object>) ser); }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, normalized.contains("new Coll(true, (Ser)ser)") || normalized.contains("new Coll(true, (Ser<Object>)ser)"));
+    }
+
+    @Test
+    public void testVariableAssignedInATryAndUsedAfterItIsDeclaredBeforeTheTry() throws Exception {
+        // 'T4AndT6Compression.decompressT4_1D' (Commons Imaging): the 'for' of the 'try' initializes the variable which the code after the 'try' reads
+        String source = decompile("jackson/AssignedInTry", String.join("\n",
+                "package jackson;",
+                "import java.io.*;",
+                "public class AssignedInTry {",
+                "    static int next(int c) throws IOException { return c + 1; }",
+                "    static void flush() {}",
+                "    public static void f(int width, int height) throws Exception {",
+                "        for (int y = 0; y < height; y++) {",
+                "            int rowLength;",
+                "            try {",
+                "                int color = 0;",
+                "                for (rowLength = 0; rowLength < width; ) {",
+                "                    int runLength = next(color);",
+                "                    color = 1 - color;",
+                "                    rowLength += runLength;",
+                "                }",
+                "            } catch (IOException e) {",
+                "                throw new Exception(\"Decompression error\", e);",
+                "            }",
+                "            if (rowLength == width) {",
+                "                flush();",
+                "            }",
+                "        }",
+                "    }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, normalized.indexOf("int rowLength;") < normalized.indexOf("try {"));
+    }
 }

@@ -218,13 +218,13 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     private static final String GUAVA_GRAPH = "graph/";
 
     @Test
-    public void testGuavaMathAndTesting() throws Exception {
-        testGuava("(" + GUAVA_CONCURRENT + GUAVA_ABSTRACT_FUTURE + "|" + GUAVA_MATH + "|" + GUAVA_COLLECT_TESTING + ")");
+    public void testGuavaAbstractFutureAndTesting() throws Exception {
+        testGuava("(" + GUAVA_CONCURRENT + GUAVA_ABSTRACT_FUTURE + "|" + GUAVA_COLLECT_TESTING + ")");
     }
 
     @Test
-    public void testGuavaConcurrentCacheAndGraph() throws Exception {
-        testGuava("(" + GUAVA_CONCURRENT + "(?!" + GUAVA_ABSTRACT_FUTURE + ")|" + GUAVA_CACHE + "|" + GUAVA_GRAPH + ")");
+    public void testGuavaConcurrentMathCacheAndGraph() throws Exception {
+        testGuava("(" + GUAVA_CONCURRENT + "(?!" + GUAVA_ABSTRACT_FUTURE + ")|" + GUAVA_MATH + "|" + GUAVA_CACHE + "|" + GUAVA_GRAPH + ")");
     }
 
     @Test

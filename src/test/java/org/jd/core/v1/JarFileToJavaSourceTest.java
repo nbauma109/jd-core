@@ -136,6 +136,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testJacksonDatabind() throws Exception {
+        String version = pomVersion("com.fasterxml.jackson.core", "jackson-databind");
+        testAtTag("https://github.com/FasterXML/jackson-databind", "jackson-databind", "jackson-databind-" + version, "com.fasterxml.jackson.core", "jackson-databind", version, true, null);
+    }
+
+    @Test
     public void testGson() throws Exception {
         // Multi-module repository: the gson module lives in the gson/ sub-directory
         testAtTag("https://github.com/google/gson", "gson", "gson-parent-2.14.0",

@@ -1302,6 +1302,11 @@ public abstract class ControlFlowGraphReducer {
         return basicBlock;
     }
 
+    /** The block goes to a block which other blocks go to too, beyond the area of the 'try': the update of the loop which the 'try' is in, a 'continue', not the block which follows it */
+    private static boolean isJumpToAnotherBlockOfALoop(BasicBlock basicBlock, BasicBlock next) {
+        return next.getPredecessors().size() > 1 && next.getPredecessors().stream().anyMatch(predecessor -> predecessor != basicBlock && predecessor.getFromOffset() < basicBlock.getFromOffset());
+    }
+
     private static BasicBlock updateBlock(BasicBlock basicBlock, BasicBlock end, int maxOffset) {
         WatchDog watchdog = new WatchDog();
 
@@ -1311,8 +1316,13 @@ public abstract class ControlFlowGraphReducer {
             next = basicBlock.getNext();
 
             if (next == end || next.getFromOffset() > maxOffset) {
-                next.getPredecessors().remove(basicBlock);
-                basicBlock.setNext(END);
+                if (next != end && isJumpToAnotherBlockOfALoop(basicBlock, next)) {
+                    // The update of the loop which the 'try' is in: this is a 'continue', not the end of the 'catch'
+                    basicBlock.setNext(next.getControlFlowGraph().newJumpBasicBlock(basicBlock, next));
+                } else {
+                    next.getPredecessors().remove(basicBlock);
+                    basicBlock.setNext(END);
+                }
                 break;
             }
 

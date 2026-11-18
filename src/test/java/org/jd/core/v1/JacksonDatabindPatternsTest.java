@@ -246,6 +246,16 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "    static Object enumMap(Map<Enum<?>, String> map) { return new EnumMap(map); }",
                 "    Class<N> handled() { return null; }",
                 "    boolean isBig() { return ((Class<?>) handled()) == BigDecimal.class; }",
+                "    Class<Number> number() { return null; }",
+                "    boolean isBigNumber() { return ((Class<?>) number()) == BigDecimal.class; }",
+                "    static class Pair<A, B> {}",
+                "    static class StrPair extends Pair<String, Integer> {}",
+                "    static StrPair make() { return null; }",
+                "    @SuppressWarnings(\"unchecked\")",
+                "    static Pair<Object, Object> pair() { return (Pair<Object, Object>) (Pair<?, ?>) make(); }",
+                "    static <K, V> void merge(Map<K, V> target, Map<? extends K, ? extends V> source) {}",
+                "    @SuppressWarnings(\"unchecked\")",
+                "    static void mergeAll(Map<?, ?> target, Map<String, Integer> source) { merge((Map<String, Integer>) target, source); }",
                 "}"));
         String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
@@ -255,6 +265,9 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
         assertTrue(source, normalized.contains("(Ser<Object>)(Ser<?>)EntrySer.create(s)"));
         assertTrue(source, normalized.contains("new EnumMap(map)"));
         assertTrue(source, normalized.contains("(Class<?>)handled()"));
+        assertTrue(source, normalized.contains("(Class<?>)number()"));
+        assertTrue(source, normalized.contains("(Pair<Object, Object>)(Pair<?, ?>)make()"));
+        assertTrue(source, normalized.contains("merge((Map)target, source)"));
     }
 
     @Test

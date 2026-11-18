@@ -207,27 +207,30 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("org.apache.logging.log4j", "log4j-core", pomVersion("org.apache.logging.log4j", "log4j-core"));
     }
 
-    // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration (util.concurrent alone is more than half of it).
+    // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration, whose fixed part (the build of the modules) is about 2 minutes.
     // The classes are selected with the property which the pom of Guava gives to its surefire plugin ('test.include'), which keeps the exclusions of the pom
     // (the PackageSanityTest, the testers and the anonymous classes, which -Dtest would run), unlike the includes of the plugin.
     private static final String GUAVA_CONCURRENT = "util/concurrent/";
-    private static final String GUAVA_MATH = "math/";
     private static final String GUAVA_ABSTRACT_FUTURE = "AbstractFuture";
+    private static final String GUAVA_MATH = "math/";
+    private static final String GUAVA_COLLECT_TESTING = "collect/testing/";
+    private static final String GUAVA_CACHE = "cache/";
+    private static final String GUAVA_GRAPH = "graph/";
 
     @Test
-    public void testGuavaAbstractFutureAndMath() throws Exception {
-        testGuava("(" + GUAVA_CONCURRENT + GUAVA_ABSTRACT_FUTURE + "|" + GUAVA_MATH + ")");
+    public void testGuavaMathAndTesting() throws Exception {
+        testGuava("(" + GUAVA_CONCURRENT + GUAVA_ABSTRACT_FUTURE + "|" + GUAVA_MATH + "|" + GUAVA_COLLECT_TESTING + ")");
     }
 
     @Test
-    public void testGuavaConcurrent() throws Exception {
-        testGuava(GUAVA_CONCURRENT + "(?!" + GUAVA_ABSTRACT_FUTURE + ")");
+    public void testGuavaConcurrentCacheAndGraph() throws Exception {
+        testGuava("(" + GUAVA_CONCURRENT + "(?!" + GUAVA_ABSTRACT_FUTURE + ")|" + GUAVA_CACHE + "|" + GUAVA_GRAPH + ")");
     }
 
     @Test
     public void testGuavaOthers() throws Exception {
         // Whatever the other packages are, including the ones which a new version of Guava adds
-        testGuava("(?!" + GUAVA_CONCURRENT + "|" + GUAVA_MATH + ")");
+        testGuava("(?!" + String.join("|", GUAVA_CONCURRENT, GUAVA_MATH, GUAVA_COLLECT_TESTING, GUAVA_CACHE, GUAVA_GRAPH) + ")");
     }
 
     /** @param classesToRun the regular expression of the path of the classes of the tests to run, after 'com/google/common/' */

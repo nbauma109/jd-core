@@ -73,8 +73,8 @@ jobs:
           - testGson
           - testJacksonCore
           - testJacksonDatabind
-          - testGuavaAbstractFutureAndMath
-          - testGuavaConcurrent
+          - testGuavaMathAndTesting
+          - testGuavaConcurrentCacheAndGraph
           - testGuavaOthers
           - testJavaPoet
           - testJavaWriter

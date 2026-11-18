@@ -16,7 +16,6 @@ import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.jd.core.v1.util.DefaultList;
-import org.jd.core.v1.util.LicenseExtractor;
 import org.jd.core.v1.util.StringConstants;
 import org.junit.Test;
 import org.w3c.dom.Document;
@@ -378,7 +377,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     	} else {
     		System.out.println("====== Decompiling and recompiling " + String.join(":", groupId, artifactId, version) + " ======");
     	}
-        String license = "";
         File projectDir = null;
         File repositoryDir = null;
         if (repoName != null && runUnitTests) {
@@ -417,9 +415,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                             parent.mkdirs();
                         }
                         Files.copy(zin, file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                        if (license.isEmpty() && file.getName().endsWith(".java")) {
-                            license = LicenseExtractor.extractLicense(file.toPath());
-                        }
                     }
                 }
             }
@@ -490,10 +485,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                     }
 
                     printer.init();
-                    if (!license.isEmpty()) {
-                        printer.printText(license);
-                        printer.endLine();
-                    }
 
                     fileCounter++;
 
@@ -568,6 +559,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                             + " --add-opens java.base/java.time.zone=ALL-UNNAMED --add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED");
                 }
                 command.add("-Danimal.sniffer.skip=true");
+                // The decompiled sources have no license header: the Apache RAT check of the Commons projects would fail the build
+                command.add("-Drat.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);
                 command.addAll(layout.mavenArguments());
                 ProcessBuilder pbTest = new ProcessBuilder(command);

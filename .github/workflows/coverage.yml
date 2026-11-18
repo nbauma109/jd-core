@@ -72,7 +72,10 @@ jobs:
           - testDiskLruCache
           - testGson
           - testJacksonCore
-          - testGuava
+          - testJacksonDatabind
+          - testGuavaAbstractFutureAndTesting
+          - testGuavaConcurrentMathCacheAndGraph
+          - testGuavaOthers
           - testJavaPoet
           - testJavaWriter
           - testJSoup

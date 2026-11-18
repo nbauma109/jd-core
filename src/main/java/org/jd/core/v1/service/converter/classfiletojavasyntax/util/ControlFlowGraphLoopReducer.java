@@ -658,7 +658,7 @@ public final class ControlFlowGraphLoopReducer {
             BasicBlock exit = searchOtherExit(members, end);
 
             // (the code which follows is a part of the enclosing loop: the 'break' of this loop is not one of the enclosing loop)
-            if (exit != null && !exit.matchType(GROUP_END) && exit.getFromOffset() > start.getFromOffset() && exit.getPredecessors().size() > 1 && !isUpdateOfEnclosingLoop(start, exit)
+            if (exit != null && !exit.matchType(GROUP_END) && exit.getFromOffset() > start.getFromOffset() && exit.getPredecessors().size() > 1 && (!isUpdateOfEnclosingLoop(start, exit) || isCodeBeforeTheConditionOfADoWhile(exit, end))
                     && loops.stream().anyMatch(other -> other != loop && other.getMembers().contains(start) && other.getMembers().contains(exit))) {
                 return exit;
             }
@@ -953,6 +953,11 @@ public final class ControlFlowGraphLoopReducer {
             || next.getType() == TYPE_CONDITIONAL_BRANCH && next.getBranch().getFromOffset() < startOffset;
     }
 
+    /** The code of an enclosing 'do ... while' which comes before its condition, which a 'continue' of the enclosing loop skips: it is not the update of a 'for' */
+    private static boolean isCodeBeforeTheConditionOfADoWhile(BasicBlock exit, BasicBlock condition) {
+        return condition.getType() == TYPE_CONDITIONAL_BRANCH && exit.getType() == TYPE_STATEMENTS && exit.getNext() == condition;
+    }
+
     /** @return a successor of the members, other than 'end', which is not a member, or null */
     private static BasicBlock searchOtherExit(Set<BasicBlock> members, BasicBlock end) {
         for (BasicBlock member : members) {
@@ -965,12 +970,25 @@ public final class ControlFlowGraphLoopReducer {
                 if (exit == null) {
                     exit = otherExit(members, end, member.getBranch());
                 }
+            } else if (member.getType() == TYPE_SWITCH_DECLARATION) {
+                exit = otherExitOfASwitch(members, end, member);
             }
             if (exit != null) {
                 return exit;
             }
         }
 
+        return null;
+    }
+
+    private static BasicBlock otherExitOfASwitch(Set<BasicBlock> members, BasicBlock end, BasicBlock switchBlock) {
+        for (SwitchCase switchCase : switchBlock.getSwitchCases()) {
+            BasicBlock exit = otherExit(members, end, switchCase.getBasicBlock());
+
+            if (exit != null) {
+                return exit;
+            }
+        }
         return null;
     }
 
@@ -1075,9 +1093,7 @@ public final class ControlFlowGraphLoopReducer {
 
         // Recheck 'end' block
         end = recheckEndBlock(loop, start, members, end);
-        if (start.getType() == TYPE_CONDITIONAL_BRANCH) {
-            end = preferTheExitWhichTheCodeFollows(loop, loops, end);
-        }
+        end = preferTheExitWhichTheCodeFollows(loop, loops, end);
 
         // The code which follows an enclosing loop is reached by a 'break' of that loop, even when it is reached from this loop only
         Set<BasicBlock> endsOfEnclosingLoops = endsOfEnclosingLoops(loop, loops);

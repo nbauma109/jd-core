@@ -324,6 +324,25 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     }
 
     /**
+     * 'Gen&lt;?&gt; gen = (Gen&lt;?&gt;) create(implClass)' for 'create(Class&lt;T&gt;)' and a 'Class&lt;?&gt;': T is the capture of the argument, whatever the result is
+     * assigned to; the cast of the result is the source's.
+     */
+    private static void unbindMethodTypeVariablesCapturedByArguments(Map<String, TypeArgument> bindings, BaseTypeParameter methodTypeParameters, Type returnType, BaseType parameterTypes, BaseExpression parameters) {
+        // 'T create(Class<T>)': the result is an Object for the compiler, which casts it ('Gen<?> g = (Gen<?>) create(c)'); 'Adapter<T> of(Class<T>)' is not
+        if (methodTypeParameters == null || parameterTypes == null || parameters == null || !(returnType instanceof GenericType returnedVariable)) {
+            return;
+        }
+        Set<String> captured = typeVariablesCapturedByArguments(parameterTypes, parameters);
+
+        for (TypeParameter typeParameter : methodTypeParameters) {
+            // a type variable of the caller ('T t = (T) create(...)') is no cast of the result: the source casts the argument ('(Class<T>) clazz')
+            if (captured.contains(typeParameter.getIdentifier()) && typeParameter.getIdentifier().equals(returnedVariable.getName()) && bindings.get(typeParameter.getIdentifier()) instanceof ObjectType) {
+                bindings.put(typeParameter.getIdentifier(), null);
+            }
+        }
+    }
+
+    /**
      * 'Ordering&lt;E&gt; o = Ordering.natural()' (natural: &lt;C extends Comparable&gt;) where E is not a Comparable: what the variable is
      * declared with is not what javac infers, C is a Comparable and a cast makes the result an Ordering&lt;E&gt;.
      */
@@ -439,6 +458,7 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
         }
 
         populateBindingsFromReturnType(bindings, returnType, returnExpressionType, typeBounds);
+        unbindMethodTypeVariablesCapturedByArguments(bindings, methodTypeParameters, returnExpressionType, parameterTypes, parameters);
         bindMethodTypeVariablesOutsideTheirBoundsToTheirBounds(bindings, methodTypeParameters);
 
         if (parameterTypes != null) {

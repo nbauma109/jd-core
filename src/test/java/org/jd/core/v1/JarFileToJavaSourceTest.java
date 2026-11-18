@@ -44,6 +44,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -136,6 +140,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testJacksonDatabind() throws Exception {
+        String version = pomVersion("com.fasterxml.jackson.core", "jackson-databind");
+        testAtTag("https://github.com/FasterXML/jackson-databind", "jackson-databind", "jackson-databind-" + version, "com.fasterxml.jackson.core", "jackson-databind", version, true, null);
+    }
+
+    @Test
     public void testGson() throws Exception {
         // Multi-module repository: the gson module lives in the gson/ sub-directory
         testAtTag("https://github.com/google/gson", "gson", "gson-parent-2.14.0",
@@ -197,11 +207,67 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("org.apache.logging.log4j", "log4j-core", pomVersion("org.apache.logging.log4j", "log4j-core"));
     }
 
+    // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration, whose fixed part (the build of the modules) is about 2 minutes.
+    // The classes are selected with the property which the pom of Guava gives to its surefire plugin ('test.include'), which keeps the exclusions of the pom
+    // (the PackageSanityTest, the testers and the anonymous classes, which -Dtest would run), unlike the includes of the plugin.
+    private static final String GUAVA_CONCURRENT = "util/concurrent/";
+    private static final String GUAVA_ABSTRACT_FUTURE = "AbstractFuture";
+    private static final String GUAVA_MATH = "math/";
+    private static final String GUAVA_COLLECT_TESTING = "collect/testing/";
+    private static final String GUAVA_CACHE = "cache/";
+    private static final String GUAVA_GRAPH = "graph/";
+
     @Test
-    public void testGuava() throws Exception {
-        // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests
+    public void testGuavaAbstractFutureAndTesting() throws Exception {
+        testGuava("(" + GUAVA_CONCURRENT + GUAVA_ABSTRACT_FUTURE + "|" + GUAVA_COLLECT_TESTING + ")");
+    }
+
+    @Test
+    public void testGuavaConcurrentMathCacheAndGraph() throws Exception {
+        testGuava("(" + GUAVA_CONCURRENT + "(?!" + GUAVA_ABSTRACT_FUTURE + ")|" + GUAVA_MATH + "|" + GUAVA_CACHE + "|" + GUAVA_GRAPH + ")");
+    }
+
+    @Test
+    public void testGuavaOthers() throws Exception {
+        // Whatever the other packages are, including the ones which a new version of Guava adds
+        testGuava("(?!" + String.join("|", GUAVA_CONCURRENT, GUAVA_MATH, GUAVA_COLLECT_TESTING, GUAVA_CACHE, GUAVA_GRAPH) + ")");
+    }
+
+    /** @param classesToRun the regular expression of the path of the classes of the tests to run, after 'com/google/common/' */
+    private void testGuava(String classesToRun) throws Exception {
+        // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests (the others have no test to run)
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
-                new ProjectLayout("guava", "src", true, "package", List.of("-pl", "guava-tests", "-am")));
+                new ProjectLayout("guava", "src", true, "package",
+                        List.of("-pl", "guava-tests", "-am", "-Dtest.include=%regex[.*com/google/common/" + classesToRun + ".*\\.class]")));
+    }
+
+    private static final int DOWNLOAD_ATTEMPTS = 6;
+
+    /**
+     * Maven Central answers 429 or even 404 to the jobs of the CI which all download their jar at the same time: the download is tried again, with a longer
+     * wait each time, before it fails the test.
+     */
+    private static InputStream openWithRetries(URL url) throws IOException, InterruptedException, ExecutionException {
+        // (each attempt is scheduled after a longer delay than the previous one, instead of the test waiting)
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+        try {
+            IOException failure = null;
+
+            for (int attempt = 0; attempt < DOWNLOAD_ATTEMPTS; attempt++) {
+                try {
+                    return scheduler.schedule(url::openStream, attempt * 5L, TimeUnit.SECONDS).get();
+                } catch (ExecutionException e) {
+                    if (!(e.getCause() instanceof IOException ioException)) {
+                        throw e;
+                    }
+                    failure = ioException;
+                }
+            }
+            throw failure;
+        } finally {
+            scheduler.shutdown();
+        }
     }
 
     /**
@@ -390,7 +456,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long assertFailedCounter = 0;
         long recompilationFailedCounter = 0;
 
-        try (InputStream is = MavenHelper.buildJarUrl(groupId, artifactId, version).openStream()) {
+        try (InputStream is = openWithRetries(MavenHelper.buildJarUrl(groupId, artifactId, version))) {
             ZipLoader loader = new ZipLoader(is);
             CounterPrinter printer = new CounterPrinter();
             Map<String, Integer> statistics = new HashMap<>();

@@ -536,6 +536,11 @@ public class Frame {
 
                     undeclaredLocalVariablesInStatement = searchUndeclaredLocalVariableVisitor.getVariables();
                     undeclaredLocalVariablesInStatement.retainAll(undeclaredLocalVariables);
+                    if (!statement.isExpressionStatement()) {
+                        // A variable assigned in the branches of an if-else statement is declared before it, not before the later
+                        // statement whose condition assigns it again (a while loop reading the next name)
+                        undeclaredLocalVariablesInStatement.addAll(assignedIn(statement, undeclaredLocalVariables));
+                    }
 
                     if (!undeclaredLocalVariablesInStatement.isEmpty()) {
                         int index1 = iterator.nextIndex();
@@ -577,6 +582,23 @@ public class Frame {
                 }
             }
         }
+    }
+
+    /** @return the variables of the given ones which the statement assigns, in its body too */
+    private static Set<AbstractLocalVariable> assignedIn(Statement statement, Set<AbstractLocalVariable> variables) {
+        Set<AbstractLocalVariable> referenced = new HashSet<>();
+
+        statement.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(BinaryOperatorExpression expression) {
+                if ("=".equals(expression.getOperator()) && expression.getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression reference
+                        && variables.contains(reference.getLocalVariable())) {
+                    referenced.add(reference.getLocalVariable());
+                }
+                super.visit(expression);
+            }
+        });
+        return referenced;
     }
 
     protected Map<Frame, Set<AbstractLocalVariable>> createMapForInlineDeclarations() {

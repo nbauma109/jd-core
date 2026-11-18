@@ -234,6 +234,28 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                         List.of("-pl", "guava-tests", "-am", "-Dtest.include=%regex[.*com/google/common/" + classesToRun + ".*\\.class]")));
     }
 
+    private static final int DOWNLOAD_ATTEMPTS = 6;
+
+    /**
+     * Maven Central answers 429 or even 404 to the jobs of the CI which all download their jar at the same time: the download is tried again, with a longer
+     * wait each time, before it fails the test.
+     */
+    private static InputStream openWithRetries(URL url) throws IOException, InterruptedException {
+        IOException failure = null;
+
+        for (int attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+            try {
+                return url.openStream();
+            } catch (IOException e) {
+                failure = e;
+                if (attempt < DOWNLOAD_ATTEMPTS) {
+                    Thread.sleep(attempt * 5000L);
+                }
+            }
+        }
+        throw failure;
+    }
+
     /**
      * Version of a dependency declared in pom.xml (properties resolved), so that the library tested here is always the one
      * Dependabot bumps, instead of a copy hardcoded in this class.
@@ -420,7 +442,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long assertFailedCounter = 0;
         long recompilationFailedCounter = 0;
 
-        try (InputStream is = MavenHelper.buildJarUrl(groupId, artifactId, version).openStream()) {
+        try (InputStream is = openWithRetries(MavenHelper.buildJarUrl(groupId, artifactId, version))) {
             ZipLoader loader = new ZipLoader(is);
             CounterPrinter printer = new CounterPrinter();
             Map<String, Integer> statistics = new HashMap<>();

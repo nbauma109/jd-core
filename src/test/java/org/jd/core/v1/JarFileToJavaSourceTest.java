@@ -280,6 +280,20 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         }
     }
 
+    /**
+     * Opens the released jar of the library. The libraries tested here are test dependencies of the pom, so that Maven has already put their jar in its local
+     * repository (which the CI caches): it is read from there, and downloaded from Maven Central, with some more attempts, only if it is not there.
+     */
+    private static InputStream openJar(String groupId, String artifactId, String version) throws IOException, InterruptedException, ExecutionException {
+        String localRepository = System.getProperty("maven.repo.local", Paths.get(System.getProperty("user.home"), ".m2", "repository").toString());
+        Path local = Paths.get(localRepository, groupId.replace('.', '/'), artifactId, version, artifactId + "-" + version + ".jar");
+
+        if (Files.isRegularFile(local)) {
+            return Files.newInputStream(local);
+        }
+        return openWithRetries(MavenHelper.buildJarUrl(groupId, artifactId, version));
+    }
+
     private static final int DOWNLOAD_ATTEMPTS = 6;
 
     /**
@@ -478,7 +492,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long assertFailedCounter = 0;
         long recompilationFailedCounter = 0;
 
-        try (InputStream is = openWithRetries(MavenHelper.buildJarUrl(groupId, artifactId, version))) {
+        try (InputStream is = openJar(groupId, artifactId, version)) {
             ZipLoader loader = new ZipLoader(is);
 
             if (projectDir != null && runUnitTests) {

@@ -1602,12 +1602,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 if (mie.getTypeParameters() != null && !hasBoundedTypeParameter(mie.getTypeParameters())) {
                     // Do not add cast expression if method contains type parameters
                     rightExpression.accept(this);
-
-                    // (the type variables which a wildcard argument captures are unknown in the result, which is not what the variable is declared with)
-                    if (expression.getLeftExpression().getType() instanceof ObjectType leftType && rightExpression.getType() instanceof ObjectType valueType
-                            && isWildcardWhereConcreteExpected(leftType, valueType)) {
-                        expression.setRightExpression(addCastExpression(leftType, rightExpression));
-                    }
+                    castResultWhichCapturesWildcardsToTheVariable(expression);
                     return;
                 }
             }
@@ -1649,6 +1644,16 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                     && literal.getTypeDotClass() instanceof ObjectType other && !callArgument.rawEquals(other))
                 && literal.getTypeDotClass() instanceof ObjectType literalType && literalType.getDimension() == 0) {
             expression.setLeftExpression(addCastExpression(callType.createType(WildcardTypeArgument.WILDCARD_TYPE_ARGUMENT), call));
+        }
+    }
+
+    /** The type variables which a wildcard argument captures are unknown in the result, which is not what the variable is declared with */
+    private void castResultWhichCapturesWildcardsToTheVariable(BinaryOperatorExpression assignment) {
+        Expression value = assignment.getRightExpression();
+
+        if (assignment.getLeftExpression().getType() instanceof ObjectType leftType && value.getType() instanceof ObjectType valueType
+                && isWildcardWhereConcreteExpected(leftType, valueType)) {
+            assignment.setRightExpression(addCastExpression(leftType, value));
         }
     }
 
@@ -2096,23 +2101,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         call.getUnboundParameterTypes().forEach(unboundTypes::add);
         List<Expression> arguments = new ArrayList<>();
         call.getParameters().forEach(arguments::add);
-        Map<String, TypeArgument> fixed = new HashMap<>();
+        Map<String, TypeArgument> fixed = typeVariablesFixedByTheArguments(unboundTypes, arguments, shared);
 
-        for (int i = 0; i < arguments.size(); i++) {
-            if (unboundTypes.get(i) instanceof ObjectType unbound && unbound.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType argumentType
-                    && !(arguments.get(i) instanceof TypeReferenceDotClassExpression) && argumentType.getTypeArguments() != null) {
-                List<TypeArgument> declared = toTypeArgumentList(unbound.getTypeArguments());
-                List<TypeArgument> actual = toTypeArgumentList(argumentType.getTypeArguments());
-
-                for (int k = 0; k < declared.size() && declared.size() == actual.size(); k++) {
-                    GenericType variable = declared.get(k) instanceof GenericType g ? g : declared.get(k) instanceof WildcardExtendsTypeArgument w && w.type() instanceof GenericType g ? g : null;
-
-                    if (variable != null && shared.contains(variable.getName()) && actual.get(k) instanceof ObjectType concrete && concrete.getDimension() == 0) {
-                        fixed.putIfAbsent(variable.getName(), concrete);
-                    }
-                }
-            }
-        }
         if (fixed.isEmpty()) {
             return;
         }
@@ -2122,27 +2112,69 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
         for (int i = 0; i < arguments.size(); i++) {
             Expression argument = arguments.get(i);
+            ObjectType castType = castTypeOfTheWildcardArgument(unboundTypes.get(i), argument, fixed);
 
-            if (unboundTypes.get(i) instanceof ObjectType unbound && unbound.getDimension() == 0 && unbound.getTypeArguments() != null && !(argument instanceof CastExpression)
-                    && !(argument instanceof TypeReferenceDotClassExpression) && !argument.isNullExpression() && argument.getType() instanceof ObjectType argumentType
-                    && argumentType.getTypeArguments() != null) {
-                List<TypeArgument> declared = toTypeArgumentList(unbound.getTypeArguments());
-                List<TypeArgument> actual = toTypeArgumentList(argumentType.getTypeArguments());
-
-                if (declared.size() == actual.size() && declared.stream().allMatch(a -> a instanceof GenericType variable && fixed.containsKey(variable.getName()))
-                        && actual.stream().anyMatch(AddCastExpressionVisitor::isWildcard)) {
-                    TypeArguments castArguments = new TypeArguments(declared.size());
-
-                    declared.forEach(a -> castArguments.add(fixed.get(((GenericType) a).getName())));
-                    argument = addCastExpression(unbound.createType(castArguments.size() == 1 ? castArguments.getFirst() : castArguments), argument);
-                    changed = true;
-                }
+            if (castType != null) {
+                argument = addCastExpression(castType, argument);
+                changed = true;
             }
             updated.add(argument);
         }
         if (changed) {
             call.setParameters(updated.size() == 1 ? updated.getFirst() : updated);
         }
+    }
+
+    /** The shared type variables which an argument gives a concrete type ('List&lt;? extends T&gt;' with a 'List&lt;Object&gt;') */
+    private static Map<String, TypeArgument> typeVariablesFixedByTheArguments(List<Type> unboundTypes, List<Expression> arguments, Set<String> shared) {
+        Map<String, TypeArgument> fixed = new HashMap<>();
+
+        for (int i = 0; i < arguments.size(); i++) {
+            if (unboundTypes.get(i) instanceof ObjectType unbound && unbound.getTypeArguments() != null && arguments.get(i).getType() instanceof ObjectType argumentType
+                    && !(arguments.get(i) instanceof TypeReferenceDotClassExpression) && argumentType.getTypeArguments() != null) {
+                List<TypeArgument> declared = toTypeArgumentList(unbound.getTypeArguments());
+                List<TypeArgument> actual = toTypeArgumentList(argumentType.getTypeArguments());
+
+                for (int k = 0; k < declared.size() && declared.size() == actual.size(); k++) {
+                    GenericType variable = typeVariableOf(declared.get(k));
+
+                    if (variable != null && shared.contains(variable.getName()) && actual.get(k) instanceof ObjectType concrete && concrete.getDimension() == 0) {
+                        fixed.putIfAbsent(variable.getName(), concrete);
+                    }
+                }
+            }
+        }
+        return fixed;
+    }
+
+    /** @return the type variable 'T' of 'T' or '? extends T', null for any other type argument */
+    private static GenericType typeVariableOf(TypeArgument typeArgument) {
+        if (typeArgument instanceof WildcardExtendsTypeArgument extending) {
+            return extending.type() instanceof GenericType bound ? bound : null;
+        }
+        return typeArgument instanceof GenericType variable ? variable : null;
+    }
+
+    /** @return the type of the parameter with the fixed type variables ('Class&lt;Object&gt;') if the argument has a wildcard where they stand, null otherwise */
+    private ObjectType castTypeOfTheWildcardArgument(Type unboundType, Expression argument, Map<String, TypeArgument> fixed) {
+        if (!(unboundType instanceof ObjectType unbound) || unbound.getDimension() != 0 || unbound.getTypeArguments() == null || argument instanceof CastExpression
+                || argument instanceof TypeReferenceDotClassExpression || argument.isNullExpression() || !(argument.getType() instanceof ObjectType argumentType)
+                || argumentType.getTypeArguments() == null) {
+            return null;
+        }
+
+        List<TypeArgument> declared = toTypeArgumentList(unbound.getTypeArguments());
+        List<TypeArgument> actual = toTypeArgumentList(argumentType.getTypeArguments());
+
+        if (declared.size() != actual.size() || !declared.stream().allMatch(a -> a instanceof GenericType variable && fixed.containsKey(variable.getName()))
+                || actual.stream().noneMatch(AddCastExpressionVisitor::isWildcard)) {
+            return null;
+        }
+
+        TypeArguments castArguments = new TypeArguments(declared.size());
+
+        declared.forEach(a -> castArguments.add(fixed.get(((GenericType) a).getName())));
+        return unbound.createType(castArguments.size() == 1 ? castArguments.getFirst() : castArguments);
     }
 
     /** @return the type variable the receiver gives to the declared type variable, if the argument is a capture of a wildcard; null otherwise */

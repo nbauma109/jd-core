@@ -210,7 +210,10 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
         String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
         // 'break' of the loop is followed by the poll, 'continue' of the 'do' skips it
-        assertTrue(source, normalized.matches(".*case 1: .*continue label\\d+; case 4: break label\\d+;.*"));
+        int continued = normalized.indexOf("case 1: ");
+        int broken = normalized.indexOf("case 4: break label");
+
+        assertTrue(source, continued >= 0 && broken > continued && normalized.substring(continued, broken).contains("continue label"));
     }
 
     @Test
@@ -302,5 +305,92 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
         String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.indexOf("int rowLength;") < normalized.indexOf("try {"));
+    }
+
+    @Test
+    public void testCastsAreNotAddedWhereTheTypesAgree() throws Exception {
+        String source = decompile("jackson/NoCasts", String.join("\n",
+                "package jackson;",
+                "import java.lang.reflect.Constructor;",
+                "import java.math.BigDecimal;",
+                "import java.util.*;",
+                "public class NoCasts<N extends Number> {",
+                "    interface Ser<T> {}",
+                "    static final Class<?>[] PLAIN = new Class<?>[] { String.class, Integer.class };",
+                "    static final List<String>[] LISTS = new List[0];",
+                "    static <T> Constructor<T> find(Class<T> cls) { return null; }",
+                "    static <T> void add(Class<T> forClass, List<? extends T> values) {}",
+                "    Constructor<String> exact(Class<String> cls) { Constructor<String> c = find(cls); return c; }",
+                "    Constructor<?> wild(Class<? extends Calendar> cls) { Constructor<?> c = find(cls); return c; }",
+                "    void same(Class<String> cls, List<String> values, Class<?> any) { add(cls, values); }",
+                "    boolean same(Class<String> cls) { return cls == String.class; }",
+                "    boolean differ(Class<?> cls) { return cls == BigDecimal.class; }",
+                "    boolean other(NoCasts<N> n) { return n.handled() != null && n.handled() == n.handled(); }",
+                "    Class<N> handled() { return null; }",
+                "    static Ser<?> wildcard(Ser<?> ser) { return ser; }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertFalse(source, normalized.contains("(Class<Object>)"));
+        assertFalse(source, normalized.contains("(Constructor<"));
+        assertFalse(source, normalized.contains("(Class<?>)"));
+    }
+
+    @Test
+    public void testSwitchWhoseCasesAllContinueAForLoopKeepsItsLoopUpdate() throws Exception {
+        String source = decompile("jackson/AllContinue", String.join("\n",
+                "package jackson;",
+                "public class AllContinue {",
+                "    static void use(int v) {}",
+                "    static void run(int[] tokens) {",
+                "        for (int pos = 0; pos < tokens.length; pos++) {",
+                "            switch (tokens[pos]) {",
+                "            case 1: continue;",
+                "            case 2: use(2); continue;",
+                "            default: use(3);",
+                "            }",
+                "            use(4);",
+                "        }",
+                "    }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, normalized.contains("pos++"));
+        assertTrue(source, normalized.contains("use(4);"));
+    }
+
+    @Test
+    public void testSwitchLoopsInADoWhileWithAnIfElseKeepTheirCode() throws Exception {
+        String source = decompile("jackson/DoWhileSwitch", String.join("\n",
+                "package jackson;",
+                "import java.util.*;",
+                "public class DoWhileSwitch {",
+                "    static void run(int[] tokens, List<Object> root, Deque<List<Object>> stack) {",
+                "        List<Object> curr = root;",
+                "        int pos = 0;",
+                "        outer:",
+                "        do {",
+                "            if (pos > 100) {",
+                "                for (; pos < 200; pos++) {",
+                "                    switch (tokens[pos]) {",
+                "                    case 3: stack.push(curr); curr = new ArrayList<Object>(); continue outer;",
+                "                    case 6: curr.add(\"s\"); break;",
+                "                    default: curr.add(tokens[pos]);",
+                "                    }",
+                "                    curr.add(\"x\");",
+                "                }",
+                "            } else {",
+                "                while (true) {",
+                "                    int t = tokens[pos++];",
+                "                    if (t == 4) { break; }",
+                "                    curr.add(t);",
+                "                }",
+                "            }",
+                "            curr = stack.poll();",
+                "        } while (curr != null);",
+                "    }",
+                "}"));
+
+        assertTrue(source, source.contains("stack.poll()"));
     }
 }

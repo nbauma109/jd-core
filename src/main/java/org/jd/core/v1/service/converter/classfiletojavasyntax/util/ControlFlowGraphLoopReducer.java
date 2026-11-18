@@ -971,18 +971,24 @@ public final class ControlFlowGraphLoopReducer {
                     exit = otherExit(members, end, member.getBranch());
                 }
             } else if (member.getType() == TYPE_SWITCH_DECLARATION) {
-                for (SwitchCase switchCase : member.getSwitchCases()) {
-                    exit = otherExit(members, end, switchCase.getBasicBlock());
-                    if (exit != null) {
-                        break;
-                    }
-                }
+                exit = otherExitOfASwitch(members, end, member);
             }
             if (exit != null) {
                 return exit;
             }
         }
 
+        return null;
+    }
+
+    private static BasicBlock otherExitOfASwitch(Set<BasicBlock> members, BasicBlock end, BasicBlock switchBlock) {
+        for (SwitchCase switchCase : switchBlock.getSwitchCases()) {
+            BasicBlock exit = otherExit(members, end, switchCase.getBasicBlock());
+
+            if (exit != null) {
+                return exit;
+            }
+        }
         return null;
     }
 

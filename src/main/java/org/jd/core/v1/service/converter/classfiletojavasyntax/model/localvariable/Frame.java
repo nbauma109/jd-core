@@ -537,8 +537,8 @@ public class Frame {
                     undeclaredLocalVariablesInStatement = searchUndeclaredLocalVariableVisitor.getVariables();
                     undeclaredLocalVariablesInStatement.retainAll(undeclaredLocalVariables);
                     if (!statement.isExpressionStatement()) {
-                        // A variable assigned in the branches of a statement ('if (c) { s = a; } else { s = b; }') is declared before it,
-                        // not before the later statement whose condition assigns it again ('while ((s = next()) != null)')
+                        // A variable assigned in the branches of an if-else statement is declared before it, not before the later
+                        // statement whose condition assigns it again (a while loop reading the next name)
                         undeclaredLocalVariablesInStatement.addAll(assignedIn(statement, undeclaredLocalVariables));
                     }
 

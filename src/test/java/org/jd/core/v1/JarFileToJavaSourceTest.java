@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -203,27 +204,32 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("org.apache.logging.log4j", "log4j-core", pomVersion("org.apache.logging.log4j", "log4j-core"));
     }
 
-    // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration (util.concurrent alone is more than half of it)
+    // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration (util.concurrent alone is more than half of it).
+    // Only the classes named '*Test' are selected, as the default includes of the plugin do not apply to a given pattern: the nested classes and the helpers would be run.
+    private static final String NO_NESTED_CLASS = "!**/*$*";
+
     @Test
     public void testGuavaAbstractFutureAndMath() throws Exception {
-        testGuava("com/google/common/util/concurrent/AbstractFuture*Test,com/google/common/math/**");
+        testGuava("com/google/common/util/concurrent/AbstractFuture*Test", "com/google/common/math/**/*Test");
     }
 
     @Test
     public void testGuavaConcurrent() throws Exception {
-        testGuava("com/google/common/util/concurrent/**,!com/google/common/util/concurrent/AbstractFuture*Test");
+        testGuava("com/google/common/util/concurrent/**/*Test", "!com/google/common/util/concurrent/AbstractFuture*Test");
     }
 
     @Test
     public void testGuavaOthers() throws Exception {
-        testGuava("!com/google/common/util/concurrent/**,!com/google/common/math/**");
+        String[] packages = {"base", "cache", "collect", "escape", "eventbus", "graph", "hash", "html", "io", "net", "primitives", "reflect", "testing", "xml"};
+
+        testGuava(Arrays.stream(packages).map(name -> "com/google/common/" + name + "/**/*Test").toArray(String[]::new));
     }
 
-    private void testGuava(String testsToRun) throws Exception {
+    private void testGuava(String... testsToRun) throws Exception {
         // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests (the others have no test to run)
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
                 new ProjectLayout("guava", "src", true, "package",
-                        List.of("-pl", "guava-tests", "-am", "-Dtest=" + testsToRun, "-Dsurefire.failIfNoSpecifiedTests=false")));
+                        List.of("-pl", "guava-tests", "-am", "-Dtest=" + String.join(",", testsToRun) + "," + NO_NESTED_CLASS, "-Dsurefire.failIfNoSpecifiedTests=false")));
     }
 
     /**

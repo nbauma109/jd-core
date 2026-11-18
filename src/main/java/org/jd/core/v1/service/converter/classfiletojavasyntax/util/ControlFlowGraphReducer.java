@@ -897,10 +897,20 @@ public abstract class ControlFlowGraphReducer {
             }
         }
 
+        BasicBlock farthestEnd = end;
+
+        end = preferTheJoinBeforeTheContinueOfALoop(basicBlock, ends, lastSwitchCaseBasicBlock, end);
+
+        BasicBlock continueTarget = farthestEnd == end ? null : farthestEnd;
+
         if (end == END) {
             end = lastSwitchCaseBasicBlock;
         } else {
             visit(v, lastSwitchCaseBasicBlock, end.getFromOffset(), ends);
+        }
+
+        if (continueTarget != null) {
+            jumpToTheContinueOfTheLoop(basicBlock, continueTarget, v);
         }
 
         Set<BasicBlock> endPredecessors = end == null ? new HashSet<>() : end.getPredecessors();
@@ -1536,6 +1546,54 @@ public abstract class ControlFlowGraphReducer {
         }
 
         return null;
+    }
+
+    /**
+     * 'switch (t) { case 1: continue; case 2: v = 1; break; default: v = 2; } use(v);' in a loop: the cases leave the switch for the update of the
+     * loop ('continue') or for the code which follows the switch, which goes on with the update: the end of the switch is that code, not the update.
+     */
+    private static BasicBlock preferTheJoinBeforeTheContinueOfALoop(BasicBlock switchBlock, Set<BasicBlock> ends, BasicBlock lastSwitchCaseBasicBlock, BasicBlock end) {
+        if (end == END || end == lastSwitchCaseBasicBlock || !goesBackBefore(end, switchBlock.getFromOffset())) {
+            return end;
+        }
+
+        for (BasicBlock candidate : ends) {
+            if (candidate != end && candidate != lastSwitchCaseBasicBlock && candidate != SWITCH_BREAK && candidate.getFromOffset() < end.getFromOffset() && isReachable(candidate, end)) {
+                return candidate;
+            }
+        }
+
+        return end;
+    }
+
+    /** The cases which go to the update of the loop, which follows the end of the switch, 'continue' the loop */
+    private static void jumpToTheContinueOfTheLoop(BasicBlock switchBlock, BasicBlock target, BitSet cases) {
+        for (SwitchCase switchCase : switchBlock.getSwitchCases()) {
+            if (switchCase.getBasicBlock() == target) {
+                switchCase.setBasicBlock(target.getControlFlowGraph().newJumpBasicBlock(switchBlock, target));
+            }
+        }
+
+        for (BasicBlock predecessor : new ArrayList<>(target.getPredecessors())) {
+            if (predecessor.getIndex() >= 0 && cases.get(predecessor.getIndex())) {
+                predecessor.replace(target, target.getControlFlowGraph().newJumpBasicBlock(predecessor, target));
+            }
+        }
+    }
+
+    private static boolean isReachable(BasicBlock from, BasicBlock target) {
+        Set<BasicBlock> reached = new HashSet<>();
+
+        visit(new BitSet(), from, target.getFromOffset(), reached);
+        return reached.contains(target);
+    }
+
+    private static boolean goesBackBefore(BasicBlock basicBlock, int offset) {
+        return switch (basicBlock.getType()) {
+            case TYPE_CONDITIONAL_BRANCH -> basicBlock.getBranch().getFromOffset() < offset || basicBlock.getNext().getFromOffset() < offset;
+            case TYPE_STATEMENTS, TYPE_GOTO -> basicBlock.getNext().getFromOffset() < offset;
+            default -> false;
+        };
     }
 
     private static void visit(BitSet visited, BasicBlock basicBlock, int maxOffset, Set<BasicBlock> ends) {

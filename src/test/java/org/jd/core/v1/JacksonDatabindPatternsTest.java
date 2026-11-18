@@ -135,4 +135,81 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
         assertEquals(source, 1, normalized.split("t = p.nextToken\\(\\); Object bean;", -1).length - 1);
         assertFalse(source, normalized.contains("wrapAndThrow(e, propName); t = p.nextToken();"));
     }
+
+    @Test
+    public void testSwitchOfAForLoopWithAContinueKeepsTheCodeWhichFollowsIt() throws Exception {
+        // 'JsonNodeDeserializer._deserializeContainerNoRecursion': a case goes on with the update of the loop, the others with the code after the switch
+        String source = decompile("jackson/SwitchContinue", String.join("\n",
+                "package jackson;",
+                "import java.util.*;",
+                "public class SwitchContinue {",
+                "    static String next(int p) { return p < 5 ? \"p\" : null; }",
+                "    static Object rare(int t) { return \"r\" + t; }",
+                "    static void parse(int[] tokens, Map<String, Object> target) {",
+                "        int pos = 0;",
+                "        for (String name = \"p\"; name != null; name = next(pos)) {",
+                "            Object value;",
+                "            int t = tokens[pos++];",
+                "            switch (t) {",
+                "            case 1:",
+                "                target = new HashMap<>();",
+                "                continue;",
+                "            case 6:",
+                "                value = \"s\";",
+                "                break;",
+                "            case 7:",
+                "                value = 7;",
+                "                break;",
+                "            default:",
+                "                value = rare(t);",
+                "            }",
+                "            target.put(name, value);",
+                "        }",
+                "    }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        assertTrue(source, normalized.contains("target.put(name, value);"));
+        assertTrue(source, normalized.contains("name = next(pos))"));
+    }
+
+    @Test
+    public void testLoopLeftByASwitchBreakEndsBeforeTheCodeOfTheDoWhile() throws Exception {
+        // 'JsonNodeDeserializer._deserializeContainerNoRecursion': 'continue outer' goes to the condition of the 'do', 'break' of the loop to the code before it
+        String source = decompile("jackson/DoWhileBreak", String.join("\n",
+                "package jackson;",
+                "import java.util.*;",
+                "public class DoWhileBreak {",
+                "    static void parse(int[] tokens, List<Object> root, Deque<List<Object>> stack) {",
+                "        List<Object> curr = root;",
+                "        int pos = 0;",
+                "        outer:",
+                "        do {",
+                "            if (pos > 100) {",
+                "                curr.add(\"x\");",
+                "            } else {",
+                "                loop:",
+                "                while (true) {",
+                "                    int t = tokens[pos++];",
+                "                    switch (t) {",
+                "                    case 1:",
+                "                        stack.push(curr);",
+                "                        curr = new ArrayList<Object>();",
+                "                        continue outer;",
+                "                    case 4:",
+                "                        break loop;",
+                "                    default:",
+                "                        curr.add(t);",
+                "                    }",
+                "                }",
+                "            }",
+                "            curr = stack.poll();",
+                "        } while (curr != null);",
+                "    }",
+                "}"));
+        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // 'break' of the loop is followed by the poll, 'continue' of the 'do' skips it
+        assertTrue(source, normalized.matches(".*case 1: .*continue label\\d+; case 4: break label\\d+;.*"));
+    }
 }

@@ -256,9 +256,15 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     /**
-     * Deletes the .java files of the sources (src/main/java by default) whose class is in the jar, which the decompiler writes again. The sources of the classes
-     * which are not in the jar stay (e.g. the examples of Commons Net, which its tests use), as well as the module descriptors, which the decompiler does not
-     * write (module-info.class is skipped) and which the build of the modules which require the library (the test library of Guava) needs.
+     * Deletes the original source files of the classes which are in the released jar, before the decompiled sources are written in their place.
+     * <p>
+     * A source file is deleted only if the jar has the class of the same name (src/main/java/a/b/Foo.java is deleted if the jar has a/b/Foo.class): the
+     * decompiler writes a/b/Foo.java again, and the original one would make a duplicate.
+     * <p>
+     * The other source files are kept, because nothing replaces them. For example, the jar of Commons Net has no class of the package
+     * org.apache.commons.net.examples, but its tests use Main and SimpleNTPServer of this package: without their sources, the tests do not compile.
+     * The module descriptors (module-info.java) are kept too: the decompiler does not write them (module-info.class is skipped), and the build of the
+     * modules which require the library (the test library of Guava) needs them.
      */
     private static void deleteSourcesOfTheClassesOfTheJar(Path sourceDirectory, Set<String> jarEntries) throws IOException {
         try (Stream<Path> files = Files.walk(sourceDirectory)) {

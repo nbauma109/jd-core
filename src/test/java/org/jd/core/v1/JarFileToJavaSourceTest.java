@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -249,7 +250,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             } catch (IOException e) {
                 failure = e;
                 if (attempt < DOWNLOAD_ATTEMPTS) {
-                    Thread.sleep(attempt * 5000L);
+                    TimeUnit.SECONDS.sleep(attempt * 5L);
                 }
             }
         }

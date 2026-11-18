@@ -103,6 +103,14 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     @Test
+    public void testCommonsCsv() throws Exception {
+        String version = pomVersion("org.apache.commons", "commons-csv");
+        // The decompiled sources have no license header: the check of the Apache RAT plugin would fail the build
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test", List.of("-Drat.skip=true"));
+        testAtTag("https://github.com/apache/commons-csv", "commons-csv", "rel/commons-csv-" + version, "org.apache.commons", "commons-csv", version, true, null, layout);
+    }
+
+    @Test
     public void testCommonsMath3() throws Exception {
         testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_3_6_1",
                 "org.apache.commons", "commons-math3", "3.6.1", true, findJava8Home());

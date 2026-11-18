@@ -38,7 +38,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -207,22 +206,23 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration (util.concurrent alone is more than half of it).
     // Only the classes named '*Test' are selected, as the default includes of the plugin do not apply to a given pattern: the nested classes and the helpers would be run.
     private static final String NO_NESTED_CLASS = "!**/*$*";
+    private static final String GUAVA_CONCURRENT = "com/google/common/util/concurrent";
+    private static final String GUAVA_MATH = "com/google/common/math";
 
     @Test
     public void testGuavaAbstractFutureAndMath() throws Exception {
-        testGuava("com/google/common/util/concurrent/AbstractFuture*Test", "com/google/common/math/**/*Test");
+        testGuava(GUAVA_CONCURRENT + "/AbstractFuture*Test", GUAVA_MATH + "/**/*Test");
     }
 
     @Test
     public void testGuavaConcurrent() throws Exception {
-        testGuava("com/google/common/util/concurrent/**/*Test", "!com/google/common/util/concurrent/AbstractFuture*Test");
+        testGuava(GUAVA_CONCURRENT + "/**/*Test", "!" + GUAVA_CONCURRENT + "/AbstractFuture*Test");
     }
 
     @Test
     public void testGuavaOthers() throws Exception {
-        String[] packages = {"base", "cache", "collect", "escape", "eventbus", "graph", "hash", "html", "io", "net", "primitives", "reflect", "testing", "xml"};
-
-        testGuava(Arrays.stream(packages).map(name -> "com/google/common/" + name + "/**/*Test").toArray(String[]::new));
+        // Whatever the other packages are, including the ones which a new version of Guava adds
+        testGuava("com/google/common/**/*Test", "!" + GUAVA_CONCURRENT + "/**", "!" + GUAVA_MATH + "/**");
     }
 
     private void testGuava(String... testsToRun) throws Exception {

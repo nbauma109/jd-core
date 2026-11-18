@@ -204,32 +204,34 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration (util.concurrent alone is more than half of it).
-    // Only the classes named '*Test' are selected, as the default includes of the plugin do not apply to a given pattern: the nested classes and the helpers would be run.
-    private static final String NO_NESTED_CLASS = "!**/*$*";
-    private static final String GUAVA_CONCURRENT = "com/google/common/util/concurrent";
-    private static final String GUAVA_MATH = "com/google/common/math";
+    // The classes are selected with the property which the pom of Guava gives to its surefire plugin ('test.include'), which keeps the exclusions of the pom
+    // (the PackageSanityTest, the testers and the anonymous classes, which -Dtest would run), unlike the includes of the plugin.
+    private static final String GUAVA_CONCURRENT = "util/concurrent/";
+    private static final String GUAVA_MATH = "math/";
+    private static final String GUAVA_ABSTRACT_FUTURE = "AbstractFuture";
 
     @Test
     public void testGuavaAbstractFutureAndMath() throws Exception {
-        testGuava(GUAVA_CONCURRENT + "/AbstractFuture*Test", GUAVA_MATH + "/**/*Test");
+        testGuava("(" + GUAVA_CONCURRENT + GUAVA_ABSTRACT_FUTURE + "|" + GUAVA_MATH + ")");
     }
 
     @Test
     public void testGuavaConcurrent() throws Exception {
-        testGuava(GUAVA_CONCURRENT + "/**/*Test", "!" + GUAVA_CONCURRENT + "/AbstractFuture*Test");
+        testGuava(GUAVA_CONCURRENT + "(?!" + GUAVA_ABSTRACT_FUTURE + ")");
     }
 
     @Test
     public void testGuavaOthers() throws Exception {
         // Whatever the other packages are, including the ones which a new version of Guava adds
-        testGuava("com/google/common/**/*Test", "!" + GUAVA_CONCURRENT + "/**", "!" + GUAVA_MATH + "/**");
+        testGuava("(?!" + GUAVA_CONCURRENT + "|" + GUAVA_MATH + ")");
     }
 
-    private void testGuava(String... testsToRun) throws Exception {
+    /** @param classesToRun the regular expression of the path of the classes of the tests to run, after 'com/google/common/' */
+    private void testGuava(String classesToRun) throws Exception {
         // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests (the others have no test to run)
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
                 new ProjectLayout("guava", "src", true, "package",
-                        List.of("-pl", "guava-tests", "-am", "-Dtest=" + String.join(",", testsToRun) + "," + NO_NESTED_CLASS, "-Dsurefire.failIfNoSpecifiedTests=false")));
+                        List.of("-pl", "guava-tests", "-am", "-Dtest.include=%regex[.*com/google/common/" + classesToRun + ".*\\.class]")));
     }
 
     /**

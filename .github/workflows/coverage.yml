@@ -69,6 +69,7 @@ jobs:
           - testCommonsImaging
           - testCommonsLang3
           - testCommonsMath3
+          - testCommonsNet
           - testCommonsText
           - testDiskLruCache
           - testGson

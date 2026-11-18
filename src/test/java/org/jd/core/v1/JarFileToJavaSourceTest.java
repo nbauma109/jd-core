@@ -203,11 +203,27 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         test("org.apache.logging.log4j", "log4j-core", pomVersion("org.apache.logging.log4j", "log4j-core"));
     }
 
+    // The unit tests of Guava take about 8 minutes: they are run by three jobs of about the same duration (util.concurrent alone is more than half of it)
     @Test
-    public void testGuava() throws Exception {
-        // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests
+    public void testGuavaAbstractFutureAndMath() throws Exception {
+        testGuava("com/google/common/util/concurrent/AbstractFuture*Test,com/google/common/math/**");
+    }
+
+    @Test
+    public void testGuavaConcurrent() throws Exception {
+        testGuava("com/google/common/util/concurrent/**,!com/google/common/util/concurrent/AbstractFuture*Test");
+    }
+
+    @Test
+    public void testGuavaOthers() throws Exception {
+        testGuava("!com/google/common/util/concurrent/**,!com/google/common/math/**");
+    }
+
+    private void testGuava(String testsToRun) throws Exception {
+        // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests (the others have no test to run)
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
-                new ProjectLayout("guava", "src", true, "package", List.of("-pl", "guava-tests", "-am")));
+                new ProjectLayout("guava", "src", true, "package",
+                        List.of("-pl", "guava-tests", "-am", "-Dtest=" + testsToRun, "-Dsurefire.failIfNoSpecifiedTests=false")));
     }
 
     /**

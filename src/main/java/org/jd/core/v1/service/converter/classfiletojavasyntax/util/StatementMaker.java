@@ -532,6 +532,37 @@ public class StatementMaker {
         return type instanceof PrimitiveType primitiveType && Integer.bitCount(primitiveType.getFlags()) > 1;
     }
 
+    /** A 'return' cannot leave a switch expression: the ones of its rules, which come from the values left on the stack, are 'yield' */
+    private static void replaceReturnsWithYields(Statements statements) {
+        for (int i = 0; i < statements.size(); i++) {
+            Statement statement = statements.get(i);
+
+            if (statement instanceof ReturnExpressionStatement returned) {
+                statements.set(i, new YieldExpressionStatement(returned.getLineNumber(), returned.getExpression()));
+            } else if (statement instanceof IfStatement ifStatement) {
+                // (the statements of the body of a statement 'if' made by this class are a list)
+                replaceReturnsWithYields((Statements) ifStatement.getStatements());
+            }
+        }
+    }
+
+    /** @return 'c ? a : b' for the statements 'if (c) yield a; yield b;', which are removed; null for any other statements, which stay */
+    private Expression takeTernaryResultOf(Statements statements) {
+        if (statements.size() != 2 || !(statements.getFirst() instanceof IfStatement ifStatement) || !isSingleYield(ifStatement.getStatements())
+                || !(statements.getLast() instanceof YieldExpressionStatement otherwise)) {
+            return null;
+        }
+
+        Statement then = ifStatement.getStatements().getFirst();
+
+        statements.clear();
+        return newTernaryOperatorExpression(then.getLineNumber(), ifStatement.getCondition(), then.getExpression(), otherwise.getExpression());
+    }
+
+    private static boolean isSingleYield(BaseStatement statements) {
+        return statements.size() == 1 && statements.getFirst() instanceof YieldExpressionStatement;
+    }
+
     private SwitchExpression buildSwitchExpression(
             int lineNumber,
             Expression selector,
@@ -942,6 +973,8 @@ public class StatementMaker {
             stack.copy(entryStack);
             makeStatements(watchdog, target, subStatements, jumps);
             replacePreOperatorWithPostOperator(subStatements);
+            // The value of a branch of a ternary operator which the rule ends with is left on the stack: it is not returned, it is the result of the rule
+            replaceReturnsWithYields(subStatements);
             AbstractLocalVariable patternVariable = extractPatternBinding(typeSwitch, subStatements);
 
             Expression ruleResult = null;
@@ -955,6 +988,11 @@ public class StatementMaker {
             } else if (stack.size() != entryStack.size()) {
                 parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, null, patternVariable));
                 return false;
+            }
+
+            if (ruleResult == null) {
+                // (nothing is left on the stack: the rule may be a ternary operator, whose branches are 'yield' statements)
+                ruleResult = takeTernaryResultOf(subStatements);
             }
 
             parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult, patternVariable));

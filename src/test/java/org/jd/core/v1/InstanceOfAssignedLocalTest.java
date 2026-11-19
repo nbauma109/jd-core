@@ -13,6 +13,9 @@ import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.printer.PlainTextPrinter;
 import org.junit.Test;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * 'dup; astore x; instanceof' is the way ECJ keeps the value which a pattern tests in a variable of its own, and the way javac assigns the variable of the
  * source in '(x = field) instanceof String': the assignment is removed only for the first.
@@ -27,48 +30,31 @@ public class InstanceOfAssignedLocalTest extends AbstractJdTest {
         return printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
     }
 
-    @Test
-    public void testTheVariableWhichTheCodeUsesBeforeTheTestStaysDeclared() throws Exception {
-        String source = decompile();
+    /** What the source of each method of the fixture says, by the case which it is */
+    private static final Map<String, String> EXPECTED = new LinkedHashMap<>();
 
-        assertTrue(source, source.contains("Object x = new Object(); consume(x); if ((x = this.field) instanceof String) {"));
+    static {
+        EXPECTED.put("the variable which the code uses before the test stays declared",
+                "Object x = new Object(); consume(x); if ((x = this.field) instanceof String) {");
+        EXPECTED.put("the variable which the code reads after the test is assigned",
+                "if ((x = this.field) instanceof String) { String s = (String)x; consume(s); } return x.hashCode();");
+        EXPECTED.put("the test of a value which has the type of the pattern stays: 'this.text instanceof String s' is no legal pattern before Java 21",
+                "if ((x = this.text) instanceof String) { String s = (String)x;");
+        EXPECTED.put("the result of a generic call has another type for the source: 'strings.get(0)' is a String, an Object for the byte code",
+                "if ((x = this.strings.get(0)) instanceof String) { String s = (String)x;");
+        EXPECTED.put("the object which a constructor initializes is the value of the test",
+                "new Object() instanceof String s");
+        EXPECTED.put("a store which a condition may not execute does not hide the read after it",
+                "if ((x = this.field) instanceof String) { String s = (String)x; consume(s); } if (flag) x = new Object(); return x;");
     }
 
     @Test
-    public void testTheVariableWhichTheCodeReadsAfterTheTestIsAssigned() throws Exception {
+    public void testTheAssignmentOfATestIsRemovedOnlyWhenItsVariableIsNotNeeded() throws Exception {
         String source = decompile();
 
-        assertTrue(source, source.contains("if ((x = this.field) instanceof String) { String s = (String)x; consume(s); } return x.hashCode();"));
-    }
-
-    @Test
-    public void testTheTestOfAValueWhichHasTheTypeOfThePatternStays() throws Exception {
-        String source = decompile();
-
-        // 'this.text instanceof String s' is no legal pattern before Java 21: the type of the value which survives is the one of the field, not the one of the variable
-        assertTrue(source, source.contains("if ((x = this.text) instanceof String) { String s = (String)x;"));
+        for (Map.Entry<String, String> expected : EXPECTED.entrySet()) {
+            assertTrue(expected.getKey() + ":\n" + source, source.contains(expected.getValue()));
+        }
         assertFalse(source, source.contains("this.text instanceof String s"));
-    }
-
-    @Test
-    public void testTheResultOfAGenericCallHasAnotherTypeForTheSource() throws Exception {
-        String source = decompile();
-
-        // 'strings.get(0)' is a String for the source, an Object for the byte code: 'this.strings.get(0) instanceof String s' would be an unconditional pattern
-        assertTrue(source, source.contains("if ((x = this.strings.get(0)) instanceof String) { String s = (String)x;"));
-    }
-
-    @Test
-    public void testTheObjectWhichAConstructorInitializesIsTheValueOfTheTest() throws Exception {
-        String source = decompile();
-
-        assertTrue(source, source.contains("new Object() instanceof String s"));
-    }
-
-    @Test
-    public void testAStoreWhichAConditionMayNotExecuteDoesNotHideTheReadAfterIt() throws Exception {
-        String source = decompile();
-
-        assertTrue(source, source.contains("if ((x = this.field) instanceof String) { String s = (String)x; consume(s); } if (flag) x = new Object(); return x;"));
     }
 }

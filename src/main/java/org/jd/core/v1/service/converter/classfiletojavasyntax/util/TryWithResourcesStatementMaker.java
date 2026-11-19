@@ -385,9 +385,7 @@ public final class TryWithResourcesStatementMaker {
                 primaryExceptionLocalVariable = addSuppressedTarget;
             }
             suppressedLocalVariable = getSuppressedLocalVariable(addSuppressedInvocation);
-            if (fromLastStatement && (suppressedLocalVariable == null
-                    || !(catchClauses.getFirst() instanceof ClassFileTryStatement.CatchClause catchClause)
-                    || catchClause.getLocalVariable() != suppressedLocalVariable)) {
+            if (fromLastStatement && ((ClassFileTryStatement.CatchClause) catchClauses.getFirst()).getLocalVariable() != suppressedLocalVariable) {
                 // (the handler of the Eclipse compiler adds the exception which it catches to the primary one: no other handler is dropped)
                 return null;
             }

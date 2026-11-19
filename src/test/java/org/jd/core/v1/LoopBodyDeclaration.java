@@ -13,6 +13,7 @@ public class LoopBodyDeclaration {
     char[][] keyTable = new char[4][];
 
     void put(char[] key) {
+        // (the value is only used by the test)
     }
 
     void rehash() {

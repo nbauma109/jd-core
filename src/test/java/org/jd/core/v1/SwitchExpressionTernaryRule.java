@@ -26,6 +26,16 @@ public class SwitchExpressionTernaryRule {
                 log(name);
                 yield name.toCharArray();
             }
+            case 8 -> {
+                if (name == null)
+                    throw new IllegalStateException();
+                yield name.toCharArray();
+            }
+            case 9 -> {
+                if (id > 3)
+                    yield name.trim().toCharArray();
+                throw new IllegalArgumentException();
+            }
             default -> {
                 if (id > 128 && name.length() > 3)
                     yield name.trim().toCharArray();

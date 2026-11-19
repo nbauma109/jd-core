@@ -539,8 +539,9 @@ public class StatementMaker {
 
             if (statement instanceof ReturnExpressionStatement returned) {
                 statements.set(i, new YieldExpressionStatement(returned.getLineNumber(), returned.getExpression()));
-            } else if (statement instanceof IfStatement ifStatement && ifStatement.getStatements() instanceof Statements thenStatements) {
-                replaceReturnsWithYields(thenStatements);
+            } else if (statement instanceof IfStatement ifStatement) {
+                // (the statements of the body of a statement 'if' made by this class are a list)
+                replaceReturnsWithYields((Statements) ifStatement.getStatements());
             }
         }
     }
@@ -558,7 +559,7 @@ public class StatementMaker {
     }
 
     private static boolean isSingleYield(BaseStatement statements) {
-        return statements != null && statements.size() == 1 && statements.getFirst() instanceof YieldExpressionStatement;
+        return statements.size() == 1 && statements.getFirst() instanceof YieldExpressionStatement;
     }
 
     private SwitchExpression buildSwitchExpression(
@@ -975,16 +976,10 @@ public class StatementMaker {
             replaceReturnsWithYields(subStatements);
             AbstractLocalVariable patternVariable = extractPatternBinding(typeSwitch, subStatements);
 
-            Expression ruleResult = ternaryResultOf(subStatements);
-
-            if (ruleResult != null) {
-                subStatements.clear();
-            }
+            Expression ruleResult = null;
 
             // The operands which precede the switch, such as the stream of a print, stay on the stack
-            if (ruleResult != null) {
-                // (the rule is a ternary operator: nothing is left on the stack)
-            } else if (stack.size() == entryStack.size() + 1) {
+            if (stack.size() == entryStack.size() + 1) {
                 ruleResult = stack.pop();
                 if (!subStatements.isEmpty() && isBreak(subStatements.getLast())) {
                     subStatements.removeLast();
@@ -992,6 +987,15 @@ public class StatementMaker {
             } else if (stack.size() != entryStack.size()) {
                 parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, null, patternVariable));
                 return false;
+            }
+
+            if (ruleResult == null) {
+                // (nothing is left on the stack: the rule may be a ternary operator, whose branches are 'yield' statements)
+                ruleResult = ternaryResultOf(subStatements);
+
+                if (ruleResult != null) {
+                    subStatements.clear();
+                }
             }
 
             parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult, patternVariable));

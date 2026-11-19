@@ -57,4 +57,25 @@ public class TryWithTheCloseOfAnOrdinaryHandler {
     private static InputStream open() {
         return System.in;
     }
+
+    private int count;
+
+    void endsWithACallWhichIsNoClose(InputStream stream, Exception context) throws Throwable {
+        try {
+            stream.read();
+        } catch (Throwable t) {
+            t.addSuppressed(context);
+            throw t;
+        }
+    }
+
+    void endsWithAnAssignment(InputStream stream, Exception context) throws Throwable {
+        try {
+            stream.read();
+            this.count = 1;
+        } catch (Throwable t) {
+            t.addSuppressed(context);
+            throw t;
+        }
+    }
 }

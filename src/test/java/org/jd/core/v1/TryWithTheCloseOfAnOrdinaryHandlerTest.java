@@ -30,6 +30,9 @@ public class TryWithTheCloseOfAnOrdinaryHandlerTest extends AbstractJdTest {
         assertTrue(printed, source.contains("context.addSuppressed("));
         // the resource is opened in the try statement: its initialization is kept
         assertTrue(printed, source.contains("InputStream opened = open();"));
+        // the try statements which do not end with a close are no try-with-resources either
+        assertTrue(printed, source.contains("this.count = 1;"));
+        assertFalse(printed, source.contains("try (stream) { stream.read(); }"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 }

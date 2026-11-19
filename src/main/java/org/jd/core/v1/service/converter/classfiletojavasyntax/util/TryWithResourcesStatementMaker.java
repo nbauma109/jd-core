@@ -694,7 +694,17 @@ public final class TryWithResourcesStatementMaker {
         if (assignedLocalVariable == null || Utils.isEmptyCollection(targets)) {
             return null;
         }
-        return targets.contains(assignedLocalVariable) ? assignedLocalVariable : null;
+        if (targets.contains(assignedLocalVariable)) {
+            return assignedLocalVariable;
+        }
+        // The Eclipse compiler keeps the exception which the resource may throw in a slot which the code before the 'try' and the code of the handlers
+        // see as two variables, of the same index
+        for (AbstractLocalVariable target : targets) {
+            if (target.getIndex() == assignedLocalVariable.getIndex() && target.getType().equals(assignedLocalVariable.getType())) {
+                return target;
+            }
+        }
+        return null;
     }
 
     private static Expression resolveResourceExpressionFromParameters(

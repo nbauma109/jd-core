@@ -28,6 +28,8 @@ public class TryWithTheCloseOfAnOrdinaryHandlerTest extends AbstractJdTest {
         assertFalse(printed, source.contains("try (stream)"));
         // the same with a primary exception which the code does not set to null before the try statement
         assertTrue(printed, source.contains("context.addSuppressed("));
+        // the resource is opened in the try statement: its initialization is kept
+        assertTrue(printed, source.contains("InputStream opened = open();"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 }

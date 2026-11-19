@@ -307,7 +307,6 @@ public final class TryWithResourcesStatementMaker {
         }
 
         boolean ecjPatternMatch = false;
-        boolean fromLastStatement = false;
         boolean unguardedClose = false;
         CloseInvocationInfo closeInvocationInfo = getCloseInvocationInfo(catchStatements);
         if (closeInvocationInfo == null) {
@@ -324,8 +323,11 @@ public final class TryWithResourcesStatementMaker {
                 closeInvocationInfo = getCloseInvocationInfoFromTryStatements(tryStatements);
                 if (closeInvocationInfo == null && allowEcjPattern && !tryStatements.isEmpty()) {
                     closeInvocationInfo = getCloseInvocationInfoFromLastStatement(tryStatements);
-                    fromLastStatement = closeInvocationInfo != null;
-                    unguardedClose = fromLastStatement && tryStatements.getLast().isExpressionStatement();
+                    if (closeInvocationInfo != null && !isSyntheticHandler(catchClauses.getFirst(), catchStatements, statements)) {
+                        // (nothing has been removed yet: the statements are those of an ordinary try)
+                        return null;
+                    }
+                    unguardedClose = closeInvocationInfo != null && tryStatements.getLast().isExpressionStatement();
                 }
                 if (closeInvocationInfo == null || !allowEcjPattern && findAddSuppressedInvocation(catchStatements, null) == null) {
                     return null;
@@ -385,12 +387,6 @@ public final class TryWithResourcesStatementMaker {
                 primaryExceptionLocalVariable = addSuppressedTarget;
             }
             suppressedLocalVariable = getSuppressedLocalVariable(addSuppressedInvocation);
-            if (fromLastStatement
-                    && (((ClassFileTryStatement.CatchClause) catchClauses.getFirst()).getLocalVariable() != suppressedLocalVariable
-                    || !isAssignedNull(statements, addSuppressedTarget))) {
-                // (the handler of the Eclipse compiler adds the exception which it catches to the primary one: no other handler is dropped)
-                return null;
-            }
 
             Expression chainExpression = resourceExpression != null ? resourceExpression : closeInvocationInfo.expression;
             // (a close which no null check guards is no statement of the body: it is put back if the chain is not rebuilt)
@@ -1586,6 +1582,17 @@ public final class TryWithResourcesStatementMaker {
         LocalVariableReferenceVisitor visitor = new LocalVariableReferenceVisitor(localVariable);
         statements.accept(visitor);
         return visitor.isFound();
+    }
+
+    /**
+     * The handler of the Eclipse compiler adds the exception which it catches to the primary exception, a variable which is set to null before the
+     * try statement, and throws the primary exception: no handler written in the source looks like it.
+     */
+    private static boolean isSyntheticHandler(TryStatement.CatchClause catchClause, BaseStatement catchStatements, Statements statements) {
+        MethodInvocationExpression addSuppressedInvocation = findAddSuppressedInvocation(catchStatements, null);
+        return addSuppressedInvocation != null
+                && ((ClassFileTryStatement.CatchClause) catchClause).getLocalVariable() == getSuppressedLocalVariable(addSuppressedInvocation)
+                && isAssignedNull(statements, getLocalVariableFromExpression(addSuppressedInvocation.getExpression()));
     }
 
     /** The primary exception of the Eclipse compiler is a variable which is set to null before the try statement */

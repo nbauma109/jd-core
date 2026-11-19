@@ -42,4 +42,19 @@ public class TryWithTheCloseOfAnOrdinaryHandler {
             throw t;
         }
     }
+
+    void openInTheTry(Exception context) throws Throwable {
+        try {
+            InputStream opened = open();
+            opened.read();
+            opened.close();
+        } catch (Throwable t) {
+            t.addSuppressed(context);
+            throw t;
+        }
+    }
+
+    private static InputStream open() {
+        return System.in;
+    }
 }

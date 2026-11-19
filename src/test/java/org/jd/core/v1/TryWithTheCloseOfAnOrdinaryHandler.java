@@ -22,4 +22,14 @@ public class TryWithTheCloseOfAnOrdinaryHandler {
             throw new IllegalStateException(t);
         }
     }
+
+    void rethrow(InputStream stream, Exception context) throws Throwable {
+        try {
+            stream.read();
+            stream.close();
+        } catch (Throwable t) {
+            t.addSuppressed(context);
+            throw t;
+        }
+    }
 }

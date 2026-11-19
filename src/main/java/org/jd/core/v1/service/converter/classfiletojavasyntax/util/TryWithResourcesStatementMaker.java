@@ -307,6 +307,7 @@ public final class TryWithResourcesStatementMaker {
         }
 
         boolean ecjPatternMatch = false;
+        boolean fromLastStatement = false;
         boolean unguardedClose = false;
         CloseInvocationInfo closeInvocationInfo = getCloseInvocationInfo(catchStatements);
         if (closeInvocationInfo == null) {
@@ -323,7 +324,8 @@ public final class TryWithResourcesStatementMaker {
                 closeInvocationInfo = getCloseInvocationInfoFromTryStatements(tryStatements);
                 if (closeInvocationInfo == null && allowEcjPattern && !tryStatements.isEmpty()) {
                     closeInvocationInfo = getCloseInvocationInfoFromLastStatement(tryStatements);
-                    unguardedClose = closeInvocationInfo != null && tryStatements.getLast().isExpressionStatement();
+                    fromLastStatement = closeInvocationInfo != null;
+                    unguardedClose = fromLastStatement && tryStatements.getLast().isExpressionStatement();
                 }
                 if (closeInvocationInfo == null || !allowEcjPattern && findAddSuppressedInvocation(catchStatements, null) == null) {
                     return null;
@@ -383,6 +385,12 @@ public final class TryWithResourcesStatementMaker {
                 primaryExceptionLocalVariable = addSuppressedTarget;
             }
             suppressedLocalVariable = getSuppressedLocalVariable(addSuppressedInvocation);
+            if (fromLastStatement && (suppressedLocalVariable == null
+                    || !(catchClauses.getFirst() instanceof ClassFileTryStatement.CatchClause catchClause)
+                    || catchClause.getLocalVariable() != suppressedLocalVariable)) {
+                // (the handler of the Eclipse compiler adds the exception which it catches to the primary one: no other handler is dropped)
+                return null;
+            }
 
             Expression chainExpression = resourceExpression != null ? resourceExpression : closeInvocationInfo.expression;
             // (a close which no null check guards is no statement of the body: it is put back if the chain is not rebuilt)

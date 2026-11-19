@@ -23,6 +23,9 @@ public class TryWithTheCloseOfAnOrdinaryHandlerTest extends AbstractJdTest {
         String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
 
         assertTrue(printed, source.contains("stream.close();"));
+        // the handler which rethrows the exception it caught is no synthetic handler either
+        assertTrue(printed, source.contains("context"));
+        assertFalse(printed, source.contains("try (stream)"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 }

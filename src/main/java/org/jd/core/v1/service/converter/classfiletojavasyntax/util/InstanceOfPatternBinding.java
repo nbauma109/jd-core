@@ -15,6 +15,8 @@ import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
 import org.apache.bcel.classfile.Method;
+import org.apache.bcel.generic.CHECKCAST;
+import org.apache.bcel.generic.INSTANCEOF;
 import org.apache.bcel.generic.ClassGenException;
 import org.apache.bcel.generic.ALOAD;
 import org.apache.bcel.generic.ASTORE;
@@ -225,6 +227,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     private static String operandDescriptor(Method method, int slot, int offset) {
         Code code = method.getCode();
 
+        // The variable of 'dup; astore' disappears with the assignment: the test is of the value which survives, whose type is the one of the field or of the call
+        if (temporaryOperandIndex(code.getCode(), offset) >= 0) {
+            return typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+        }
+
         if (code.getLocalVariableTable() != null) {
             for (LocalVariable variable : code.getLocalVariableTable().getLocalVariableTable()) {
                 if (variable.getIndex() == slot && variable.getStartPC() <= offset && offset < variable.getStartPC() + variable.getLength()) {
@@ -241,17 +248,13 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             }
             index += type.getSize();
         }
-        return typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+        return null;
     }
 
-    /** @return the descriptor of the field or of the result of the call which 'getfield f; dup; astore v; instanceof' tests, null if the value is another one */
+    /** @return the descriptor of the field or of the result of the call which 'getfield f; dup; astore v; instanceof' tests, null if the value is another one (the test is one of a temporary) */
     private static String typeOfTheValueKeptBy(byte[] code, int instanceOfOffset, ConstantPool constants) {
-        if (temporaryOperandIndex(code, instanceOfOffset) < 0) {
-            return null;
-        }
-
         // 'producer; dup; astore v; instanceof'
-        Instruction producer = new InstructionList(code).findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
+        Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
         if (producer instanceof FieldInstruction field) {
             return memberSignature(constants, field.getIndex());
@@ -780,14 +783,15 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
      *         aload v; checkcast T; astore t'; -1 if the instructions which precede 'instanceof' do not store a duplicate
      */
     private static int temporaryOperandIndex(byte[] code, int instanceOfOffset) {
-        InstructionHandle store = new InstructionList(code).findHandle(instanceOfOffset).getPrev();
+        InstructionHandle store = decoded(code).list().findHandle(instanceOfOffset).getPrev();
 
         return store != null && store.getInstruction() instanceof ASTORE astore && store.getPrev() != null && store.getPrev().getInstruction() instanceof DUP ? astore.getIndex() : -1;
     }
 
     /**
-     * 'dup; astore v' keeps the tested value in a variable of the source too ('(x = field) instanceof String s' with a later use of 'x'): the variable is a temporary of
-     * the compiler only when it is no parameter and nothing reads it, until the next store, but the load which binds the pattern.
+     * 'dup; astore v' keeps the tested value in a variable of the source too ('(x = field) instanceof String s' with a use of 'x' before or after): the variable is a
+     * temporary of the compiler only when it is no parameter, nothing else than the temporaries of the compiler uses its slot before the test, and nothing reads it,
+     * until the next store, but the load which binds the pattern.
      */
     private static boolean isKeptOnlyForThePattern(byte[] code, boolean[] starts, int instanceOfOffset, InstanceOfPatternBinding binding, int parameterSlots) {
         int slot = temporaryOperandIndex(code, instanceOfOffset);
@@ -795,18 +799,53 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (slot < parameterSlots) {
             return false;
         }
-        for (int p = instanceOfOffset + 1; p < code.length; p++) {
-            if (starts[p]) {
-                if (storedIndex(code, p) == slot) {
-                    // what follows reads another value
-                    return true;
-                }
-                if (p != binding.firstSkippedOffset() && loadedIndex(code, p) == slot) {
+        for (InstructionHandle use : decoded(code).usesBySlot().get(slot)) {
+            if (use.getPosition() < instanceOfOffset) {
+                if (!isUseOfATemporary(use)) {
                     return false;
                 }
+            } else if (use.getInstruction() instanceof ASTORE) {
+                // what follows reads another value
+                return true;
+            } else if (use.getPosition() != binding.firstSkippedOffset()) {
+                return false;
             }
         }
         return true;
+    }
+
+    /** The store 'dup; astore v; instanceof' and the load 'aload v; checkcast' are the ones of the pattern of a temporary of the compiler */
+    private static boolean isUseOfATemporary(InstructionHandle use) {
+        if (use.getInstruction() instanceof ASTORE) {
+            return use.getPrev() != null && use.getPrev().getInstruction() instanceof DUP && use.getNext().getInstruction() instanceof INSTANCEOF;
+        }
+        return use.getNext().getInstruction() instanceof CHECKCAST;
+    }
+
+    /** The instructions of a method, and its loads and stores of the references by slot: the tests of the method share them */
+    private record Decoded(byte[] code, InstructionList list, Map<Integer, List<InstructionHandle>> usesBySlot) {
+    }
+
+    private static final ThreadLocal<Decoded> DECODED = new ThreadLocal<>();
+
+    private static Decoded decoded(byte[] code) {
+        Decoded decoded = DECODED.get();
+
+        if (decoded == null || decoded.code() != code) {
+            InstructionList list = new InstructionList(code);
+            Map<Integer, List<InstructionHandle>> usesBySlot = new HashMap<>();
+
+            for (InstructionHandle handle : list.getInstructionHandles()) {
+                if (handle.getInstruction() instanceof ALOAD load) {
+                    usesBySlot.computeIfAbsent(load.getIndex(), slot -> new ArrayList<>()).add(handle);
+                } else if (handle.getInstruction() instanceof ASTORE store) {
+                    usesBySlot.computeIfAbsent(store.getIndex(), slot -> new ArrayList<>()).add(handle);
+                }
+            }
+            decoded = new Decoded(code, list, usesBySlot);
+            DECODED.set(decoded);
+        }
+        return decoded;
     }
 
     /** @return the index of the local variable which is loaded by the instruction at 'offset', -1 if it is no load */

@@ -104,4 +104,27 @@ public class InstanceOfPatternBindingTemporaryTest {
 
         assertTrue(InstanceOfPatternBinding.find(code, 1, null, null).isEmpty());
     }
+
+    @Test
+    public void testAnEarlierUseWhichIsNoTemporaryOfTheCompilerMakesTheVariableOneOfTheSource() {
+        // 0: aload_0; 1: astore_2; 2: aload_2; 3: pop; 4: aload_0; 5: dup; 6: astore_2; 7: instanceof; 10: ifeq 18; 13: aload_2; 14: checkcast; 17: astore_3; 18: return
+        byte[] code = code(ALOAD_0, ASTORE_2, ALOAD_2, POP, ALOAD_0, DUP, ASTORE_2, INSTANCEOF, 0, 1, IFEQ, 0, 8, ALOAD_2, CHECKCAST, 0, 1, ASTORE_3, RETURN);
+
+        assertTrue(InstanceOfPatternBinding.find(code, 1, null, null).isEmpty());
+    }
+
+    @Test
+    public void testTheTemporariesOfTheCompilerMaySharetheSlot() {
+        // two patterns, each with its own 'dup; astore_2': the stores and the loads of the first are the ones of a temporary
+        // 0: aload_0; 1: dup; 2: astore_2; 3: instanceof; 6: ifeq 14; 9: aload_2; 10: checkcast; 13: astore_3;
+        // 14: aload_0; 15: dup; 16: astore_2; 17: instanceof; 20: ifeq 29; 23: aload_2; 24: checkcast; 27: astore 4; 29: return
+        byte[] code = code(ALOAD_0, DUP, ASTORE_2, INSTANCEOF, 0, 1, IFEQ, 0, 8, ALOAD_2, CHECKCAST, 0, 1, ASTORE_3,
+                ALOAD_0, DUP, ASTORE_2, INSTANCEOF, 0, 1, IFEQ, 0, 9, ALOAD_2, CHECKCAST, 0, 1, ASTORE, 4, RETURN);
+
+        Map<Integer, InstanceOfPatternBinding> bindings = InstanceOfPatternBinding.find(code, 1, null, null);
+
+        assertEquals(2, bindings.size());
+        assertTrue(bindings.containsKey(3));
+        assertTrue(bindings.containsKey(17));
+    }
 }

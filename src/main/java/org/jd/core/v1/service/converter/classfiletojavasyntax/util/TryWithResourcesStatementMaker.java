@@ -307,6 +307,7 @@ public final class TryWithResourcesStatementMaker {
         }
 
         boolean ecjPatternMatch = false;
+        boolean unguardedClose = false;
         CloseInvocationInfo closeInvocationInfo = getCloseInvocationInfo(catchStatements);
         if (closeInvocationInfo == null) {
             if (allowEcjPattern) {
@@ -320,6 +321,14 @@ public final class TryWithResourcesStatementMaker {
             }
             if (closeInvocationInfo == null) {
                 closeInvocationInfo = getCloseInvocationInfoFromTryStatements(tryStatements);
+                if (closeInvocationInfo == null && allowEcjPattern && !tryStatements.isEmpty()) {
+                    closeInvocationInfo = getCloseInvocationInfoFromLastStatement(tryStatements);
+                    if (closeInvocationInfo != null && !isSyntheticHandler(catchClauses.getFirst(), catchStatements, statements)) {
+                        // (nothing has been removed yet: the statements are those of an ordinary try)
+                        return null;
+                    }
+                    unguardedClose = closeInvocationInfo != null && tryStatements.getLast().isExpressionStatement();
+                }
                 if (closeInvocationInfo == null || !allowEcjPattern && findAddSuppressedInvocation(catchStatements, null) == null) {
                     return null;
                 }
@@ -380,6 +389,8 @@ public final class TryWithResourcesStatementMaker {
             suppressedLocalVariable = getSuppressedLocalVariable(addSuppressedInvocation);
 
             Expression chainExpression = resourceExpression != null ? resourceExpression : closeInvocationInfo.expression;
+            // (a close which no null check guards is no statement of the body: it is put back if the chain is not rebuilt)
+            Statement unguardedCloseStatement = unguardedClose ? tryStatements.removeLast() : null;
             ClassFileTryStatement chainStatement = newTryStatementFromTryChain(
                     localVariableMaker,
                     statements,
@@ -393,6 +404,9 @@ public final class TryWithResourcesStatementMaker {
                     allowResourceExpression);
             if (chainStatement != null) {
                 return chainStatement;
+            }
+            if (unguardedCloseStatement != null) {
+                tryStatements.add(unguardedCloseStatement);
             }
         } else {
             ClassFileTryStatement tryStatement = closeInvocationInfo.tryStatement;
@@ -513,6 +527,24 @@ public final class TryWithResourcesStatementMaker {
         CloseInvocationInfoVisitor visitor = new CloseInvocationInfoVisitor();
         tryStatements.accept(visitor);
         return visitor.getInfo();
+    }
+
+    /**
+     * The Eclipse compiler closes the resource of a try-with-resources whose body is empty in the try block itself: there is no nested try statement
+     * to catch the exception of the close, the last statement is the close, which is guarded by a null check when the resource may be null.
+     */
+    private static CloseInvocationInfo getCloseInvocationInfoFromLastStatement(Statements tryStatements) {
+        Statement last = tryStatements.getLast();
+        if (last instanceof IfStatement ifStatement) {
+            last = ifStatement.getStatements().getLast();
+        }
+        if (last.getExpression() instanceof MethodInvocationExpression mie) {
+            AbstractLocalVariable localVariable = getCloseInvocationLocalVariable(mie);
+            if (localVariable != null) {
+                return new CloseInvocationInfo(null, localVariable, mie.getExpression());
+            }
+        }
+        return null;
     }
 
     private static CloseInvocationInfo getCloseInvocationInfoFromCatchStatements(BaseStatement catchStatements) {
@@ -1371,6 +1403,8 @@ public final class TryWithResourcesStatementMaker {
                     && !isLocalVariableReferenced(bodyStatements, localVariable)) {
                 expressionOnly = true;
                 resourceInfo.hasDeclaration = false;
+                // (the variable which held the resource is not declared in the body)
+                localVariable.setDeclared(true);
             }
 
             if (!expressionOnly && localVariable != null) {
@@ -1548,6 +1582,27 @@ public final class TryWithResourcesStatementMaker {
         LocalVariableReferenceVisitor visitor = new LocalVariableReferenceVisitor(localVariable);
         statements.accept(visitor);
         return visitor.isFound();
+    }
+
+    /**
+     * The handler of the Eclipse compiler adds the exception which it catches to the primary exception, a variable which is set to null before the
+     * try statement, and throws the primary exception: no handler written in the source looks like it.
+     */
+    private static boolean isSyntheticHandler(TryStatement.CatchClause catchClause, BaseStatement catchStatements, Statements statements) {
+        MethodInvocationExpression addSuppressedInvocation = findAddSuppressedInvocation(catchStatements, null);
+        return addSuppressedInvocation != null
+                && ((ClassFileTryStatement.CatchClause) catchClause).getLocalVariable() == getSuppressedLocalVariable(addSuppressedInvocation)
+                && isAssignedNull(statements, getLocalVariableFromExpression(addSuppressedInvocation.getExpression()));
+    }
+
+    /** The primary exception of the Eclipse compiler is a variable which is set to null before the try statement */
+    private static boolean isAssignedNull(Statements statements, AbstractLocalVariable localVariable) {
+        for (Statement statement : statements) {
+            if (isNullAssignment(statement) && matchesLocalVariable(getAssignedLocalVariable(statement), localVariable)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isNullAssignment(Statement statement) {

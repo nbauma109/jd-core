@@ -36,6 +36,12 @@ public class EcjInstanceOfTemporaryTest extends AbstractJdTest {
         assertTrue(printed, source.contains("if (provide() instanceof Type type)"));
         assertTrue(printed, source.contains("if (make() instanceof Method method1)"));
         assertTrue(printed, source.contains("if (this.supplier.get() instanceof Type type1)"));
+        assertTrue(printed, source.contains("if (provideBase() instanceof Method method2)"));
+        // the type of the element of an array is unknown for the detection of the unconditional tests: the test stays, with its cast
+        assertTrue(printed, source.contains("if ((context = this.array[0]) instanceof Type) { Type type2 = (Type)context;"));
+        // the variable which the code reads after the test is no temporary of the compiler: its assignment stays, between parentheses
+        assertTrue(printed, source.contains("int parameter(Object value) { Object object; if ((object = value = this.context) instanceof Method) {"));
+        assertTrue(printed, source.contains("return value.hashCode();"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjInstanceOfTemporary", printed)));
     }
 }

@@ -20,6 +20,9 @@ import org.apache.bcel.generic.ALOAD;
 import org.apache.bcel.generic.ASTORE;
 import org.apache.bcel.generic.ATHROW;
 import org.apache.bcel.generic.BranchInstruction;
+import org.apache.bcel.generic.DUP;
+import org.apache.bcel.generic.FieldInstruction;
+import org.apache.bcel.generic.InvokeInstruction;
 import org.apache.bcel.generic.GotoInstruction;
 import org.apache.bcel.generic.Instruction;
 import org.apache.bcel.generic.InstructionHandle;
@@ -243,43 +246,24 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
     /** @return the descriptor of the field or of the result of the call which 'getfield f; dup; astore v; instanceof' tests, null if the value is another one */
     private static String typeOfTheValueKeptBy(byte[] code, int instanceOfOffset, ConstantPool constants) {
-        boolean[] starts = instructionStarts(code);
-
-        if (constants == null || temporaryOperandIndex(code, starts, instanceOfOffset) < 0) {
+        if (temporaryOperandIndex(code, instanceOfOffset) < 0) {
             return null;
         }
 
-        int dup = instanceOfOffset - 1;
+        // 'producer; dup; astore v; instanceof'
+        Instruction producer = new InstructionList(code).findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
-        while (dup > 0 && (code[dup] & 255) != Const.DUP) {
-            dup--;
+        if (producer instanceof FieldInstruction field) {
+            return memberSignature(constants, field.getIndex());
         }
-
-        int producer = dup - 1;
-
-        while (producer > 0 && !starts[producer]) {
-            producer--;
-        }
-
-        int opcode = code[producer] & 255;
-        int index = (code[producer + 1] & 255) << 8 | code[producer + 2] & 255;
-
-        if (opcode == Const.GETFIELD || opcode == Const.GETSTATIC) {
-            return memberSignature(constants, index);
-        }
-        if (opcode == Const.INVOKEVIRTUAL || opcode == Const.INVOKEINTERFACE || opcode == Const.INVOKESTATIC || opcode == Const.INVOKESPECIAL) {
-            String signature = memberSignature(constants, index);
-
-            return signature == null ? null : Type.getReturnType(signature).getSignature();
-        }
-        return null;
+        // (the result of a call, which the descriptor of the method gives)
+        return producer instanceof InvokeInstruction call ? Type.getReturnType(memberSignature(constants, call.getIndex())).getSignature() : null;
     }
 
     private static String memberSignature(ConstantPool constants, int index) {
-        if (!(constants.getConstant(index) instanceof ConstantCP member) || !(constants.getConstant(member.getNameAndTypeIndex()) instanceof ConstantNameAndType nameAndType)) {
-            return null;
-        }
-        return nameAndType.getSignature(constants);
+        ConstantCP member = (ConstantCP) constants.getConstant(index);
+
+        return ((ConstantNameAndType) constants.getConstant(member.getNameAndTypeIndex())).getSignature(constants);
     }
 
     /**
@@ -359,7 +343,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             if (starts[p] && (code[p] & 255) == INSTANCEOF && starts[p + 3] && (code[p + 3] & 255) == IFEQ) {
                 InstanceOfPatternBinding binding = match(code, starts, p);
 
-                if (binding != null && !hasAlternateEntry(code, starts, p + 3, binding.firstSkippedOffset()) && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))) {
+                if (binding != null && !hasAlternateEntry(code, starts, p + 3, binding.firstSkippedOffset()) && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))
+                        && (temporaryOperandIndex(code, p) < 0 || isKeptOnlyForThePattern(code, starts, p, binding, parameterSlots))) {
                     bindings.put(p, binding);
                 }
             }
@@ -785,35 +770,43 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (starts[previous] && opcode >= ALOAD_0 && opcode <= ALOAD_3) {
             return opcode - ALOAD_0;
         }
-        if (previous >= 1 && starts[previous - 1] && (code[previous - 1] & 255) == ALOAD) {
-            return opcode;
-        }
-        return temporaryOperandIndex(code, starts, instanceOfOffset);
+        int index = previous >= 1 && starts[previous - 1] && (code[previous - 1] & 255) == ALOAD ? opcode : -1;
+
+        return index >= 0 ? index : temporaryOperandIndex(code, instanceOfOffset);
     }
 
     /**
      * @return the index of the variable which the Eclipse compiler keeps the tested value in: 'this.f instanceof T t' is 'getfield f; dup; astore v; instanceof T; ifeq L;
-     *         aload v; checkcast T; astore t'; -1 if the instruction which precedes 'instanceof' does not store a duplicate
+     *         aload v; checkcast T; astore t'; -1 if the instructions which precede 'instanceof' do not store a duplicate
      */
-    private static int temporaryOperandIndex(byte[] code, boolean[] starts, int instanceOfOffset) {
-        int previous = instanceOfOffset - 1;
+    private static int temporaryOperandIndex(byte[] code, int instanceOfOffset) {
+        InstructionHandle store = new InstructionList(code).findHandle(instanceOfOffset).getPrev();
 
-        if (previous < 2) {
-            return -1;
-        }
-
-        int opcode = code[previous] & 255;
-
-        // 'dup; astore_n' (one byte), or 'dup; astore n' (the index is the last byte)
-        if (starts[previous] && opcode >= ASTORE_0 && opcode <= ASTORE_3 && starts[previous - 1] && (code[previous - 1] & 255) == Const.DUP) {
-            return opcode - ASTORE_0;
-        }
-        return starts[previous - 1] && (code[previous - 1] & 255) == ASTORE && starts[previous - 2] && (code[previous - 2] & 255) == Const.DUP ? opcode : -1;
+        return store != null && store.getInstruction() instanceof ASTORE astore && store.getPrev() != null && store.getPrev().getInstruction() instanceof DUP ? astore.getIndex() : -1;
     }
 
-    /** @return true if the 'instanceof' at the offset tests the value which 'dup; astore' keeps in a variable (see temporaryOperandIndex) */
-    public static boolean testsATemporary(byte[] code, int instanceOfOffset) {
-        return temporaryOperandIndex(code, instructionStarts(code), instanceOfOffset) >= 0;
+    /**
+     * 'dup; astore v' keeps the tested value in a variable of the source too ('(x = field) instanceof String s' with a later use of 'x'): the variable is a temporary of
+     * the compiler only when it is no parameter and nothing reads it, until the next store, but the load which binds the pattern.
+     */
+    private static boolean isKeptOnlyForThePattern(byte[] code, boolean[] starts, int instanceOfOffset, InstanceOfPatternBinding binding, int parameterSlots) {
+        int slot = temporaryOperandIndex(code, instanceOfOffset);
+
+        if (slot < parameterSlots) {
+            return false;
+        }
+        for (int p = instanceOfOffset + 1; p < code.length; p++) {
+            if (starts[p]) {
+                if (storedIndex(code, p) == slot) {
+                    // what follows reads another value
+                    return true;
+                }
+                if (p != binding.firstSkippedOffset() && loadedIndex(code, p) == slot) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** @return the index of the local variable which is loaded by the instruction at 'offset', -1 if it is no load */

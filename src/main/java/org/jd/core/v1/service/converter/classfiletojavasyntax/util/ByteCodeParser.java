@@ -53,6 +53,7 @@ import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
+import org.jd.core.v1.model.javasyntax.expression.ParenthesesExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
@@ -1039,8 +1040,8 @@ public class ByteCodeParser {
                     }
                     InstanceOfPatternBinding binding = bindings.get(startOffset);
                     // The Eclipse compiler keeps the tested value in a variable which only the pattern reads: '(v = this.f) instanceof T t' is 'this.f instanceof T t'
-                    boolean keptInATemporary = binding != null && stack.peek().isBinaryOperatorExpression() && "=".equals(stack.peek().getOperator())
-                            && stack.peek().getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression && InstanceOfPatternBinding.testsATemporary(code, startOffset);
+                    // (the binding of an operand which is no load is the one of 'dup; astore': the value of the operand is the assignment)
+                    boolean keptInATemporary = binding != null && stack.peek().isBinaryOperatorExpression();
                     if (binding != null && (keptInATemporary || stack.peek().isLocalVariableReferenceExpression() || stack.peek() instanceof ThisExpression)) {
                         expression1 = stack.pop();
                         if (keptInATemporary) {
@@ -1055,9 +1056,9 @@ public class ByteCodeParser {
                         Type patternType = localVariable.getType() instanceof ObjectType variableType && variableType.getDimension() == type1.getDimension()
                                 && variableType.getInternalName().equals(type1.getInternalName()) ? variableType : rawQualifiedInstanceOfType(type1);
 
-                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, expression1, patternType, localVariable));
+                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, parenthesizedAssignment(expression1), patternType, localVariable));
                     } else {
-                        stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
+                        stack.push(new InstanceOfExpression(lineNumber, parenthesizedAssignment(stack.pop()), rawQualifiedInstanceOfType(type1)));
                     }
                     break;
                 case MONITORENTER:
@@ -3256,7 +3257,12 @@ public class ByteCodeParser {
      * Before Java 16 'instanceof' only accepts reifiable types: an inner class of a generic class must then be spelled out
      * with its (raw) outer class, which is what the fully qualified name does ('TypeAdapter.NullSafeTypeAdapter').
      */
-    private Type rawQualifiedInstanceOfType(Type type) {
+    /** '(v = this.f) instanceof T', '(a + b) instanceof T': the operation is the operand of the test, between parentheses */
+    private static Expression parenthesizedAssignment(Expression operand) {
+        return operand.isBinaryOperatorExpression() ? new ParenthesesExpression(operand.getLineNumber(), operand) : operand;
+    }
+
+        private Type rawQualifiedInstanceOfType(Type type) {
         // (only where the outer class is the one being decompiled, or encloses it: the name of the outer class is then left out)
         if (type instanceof InnerObjectType innerObjectType && innerObjectType.getDimension() == 0 && innerObjectType.getOuterType() != null
                 && enclosingTypeNames.contains(innerObjectType.getOuterType().getInternalName())

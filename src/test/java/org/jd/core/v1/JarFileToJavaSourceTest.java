@@ -41,6 +41,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ExecutionException;
@@ -48,6 +49,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -104,15 +106,20 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     @Test
     public void testCommonsCsv() throws Exception {
         String version = pomVersion("org.apache.commons", "commons-csv");
-        // The decompiled sources have no license header: the check of the Apache RAT plugin would fail the build
-        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test", List.of("-Drat.skip=true"));
-        testAtTag("https://github.com/apache/commons-csv", "commons-csv", "rel/commons-csv-" + version, "org.apache.commons", "commons-csv", version, true, null, layout);
+        testAtTag("https://github.com/apache/commons-csv", "commons-csv", "rel/commons-csv-" + version, "org.apache.commons", "commons-csv", version, true, null);
     }
 
     @Test
     public void testCommonsMath3() throws Exception {
         testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_3_6_1",
                 "org.apache.commons", "commons-math3", "3.6.1", true, findJava8Home());
+    }
+
+    @Test
+    public void testCommonsNet() throws Exception {
+        String version = pomVersion("commons-net", "commons-net");
+        // The examples of the library are not in its jar, and its tests use them: their sources stay
+        testAtTag("https://github.com/apache/commons-net", "commons-net", "rel/commons-net-" + version, "commons-net", "commons-net", version, true, null);
     }
 
     @Test
@@ -246,6 +253,45 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
                 new ProjectLayout("guava", "src", true, "package",
                         List.of("-pl", "guava-tests", "-am", "-Dtest.include=%regex[.*com/google/common/" + classesToRun + ".*\\.class]")));
+    }
+
+    /**
+     * The repository at the tag has source files which are not in the released jar (the jar is built from only a part of the sources). This method
+     * deletes the ones which are, and keeps the others.
+     * <p>
+     * The source files of the classes which are in the jar are deleted: the decompiler writes them again, and the original ones would make duplicate
+     * classes (src/main/java/a/b/Foo.java is deleted if the jar has a/b/Foo.class). The source files of the classes which are in the repository but
+     * not in the jar are kept: nothing replaces them, and the tests of the library may use them. For example, the sources of the package
+     * org.apache.commons.net.examples are in the repository of Commons Net but not in its jar, and its tests use Main and SimpleNTPServer of this package:
+     * if their sources were deleted too, the tests would not compile.
+     * <p>
+     * The module descriptors (module-info.java) are kept too: the decompiler does not write them (module-info.class is skipped), and the build of the
+     * modules which require the library (the test library of Guava) needs them.
+     */
+    private static void deleteSourcesOfTheClassesOfTheJar(Path sourceDirectory, Set<String> jarEntries) throws IOException {
+        try (Stream<Path> files = Files.walk(sourceDirectory)) {
+            for (Path path : files.filter(file -> file.toString().endsWith(".java") && !file.endsWith("module-info.java")).toList()) {
+                String relativePath = sourceDirectory.relativize(path).toString().replace(File.separatorChar, '/');
+
+                if (jarEntries.contains(relativePath.substring(0, relativePath.length() - ".java".length()) + StringConstants.CLASS_FILE_SUFFIX)) {
+                    Files.delete(path);
+                }
+            }
+        }
+    }
+
+    /**
+     * Opens the released jar of the library. The libraries tested here are test dependencies of the pom, so that Maven has already put their jar in its local
+     * repository (which the CI caches): it is read from there, and downloaded from Maven Central, with some more attempts, only if it is not there.
+     */
+    private static InputStream openJar(String groupId, String artifactId, String version) throws IOException, InterruptedException, ExecutionException {
+        String localRepository = System.getProperty("maven.repo.local", Paths.get(System.getProperty("user.home"), ".m2", "repository").toString());
+        Path local = Paths.get(localRepository, groupId.replace('.', '/'), artifactId, version, artifactId + "-" + version + ".jar");
+
+        if (Files.isRegularFile(local)) {
+            return Files.newInputStream(local);
+        }
+        return openWithRetries(MavenHelper.buildJarUrl(groupId, artifactId, version));
     }
 
     private static final int DOWNLOAD_ATTEMPTS = 6;
@@ -439,19 +485,6 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
             if (templatesDir.exists()) {
                 FileUtils.deleteDirectory(templatesDir);
             }
-
-            // Delete all .java files of the sources (src/main/java by default), but the module descriptors: the
-            // decompiler does not write them (module-info.class is skipped) and the build of the modules which require
-            // the library (the test library of Guava) needs the descriptor of the one it rebuilds
-            Files.walk(Paths.get(projectDir.getPath(), layout.sourceDirectory()))
-                    .filter(path -> path.toString().endsWith(".java") && !path.endsWith("module-info.java"))
-                    .forEach(path -> {
-                        try {
-                            Files.delete(path);
-                        } catch (IOException e) {
-                            throw new RuntimeException("Error deleting .java files", e);
-                        }
-                    });
         }
 
         long fileCounter = 0;
@@ -459,8 +492,13 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         long assertFailedCounter = 0;
         long recompilationFailedCounter = 0;
 
-        try (InputStream is = openWithRetries(MavenHelper.buildJarUrl(groupId, artifactId, version))) {
+        try (InputStream is = openJar(groupId, artifactId, version)) {
             ZipLoader loader = new ZipLoader(is);
+
+            if (projectDir != null && runUnitTests) {
+                deleteSourcesOfTheClassesOfTheJar(Paths.get(projectDir.getPath(), layout.sourceDirectory()), loader.getMap().keySet());
+            }
+
             CounterPrinter printer = new CounterPrinter();
             Map<String, Integer> statistics = new HashMap<>();
             Map<String, Object> configuration = new HashMap<>();
@@ -570,6 +608,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // The decompiled sources have no license header: the Apache RAT check of the Commons projects would fail the build
                 command.add("-Drat.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);
+                // Maven Central answers 429 to the jobs of the CI which all resolve the artifacts of the library at the same time: Maven tries again, later
+                command.add("-Daether.connector.http.retryHandler.count=10");
+                command.add("-Daether.connector.http.retryHandler.interval=10000");
+                command.add("-Daether.connector.http.retryHandler.serviceUnavailable=429,503");
                 command.addAll(layout.mavenArguments());
                 ProcessBuilder pbTest = new ProcessBuilder(command);
                 pbTest.environment().remove("JAVA_TOOL_OPTIONS");

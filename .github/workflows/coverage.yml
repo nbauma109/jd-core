@@ -69,6 +69,7 @@ jobs:
           - testCommonsImaging
           - testCommonsLang3
           - testCommonsMath3
+          - testCommonsNet
           - testCommonsText
           - testDiskLruCache
           - testGson
@@ -98,6 +99,13 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+      # The build of the library (its parent pom, its plugins) is run with its own local repository: Maven Central answers 429 when all the jobs fill it at once
+      - uses: actions/cache@v6.1.0
+        with:
+          path: target/m2-local
+          key: ${{ runner.os }}-m2-local-${{ matrix.testMethod }}-${{ hashFiles('pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-m2-local-${{ matrix.testMethod }}-
       - name: Set up JDK 8 for Commons Math
         if: matrix.testMethod == 'testCommonsMath3'
         uses: actions/setup-java@v6

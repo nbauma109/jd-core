@@ -532,6 +532,52 @@ public class StatementMaker {
         return type instanceof PrimitiveType primitiveType && Integer.bitCount(primitiveType.getFlags()) > 1;
     }
 
+    /** A 'return' cannot leave a switch expression: the ones of its rules, which come from the values left on the stack, are 'yield' */
+    private static void replaceReturnsWithYields(Statements statements) {
+        for (int i = 0; i < statements.size(); i++) {
+            Statement statement = statements.get(i);
+
+            if (statement instanceof ReturnExpressionStatement returned) {
+                statements.set(i, new YieldExpressionStatement(returned.getLineNumber(), returned.getExpression()));
+            } else if (statement instanceof IfStatement ifStatement) {
+                if (ifStatement.getStatements() instanceof Statements thenStatements) {
+                    replaceReturnsWithYields(thenStatements);
+                }
+                if (ifStatement instanceof IfElseStatement ifElse && ifElse.getElseStatements() instanceof Statements elseStatements) {
+                    replaceReturnsWithYields(elseStatements);
+                }
+            }
+        }
+    }
+
+    /** @return 'c ? a : b' for the statements 'if (c) yield a; yield b;' or 'if (c) yield a; else yield b;', null for any other statements */
+    private Expression ternaryResultOf(Statements statements) {
+        if (statements.isEmpty() || !(statements.getFirst() instanceof IfStatement ifStatement) || !isSingleYield(ifStatement.getStatements())) {
+            return null;
+        }
+
+        Statement otherwise;
+
+        if (ifStatement instanceof IfElseStatement ifElse) {
+            if (statements.size() != 1 || !isSingleYield(ifElse.getElseStatements())) {
+                return null;
+            }
+            otherwise = ifElse.getElseStatements().getFirst();
+        } else if (statements.size() == 2 && statements.getLast() instanceof YieldExpressionStatement) {
+            otherwise = statements.getLast();
+        } else {
+            return null;
+        }
+
+        Statement then = ifStatement.getStatements().getFirst();
+
+        return newTernaryOperatorExpression(then.getLineNumber(), ifStatement.getCondition(), then.getExpression(), otherwise.getExpression());
+    }
+
+    private static boolean isSingleYield(BaseStatement statements) {
+        return statements != null && statements.size() == 1 && statements.getFirst() instanceof YieldExpressionStatement;
+    }
+
     private SwitchExpression buildSwitchExpression(
             int lineNumber,
             Expression selector,
@@ -942,12 +988,20 @@ public class StatementMaker {
             stack.copy(entryStack);
             makeStatements(watchdog, target, subStatements, jumps);
             replacePreOperatorWithPostOperator(subStatements);
+            // The value of a branch of a ternary operator which the rule ends with is left on the stack: it is not returned, it is the result of the rule
+            replaceReturnsWithYields(subStatements);
             AbstractLocalVariable patternVariable = extractPatternBinding(typeSwitch, subStatements);
 
-            Expression ruleResult = null;
+            Expression ruleResult = ternaryResultOf(subStatements);
+
+            if (ruleResult != null) {
+                subStatements.clear();
+            }
 
             // The operands which precede the switch, such as the stream of a print, stay on the stack
-            if (stack.size() == entryStack.size() + 1) {
+            if (ruleResult != null) {
+                // (the rule is a ternary operator: nothing is left on the stack)
+            } else if (stack.size() == entryStack.size() + 1) {
                 ruleResult = stack.pop();
                 if (!subStatements.isEmpty() && isBreak(subStatements.getLast())) {
                     subStatements.removeLast();

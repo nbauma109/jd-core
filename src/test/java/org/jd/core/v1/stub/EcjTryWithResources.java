@@ -7,6 +7,7 @@
 
 package org.jd.core.v1.stub;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -30,5 +31,19 @@ public class EcjTryWithResources {
             bytes = read(stream);
         }
         return bytes;
+    }
+
+    /** 'EclipseFileManager.initialize' of the Eclipse compiler: the body of the try-with-resources is empty */
+    static void closeAtOnce(InputStream stream) throws IOException {
+        try (InputStream previous = stream) {
+            // nothing
+        }
+    }
+
+    /** The resource is created by the try-with-resources: the Eclipse compiler does not guard its close by a null check */
+    static void createAndClose() throws IOException {
+        try (InputStream created = new ByteArrayInputStream(new byte[0])) {
+            // nothing
+        }
     }
 }

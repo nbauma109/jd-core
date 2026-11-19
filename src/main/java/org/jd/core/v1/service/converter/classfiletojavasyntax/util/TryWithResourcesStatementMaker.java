@@ -320,6 +320,9 @@ public final class TryWithResourcesStatementMaker {
             }
             if (closeInvocationInfo == null) {
                 closeInvocationInfo = getCloseInvocationInfoFromTryStatements(tryStatements);
+                if (closeInvocationInfo == null && allowEcjPattern && !tryStatements.isEmpty()) {
+                    closeInvocationInfo = getCloseInvocationInfoFromLastStatement(tryStatements);
+                }
                 if (closeInvocationInfo == null || !allowEcjPattern && findAddSuppressedInvocation(catchStatements, null) == null) {
                     return null;
                 }
@@ -513,6 +516,24 @@ public final class TryWithResourcesStatementMaker {
         CloseInvocationInfoVisitor visitor = new CloseInvocationInfoVisitor();
         tryStatements.accept(visitor);
         return visitor.getInfo();
+    }
+
+    /**
+     * The Eclipse compiler closes the resource of a try-with-resources whose body is empty in the try block itself: there is no nested try statement
+     * to catch the exception of the close, the last statement is the close, which is guarded by a null check when the resource may be null.
+     */
+    private static CloseInvocationInfo getCloseInvocationInfoFromLastStatement(Statements tryStatements) {
+        Statement last = tryStatements.getLast();
+        if (last instanceof IfStatement ifStatement && ifStatement.getStatements().size() == 1) {
+            last = ifStatement.getStatements().getFirst();
+        }
+        if (last.getExpression() instanceof MethodInvocationExpression mie) {
+            AbstractLocalVariable localVariable = getCloseInvocationLocalVariable(mie);
+            if (localVariable != null) {
+                return new CloseInvocationInfo(null, localVariable, mie.getExpression());
+            }
+        }
+        return null;
     }
 
     private static CloseInvocationInfo getCloseInvocationInfoFromCatchStatements(BaseStatement catchStatements) {
@@ -1371,6 +1392,8 @@ public final class TryWithResourcesStatementMaker {
                     && !isLocalVariableReferenced(bodyStatements, localVariable)) {
                 expressionOnly = true;
                 resourceInfo.hasDeclaration = false;
+                // (the variable which held the resource is not declared in the body)
+                localVariable.setDeclared(true);
             }
 
             if (!expressionOnly && localVariable != null) {

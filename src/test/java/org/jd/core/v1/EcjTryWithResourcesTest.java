@@ -34,4 +34,21 @@ public class EcjTryWithResourcesTest extends AbstractJdTest {
         assertTrue(printed, source.contains("byte[] bytes = null; try (InputStream stream = EcjTryWithResources.class.getResourceAsStream(filename)) {"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjTryWithResources", printed)));
     }
+
+    @Test
+    public void testEmptyBodyOfTheResource() throws Exception {
+        String printed;
+
+        try (InputStream is = getClass().getResourceAsStream("/jar/ecj-try-with-resources-ecj-17.jar")) {
+            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
+        }
+
+        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+
+        // the exception temporaries and the handler of the Eclipse compiler are no statements of the source
+        assertFalse(printed, source.contains("exception1"));
+        assertTrue(printed, source.contains("closeAtOnce(InputStream stream) throws IOException { try (stream) {} }"));
+        assertTrue(printed, source.contains("createAndClose() throws IOException { try (InputStream created = new ByteArrayInputStream(new byte[0])) {} }"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjTryWithResources", printed)));
+    }
 }

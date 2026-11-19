@@ -26,6 +26,8 @@ public class TryWithTheCloseOfAnOrdinaryHandlerTest extends AbstractJdTest {
         // the handler which rethrows the exception it caught is no synthetic handler either
         assertTrue(printed, source.contains("context"));
         assertFalse(printed, source.contains("try (stream)"));
+        // the same with a primary exception which the code does not set to null before the try statement
+        assertTrue(printed, source.contains("context.addSuppressed("));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
     }
 }

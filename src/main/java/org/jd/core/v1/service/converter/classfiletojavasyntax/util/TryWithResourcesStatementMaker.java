@@ -385,7 +385,9 @@ public final class TryWithResourcesStatementMaker {
                 primaryExceptionLocalVariable = addSuppressedTarget;
             }
             suppressedLocalVariable = getSuppressedLocalVariable(addSuppressedInvocation);
-            if (fromLastStatement && ((ClassFileTryStatement.CatchClause) catchClauses.getFirst()).getLocalVariable() != suppressedLocalVariable) {
+            if (fromLastStatement
+                    && (((ClassFileTryStatement.CatchClause) catchClauses.getFirst()).getLocalVariable() != suppressedLocalVariable
+                    || !isAssignedNull(statements, addSuppressedTarget))) {
                 // (the handler of the Eclipse compiler adds the exception which it catches to the primary one: no other handler is dropped)
                 return null;
             }
@@ -1584,6 +1586,16 @@ public final class TryWithResourcesStatementMaker {
         LocalVariableReferenceVisitor visitor = new LocalVariableReferenceVisitor(localVariable);
         statements.accept(visitor);
         return visitor.isFound();
+    }
+
+    /** The primary exception of the Eclipse compiler is a variable which is set to null before the try statement */
+    private static boolean isAssignedNull(Statements statements, AbstractLocalVariable localVariable) {
+        for (Statement statement : statements) {
+            if (isNullAssignment(statement) && matchesLocalVariable(getAssignedLocalVariable(statement), localVariable)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isNullAssignment(Statement statement) {

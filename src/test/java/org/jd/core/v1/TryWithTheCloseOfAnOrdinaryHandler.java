@@ -32,4 +32,14 @@ public class TryWithTheCloseOfAnOrdinaryHandler {
             throw t;
         }
     }
+
+    void suppressInTheContext(InputStream stream, Throwable context) throws Throwable {
+        try {
+            stream.read();
+            stream.close();
+        } catch (Throwable t) {
+            context.addSuppressed(t);
+            throw t;
+        }
+    }
 }

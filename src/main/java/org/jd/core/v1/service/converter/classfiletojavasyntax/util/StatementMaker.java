@@ -539,33 +539,16 @@ public class StatementMaker {
 
             if (statement instanceof ReturnExpressionStatement returned) {
                 statements.set(i, new YieldExpressionStatement(returned.getLineNumber(), returned.getExpression()));
-            } else if (statement instanceof IfStatement ifStatement) {
-                if (ifStatement.getStatements() instanceof Statements thenStatements) {
-                    replaceReturnsWithYields(thenStatements);
-                }
-                if (ifStatement instanceof IfElseStatement ifElse && ifElse.getElseStatements() instanceof Statements elseStatements) {
-                    replaceReturnsWithYields(elseStatements);
-                }
+            } else if (statement instanceof IfStatement ifStatement && ifStatement.getStatements() instanceof Statements thenStatements) {
+                replaceReturnsWithYields(thenStatements);
             }
         }
     }
 
-    /** @return 'c ? a : b' for the statements 'if (c) yield a; yield b;' or 'if (c) yield a; else yield b;', null for any other statements */
+    /** @return 'c ? a : b' for the statements 'if (c) yield a; yield b;', null for any other statements */
     private Expression ternaryResultOf(Statements statements) {
-        if (statements.isEmpty() || !(statements.getFirst() instanceof IfStatement ifStatement) || !isSingleYield(ifStatement.getStatements())) {
-            return null;
-        }
-
-        Statement otherwise;
-
-        if (ifStatement instanceof IfElseStatement ifElse) {
-            if (statements.size() != 1 || !isSingleYield(ifElse.getElseStatements())) {
-                return null;
-            }
-            otherwise = ifElse.getElseStatements().getFirst();
-        } else if (statements.size() == 2 && statements.getLast() instanceof YieldExpressionStatement) {
-            otherwise = statements.getLast();
-        } else {
+        if (statements.size() != 2 || !(statements.getFirst() instanceof IfStatement ifStatement) || !isSingleYield(ifStatement.getStatements())
+                || !(statements.getLast() instanceof YieldExpressionStatement otherwise)) {
             return null;
         }
 

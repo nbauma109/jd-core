@@ -454,4 +454,57 @@ public class ClassMetadataTest {
         // a public one is a member, and implements both
         assertEquals(Optional.empty(), ClassMetadata.inheritedCloseThrown(loader, "q/D", List.of(), Map.of()));
     }
+
+    static class WithMembers {
+        String plain;
+        List<String> generic;
+
+        String plainMethod() {
+            return null;
+        }
+
+        <T> T genericMethod() {
+            return null;
+        }
+    }
+
+    interface Defaults {
+        default String fromTheInterface() {
+            return null;
+        }
+    }
+
+    static class Derived extends WithMembers implements Defaults {
+    }
+
+    private static boolean declaredWithoutGenerics(Class<?> owner, String name, String descriptor) {
+        return ClassMetadata.isDeclaredWithoutGenerics(LOADER, owner.getName().replace('.', '/'), name, descriptor);
+    }
+
+    @Test
+    public void testAMemberWhichHasNoGenericSignatureHasTheTypeOfItsDescriptor() {
+        assertTrue(declaredWithoutGenerics(WithMembers.class, "plain", "Ljava/lang/String;"));
+        assertTrue(declaredWithoutGenerics(WithMembers.class, "plainMethod", "()Ljava/lang/String;"));
+    }
+
+    @Test
+    public void testAMemberWhichHasAGenericSignatureDoesNot() {
+        assertFalse(declaredWithoutGenerics(WithMembers.class, "generic", "Ljava/util/List;"));
+        assertFalse(declaredWithoutGenerics(WithMembers.class, "genericMethod", "()Ljava/lang/Object;"));
+    }
+
+    @Test
+    public void testTheMembersOfTheSuperTypesAreSearched() {
+        // the class of the call is the one of the receiver, the member is declared by its superclass or by its interface
+        assertTrue(declaredWithoutGenerics(Derived.class, "plain", "Ljava/lang/String;"));
+        assertFalse(declaredWithoutGenerics(Derived.class, "generic", "Ljava/util/List;"));
+        assertTrue(declaredWithoutGenerics(Derived.class, "fromTheInterface", "()Ljava/lang/String;"));
+    }
+
+    @Test
+    public void testAMemberWhichCannotBeFoundHasNoKnownType() {
+        assertFalse(declaredWithoutGenerics(WithMembers.class, "missing", "Ljava/lang/String;"));
+        assertFalse(ClassMetadata.isDeclaredWithoutGenerics(LOADER, "does/not/Exist", "plain", "Ljava/lang/String;"));
+        assertFalse(ClassMetadata.isDeclaredWithoutGenerics(null, null, "plain", "Ljava/lang/String;"));
+    }
 }

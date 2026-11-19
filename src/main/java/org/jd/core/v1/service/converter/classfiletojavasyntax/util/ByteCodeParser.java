@@ -53,6 +53,7 @@ import org.jd.core.v1.model.javasyntax.expression.NewArray;
 import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.NoExpression;
 import org.jd.core.v1.model.javasyntax.expression.NullExpression;
+import org.jd.core.v1.model.javasyntax.expression.ParenthesesExpression;
 import org.jd.core.v1.model.javasyntax.expression.ObjectTypeReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.PostOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.PreOperatorExpression;
@@ -1038,8 +1039,15 @@ public class ByteCodeParser {
                         type1 = PrimitiveTypeUtil.getPrimitiveTypeFromDescriptor(typeName);
                     }
                     InstanceOfPatternBinding binding = bindings.get(startOffset);
-                    if (binding != null && (stack.peek().isLocalVariableReferenceExpression() || stack.peek() instanceof ThisExpression)) {
+                    // The Eclipse compiler keeps the tested value in a variable which only the pattern reads: '(v = this.f) instanceof T t' is 'this.f instanceof T t'
+                    // (the binding of an operand which is no load is the one of 'dup; astore': the value of the operand is the assignment)
+                    boolean keptInATemporary = binding != null && stack.peek().isBinaryOperatorExpression();
+                    if (binding != null && (keptInATemporary || stack.peek().isLocalVariableReferenceExpression() || stack.peek() instanceof ThisExpression)) {
                         expression1 = stack.pop();
+                        if (keptInATemporary) {
+                            localVariableMaker.removeLocalVariable(((ClassFileLocalVariableReferenceExpression) expression1.getLeftExpression()).getLocalVariable());
+                            expression1 = expression1.getRightExpression();
+                        }
                         valueRef = new CastExpression(lineNumber, type1, expression1, true, true);
                         localVariable = getLocalVariableInAssignment(binding.storeIndex(), binding.storeEndOffset(), valueRef);
                         localVariable.setAssigned(true);
@@ -1048,9 +1056,9 @@ public class ByteCodeParser {
                         Type patternType = localVariable.getType() instanceof ObjectType variableType && variableType.getDimension() == type1.getDimension()
                                 && variableType.getInternalName().equals(type1.getInternalName()) ? variableType : rawQualifiedInstanceOfType(type1);
 
-                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, expression1, patternType, localVariable));
+                        stack.push(new ClassFileInstanceOfPatternExpression(lineNumber, parenthesizedAssignment(expression1), patternType, localVariable));
                     } else {
-                        stack.push(new InstanceOfExpression(lineNumber, stack.pop(), rawQualifiedInstanceOfType(type1)));
+                        stack.push(new InstanceOfExpression(lineNumber, parenthesizedAssignment(stack.pop()), rawQualifiedInstanceOfType(type1)));
                     }
                     break;
                 case MONITORENTER:
@@ -3243,6 +3251,11 @@ public class ByteCodeParser {
             return Collections.emptyList();
         }
         return StreamSupport.stream(indyParameters.spliterator(), false).skip(capturesThis ? 1 : 0).map(Expression::getType).toList();
+    }
+
+    /** '(v = this.f) instanceof T', '(a + b) instanceof T': the operation is the operand of the test, between parentheses */
+    private static Expression parenthesizedAssignment(Expression operand) {
+        return operand.isBinaryOperatorExpression() ? new ParenthesesExpression(operand.getLineNumber(), operand) : operand;
     }
 
     /**

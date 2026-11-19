@@ -307,6 +307,7 @@ public final class TryWithResourcesStatementMaker {
         }
 
         boolean ecjPatternMatch = false;
+        boolean unguardedClose = false;
         CloseInvocationInfo closeInvocationInfo = getCloseInvocationInfo(catchStatements);
         if (closeInvocationInfo == null) {
             if (allowEcjPattern) {
@@ -322,10 +323,7 @@ public final class TryWithResourcesStatementMaker {
                 closeInvocationInfo = getCloseInvocationInfoFromTryStatements(tryStatements);
                 if (closeInvocationInfo == null && allowEcjPattern && !tryStatements.isEmpty()) {
                     closeInvocationInfo = getCloseInvocationInfoFromLastStatement(tryStatements);
-                    if (closeInvocationInfo != null && tryStatements.getLast().isExpressionStatement()) {
-                        // (a close which no null check guards is no statement of the body)
-                        tryStatements.removeLast();
-                    }
+                    unguardedClose = closeInvocationInfo != null && tryStatements.getLast().isExpressionStatement();
                 }
                 if (closeInvocationInfo == null || !allowEcjPattern && findAddSuppressedInvocation(catchStatements, null) == null) {
                     return null;
@@ -387,6 +385,8 @@ public final class TryWithResourcesStatementMaker {
             suppressedLocalVariable = getSuppressedLocalVariable(addSuppressedInvocation);
 
             Expression chainExpression = resourceExpression != null ? resourceExpression : closeInvocationInfo.expression;
+            // (a close which no null check guards is no statement of the body: it is put back if the chain is not rebuilt)
+            Statement unguardedCloseStatement = unguardedClose ? tryStatements.removeLast() : null;
             ClassFileTryStatement chainStatement = newTryStatementFromTryChain(
                     localVariableMaker,
                     statements,
@@ -400,6 +400,9 @@ public final class TryWithResourcesStatementMaker {
                     allowResourceExpression);
             if (chainStatement != null) {
                 return chainStatement;
+            }
+            if (unguardedCloseStatement != null) {
+                tryStatements.add(unguardedCloseStatement);
             }
         } else {
             ClassFileTryStatement tryStatement = closeInvocationInfo.tryStatement;

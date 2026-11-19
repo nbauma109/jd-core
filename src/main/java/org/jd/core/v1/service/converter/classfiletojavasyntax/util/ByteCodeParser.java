@@ -1038,8 +1038,15 @@ public class ByteCodeParser {
                         type1 = PrimitiveTypeUtil.getPrimitiveTypeFromDescriptor(typeName);
                     }
                     InstanceOfPatternBinding binding = bindings.get(startOffset);
-                    if (binding != null && (stack.peek().isLocalVariableReferenceExpression() || stack.peek() instanceof ThisExpression)) {
+                    // The Eclipse compiler keeps the tested value in a variable which only the pattern reads: '(v = this.f) instanceof T t' is 'this.f instanceof T t'
+                    boolean keptInATemporary = binding != null && stack.peek().isBinaryOperatorExpression() && "=".equals(stack.peek().getOperator())
+                            && stack.peek().getLeftExpression() instanceof ClassFileLocalVariableReferenceExpression && InstanceOfPatternBinding.testsATemporary(code, startOffset);
+                    if (binding != null && (keptInATemporary || stack.peek().isLocalVariableReferenceExpression() || stack.peek() instanceof ThisExpression)) {
                         expression1 = stack.pop();
+                        if (keptInATemporary) {
+                            localVariableMaker.removeLocalVariable(((ClassFileLocalVariableReferenceExpression) expression1.getLeftExpression()).getLocalVariable());
+                            expression1 = expression1.getRightExpression();
+                        }
                         valueRef = new CastExpression(lineNumber, type1, expression1, true, true);
                         localVariable = getLocalVariableInAssignment(binding.storeIndex(), binding.storeEndOffset(), valueRef);
                         localVariable.setAssigned(true);

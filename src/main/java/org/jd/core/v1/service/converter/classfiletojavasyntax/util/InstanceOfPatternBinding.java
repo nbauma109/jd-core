@@ -9,6 +9,8 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.Code;
 import org.apache.bcel.classfile.CodeException;
+import org.apache.bcel.classfile.ConstantCP;
+import org.apache.bcel.classfile.ConstantNameAndType;
 import org.apache.bcel.classfile.ConstantPool;
 import org.apache.bcel.classfile.LocalVariable;
 import org.apache.bcel.classfile.LocalVariableTable;
@@ -236,7 +238,48 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             }
             index += type.getSize();
         }
+        return typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+    }
+
+    /** @return the descriptor of the field or of the result of the call which 'getfield f; dup; astore v; instanceof' tests, null if the value is another one */
+    private static String typeOfTheValueKeptBy(byte[] code, int instanceOfOffset, ConstantPool constants) {
+        boolean[] starts = instructionStarts(code);
+
+        if (constants == null || temporaryOperandIndex(code, starts, instanceOfOffset) < 0) {
+            return null;
+        }
+
+        int dup = instanceOfOffset - 1;
+
+        while (dup > 0 && (code[dup] & 255) != Const.DUP) {
+            dup--;
+        }
+
+        int producer = dup - 1;
+
+        while (producer > 0 && !starts[producer]) {
+            producer--;
+        }
+
+        int opcode = code[producer] & 255;
+        int index = (code[producer + 1] & 255) << 8 | code[producer + 2] & 255;
+
+        if (opcode == Const.GETFIELD || opcode == Const.GETSTATIC) {
+            return memberSignature(constants, index);
+        }
+        if (opcode == Const.INVOKEVIRTUAL || opcode == Const.INVOKEINTERFACE || opcode == Const.INVOKESTATIC || opcode == Const.INVOKESPECIAL) {
+            String signature = memberSignature(constants, index);
+
+            return signature == null ? null : Type.getReturnType(signature).getSignature();
+        }
         return null;
+    }
+
+    private static String memberSignature(ConstantPool constants, int index) {
+        if (!(constants.getConstant(index) instanceof ConstantCP member) || !(constants.getConstant(member.getNameAndTypeIndex()) instanceof ConstantNameAndType nameAndType)) {
+            return null;
+        }
+        return nameAndType.getSignature(constants);
     }
 
     /**
@@ -742,7 +785,35 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (starts[previous] && opcode >= ALOAD_0 && opcode <= ALOAD_3) {
             return opcode - ALOAD_0;
         }
-        return previous >= 1 && starts[previous - 1] && (code[previous - 1] & 255) == ALOAD ? opcode : -1;
+        if (previous >= 1 && starts[previous - 1] && (code[previous - 1] & 255) == ALOAD) {
+            return opcode;
+        }
+        return temporaryOperandIndex(code, starts, instanceOfOffset);
+    }
+
+    /**
+     * @return the index of the variable which the Eclipse compiler keeps the tested value in: 'this.f instanceof T t' is 'getfield f; dup; astore v; instanceof T; ifeq L;
+     *         aload v; checkcast T; astore t'; -1 if the instruction which precedes 'instanceof' does not store a duplicate
+     */
+    private static int temporaryOperandIndex(byte[] code, boolean[] starts, int instanceOfOffset) {
+        int previous = instanceOfOffset - 1;
+
+        if (previous < 2) {
+            return -1;
+        }
+
+        int opcode = code[previous] & 255;
+
+        // 'dup; astore_n' (one byte), or 'dup; astore n' (the index is the last byte)
+        if (starts[previous] && opcode >= ASTORE_0 && opcode <= ASTORE_3 && starts[previous - 1] && (code[previous - 1] & 255) == Const.DUP) {
+            return opcode - ASTORE_0;
+        }
+        return starts[previous - 1] && (code[previous - 1] & 255) == ASTORE && starts[previous - 2] && (code[previous - 2] & 255) == Const.DUP ? opcode : -1;
+    }
+
+    /** @return true if the 'instanceof' at the offset tests the value which 'dup; astore' keeps in a variable (see temporaryOperandIndex) */
+    public static boolean testsATemporary(byte[] code, int instanceOfOffset) {
+        return temporaryOperandIndex(code, instructionStarts(code), instanceOfOffset) >= 0;
     }
 
     /** @return the index of the local variable which is loaded by the instruction at 'offset', -1 if it is no load */

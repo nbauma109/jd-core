@@ -3253,16 +3253,16 @@ public class ByteCodeParser {
         return StreamSupport.stream(indyParameters.spliterator(), false).skip(capturesThis ? 1 : 0).map(Expression::getType).toList();
     }
 
-    /**
-     * Before Java 16 'instanceof' only accepts reifiable types: an inner class of a generic class must then be spelled out
-     * with its (raw) outer class, which is what the fully qualified name does ('TypeAdapter.NullSafeTypeAdapter').
-     */
     /** '(v = this.f) instanceof T', '(a + b) instanceof T': the operation is the operand of the test, between parentheses */
     private static Expression parenthesizedAssignment(Expression operand) {
         return operand.isBinaryOperatorExpression() ? new ParenthesesExpression(operand.getLineNumber(), operand) : operand;
     }
 
-        private Type rawQualifiedInstanceOfType(Type type) {
+    /**
+     * Before Java 16 'instanceof' only accepts reifiable types: an inner class of a generic class must then be spelled out
+     * with its (raw) outer class, which is what the fully qualified name does ('TypeAdapter.NullSafeTypeAdapter').
+     */
+    private Type rawQualifiedInstanceOfType(Type type) {
         // (only where the outer class is the one being decompiled, or encloses it: the name of the outer class is then left out)
         if (type instanceof InnerObjectType innerObjectType && innerObjectType.getDimension() == 0 && innerObjectType.getOuterType() != null
                 && enclosingTypeNames.contains(innerObjectType.getOuterType().getInternalName())

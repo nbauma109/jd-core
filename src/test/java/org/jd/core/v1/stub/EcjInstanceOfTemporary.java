@@ -7,6 +7,8 @@
 
 package org.jd.core.v1.stub;
 
+import java.util.function.Supplier;
+
 /**
  * Compiled with the Eclipse compiler (-17 -g) into src/test/resources/jar/ecj-instanceof-temporary-ecj-17.jar, which EcjInstanceOfTemporaryTest decompiles:
  * the compiler of the JDK does not keep the tested value in a variable ('dup; astore').
@@ -41,5 +43,33 @@ public class EcjInstanceOfTemporary {
             }
         }
         return element;
+    }
+
+    static Context shared;
+    Supplier<Object> supplier;
+
+    Context provide() {
+        return this.context;
+    }
+
+    static Context make() {
+        return shared;
+    }
+
+    /** The tested value is a static field, the result of a call of an instance, of a static method, of an interface: the type of the value is the one of the member */
+    Object members() {
+        if (shared instanceof Method method) {
+            return method;
+        }
+        if (provide() instanceof Type type) {
+            return type;
+        }
+        if (make() instanceof Method method) {
+            return method.bodyStart;
+        }
+        if (this.supplier.get() instanceof Type type) {
+            return type.fields;
+        }
+        return null;
     }
 }

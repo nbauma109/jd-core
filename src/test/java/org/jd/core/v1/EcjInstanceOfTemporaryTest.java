@@ -32,6 +32,10 @@ public class EcjInstanceOfTemporaryTest extends AbstractJdTest {
         assertFalse(printed, source.contains("context = this.context"));
         assertTrue(printed, source.contains("if (this.context instanceof Method method) {"));
         assertTrue(printed, source.contains("else if (this.context instanceof Type type) {"));
+        assertTrue(printed, source.contains("if (shared instanceof Method method)"));
+        assertTrue(printed, source.contains("if (provide() instanceof Type type)"));
+        assertTrue(printed, source.contains("if (make() instanceof Method method1)"));
+        assertTrue(printed, source.contains("if (this.supplier.get() instanceof Type type1)"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjInstanceOfTemporary", printed)));
     }
 }

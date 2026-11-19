@@ -111,8 +111,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsMath3() throws Exception {
-        testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_3_6_1",
-                "org.apache.commons", "commons-math3", "3.6.1", true, findJava8Home());
+        String version = pomVersion("org.apache.commons", "commons-math3");
+
+        testAtTag("https://github.com/apache/commons-math", "commons-math", "MATH_" + version.replace('.', '_'),
+                "org.apache.commons", "commons-math3", version, true, findJava8Home());
     }
 
     @Test
@@ -162,8 +164,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     @Test
     public void testGson() throws Exception {
         // Multi-module repository: the gson module lives in the gson/ sub-directory
-        testAtTag("https://github.com/google/gson", "gson", "gson-parent-2.14.0",
-                "com.google.code.gson", "gson", "2.14.0", true, null, "gson");
+        String version = pomVersion("com.google.code.gson", "gson");
+
+        testAtTag("https://github.com/google/gson", "gson", "gson-parent-" + version,
+                "com.google.code.gson", "gson", version, true, null, "gson");
     }
 
     @Test
@@ -250,7 +254,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     /** @param classesToRun the regular expression of the path of the classes of the tests to run, after 'com/google/common/' */
     private void testGuava(String classesToRun) throws Exception {
         // The sources of Guava are in guava/src (not src/main/java) and its unit tests in the sibling module guava-tests (the others have no test to run)
-        testAtTag("https://github.com/google/guava", "guava", "v33.7.2", "com.google.guava", "guava", "33.7.2-jre", true, null,
+        String version = pomVersion("com.google.guava", "guava");
+
+        testAtTag("https://github.com/google/guava", "guava", "v" + version.replace("-jre", ""), "com.google.guava", "guava", version, true, null,
                 new ProjectLayout("guava", "src", true, "package",
                         List.of("-pl", "guava-tests", "-am", "-Dtest.include=%regex[.*com/google/common/" + classesToRun + ".*\\.class]")));
     }

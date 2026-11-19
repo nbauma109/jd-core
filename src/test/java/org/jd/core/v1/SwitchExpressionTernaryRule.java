@@ -12,12 +12,20 @@ public class SwitchExpressionTernaryRule {
 
     boolean primitive;
 
+    void log(String message) {
+        // (only used by the test)
+    }
+
     char[] signature(int id, String name) {
         char[] argument = switch (id) {
             case 26, 27, 28 ->
                 this.primitive
                 ? name.toCharArray()
                 : "Ljava/lang/Object;".toCharArray();
+            case 7 -> {
+                log(name);
+                yield name.toCharArray();
+            }
             default -> {
                 if (id > 128 && name.length() > 3)
                     yield name.trim().toCharArray();

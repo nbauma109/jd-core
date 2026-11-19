@@ -28,6 +28,9 @@ public class InstanceOfPatternBindingTemporaryTest {
     private static final int ASTORE_3 = 0x4e;
     private static final int DUP = 0x59;
     private static final int POP = 0x57;
+    private static final int ICONST_0 = 0x03;
+    private static final int ACONST_NULL = 0x01;
+    private static final int IFEQ_OPCODE = 0x99;
     private static final int RETURN = 0xb1;
     private static final int INSTANCEOF = 0xc1;
     private static final int CHECKCAST = 0xc0;
@@ -126,5 +129,23 @@ public class InstanceOfPatternBindingTemporaryTest {
         assertEquals(2, bindings.size());
         assertTrue(bindings.containsKey(3));
         assertTrue(bindings.containsKey(17));
+    }
+
+    @Test
+    public void testAStoreWhichAConditionMayNotExecuteDoesNotHideTheReadAfterIt() {
+        // 14: iconst_0; 15: ifeq 20; 18: aconst_null; 19: astore_2; 20: aload_2 (reached without the store); 21: pop; 22: return
+        byte[] code = code(ALOAD_0, DUP, ASTORE_2, INSTANCEOF, 0, 1, IFEQ, 0, 8, ALOAD_2, CHECKCAST, 0, 1, ASTORE_3,
+                ICONST_0, IFEQ_OPCODE, 0, 5, ACONST_NULL, ASTORE_2, ALOAD_2, POP, RETURN);
+
+        assertTrue(InstanceOfPatternBinding.find(code, 1, null, null).isEmpty());
+    }
+
+    @Test
+    public void testAStoreWhichEveryWayExecutesEndsTheSearchOfTheReads() {
+        // 14: aconst_null; 15: astore_2; 16: aload_2 (reads the value which is stored now); 17: pop; 18: return
+        byte[] code = code(ALOAD_0, DUP, ASTORE_2, INSTANCEOF, 0, 1, IFEQ, 0, 8, ALOAD_2, CHECKCAST, 0, 1, ASTORE_3,
+                ACONST_NULL, ASTORE_2, ALOAD_2, POP, RETURN);
+
+        assertEquals(1, InstanceOfPatternBinding.find(code, 1, null, null).size());
     }
 }

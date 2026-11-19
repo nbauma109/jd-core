@@ -49,4 +49,26 @@ public class InstanceOfAssignedLocalTest extends AbstractJdTest {
         assertTrue(source, source.contains("if ((x = this.text) instanceof String) { String s = (String)x;"));
         assertFalse(source, source.contains("this.text instanceof String s"));
     }
+
+    @Test
+    public void testTheResultOfAGenericCallHasAnotherTypeForTheSource() throws Exception {
+        String source = decompile();
+
+        // 'strings.get(0)' is a String for the source, an Object for the byte code: 'this.strings.get(0) instanceof String s' would be an unconditional pattern
+        assertTrue(source, source.contains("if ((x = this.strings.get(0)) instanceof String) { String s = (String)x;"));
+    }
+
+    @Test
+    public void testTheObjectWhichAConstructorInitializesIsTheValueOfTheTest() throws Exception {
+        String source = decompile();
+
+        assertTrue(source, source.contains("new Object() instanceof String s"));
+    }
+
+    @Test
+    public void testAStoreWhichAConditionMayNotExecuteDoesNotHideTheReadAfterIt() throws Exception {
+        String source = decompile();
+
+        assertTrue(source, source.contains("if ((x = this.field) instanceof String) { String s = (String)x; consume(s); } if (flag) x = new Object(); return x;"));
+    }
 }

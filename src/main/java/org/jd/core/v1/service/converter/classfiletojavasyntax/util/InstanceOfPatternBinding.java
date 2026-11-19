@@ -17,6 +17,7 @@ import org.apache.bcel.classfile.LocalVariableTable;
 import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.CHECKCAST;
 import org.apache.bcel.generic.INSTANCEOF;
+import org.apache.bcel.generic.CPInstruction;
 import org.apache.bcel.generic.ClassGenException;
 import org.apache.bcel.generic.ALOAD;
 import org.apache.bcel.generic.ASTORE;
@@ -251,22 +252,33 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return null;
     }
 
-    /** @return the descriptor of the field or of the result of the call which 'getfield f; dup; astore v; instanceof' tests, null if the value is another one (the test is one of a temporary) */
+    /**
+     * @return the descriptor of the type of the value which 'getfield f; dup; astore v; instanceof' tests: the one of the field, of the result of the call, of the object which a
+     *         constructor initializes. Null if it is another value, or a value which is declared with generics, whose type for the source is not the one of its descriptor
+     *         ('list.get(0)' is a String for the source, an Object for the byte code).
+     */
     private static String typeOfTheValueKeptBy(byte[] code, int instanceOfOffset, ConstantPool constants) {
         // 'producer; dup; astore v; instanceof'
         Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
-        if (producer instanceof FieldInstruction field) {
-            return memberSignature(constants, field.getIndex());
+        if (!(producer instanceof FieldInstruction) && !(producer instanceof InvokeInstruction)) {
+            return null;
         }
-        // (the result of a call, which the descriptor of the method gives)
-        return producer instanceof InvokeInstruction call ? Type.getReturnType(memberSignature(constants, call.getIndex())).getSignature() : null;
-    }
 
-    private static String memberSignature(ConstantPool constants, int index) {
-        ConstantCP member = (ConstantCP) constants.getConstant(index);
+        ConstantCP member = (ConstantCP) constants.getConstant(((CPInstruction) producer).getIndex());
+        ConstantNameAndType nameAndType = (ConstantNameAndType) constants.getConstant(member.getNameAndTypeIndex());
+        String owner = member.getClass(constants).replace('.', '/');
+        String name = nameAndType.getName(constants);
+        String descriptor = nameAndType.getSignature(constants);
 
-        return ((ConstantNameAndType) constants.getConstant(member.getNameAndTypeIndex())).getSignature(constants);
+        if ("<init>".equals(name)) {
+            // the object which 'new' allocated
+            return "L" + owner + ";";
+        }
+        if (!ClassMetadata.isDeclaredWithoutGenerics(LOADER.get(), owner, name, descriptor)) {
+            return null;
+        }
+        return producer instanceof FieldInstruction ? descriptor : Type.getReturnType(descriptor).getSignature();
     }
 
     /**
@@ -347,7 +359,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 InstanceOfPatternBinding binding = match(code, starts, p);
 
                 if (binding != null && !hasAlternateEntry(code, starts, p + 3, binding.firstSkippedOffset()) && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))
-                        && (temporaryOperandIndex(code, p) < 0 || isKeptOnlyForThePattern(code, p, binding, parameterSlots))) {
+                        && (temporaryOperandIndex(code, p) < 0 || isKeptOnlyForThePattern(code, p, binding, parameterSlots, handlers))) {
                     bindings.put(p, binding);
                 }
             }
@@ -790,25 +802,34 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
     /**
      * 'dup; astore v' keeps the tested value in a variable of the source too ('(x = field) instanceof String s' with a use of 'x' before or after): the variable is a
-     * temporary of the compiler only when it is no parameter, nothing else than the temporaries of the compiler uses its slot before the test, and nothing reads it,
-     * until the next store, but the load which binds the pattern.
+     * temporary of the compiler only when it is no parameter, nothing else than the temporaries of the compiler uses its slot before the test, and no way which
+     * the test can follow reads it, until it is stored again, but the load which binds the pattern.
      */
-    private static boolean isKeptOnlyForThePattern(byte[] code, int instanceOfOffset, InstanceOfPatternBinding binding, int parameterSlots) {
+    private static boolean isKeptOnlyForThePattern(byte[] code, int instanceOfOffset, InstanceOfPatternBinding binding, int parameterSlots, CodeException[] handlers) {
         int slot = temporaryOperandIndex(code, instanceOfOffset);
 
         if (slot < parameterSlots) {
             return false;
         }
         for (InstructionHandle use : decoded(code).usesBySlot().get(slot)) {
-            if (use.getPosition() < instanceOfOffset) {
-                if (!isUseOfATemporary(use)) {
+            if (use.getPosition() < instanceOfOffset && !isUseOfATemporary(use)) {
+                return false;
+            }
+        }
+
+        InstructionList list = decoded(code).list();
+        Deque<InstructionHandle> todo = new ArrayDeque<>();
+        Set<Integer> visited = new HashSet<>();
+
+        todo.add(list.findHandle(instanceOfOffset));
+        while (!todo.isEmpty()) {
+            InstructionHandle handle = todo.remove();
+
+            if (visited.add(handle.getPosition())) {
+                if (handle.getInstruction() instanceof ALOAD load && load.getIndex() == slot && handle.getPosition() != binding.firstSkippedOffset()) {
                     return false;
                 }
-            } else if (use.getInstruction() instanceof ASTORE) {
-                // what follows reads another value
-                return true;
-            } else if (use.getPosition() != binding.firstSkippedOffset()) {
-                return false;
+                todo.addAll(successorsUntilStore(handle, slot, list, handlers));
             }
         }
         return true;

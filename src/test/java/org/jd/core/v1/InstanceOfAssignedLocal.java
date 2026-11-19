@@ -42,4 +42,34 @@ public class InstanceOfAssignedLocal {
         }
         return x.hashCode();
     }
+
+    java.util.List<String> strings = java.util.List.of("a");
+
+    void generic() {
+        Object x;
+        if ((x = this.strings.get(0)) instanceof String) {
+            String s = (String) x;
+            consume(s);
+        }
+    }
+
+    void constructor() {
+        Object x;
+        if ((x = new Object()) instanceof String) {
+            String s = (String) x;
+            consume(s);
+        }
+    }
+
+    Object conditional(boolean flag) {
+        Object x;
+        if ((x = this.field) instanceof String) {
+            String s = (String) x;
+            consume(s);
+        }
+        if (flag) {
+            x = new Object();
+        }
+        return x;
+    }
 }

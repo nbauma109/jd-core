@@ -9,6 +9,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 import org.apache.bcel.Const;
 import org.apache.bcel.classfile.ClassFormatException;
 import org.apache.bcel.classfile.ClassParser;
+import org.apache.bcel.classfile.FieldOrMethod;
 import org.apache.bcel.classfile.Field;
 import org.apache.bcel.classfile.InnerClass;
 import org.apache.bcel.classfile.InnerClasses;
@@ -67,6 +68,39 @@ public final class ClassMetadata {
         }
         for (String interfaceName : javaClass.getInterfaceNames()) {
             if (declaresField(loader, internalNameOf(interfaceName), fieldName, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return true if the field or the method (a method if the descriptor is one) of this name and descriptor is declared by the class, or by one of its super types, without
+     *         generic signature: the type of its value is the one of its descriptor. False if it has one, or if it cannot be found with the classes which can be read.
+     */
+    public static boolean isDeclaredWithoutGenerics(Loader loader, String internalName, String name, String descriptor) {
+        return isDeclaredWithoutGenerics(loader, internalName, name, descriptor, new HashSet<>());
+    }
+
+    private static boolean isDeclaredWithoutGenerics(Loader loader, String internalName, String name, String descriptor, Set<String> visited) {
+        JavaClass javaClass = internalName == null || !visited.add(internalName) ? null : parse(loader, internalName);
+
+        if (javaClass == null) {
+            return false;
+        }
+
+        boolean isMethod = descriptor.startsWith("(");
+
+        for (FieldOrMethod member : isMethod ? javaClass.getMethods() : javaClass.getFields()) {
+            if (member.getName().equals(name) && member.getSignature().equals(descriptor)) {
+                return member.getGenericSignature() == null;
+            }
+        }
+        if (isDeclaredWithoutGenerics(loader, internalNameOf(javaClass.getSuperclassName()), name, descriptor, visited)) {
+            return true;
+        }
+        for (String interfaceName : javaClass.getInterfaceNames()) {
+            if (isDeclaredWithoutGenerics(loader, internalNameOf(interfaceName), name, descriptor, visited)) {
                 return true;
             }
         }

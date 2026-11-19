@@ -3436,6 +3436,11 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                             Type t = type;
 
                             if (ta1 != null && ta2 != null && (!ta1.isTypeArgumentAssignableFrom(typeMaker, typeBindings, localTypeBounds, ta2) || differsInNestedTypeArguments(objectType, expressionObjectType))) {
+                                if (isArrayConstructorReference(expression)) {
+                                    // '(Function) String[]::new' is raw: the reference takes its type arguments from its target, whatever the descriptor of its call site says
+                                    acceptWithExpectedType(expression, type);
+                                    return expression;
+                                }
                                 if (objectType.rawEquals(expressionObjectType) && isInferredFromTarget(expression, ta1, ta2)) {
                                     // The type arguments of the invoked method are only fixed by the target type: javac infers them
                                     acceptWithExpectedType(expression, type);
@@ -3790,6 +3795,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         this.expectedType = expectedType;
         expression.accept(this);
         this.expectedType = previousExpectedType;
+    }
+
+    private static boolean isArrayConstructorReference(Expression expression) {
+        return expression instanceof MethodReferenceExpression && "new".equals(expression.getName()) && expression.getInternalTypeName().charAt(0) == '[';
     }
 
     private static boolean isProperMethodReference(Expression expression) {

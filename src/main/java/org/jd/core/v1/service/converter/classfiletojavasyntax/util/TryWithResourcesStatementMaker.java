@@ -524,8 +524,8 @@ public final class TryWithResourcesStatementMaker {
      */
     private static CloseInvocationInfo getCloseInvocationInfoFromLastStatement(Statements tryStatements) {
         Statement last = tryStatements.getLast();
-        if (last instanceof IfStatement ifStatement && ifStatement.getStatements().size() == 1) {
-            last = ifStatement.getStatements().getFirst();
+        if (last instanceof IfStatement ifStatement) {
+            last = ifStatement.getStatements().getLast();
         }
         if (last.getExpression() instanceof MethodInvocationExpression mie) {
             AbstractLocalVariable localVariable = getCloseInvocationLocalVariable(mie);

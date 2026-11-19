@@ -768,6 +768,10 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
 
             return declared instanceof ObjectType declaredObjectType && declaredObjectType.getTypeArguments() == null;
         }
+        if (receiver.isArrayExpression()) {
+            // (the element of an array of raw types, 'this.synthetics[1]' for a 'Map[] synthetics', is a raw type)
+            return isRawReceiver(receiver.getExpression());
+        }
         // (the type of a cast or of a creation is not final yet: it may still be parameterized by the casts that are added later)
         return receiver.isLocalVariableReferenceExpression() || receiver.isFieldReferenceExpression();
     }

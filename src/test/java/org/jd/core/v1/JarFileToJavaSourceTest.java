@@ -70,7 +70,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testCommonsIO() throws Exception {
-        test("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-", "commons-io", "commons-io", pomVersion("commons-io", "commons-io"));
+        String version = pomVersion("commons-io", "commons-io");
+        // The tests of URIOrigin which get a page of a web site (http://google.com/), which answers 429 to the runners of the CI when they ask too often
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test", List.of("-Dtest=!URIOriginTest#testGetInputStrea*"));
+        testAtTag("https://github.com/apache/commons-io", "commons-io", "rel/commons-io-" + version, "commons-io", "commons-io", version, true, null, layout);
     }
 
     @Test

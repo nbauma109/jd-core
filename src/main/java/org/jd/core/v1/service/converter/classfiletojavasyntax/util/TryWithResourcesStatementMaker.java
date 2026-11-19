@@ -322,6 +322,10 @@ public final class TryWithResourcesStatementMaker {
                 closeInvocationInfo = getCloseInvocationInfoFromTryStatements(tryStatements);
                 if (closeInvocationInfo == null && allowEcjPattern && !tryStatements.isEmpty()) {
                     closeInvocationInfo = getCloseInvocationInfoFromLastStatement(tryStatements);
+                    if (closeInvocationInfo != null && tryStatements.getLast().isExpressionStatement()) {
+                        // (a close which no null check guards is no statement of the body)
+                        tryStatements.removeLast();
+                    }
                 }
                 if (closeInvocationInfo == null || !allowEcjPattern && findAddSuppressedInvocation(catchStatements, null) == null) {
                     return null;

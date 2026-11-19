@@ -347,7 +347,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
                 InstanceOfPatternBinding binding = match(code, starts, p);
 
                 if (binding != null && !hasAlternateEntry(code, starts, p + 3, binding.firstSkippedOffset()) && declaresNewVariable(binding, parameterSlots, variables, castDescriptor(code, p, constants))
-                        && (temporaryOperandIndex(code, p) < 0 || isKeptOnlyForThePattern(code, starts, p, binding, parameterSlots))) {
+                        && (temporaryOperandIndex(code, p) < 0 || isKeptOnlyForThePattern(code, p, binding, parameterSlots))) {
                     bindings.put(p, binding);
                 }
             }
@@ -793,7 +793,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
      * temporary of the compiler only when it is no parameter, nothing else than the temporaries of the compiler uses its slot before the test, and nothing reads it,
      * until the next store, but the load which binds the pattern.
      */
-    private static boolean isKeptOnlyForThePattern(byte[] code, boolean[] starts, int instanceOfOffset, InstanceOfPatternBinding binding, int parameterSlots) {
+    private static boolean isKeptOnlyForThePattern(byte[] code, int instanceOfOffset, InstanceOfPatternBinding binding, int parameterSlots) {
         int slot = temporaryOperandIndex(code, instanceOfOffset);
 
         if (slot < parameterSlots) {
@@ -823,7 +823,24 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     }
 
     /** The instructions of a method, and its loads and stores of the references by slot: the tests of the method share them */
-    private record Decoded(byte[] code, InstructionList list, Map<Integer, List<InstructionHandle>> usesBySlot) {
+    private static final class Decoded {
+        private final byte[] code;
+        private final InstructionList list;
+        private final Map<Integer, List<InstructionHandle>> usesBySlot;
+
+        private Decoded(byte[] code, InstructionList list, Map<Integer, List<InstructionHandle>> usesBySlot) {
+            this.code = code;
+            this.list = list;
+            this.usesBySlot = usesBySlot;
+        }
+
+        private InstructionList list() {
+            return list;
+        }
+
+        private Map<Integer, List<InstructionHandle>> usesBySlot() {
+            return usesBySlot;
+        }
     }
 
     private static final ThreadLocal<Decoded> DECODED = new ThreadLocal<>();
@@ -831,7 +848,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     private static Decoded decoded(byte[] code) {
         Decoded decoded = DECODED.get();
 
-        if (decoded == null || decoded.code() != code) {
+        if (decoded == null || decoded.code != code) {
             InstructionList list = new InstructionList(code);
             Map<Integer, List<InstructionHandle>> usesBySlot = new HashMap<>();
 

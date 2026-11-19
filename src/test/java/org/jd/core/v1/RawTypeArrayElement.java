@@ -16,13 +16,11 @@ public class RawTypeArrayElement {
     Map[] synthetics = new Map[2];
 
     String field(Object key) {
-        String value = (String) this.synthetics[1].get(key);
-        return value;
+        return (String) this.synthetics[1].get(key);
     }
 
     String[] methods(Object key) {
-        String[] values = (String[]) this.synthetics[0].get(key);
-        return values;
+        return (String[]) this.synthetics[0].get(key);
     }
 
     String local(Map[] maps, Object key) {

@@ -546,8 +546,8 @@ public class StatementMaker {
         }
     }
 
-    /** @return 'c ? a : b' for the statements 'if (c) yield a; yield b;', null for any other statements */
-    private Expression ternaryResultOf(Statements statements) {
+    /** @return 'c ? a : b' for the statements 'if (c) yield a; yield b;', which are removed; null for any other statements, which stay */
+    private Expression takeTernaryResultOf(Statements statements) {
         if (statements.size() != 2 || !(statements.getFirst() instanceof IfStatement ifStatement) || !isSingleYield(ifStatement.getStatements())
                 || !(statements.getLast() instanceof YieldExpressionStatement otherwise)) {
             return null;
@@ -555,6 +555,7 @@ public class StatementMaker {
 
         Statement then = ifStatement.getStatements().getFirst();
 
+        statements.clear();
         return newTernaryOperatorExpression(then.getLineNumber(), ifStatement.getCondition(), then.getExpression(), otherwise.getExpression());
     }
 
@@ -991,11 +992,7 @@ public class StatementMaker {
 
             if (ruleResult == null) {
                 // (nothing is left on the stack: the rule may be a ternary operator, whose branches are 'yield' statements)
-                ruleResult = ternaryResultOf(subStatements);
-
-                if (ruleResult != null) {
-                    subStatements.clear();
-                }
+                ruleResult = takeTernaryResultOf(subStatements);
             }
 
             parsedGroups.add(new ParsedRuleGroup(first.isDefaultCase(), i, j, subStatements, ruleResult, patternVariable));

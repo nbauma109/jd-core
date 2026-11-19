@@ -160,11 +160,12 @@ public final class LoopStatementMaker {
                         }
                         if (init != null) {
                             return newClassFileForStatement(
-                                localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, null, subStatement);
+                                localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, null, subStatements);
                         }
                     } else if (init != null) {
+                        // (the statements of the body, not the one statement: the declarations of the variables which its frame adds are added to the list)
                         return newClassFileForStatement(
-                            localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, null, subStatement);
+                            localVariableMaker, loopBasicBlock.getFromOffset(), loopBasicBlock.getToOffset(), init, condition, null, subStatements);
                     }
                 } else {
                     // Unknown line numbers => Just try to find 'for (expression;;expression)'

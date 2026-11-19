@@ -46,4 +46,14 @@ public class EcjTryWithResources {
             // nothing
         }
     }
+
+    /**
+     * The same as 'createAndClose': the jar of the test is patched, the null check of the close (a 'aload_2; ifnull' of this method) is replaced by
+     * 'nop's, as the Eclipse compiler does when it knows that the resource is not null
+     */
+    static void createAndCloseUnguarded() throws IOException {
+        try (InputStream created = new ByteArrayInputStream(new byte[1])) {
+            // nothing
+        }
+    }
 }

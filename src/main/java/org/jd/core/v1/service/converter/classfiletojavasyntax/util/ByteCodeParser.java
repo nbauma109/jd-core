@@ -1829,7 +1829,8 @@ public class ByteCodeParser {
         }
         List<String> lambdaParameterNames = prepareLambdaParameterNames(cfmd.getFormalParameters(), parameterCount);
         BaseStatement lambdaStatements = prepareLambdaStatements(
-                cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames, methodReferenceWithReceiver);
+                cfmd.getFormalParameters(), indyParameters, cfmd.getStatements(), parameterCount, lambdaParameterNames, methodReferenceWithReceiver,
+                (cfmd.getFlags() & ACC_STATIC) == 0);
         Map<String, String> lambdaParameterMapping = prepareUniqueLambdaParameterNames(lambdaParameterNames);
         if (!lambdaParameterMapping.isEmpty() && lambdaStatements != null) {
             renameLocalVariablesVisitor.init(lambdaParameterMapping, true);
@@ -2124,13 +2125,16 @@ public class ByteCodeParser {
     }
 
     private BaseStatement prepareLambdaStatements(BaseFormalParameter formalParameters, BaseExpression indyParameters,
-            BaseStatement baseStatement, int lambdaParameterCount, List<String> lambdaParameterNames, boolean methodReferenceWithReceiver) {
+            BaseStatement baseStatement, int lambdaParameterCount, List<String> lambdaParameterNames, boolean methodReferenceWithReceiver,
+            boolean capturesThis) {
+        // (the first value which the call site passes to the method of a lambda which uses 'this' is this: the method has no parameter for it)
+        int thisCount = capturesThis ? 1 : 0;
         if (baseStatement != null && formalParameters != null && !Utils.isEmpty(indyParameters)
-                && indyParameters.size() <= formalParameters.size()) {
+                && indyParameters.size() - thisCount <= formalParameters.size()) {
             Map<String, String> mapping = new HashMap<>();
             Map<AbstractLocalVariable, Expression> unnamedCaptures = new HashMap<>();
             int capturedParameterCount = Math.max(0, formalParameters.size() - lambdaParameterCount);
-            int mappingCount = Math.min(capturedParameterCount, indyParameters.size());
+            int mappingCount = Math.min(capturedParameterCount, indyParameters.size() - thisCount);
             DefaultList<FormalParameter> formalParameterList = formalParameters.getList();
             Set<String> capturedFormalParameterNames = new HashSet<>();
 
@@ -2142,7 +2146,7 @@ public class ByteCodeParser {
             }
 
             for (int i = 0; i < mappingCount; i++) {
-                Expression expression = indyParameters.isList() ? indyParameters.getList().get(i) : indyParameters.getFirst();
+                Expression expression = indyParameters.isList() ? indyParameters.getList().get(i + thisCount) : indyParameters.getFirst();
                 FormalParameter formalParameter = formalParameterList.get(i);
                 if (!expression.isLocalVariableReferenceExpression()) {
                     if (methodReferenceWithReceiver && formalParameter instanceof ClassFileFormalParameter classFileFormalParameter) {

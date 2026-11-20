@@ -1153,6 +1153,13 @@ public final class LoopStatementMaker {
         int offset = statement.getOffset();
         int targetOffset = statement.getTargetOffset();
 
+        boolean insideTheLoop = offsets.lowOffset() <= offset && offset < offsets.breakOffset();
+
+        if (!insideTheLoop && targetOffset == offsets.breakOffset()) {
+            // A jump from outside the loop to where the loop ends is not the break of this loop: the last loop of the body of an outer loop ends where
+            // the outer loop is updated, and the 'continue' of the outer loop from a nested loop jumps there
+            return Resolution.UNRESOLVED;
+        }
         if (statement.isLoopExitFromSwitch() || targetOffset == offsets.breakOffset() && targetOffset != offsets.continueOffset()) {
             // Either a loop exit generated inside one of this loop's 'switch' statements (where a bare
             // 'break' would only exit the switch) or a jump to this loop's break target: name this loop
@@ -1164,7 +1171,7 @@ public final class LoopStatementMaker {
             statement.setStatement(new ContinueStatement(label));
             return Resolution.RESOLVED_WITH_LABEL;
         }
-        if (offsets.lowOffset() <= offset && offset < offsets.breakOffset()) {
+        if (insideTheLoop) {
             if (offsets.lowOffset() <= targetOffset && targetOffset < offsets.breakOffset()) {
                 if (statement.isContinueLabel()) {
                     statement.setStatement(new ContinueStatement(label));

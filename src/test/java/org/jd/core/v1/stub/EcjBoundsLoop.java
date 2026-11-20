@@ -69,10 +69,8 @@ public class EcjBoundsLoop {
                             }
                             break;
                         default:
-                            if (superType.isEmpty()) {
-                                if (param.rank == 0) {
-                                    param.tags |= 8;
-                                }
+                            if (superType.isEmpty() && param.rank == 0) {
+                                param.tags |= 8;
                             }
                             break;
                     }
@@ -112,20 +110,16 @@ public class EcjBoundsLoop {
                                 continue nextBound;
                             }
                         }
-                        if (checkCollisions && superType.length() == param.rank) {
-                            if (superType.length() > 5) {
-                                continue nextBound;
-                            }
+                        if (checkCollisions && superType.length() == param.rank && superType.length() > 5) {
+                            continue nextBound;
                         }
                         for (int index = params.length; --index >= 0;) {
                             if (params[index].rank == superType.length()) {
                                 param.tags |= 128;
                                 continue nextBound;
                             }
-                            if (checkCollisions) {
-                                if (params[index].tags == superType.length()) {
-                                    continue nextBound;
-                                }
+                            if (checkCollisions && params[index].tags == superType.length()) {
+                                continue nextBound;
                             }
                         }
                         param.rank = superType.length();

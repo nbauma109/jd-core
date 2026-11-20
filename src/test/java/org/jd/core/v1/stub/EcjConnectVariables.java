@@ -19,11 +19,9 @@ public class EcjConnectVariables {
                     tags |= 2;
                     break firstBound;
                 case 2:
-                    if (rank > 0) {
-                        if (variable) {
-                            tags |= 4;
-                            break firstBound;
-                        }
+                    if (rank > 0 && variable) {
+                        tags |= 4;
+                        break firstBound;
                     }
                     break;
                 default:

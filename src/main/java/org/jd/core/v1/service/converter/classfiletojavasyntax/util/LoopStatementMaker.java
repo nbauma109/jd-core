@@ -1175,17 +1175,19 @@ public final class LoopStatementMaker {
             // The jump leaves a labeled block which is not a loop, whose end is neither the continue nor the break of this loop
             return Resolution.UNRESOLVED;
         }
-        if (insideTheLoop) {
-            if (offsets.lowOffset() <= targetOffset && targetOffset < offsets.breakOffset()) {
-                if (statement.isContinueLabel()) {
-                    statement.setStatement(new ContinueStatement(label));
-                    return Resolution.RESOLVED_WITH_LABEL;
-                }
-                statement.setStatement(CONTINUE);
-                return Resolution.RESOLVED;
+        return insideTheLoop ? resolveJumpInsideTheLoop(statement, label, offsets, targetOffset) : Resolution.UNRESOLVED;
+    }
+
+    private static Resolution resolveJumpInsideTheLoop(ClassFileBreakContinueStatement statement, String label, LoopOffsets offsets, int targetOffset) {
+        if (offsets.lowOffset() <= targetOffset && targetOffset < offsets.breakOffset()) {
+            if (statement.isContinueLabel()) {
+                statement.setStatement(new ContinueStatement(label));
+                return Resolution.RESOLVED_WITH_LABEL;
             }
-            statement.setContinueLabel(true);
+            statement.setStatement(CONTINUE);
+            return Resolution.RESOLVED;
         }
+        statement.setContinueLabel(true);
         return Resolution.UNRESOLVED;
     }
 

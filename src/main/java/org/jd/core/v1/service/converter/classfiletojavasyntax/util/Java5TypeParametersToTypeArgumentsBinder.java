@@ -53,6 +53,7 @@ import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeParameter;
 import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
 import org.jd.core.v1.model.javasyntax.type.TypeArgument;
 import org.jd.core.v1.model.javasyntax.type.TypeArguments;
@@ -1353,10 +1354,17 @@ public final class Java5TypeParametersToTypeArgumentsBinder extends AbstractType
     public void visit(TernaryOperatorExpression expression) {
         Type t = type;
 
-        expression.setType(t);
+        // 'cond ? a.id : b.id' is an int, whatever the constant which it is compared to may be
+        if (!isDefinitePrimitiveType(expression.getType())) {
+            expression.setType(t);
+        }
         expression.getTrueExpression().accept(this);
         type = t;
         expression.getFalseExpression().accept(this);
+    }
+
+    private static boolean isDefinitePrimitiveType(Type type) {
+        return type instanceof PrimitiveType primitiveType && Integer.bitCount(primitiveType.getFlags()) == 1;
     }
 
     @Override

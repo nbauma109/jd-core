@@ -438,7 +438,8 @@ public class StatementMaker {
                 statements.add(ContinueStatement.CONTINUE);
                 break;
             case TYPE_JUMP:
-                Statement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), basicBlock.getToOffset());
+                ClassFileBreakContinueStatement jump = new ClassFileBreakContinueStatement(basicBlock.getFromOffset(), basicBlock.getToOffset());
+                jump.setLabeledExit(basicBlock.isLabeledExit());
                 statements.add(jump);
                 jumps.add(jump);
                 break;

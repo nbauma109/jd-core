@@ -1171,6 +1171,10 @@ public final class LoopStatementMaker {
             statement.setStatement(new ContinueStatement(label));
             return Resolution.RESOLVED_WITH_LABEL;
         }
+        if (statement.isLabeledExit()) {
+            // The jump leaves a labeled block which is not a loop, whose end is neither the continue nor the break of this loop
+            return Resolution.UNRESOLVED;
+        }
         if (insideTheLoop) {
             if (offsets.lowOffset() <= targetOffset && targetOffset < offsets.breakOffset()) {
                 if (statement.isContinueLabel()) {

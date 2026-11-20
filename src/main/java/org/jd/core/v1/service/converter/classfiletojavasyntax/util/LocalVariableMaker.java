@@ -24,6 +24,7 @@ import org.jd.core.v1.model.javasyntax.reference.BaseAnnotationReference;
 import org.jd.core.v1.model.javasyntax.statement.Statements;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.BaseTypeArgument;
+import org.jd.core.v1.model.javasyntax.type.GenericType;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
 import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.model.javasyntax.type.Type;
@@ -150,6 +151,8 @@ public class LocalVariableMaker {
             if (comd instanceof ClassFileMethodDeclaration cfmd && cfmd.getCapturedParameterTypes() != null) {
                 applyCapturedParameterTypes(parameterTypes, firstVariableIndex, cfmd.getCapturedParameterTypes());
             }
+
+            applyGenericArrayParameterTypes(parameterTypes, firstVariableIndex);
 
             // Create list of parameterTypes
             fp = new FormalParameters();
@@ -333,6 +336,22 @@ public class LocalVariableMaker {
                     && containsWildcardTypeArgument(capturedObjectType.getTypeArguments()) && objectParameterType.getTypeArguments() == null
                     && capturedObjectType.getInternalName().equals(objectParameterType.getInternalName())) {
                 objectLocalVariable.setType(typeBounds, capturedType);
+            }
+
+            variableIndex += PrimitiveType.TYPE_LONG.equals(parameterType) || PrimitiveType.TYPE_DOUBLE.equals(parameterType) ? 2 : 1;
+        }
+    }
+
+    /**
+     * The Eclipse compiler writes no entry of the local variable type table for a parameter which is an array of a type variable: its type
+     * is the one of the signature of the method, not its erasure.
+     */
+    private void applyGenericArrayParameterTypes(BaseType parameterTypes, int firstVariableIndex) {
+        int variableIndex = firstVariableIndex;
+
+        for (Type parameterType : parameterTypes) {
+            if (parameterType instanceof GenericType && localVariableSet.root(variableIndex) instanceof ObjectLocalVariable objectLocalVariable) {
+                objectLocalVariable.setType(typeBounds, parameterType);
             }
 
             variableIndex += PrimitiveType.TYPE_LONG.equals(parameterType) || PrimitiveType.TYPE_DOUBLE.equals(parameterType) ? 2 : 1;

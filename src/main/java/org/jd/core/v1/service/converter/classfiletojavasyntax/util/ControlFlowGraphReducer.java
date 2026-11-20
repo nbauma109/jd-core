@@ -1560,9 +1560,12 @@ public abstract class ControlFlowGraphReducer {
         boolean continuesTheLoop = goesBackBefore(end, switchBlock.getFromOffset());
 
         for (BasicBlock candidate : ends) {
-            if (candidate != end && candidate != lastSwitchCaseBasicBlock && candidate != SWITCH_BREAK && candidate.getFromOffset() < end.getFromOffset() && isReachable(candidate, end)
-                    && (continuesTheLoop || isReachable(lastSwitchCaseBasicBlock, candidate))) {
-                return candidate;
+            if (candidate != end && candidate != lastSwitchCaseBasicBlock && candidate != SWITCH_BREAK && candidate.getFromOffset() < end.getFromOffset() && isReachable(candidate, end)) {
+                BasicBlock join = continuesTheLoop || isReachable(lastSwitchCaseBasicBlock, candidate) ? candidate : null;
+
+                if (join != null) {
+                    return join;
+                }
             }
         }
 

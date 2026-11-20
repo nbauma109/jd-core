@@ -41,4 +41,21 @@ public class EcjConnectVariables {
         }
         return tags;
     }
+
+    static int leave(int kind, int tags) {
+        block: {
+            switch (kind) {
+                case 1:
+                    tags |= 1;
+                    break;
+                case 2:
+                    tags |= 2;
+                    break block;
+                default:
+                    return 0;
+            }
+            tags |= 4;
+        }
+        return tags;
+    }
 }

@@ -500,8 +500,18 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
             return expression;
         }
 
+        if (type.isPrimitiveType() && expression instanceof SwitchExpression switchExpression && isUndecidedPrimitiveType(switchExpression.getType())) {
+            // 'slots != switch (category) { case ONE -> 1; case TWO -> 2; }': the constants take the type of the other operand, not the one of the
+            // switch, which could be a boolean
+            expression = new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), switchExpression.getRules(), type);
+        }
+
         expression.accept(this);
         return expression;
+    }
+
+    private static boolean isUndecidedPrimitiveType(Type type) {
+        return type instanceof PrimitiveType primitiveType && Integer.bitCount(primitiveType.getFlags()) > 1;
     }
 
     private static void setType(Type type, PrimitiveType primitiveType, IntegerConstantExpression ice, PrimitiveType icePrimitiveType) {

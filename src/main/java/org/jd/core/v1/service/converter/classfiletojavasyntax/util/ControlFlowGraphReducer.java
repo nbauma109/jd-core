@@ -1553,12 +1553,15 @@ public abstract class ControlFlowGraphReducer {
      * loop ('continue') or for the code which follows the switch, which goes on with the update: the end of the switch is that code, not the update.
      */
     private static BasicBlock preferTheJoinBeforeTheContinueOfALoop(BasicBlock switchBlock, Set<BasicBlock> ends, BasicBlock lastSwitchCaseBasicBlock, BasicBlock end) {
-        if (end == END || end == lastSwitchCaseBasicBlock || !goesBackBefore(end, switchBlock.getFromOffset())) {
+        if (end == END || end == lastSwitchCaseBasicBlock) {
             return end;
         }
 
+        boolean continuesTheLoop = goesBackBefore(end, switchBlock.getFromOffset());
+
         for (BasicBlock candidate : ends) {
-            if (candidate != end && candidate != lastSwitchCaseBasicBlock && candidate != SWITCH_BREAK && candidate.getFromOffset() < end.getFromOffset() && isReachable(candidate, end)) {
+            if (candidate != end && candidate != lastSwitchCaseBasicBlock && candidate != SWITCH_BREAK && candidate.getFromOffset() < end.getFromOffset() && isReachable(candidate, end)
+                    && (continuesTheLoop || isReachable(lastSwitchCaseBasicBlock, candidate))) {
                 return candidate;
             }
         }

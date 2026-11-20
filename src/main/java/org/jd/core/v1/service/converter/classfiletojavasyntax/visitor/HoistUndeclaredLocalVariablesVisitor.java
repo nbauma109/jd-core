@@ -339,7 +339,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         @Override
         public void visit(LocalVariableDeclarationStatement statement) {
             for (LocalVariableDeclarator declarator : statement.getLocalVariableDeclarators()) {
-                seenDeclarations.put(key(declarator.getName(), statement.getType().getDescriptor()), Boolean.TRUE);
+                seenDeclarations.put(declaredKey(declarator, statement.getType()), Boolean.TRUE);
             }
             if (statement.getLocalVariableDeclarators() instanceof LocalVariableDeclarator declarator) {
                 String key = key(declarator.getName(), statement.getType().getDescriptor());
@@ -362,7 +362,7 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
         @Override
         public void visit(LocalVariableDeclaration declaration) {
             for (LocalVariableDeclarator declarator : declaration.getLocalVariableDeclarators()) {
-                seenDeclarations.put(key(declarator.getName(), declaration.getType().getDescriptor()), Boolean.TRUE);
+                seenDeclarations.put(declaredKey(declarator, declaration.getType()), Boolean.TRUE);
             }
             super.visit(declaration);
         }
@@ -591,6 +591,11 @@ public class HoistUndeclaredLocalVariablesVisitor extends AbstractJavaSyntaxVisi
                 methodStatements.add(insertionIndex, new LocalVariableDeclarationStatement(
                         location.statement().getType(), hoistedDeclarator));
             }
+        }
+
+        /** The dimension of a declarator is part of its type: 'String lub, glb[]' declares a String[] */
+        private static String declaredKey(LocalVariableDeclarator declarator, Type type) {
+            return key(declarator.getName(), "[".repeat(declarator.getDimension()) + type.getDescriptor());
         }
 
         private static String key(String name, String descriptor) {

@@ -501,8 +501,8 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
         }
 
         if (type.isPrimitiveType() && expression instanceof SwitchExpression switchExpression && isUndecidedPrimitiveType(switchExpression.getType())) {
-            // 'slots != switch (category) { case ONE -> 1; case TWO -> 2; }': the constants take the type of the other operand, not the one of the
-            // switch, which could be a boolean
+            // The constants of the rules of a switch which is compared take the type of the other operand, not the one of the switch, which could
+            // be a boolean
             expression = new SwitchExpression(switchExpression.getLineNumber(), switchExpression.getSelector(), switchExpression.getRules(), type);
         }
 

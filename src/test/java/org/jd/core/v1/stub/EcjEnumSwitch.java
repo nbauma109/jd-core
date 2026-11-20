@@ -49,6 +49,17 @@ public enum EcjEnumSwitch {
         };
     }
 
+    static int[] codes() {
+        return new int[] { 1, 2 };
+    }
+
+    static int code(int index) {
+        return switch (codes()[index]) {
+            case 1 -> 10;
+            default -> 20;
+        };
+    }
+
     static String name(EcjEnumSwitch step) {
         String name = "other";
         switch (step) {

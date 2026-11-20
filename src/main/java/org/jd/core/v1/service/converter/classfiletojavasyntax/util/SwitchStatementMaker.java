@@ -198,34 +198,44 @@ public final class SwitchStatementMaker {
     /** @return the statements which fill the map of the ordinals of the enum, null if the expression is not the one of a switch on an enum */
     private static Iterator<Statement> searchEnumMapStatements(ClassFileBodyDeclaration bodyDeclaration, Expression expression, TypeMaker typeMaker) {
         if (expression.isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = (FieldReferenceExpression)expression;
+            return searchJavacEnumMapStatements(bodyDeclaration, (FieldReferenceExpression)expression, typeMaker);
+        }
+        if (expression.isMethodInvocationExpression()) {
+            return searchEclipseEnumMapStatements(bodyDeclaration, (MethodInvocationExpression)expression);
+        }
+        return null;
+    }
 
-            if ("[I".equals(fre.getDescriptor()) && fre.getName().startsWith("$SwitchMap$")) {
-                ClassFileTypeDeclaration syntheticClassDeclaration = bodyDeclaration.getInnerTypeDeclaration(fre.getInternalTypeName());
+    private static Iterator<Statement> searchJavacEnumMapStatements(ClassFileBodyDeclaration bodyDeclaration, FieldReferenceExpression fre, TypeMaker typeMaker) {
+        if (!"[I".equals(fre.getDescriptor()) || !fre.getName().startsWith("$SwitchMap$")) {
+            return null;
+        }
 
-                if (syntheticClassDeclaration != null) {
-                    // Javac switch-enum pattern
-                    bodyDeclaration = (ClassFileBodyDeclaration) syntheticClassDeclaration.getBodyDeclaration();
-                    ClassFileConstructorOrMethodDeclaration methodDeclaration = bodyDeclaration.getMethodDeclarations().get(0);
-                    if (methodDeclaration.getStatements() == null) {
-                        CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
-                        createInstructionsVisitor.createParametersVariablesAndStatements(methodDeclaration, false);
-                    }
-                    DefaultList<Statement> statements = methodDeclaration.getStatements().getList();
-                    return searchSwitchMap(fre, statements.iterator());
-                }
-            }
-        } else if (expression.isMethodInvocationExpression()) {
-            MethodInvocationExpression mie = (MethodInvocationExpression)expression;
-            String methodName = mie.getName();
+        ClassFileTypeDeclaration syntheticClassDeclaration = bodyDeclaration.getInnerTypeDeclaration(fre.getInternalTypeName());
 
-            if ("()[I".equals(mie.getDescriptor()) && methodName.startsWith("$SWITCH_TABLE$")) {
-                // Eclipse compiler switch-enum pattern
-                for (ClassFileConstructorOrMethodDeclaration declaration : bodyDeclaration.getMethodDeclarations()) {
-                    if (declaration.getMethod().getName().equals(methodName)) {
-                        return skipLeadingNonTryStatements(declaration.getStatements().getList());
-                    }
-                }
+        if (syntheticClassDeclaration == null) {
+            return null;
+        }
+
+        ClassFileBodyDeclaration syntheticBodyDeclaration = (ClassFileBodyDeclaration) syntheticClassDeclaration.getBodyDeclaration();
+        ClassFileConstructorOrMethodDeclaration methodDeclaration = syntheticBodyDeclaration.getMethodDeclarations().get(0);
+        if (methodDeclaration.getStatements() == null) {
+            CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
+            createInstructionsVisitor.createParametersVariablesAndStatements(methodDeclaration, false);
+        }
+        return searchSwitchMap(fre, methodDeclaration.getStatements().getList().iterator());
+    }
+
+    private static Iterator<Statement> searchEclipseEnumMapStatements(ClassFileBodyDeclaration bodyDeclaration, MethodInvocationExpression mie) {
+        String methodName = mie.getName();
+
+        if (!"()[I".equals(mie.getDescriptor()) || !methodName.startsWith("$SWITCH_TABLE$")) {
+            return null;
+        }
+
+        for (ClassFileConstructorOrMethodDeclaration declaration : bodyDeclaration.getMethodDeclarations()) {
+            if (declaration.getMethod().getName().equals(methodName)) {
+                return skipLeadingNonTryStatements(declaration.getStatements().getList());
             }
         }
         return null;

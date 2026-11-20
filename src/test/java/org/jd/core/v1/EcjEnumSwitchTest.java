@@ -31,4 +31,18 @@ public class EcjEnumSwitchTest extends AbstractJdTest {
         assertFalse(printed, printed.contains("$SWITCH_TABLE"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjEnumSwitch", printed)));
     }
+
+    /** the map of javac is in a synthetic class: the switch expression is mapped too */
+    @Test
+    public void testSwitchExpressionOnAnEnumOfJavac() throws Exception {
+        String printed;
+
+        try (InputStream is = getClass().getResourceAsStream("/jar/javac-enum-switch-17.jar")) {
+            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/JavacEnumSwitch");
+        }
+
+        assertTrue(printed, printed.contains("case MINUTES -> 2;"));
+        assertFalse(printed, printed.contains("$SwitchMap$"));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/JavacEnumSwitch", printed)));
+    }
 }

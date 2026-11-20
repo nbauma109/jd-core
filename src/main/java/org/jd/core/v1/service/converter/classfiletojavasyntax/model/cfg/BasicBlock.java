@@ -83,6 +83,8 @@ public class BasicBlock {
     private BasicBlock condition;
     private boolean inverseCondition;
     private boolean byteCodeParsed;
+    /** A jump which leaves a block that is not a loop: it is rendered as the 'break' of a labeled block, never as a 'continue' */
+    private boolean labeledExit;
     private BasicBlock sub1;
     private BasicBlock sub2;
     private DefaultList<ExceptionHandler> exceptionHandlers = EMPTY_EXCEPTION_HANDLERS;
@@ -104,6 +106,7 @@ public class BasicBlock {
         this.setBranch(original.branch);
         this.condition = original.condition;
         this.inverseCondition = original.inverseCondition;
+        this.labeledExit = original.labeledExit;
         this.sub1 = original.sub1;
         this.sub2 = original.sub2;
         this.exceptionHandlers = original.exceptionHandlers;
@@ -228,6 +231,14 @@ public class BasicBlock {
 
     public void setInverseCondition(boolean inverseCondition) {
         this.inverseCondition = inverseCondition;
+    }
+
+    public boolean isLabeledExit() {
+        return labeledExit;
+    }
+
+    public void setLabeledExit(boolean labeledExit) {
+        this.labeledExit = labeledExit;
     }
 
     public boolean contains(BasicBlock basicBlock) {

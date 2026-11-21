@@ -56,4 +56,21 @@ public class EcjTryWithResources {
             // nothing
         }
     }
+
+    /** 'ClasspathJar.fetchLinkedJars' of the Eclipse compiler: a try-with-resources in a try, which assigns a variable declared without a value */
+    static int analyze(InputStream source, boolean flag) {
+        try {
+            int total = flag ? 1 : 0;
+            boolean success;
+            try (InputStream inputStream = source) {
+                success = inputStream.read() > 0;
+            }
+            if (success) {
+                total++;
+            }
+            return total;
+        } catch (IOException e) {
+            return -1;
+        }
+    }
 }

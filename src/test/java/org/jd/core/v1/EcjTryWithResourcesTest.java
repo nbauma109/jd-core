@@ -53,4 +53,19 @@ public class EcjTryWithResourcesTest extends AbstractJdTest {
         assertTrue(printed, source.contains("createAndClose() throws IOException { try (InputStream created = new ByteArrayInputStream(new byte[0])) {} }"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjTryWithResources", printed)));
     }
+
+    /** an assignment of the code which precedes the try-with-resources is not the one of the resource */
+    @Test
+    public void testAssignmentBeforeTheTry() throws Exception {
+        String printed;
+
+        try (InputStream is = getClass().getResourceAsStream("/jar/ecj-try-with-resources-ecj-17.jar")) {
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
+        }
+
+        String source = printed.replaceAll("\\s+", " ");
+
+        assertTrue(printed, source.contains("try (InputStream inputStream = source) { success = (inputStream.read() > 0); }"));
+        assertFalse(printed, source.contains("addSuppressed"));
+    }
 }

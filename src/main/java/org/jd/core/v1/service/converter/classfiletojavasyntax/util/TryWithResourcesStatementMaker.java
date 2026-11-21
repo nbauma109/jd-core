@@ -339,9 +339,22 @@ public final class TryWithResourcesStatementMaker {
             return null;
         }
 
+        boolean unrelatedAssignment = false;
+
+        if (lv1 != null && closeInvocationInfo.localVariable != lv1) {
+            // The last assignment before the try is no one of the resource ('total = 0;' of the code which precedes the try-with-resources):
+            // the assignment of the resource is the one of the variable which is closed
+            resourceAssignment = null;
+            lv1 = null;
+            resourceExpression = null;
+            hasResourceDeclaration = false;
+            unrelatedAssignment = true;
+        }
+
         if (resourceAssignment == null && closeInvocationInfo != null) {
             resourceAssignment = findResourceAssignmentInStatements(
-                    statements,
+                    // (an unrelated assignment which follows an earlier one of the resource is an intervening statement: that one stays where it is)
+                    unrelatedAssignment ? new Statements() : statements,
                     closeInvocationInfo.localVariable,
                     true);
         }

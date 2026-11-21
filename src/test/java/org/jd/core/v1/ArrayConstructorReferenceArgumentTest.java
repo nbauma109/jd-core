@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
 
 public class ArrayConstructorReferenceArgumentTest extends AbstractJdTest {
@@ -19,8 +19,8 @@ public class ArrayConstructorReferenceArgumentTest extends AbstractJdTest {
     @Test
     public void testNoRawCastOfTheReference() throws Exception {
         String internalClassName = ArrayConstructorReferenceArgument.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
+        String source = printed.replaceAll("\\s+", " ");
 
         assertFalse(printed, source.contains("(Function)"));
         assertTrue(printed, source.contains("Reference[]::new"));

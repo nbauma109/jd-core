@@ -1138,7 +1138,14 @@ public final class LoopStatementMaker {
         Iterator<Statement> iterator = jumps.iterator();
 
         while (iterator.hasNext()) {
-            Resolution resolution = resolveJump((ClassFileBreakContinueStatement)iterator.next(), label, offsets);
+            ClassFileBreakContinueStatement jump = (ClassFileBreakContinueStatement)iterator.next();
+
+            if (jump.isLoopExitFromSwitch() && !isInside(loop, jump)) {
+                // The exit of another loop, which the shared list of the jumps holds: it has no offsets to tell it by
+                continue;
+            }
+
+            Resolution resolution = resolveJump(jump, label, offsets);
 
             if (resolution != Resolution.UNRESOLVED) {
                 iterator.remove();
@@ -1147,6 +1154,19 @@ public final class LoopStatementMaker {
         }
 
         return createLabel ? new LabelStatement(label, loop) : loop;
+    }
+
+    private static boolean isInside(Statement loop, Statement jump) {
+        boolean[] found = {false};
+
+        loop.accept(new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(Statements statements) {
+                found[0] |= statements.contains(jump);
+                super.visit(statements);
+            }
+        });
+        return found[0];
     }
 
     private static Resolution resolveJump(ClassFileBreakContinueStatement statement, String label, LoopOffsets offsets) {

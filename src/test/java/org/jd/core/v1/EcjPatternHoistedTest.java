@@ -29,4 +29,16 @@ public class EcjPatternHoistedTest extends AbstractJdTest {
         assertTrue(printed, printed.contains("instanceof Holder holder2"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjPatternHoisted", printed)));
     }
+
+    /** a variable which an anonymous class captures is a field of the class: the binding which it uses is not renamed */
+    @Test
+    public void testNoRenameWhenAnAnonymousClassCapturesTheBinding() throws Exception {
+        String printed;
+
+        try (InputStream is = getClass().getResourceAsStream("/jar/ecj-pattern-hoisted-class-body-ecj-17.jar")) {
+            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/EcjPatternHoistedClassBody");
+        }
+
+        assertFalse(printed, printed.contains("holder1"));
+    }
 }

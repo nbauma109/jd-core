@@ -20,6 +20,7 @@ import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
 import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
@@ -36,7 +37,7 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
     private final Set<String> reservedNames = new HashSet<>();
     /** The name and the type of the variables which the statements declare: the variables of the same name and type are merged into one when they are hoisted */
     private final Set<String> declaredVariables = new HashSet<>();
-    /** The names which the lambdas of the method use: the body of a lambda keeps the name which its captured variable had when it was made */
+    /** The names which the lambdas and the constructors of the method use: the body of a lambda keeps the name which its captured variable had when it was made */
     private final Set<String> capturedNames = new HashSet<>();
     private int unusedCount;
 
@@ -67,10 +68,24 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                 super.visit(statement);
             }
 
+            /** The depth in the lambdas and in the arguments of a constructor, where the references are captures */
             private int lambdaDepth;
 
+            /**
+             * The variables which an anonymous or a local class captures are passed to its constructor and are fields of the class: they cannot be
+             * renamed, and the arguments of a constructor may be such variables
+             */
+            @Override
+            public void visit(NewExpression expression) {
+                lambdaDepth++;
+                super.visit(expression);
+                lambdaDepth--;
+            }
+
+            /** The parameters of a lambda are names too, which its body may not use for the binding of a pattern, whether it uses them or not */
             @Override
             public void visit(LambdaIdentifiersExpression expression) {
+                reservedNames.addAll(expression.getParameterNames());
                 lambdaDepth++;
                 super.visit(expression);
                 lambdaDepth--;

@@ -7,6 +7,8 @@
 
 package org.jd.core.v1.stub;
 
+import java.util.function.Supplier;
+
 /**
  * 'Expression.forcedToBeRaw' of the Eclipse compiler: two variables with the same name in different branches, one of them after an instanceof
  */
@@ -40,5 +42,19 @@ public class EcjPatternHoisted {
             }
         }
         return false;
+    }
+
+    /** a lambda whose parameter is unused: its name is not the one of a binding */
+    Supplier<Integer> lambda(Object subject, Object other) {
+        if (subject instanceof Reference) {
+            Holder holder = ((Reference) subject).holder;
+            if (holder != null) {
+                return () -> other.hashCode();
+            }
+        } else if (subject instanceof Holder) {
+            Holder holder = (Holder) subject;
+            return () -> holder.text.length();
+        }
+        return null;
     }
 }

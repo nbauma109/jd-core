@@ -107,6 +107,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -1199,6 +1200,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 // With a diamond, every method of an anonymous class must override one of its supertype
                 expression.setDiamondPossible(false);
             }
+            // The methods which a bridge method stands for override it only for the type arguments which the class was made with: the target may infer
+            // others ('Comparator<Node>' passed to a sort of 'Leaf[]' infers 'Comparator<Leaf>')
+            expression.setDiamondPossible(expression.isDiamondPossible() && !overridesWithABridgeMethod((ClassFileBodyDeclaration) expression.getBodyDeclaration()));
         }
 
         if ((visitingLambda || containsFunctionalExpression(parameters))
@@ -4553,6 +4557,10 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         int index = internalName.lastIndexOf('/');
 
         return index < 0 ? "" : internalName.substring(0, index);
+    }
+
+    private static boolean overridesWithABridgeMethod(ClassFileBodyDeclaration body) {
+        return Optional.ofNullable(body.getMethodDeclarations()).stream().flatMap(List::stream).anyMatch(declaration -> (declaration.getFlags() & ACC_BRIDGE) != 0);
     }
 
     private boolean declaresNewMethod(ClassFileBodyDeclaration body, ObjectType superType) {

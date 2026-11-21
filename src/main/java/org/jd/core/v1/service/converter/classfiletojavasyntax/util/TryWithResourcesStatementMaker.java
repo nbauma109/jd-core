@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
@@ -353,12 +352,17 @@ public final class TryWithResourcesStatementMaker {
         }
 
         if (resourceAssignment == null && closeInvocationInfo != null) {
-            AbstractLocalVariable closedVariable = closeInvocationInfo.localVariable;
-            // (the assignment is searched before the try, then in the try: the search removes it from where it is found. An unrelated assignment
-            // which follows an earlier one of the resource is an intervening statement: that one stays where it is)
-            resourceAssignment = Optional.ofNullable(unrelatedAssignment ? null : findResourceAssignmentInStatements(statements, closedVariable, true))
-                    .or(() -> Optional.ofNullable(findResourceAssignmentInTryStatements(tryStatements, closedVariable, true)))
-                    .orElse(null);
+            resourceAssignment = findResourceAssignmentInStatements(
+                    // (an unrelated assignment which follows an earlier one of the resource is an intervening statement: that one stays where it is)
+                    unrelatedAssignment ? new Statements() : statements,
+                    closeInvocationInfo.localVariable,
+                    true);
+        }
+        if (resourceAssignment == null && closeInvocationInfo != null) {
+            resourceAssignment = findResourceAssignmentInTryStatements(
+                    tryStatements,
+                    closeInvocationInfo.localVariable,
+                    true);
             if (resourceAssignment != null) {
                 lv1 = resourceAssignment.localVariable;
                 resourceExpression = resourceAssignment.expression;

@@ -29,10 +29,10 @@
 /*  29:   0 */
 /*  30:   0 */
 /*  31:   0 */
-/*  32:   0 */
-/*  33:   0 */
-/*  34:   0 */ public class TextEncoderHelper
-/*  35:   0 */ {
+/*  32:   0 */ public class TextEncoderHelper
+/*  33:   0 */ {
+/*  34:   0 */   private TextEncoderHelper() {}
+/*  35:   0 */
 /*  36:   0 */   static void encodeTextFallBack(Charset charset, StringBuilder text, ByteBufferDestination destination) {
 /*  37:  37 */     byte[] bytes = text.toString().getBytes(charset);
 /*  38:  38 */     destination.writeBytes(bytes, 0, bytes.length);

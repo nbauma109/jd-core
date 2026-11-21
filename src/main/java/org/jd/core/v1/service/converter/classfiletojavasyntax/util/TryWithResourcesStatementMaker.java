@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
@@ -349,16 +350,11 @@ public final class TryWithResourcesStatementMaker {
         }
 
         if (resourceAssignment == null && closeInvocationInfo != null) {
-            resourceAssignment = findResourceAssignmentInStatements(
-                    statements,
-                    closeInvocationInfo.localVariable,
-                    true);
-            if (resourceAssignment == null) {
-                resourceAssignment = findResourceAssignmentInTryStatements(
-                        tryStatements,
-                        closeInvocationInfo.localVariable,
-                        true);
-            }
+            AbstractLocalVariable closedVariable = closeInvocationInfo.localVariable;
+            // (the assignment is searched before the try, then in the try: the search removes it from where it is found)
+            resourceAssignment = Optional.ofNullable(findResourceAssignmentInStatements(statements, closedVariable, true))
+                    .or(() -> Optional.ofNullable(findResourceAssignmentInTryStatements(tryStatements, closedVariable, true)))
+                    .orElse(null);
             if (resourceAssignment != null) {
                 lv1 = resourceAssignment.localVariable;
                 resourceExpression = resourceAssignment.expression;

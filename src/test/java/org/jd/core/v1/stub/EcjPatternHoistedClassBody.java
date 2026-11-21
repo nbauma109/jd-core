@@ -42,4 +42,27 @@ public class EcjPatternHoistedClassBody {
         }
         return null;
     }
+
+    Object local(Object subject, Object other) {
+        if (subject instanceof String) {
+            Object value = ((Reference) other).binding;
+            if (value instanceof Holder) {
+                Holder holder = (Holder) value;
+                class Printer {
+                    void print() {
+                        System.out.println(holder.text);
+                    }
+                }
+                if (holder.text != null) {
+                    return new Printer();
+                }
+            }
+        } else if (subject instanceof Integer) {
+            Holder holder = ((Reference) other).holder;
+            if (holder.text == null) {
+                return null;
+            }
+        }
+        return null;
+    }
 }

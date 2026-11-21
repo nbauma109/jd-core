@@ -17,6 +17,14 @@ public class EcjPatternHoisted {
         String text;
     }
 
+    static class Wrapper {
+        final Holder holder;
+
+        Wrapper(Holder holder) {
+            this.holder = holder;
+        }
+    }
+
     static class Reference {
         Object binding;
         Holder holder;
@@ -34,7 +42,7 @@ public class EcjPatternHoisted {
         } else if (subject instanceof Integer) {
             Holder holder = ((Reference) other).holder;
             if (holder.text == null) {
-                return true;
+                return new Wrapper(holder).holder == null;
             }
             Holder holder1 = holder.text.isEmpty() ? holder : null;
             if (holder1 != null) {

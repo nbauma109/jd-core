@@ -340,6 +340,8 @@ public final class TryWithResourcesStatementMaker {
             return null;
         }
 
+        boolean unrelatedAssignment = false;
+
         if (lv1 != null && closeInvocationInfo.localVariable != lv1) {
             // The last assignment before the try is no one of the resource ('total = 0;' of the code which precedes the try-with-resources):
             // the assignment of the resource is the one of the variable which is closed
@@ -347,12 +349,14 @@ public final class TryWithResourcesStatementMaker {
             lv1 = null;
             resourceExpression = null;
             hasResourceDeclaration = false;
+            unrelatedAssignment = true;
         }
 
         if (resourceAssignment == null && closeInvocationInfo != null) {
             AbstractLocalVariable closedVariable = closeInvocationInfo.localVariable;
-            // (the assignment is searched before the try, then in the try: the search removes it from where it is found)
-            resourceAssignment = Optional.ofNullable(findResourceAssignmentInStatements(statements, closedVariable, true))
+            // (the assignment is searched before the try, then in the try: the search removes it from where it is found. An unrelated assignment
+            // which follows an earlier one of the resource is an intervening statement: that one stays where it is)
+            resourceAssignment = Optional.ofNullable(unrelatedAssignment ? null : findResourceAssignmentInStatements(statements, closedVariable, true))
                     .or(() -> Optional.ofNullable(findResourceAssignmentInTryStatements(tryStatements, closedVariable, true)))
                     .orElse(null);
             if (resourceAssignment != null) {

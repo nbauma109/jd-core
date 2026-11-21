@@ -28,7 +28,13 @@ public class EcjLoopExitFromSwitchTest extends AbstractJdTest {
 
         String source = printed.replaceAll("\\s+", " ");
 
-        assertTrue(printed, source.matches(".*(label\\d+): while \\(this.index < tokens.length\\).*break \\1;.*"));
+        int loop = source.indexOf(": while (this.index < tokens.length)");
+
+        assertTrue(printed, loop > 0);
+
+        String label = source.substring(source.lastIndexOf(' ', loop - 1) + 1, loop);
+
+        assertTrue(printed, source.contains("break " + label + ";"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjLoopExitFromSwitch", printed)));
     }
 }

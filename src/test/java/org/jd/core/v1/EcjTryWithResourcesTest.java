@@ -60,10 +60,10 @@ public class EcjTryWithResourcesTest extends AbstractJdTest {
         String printed;
 
         try (InputStream is = getClass().getResourceAsStream("/jar/ecj-try-with-resources-ecj-17.jar")) {
-            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
         }
 
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = printed.replaceAll("\\s+", " ");
 
         assertTrue(printed, source.contains("try (InputStream inputStream = source) { success = (inputStream.read() > 0); }"));
         assertFalse(printed, source.contains("addSuppressed"));

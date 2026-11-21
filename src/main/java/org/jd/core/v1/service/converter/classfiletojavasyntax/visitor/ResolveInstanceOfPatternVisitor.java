@@ -27,13 +27,16 @@ import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
 import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileInstanceOfPatternExpression;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Gives its name to the variable of 'o instanceof T v' and of 'case T v', once the local variables are named */
 public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVisitor {
+    private static final Pattern LOCAL_CLASS_NAME = Pattern.compile("\\$\\d");
+
     private final Set<String> reservedNames = new HashSet<>();
     /** The name and the type of the variables which the statements declare: the variables of the same name and type are merged into one when they are hoisted */
     private final Set<String> declaredVariables = new HashSet<>();
@@ -77,7 +80,9 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
              */
             @Override
             public void visit(NewExpression expression) {
-                int captures = expression.getBodyDeclaration() == null ? 0 : 1;
+                // (an anonymous class has a body, a local class is named 'Outer$1Local')
+                boolean localClass = LOCAL_CLASS_NAME.matcher(expression.getObjectType().getInternalName()).find();
+                int captures = expression.getBodyDeclaration() != null || localClass ? 1 : 0;
 
                 lambdaDepth += captures;
                 super.visit(expression);

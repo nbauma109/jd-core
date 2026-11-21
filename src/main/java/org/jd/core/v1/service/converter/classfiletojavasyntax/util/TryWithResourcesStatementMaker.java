@@ -353,12 +353,12 @@ public final class TryWithResourcesStatementMaker {
                     statements,
                     closeInvocationInfo.localVariable,
                     true);
-        }
-        if (resourceAssignment == null && closeInvocationInfo != null) {
-            resourceAssignment = findResourceAssignmentInTryStatements(
-                    tryStatements,
-                    closeInvocationInfo.localVariable,
-                    true);
+            if (resourceAssignment == null) {
+                resourceAssignment = findResourceAssignmentInTryStatements(
+                        tryStatements,
+                        closeInvocationInfo.localVariable,
+                        true);
+            }
             if (resourceAssignment != null) {
                 lv1 = resourceAssignment.localVariable;
                 resourceExpression = resourceAssignment.expression;

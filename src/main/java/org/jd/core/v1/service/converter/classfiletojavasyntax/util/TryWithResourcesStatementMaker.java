@@ -339,6 +339,15 @@ public final class TryWithResourcesStatementMaker {
             return null;
         }
 
+        if (lv1 != null && closeInvocationInfo.localVariable != lv1) {
+            // The last assignment before the try is no one of the resource ('total = 0;' of the code which precedes the try-with-resources):
+            // the assignment of the resource is the one of the variable which is closed
+            resourceAssignment = null;
+            lv1 = null;
+            resourceExpression = null;
+            hasResourceDeclaration = false;
+        }
+
         if (resourceAssignment == null && closeInvocationInfo != null) {
             resourceAssignment = findResourceAssignmentInStatements(
                     statements,

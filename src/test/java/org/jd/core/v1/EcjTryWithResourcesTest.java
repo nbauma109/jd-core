@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -23,10 +23,10 @@ public class EcjTryWithResourcesTest extends AbstractJdTest {
         String printed;
 
         try (InputStream is = getClass().getResourceAsStream("/jar/ecj-try-with-resources-ecj-17.jar")) {
-            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
         }
 
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = printed.replaceAll("\\s+", " ");
 
         // ECJ keeps the exception which the resource may throw in a slot which the code before the try and the handlers see as two variables: its
         // null assignment is no statement of the source
@@ -40,10 +40,10 @@ public class EcjTryWithResourcesTest extends AbstractJdTest {
         String printed;
 
         try (InputStream is = getClass().getResourceAsStream("/jar/ecj-try-with-resources-ecj-17.jar")) {
-            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTryWithResources");
         }
 
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = printed.replaceAll("\\s+", " ");
 
         // the exception temporaries and the handler of the Eclipse compiler are no statements of the source
         assertFalse(printed, source.contains("exception1"));

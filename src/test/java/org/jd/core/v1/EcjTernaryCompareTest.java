@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ZipLoader;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -23,10 +23,10 @@ public class EcjTernaryCompareTest extends AbstractJdTest {
         String printed;
 
         try (InputStream is = getClass().getResourceAsStream("/jar/ecj-ternary-compare-ecj-17.jar")) {
-            printed = decompileSuccess(new ZipLoader(is), new PlainTextPrinter(), "org/jd/core/v1/stub/EcjTernaryCompare");
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTernaryCompare");
         }
 
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = printed.replaceAll("\\s+", " ");
 
         assertFalse(printed, source.contains("== true"));
         assertTrue(printed, source.contains(".id) == 1)"));

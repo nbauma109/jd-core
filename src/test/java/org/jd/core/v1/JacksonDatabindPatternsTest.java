@@ -9,7 +9,7 @@ package org.jd.core.v1;
 
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
 
 import java.util.Map;
@@ -18,7 +18,7 @@ import java.util.Map;
 public class JacksonDatabindPatternsTest extends AbstractJdTest {
 
     private String decompile(String internalClassName, String source) throws Exception {
-        String decompiled = decompileSuccess(RestoreMethodReferenceTest.compileForJava8("-g", Map.of(internalClassName, source)), new PlainTextPrinter(), internalClassName);
+        String decompiled = decompileSuccess(RestoreMethodReferenceTest.compileForJava8("-g", Map.of(internalClassName, source)), new NoLineNumberPrinter(), internalClassName);
 
         assertTrue(decompiled, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, decompiled)));
         return decompiled;
@@ -54,7 +54,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        return bean;",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         // the declaration is before the first assignment, not before the loop
         assertTrue(source, normalized.indexOf("String propName;") < normalized.indexOf("propName = p.nextFieldName();"));
@@ -77,7 +77,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        return gen.forScope(scope);",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         // the class is not cast to a raw type to make T the type of the variable: the result is cast instead
         assertFalse(source, normalized.contains("(Class)"));
@@ -128,7 +128,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        return null;",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.contains("wrapAndThrow(e, propName); continue; }"));
         // the update of the loop is the one of its header: it is not copied before the 'continue'
@@ -167,7 +167,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        }",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.contains("target.put(name, value);"));
         assertTrue(source, normalized.contains("name = next(pos))"));
@@ -207,7 +207,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        } while (curr != null);",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         // 'break' of the loop is followed by the poll, 'continue' of the 'do' skips it
         int continued = normalized.indexOf("case 1: ");
@@ -257,7 +257,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "    @SuppressWarnings(\"unchecked\")",
                 "    static void mergeAll(Map<?, ?> target, Map<String, Integer> source) { merge((Map<String, Integer>) target, source); }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.contains("(Class<? extends Annotation>[])new Class<?>[]"));
         assertTrue(source, normalized.contains("(Constructor<Calendar>)"));
@@ -282,7 +282,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "    @SuppressWarnings(\"unchecked\")",
                 "    Object create(Ser<?> ser) { return new Coll(true, (Ser<Object>) ser); }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.contains("new Coll(true, (Ser)ser)") || normalized.contains("new Coll(true, (Ser<Object>)ser)"));
     }
@@ -315,7 +315,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        }",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.indexOf("int rowLength;") < normalized.indexOf("try {"));
     }
@@ -342,7 +342,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "    Class<N> handled() { return null; }",
                 "    static Ser<?> wildcard(Ser<?> ser) { return ser; }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertFalse(source, normalized.contains("(Class<Object>)"));
         assertFalse(source, normalized.contains("(Constructor<"));
@@ -366,7 +366,7 @@ public class JacksonDatabindPatternsTest extends AbstractJdTest {
                 "        }",
                 "    }",
                 "}"));
-        String normalized = source.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String normalized = source.replaceAll("\\s+", " ");
 
         assertTrue(source, normalized.contains("pos++"));
         assertTrue(source, normalized.contains("use(4);"));

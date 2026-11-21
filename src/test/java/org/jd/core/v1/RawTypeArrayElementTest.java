@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
 
 public class RawTypeArrayElementTest extends AbstractJdTest {
@@ -19,8 +19,8 @@ public class RawTypeArrayElementTest extends AbstractJdTest {
     @Test
     public void testTheCastOfTheResultOfAnElementOfAnArrayOfRawTypesIsKept() throws Exception {
         String internalClassName = RawTypeArrayElement.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
+        String source = printed.replaceAll("\\s+", " ");
 
         assertTrue(printed, source.contains("(String)this.synthetics[1].get(key)"));
         assertTrue(printed, source.contains("(String[])this.synthetics[0].get(key)"));

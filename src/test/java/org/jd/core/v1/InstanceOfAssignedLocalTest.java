@@ -10,7 +10,7 @@ package org.jd.core.v1;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
 
 import java.util.LinkedHashMap;
@@ -24,10 +24,10 @@ public class InstanceOfAssignedLocalTest extends AbstractJdTest {
 
     private String decompile() throws Exception {
         String internalClassName = InstanceOfAssignedLocal.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
 
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
-        return printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        return printed.replaceAll("\\s+", " ");
     }
 
     /** What the source of each method of the fixture says, by the case which it is */

@@ -10,12 +10,17 @@ import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.FormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.LocalVariableDeclarator;
+import org.jd.core.v1.model.javasyntax.statement.LocalVariableDeclarationStatement;
+import org.jd.core.v1.model.javasyntax.type.Type;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.model.javasyntax.expression.LocalVariableReferenceExpression;
 import org.jd.core.v1.model.javasyntax.statement.BaseStatement;
 import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
+import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
+import org.jd.core.v1.model.javasyntax.expression.NewExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
@@ -30,11 +35,17 @@ import java.util.List;
 /** Gives its name to the variable of 'o instanceof T v' and of 'case T v', once the local variables are named */
 public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVisitor {
     private final Set<String> reservedNames = new HashSet<>();
+    /** The name and the type of the variables which the statements declare: the variables of the same name and type are merged into one when they are hoisted */
+    private final Set<String> declaredVariables = new HashSet<>();
+    /** The names which the lambdas and the constructors of the method use: the body of a lambda keeps the name which its captured variable had when it was made */
+    private final Set<String> capturedNames = new HashSet<>();
     private int unusedCount;
 
     /** The names of the parameters and of the variables of the method: a pattern which binds no variable is named by none of them */
     public void reserveNamesOf(BaseStatement statements, BaseFormalParameter parameters) {
         reservedNames.clear();
+        declaredVariables.clear();
+        capturedNames.clear();
         unusedCount = 0;
 
         AbstractJavaSyntaxVisitor collector = new AbstractJavaSyntaxVisitor() {
@@ -50,8 +61,42 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
             }
 
             @Override
+            public void visit(LocalVariableDeclarationStatement statement) {
+                for (LocalVariableDeclarator declarator : statement.getLocalVariableDeclarators()) {
+                    declaredVariables.add(declaredKey(declarator.getName(), statement.getType()));
+                }
+                super.visit(statement);
+            }
+
+            /** The depth in the lambdas and in the arguments of a constructor, where the references are captures */
+            private int lambdaDepth;
+
+            /**
+             * The variables which an anonymous or a local class captures are passed to its constructor and are fields of the class: they cannot be
+             * renamed, and the arguments of a constructor may be such variables
+             */
+            @Override
+            public void visit(NewExpression expression) {
+                lambdaDepth++;
+                super.visit(expression);
+                lambdaDepth--;
+            }
+
+            /** The parameters of a lambda are names too, which its body may not use for the binding of a pattern, whether it uses them or not */
+            @Override
+            public void visit(LambdaIdentifiersExpression expression) {
+                reservedNames.addAll(expression.getParameterNames());
+                lambdaDepth++;
+                super.visit(expression);
+                lambdaDepth--;
+            }
+
+            @Override
             public void visit(LocalVariableReferenceExpression expression) {
                 reservedNames.add(expression.getName());
+                if (lambdaDepth > 0) {
+                    capturedNames.add(expression.getName());
+                }
             }
 
             /** The variable of a pattern whose binding was removed has no declarator and no reference left, but its name is taken */
@@ -87,12 +132,37 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
     @Override
     protected Expression updateExpression(Expression expression) {
         if (expression instanceof ClassFileInstanceOfPatternExpression pattern && pattern.getLocalVariable() != null && pattern.getLocalVariable().getName() != null) {
-            return new InstanceOfExpression(pattern.getLineNumber(), pattern.getExpression(), pattern.getInstanceOfType(), pattern.getLocalVariable().getName(), false);
+            return new InstanceOfExpression(pattern.getLineNumber(), pattern.getExpression(), pattern.getInstanceOfType(), bindingName(pattern), false);
         }
         if (expression instanceof SwitchExpression switchExpression) {
             return resolve(switchExpression);
         }
         return expression;
+    }
+
+    /**
+     * The binding of a pattern may not have the name of a variable of the method which is declared in the scope of the pattern: the variables of the same
+     * name and type which different branches declare are one variable, declared before the branches, once they are hoisted.
+     */
+    private String bindingName(ClassFileInstanceOfPatternExpression pattern) {
+        AbstractLocalVariable variable = pattern.getLocalVariable();
+        String name = variable.getName();
+
+        if (declaredVariables.contains(declaredKey(name, pattern.getInstanceOfType())) && !capturedNames.contains(name)) {
+            int count = 1;
+
+            while (reservedNames.contains(name + count)) {
+                count++;
+            }
+            name += count;
+            reservedNames.add(name);
+            variable.setName(name);
+        }
+        return name;
+    }
+
+    private static String declaredKey(String name, Type type) {
+        return name + '\0' + type.getDescriptor();
     }
 
     /** A pattern switch which a rule yields after other statements ('yield switch (b) { case String t -> ... }') is resolved like the one which a rule gives */

@@ -1007,7 +1007,7 @@ public class StatementMaker {
         statements.remove(statements.size() - 1);
 
         stack.copy(entryStack);
-        stack.push(switchExpression);
+        stack.push(SwitchStatementMaker.makeSwitchEnum(bodyDeclaration, switchExpression, typeMaker));
         return true;
     }
 

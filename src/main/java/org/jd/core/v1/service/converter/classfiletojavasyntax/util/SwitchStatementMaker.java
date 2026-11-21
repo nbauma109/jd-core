@@ -9,6 +9,7 @@ package org.jd.core.v1.service.converter.classfiletojavasyntax.util;
 
 import org.jd.core.v1.model.javasyntax.expression.EnumConstantReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
+import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.expression.FieldReferenceExpression;
 import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
@@ -161,41 +162,83 @@ public final class SwitchStatementMaker {
     }
 
     public static void makeSwitchEnum(ClassFileBodyDeclaration bodyDeclaration, SwitchStatement switchStatement, TypeMaker typeMaker) {
-        Expression expression = switchStatement.getCondition().getExpression();
+        Iterator<Statement> iterator = searchEnumMapStatements(bodyDeclaration, switchStatement.getCondition().getExpression(), typeMaker);
 
-        if (expression.isFieldReferenceExpression()) {
-            FieldReferenceExpression fre = (FieldReferenceExpression)expression;
+        if (iterator != null) {
+            updateSwitchStatement(switchStatement, iterator);
+        }
+    }
 
-            if ("[I".equals(fre.getDescriptor()) && fre.getName().startsWith("$SwitchMap$")) {
-                ClassFileTypeDeclaration syntheticClassDeclaration = bodyDeclaration.getInnerTypeDeclaration(fre.getInternalTypeName());
+    /** The same with a switch expression, whose selector is final: a new switch expression on the enum is returned */
+    public static SwitchExpression makeSwitchEnum(ClassFileBodyDeclaration bodyDeclaration, SwitchExpression switchExpression, TypeMaker typeMaker) {
+        Expression selector = switchExpression.getSelector();
+        Iterator<Statement> iterator = selector.isArrayExpression() ? searchEnumMapStatements(bodyDeclaration, selector.getExpression(), typeMaker) : null;
 
-                if (syntheticClassDeclaration != null) {
-                    // Javac switch-enum pattern
-                    bodyDeclaration = (ClassFileBodyDeclaration) syntheticClassDeclaration.getBodyDeclaration();
-                    ClassFileConstructorOrMethodDeclaration methodDeclaration = bodyDeclaration.getMethodDeclarations().get(0);
-                    if (methodDeclaration.getStatements() == null) {
-                        CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
-                        createInstructionsVisitor.createParametersVariablesAndStatements(methodDeclaration, false);
-                    }
-                    DefaultList<Statement> statements = methodDeclaration.getStatements().getList();
-                    updateSwitchStatement(switchStatement, searchSwitchMap(fre, statements.iterator()));
-                }
-            }
-        } else if (expression.isMethodInvocationExpression()) {
-            MethodInvocationExpression mie = (MethodInvocationExpression)expression;
-            String methodName = mie.getName();
+        if (iterator == null) {
+            return switchExpression;
+        }
 
-            if ("()[I".equals(mie.getDescriptor()) && methodName.startsWith("$SWITCH_TABLE$")) {
-                // Eclipse compiler switch-enum pattern
-                for (ClassFileConstructorOrMethodDeclaration declaration : bodyDeclaration.getMethodDeclarations()) {
-                     if (declaration.getMethod().getName().equals(methodName)) {
-                         DefaultList<Statement> statements = declaration.getStatements().getList();
-                         updateSwitchStatement(switchStatement, skipLeadingNonTryStatements(statements));
-                         break;
-                     }
+        Map<Integer, String> map = readEnumMap(iterator);
+        Expression enumExpression = selector.getIndex().getExpression();
+        ObjectType type = (ObjectType) enumExpression.getType();
+
+        for (SwitchExpression.Rule rule : switchExpression.getRules()) {
+            for (SwitchExpression.Label label : rule.getLabels()) {
+                if (label != SwitchExpression.DEFAULT_LABEL) {
+                    SwitchExpression.ExpressionLabel el = (SwitchExpression.ExpressionLabel) label;
+                    IntegerConstantExpression ice = (IntegerConstantExpression) el.getExpression();
+                    el.setExpression(new EnumConstantReferenceExpression(ice.getLineNumber(), type, map.get(ice.getIntegerValue())));
                 }
             }
         }
+
+        return new SwitchExpression(switchExpression.getLineNumber(), enumExpression, switchExpression.getRules(), switchExpression.getType());
+    }
+
+    /** @return the statements which fill the map of the ordinals of the enum, null if the expression is not the one of a switch on an enum */
+    private static Iterator<Statement> searchEnumMapStatements(ClassFileBodyDeclaration bodyDeclaration, Expression expression, TypeMaker typeMaker) {
+        if (expression.isFieldReferenceExpression()) {
+            return searchJavacEnumMapStatements(bodyDeclaration, (FieldReferenceExpression)expression, typeMaker);
+        }
+        if (expression.isMethodInvocationExpression()) {
+            return searchEclipseEnumMapStatements(bodyDeclaration, (MethodInvocationExpression)expression);
+        }
+        return null;
+    }
+
+    private static Iterator<Statement> searchJavacEnumMapStatements(ClassFileBodyDeclaration bodyDeclaration, FieldReferenceExpression fre, TypeMaker typeMaker) {
+        if (!"[I".equals(fre.getDescriptor()) || !fre.getName().startsWith("$SwitchMap$")) {
+            return null;
+        }
+
+        ClassFileTypeDeclaration syntheticClassDeclaration = bodyDeclaration.getInnerTypeDeclaration(fre.getInternalTypeName());
+
+        if (syntheticClassDeclaration == null) {
+            return null;
+        }
+
+        ClassFileBodyDeclaration syntheticBodyDeclaration = (ClassFileBodyDeclaration) syntheticClassDeclaration.getBodyDeclaration();
+        ClassFileConstructorOrMethodDeclaration methodDeclaration = syntheticBodyDeclaration.getMethodDeclarations().get(0);
+        if (methodDeclaration.getStatements() == null) {
+            CreateInstructionsVisitor createInstructionsVisitor = new CreateInstructionsVisitor(typeMaker);
+            createInstructionsVisitor.createParametersVariablesAndStatements(methodDeclaration, false);
+        }
+        return searchSwitchMap(fre, methodDeclaration.getStatements().getList().iterator());
+    }
+
+    private static Iterator<Statement> searchEclipseEnumMapStatements(ClassFileBodyDeclaration bodyDeclaration, MethodInvocationExpression mie) {
+        String methodName = mie.getName();
+
+        if (!"()[I".equals(mie.getDescriptor()) || !methodName.startsWith("$SWITCH_TABLE$")) {
+            return null;
+        }
+
+        for (ClassFileConstructorOrMethodDeclaration declaration : bodyDeclaration.getMethodDeclarations()) {
+            if (declaration.getMethod().getName().equals(methodName)) {
+                return skipLeadingNonTryStatements(declaration.getStatements().getList());
+            }
+        }
+        return null;
     }
 
     private static Iterator<Statement> skipLeadingNonTryStatements(DefaultList<Statement> statements) {
@@ -227,7 +270,7 @@ public final class SwitchStatementMaker {
         return iterator;
     }
 
-    private static void updateSwitchStatement(SwitchStatement switchStatement, Iterator<Statement> iterator) {
+    private static Map<Integer, String> readEnumMap(Iterator<Statement> iterator) {
         // Create map<synthetic index -> enum name>
         Map<Integer, String> map = new HashMap<>();
 
@@ -282,6 +325,12 @@ public final class SwitchStatementMaker {
 
             map.put(index, name);
         }
+
+        return map;
+    }
+
+    private static void updateSwitchStatement(SwitchStatement switchStatement, Iterator<Statement> iterator) {
+        Map<Integer, String> map = readEnumMap(iterator);
 
         // Replace synthetic index by enum name
         Expression expression = switchStatement.getCondition().getIndex().getExpression();

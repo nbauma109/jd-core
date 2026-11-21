@@ -73,13 +73,15 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
 
             /**
              * The variables which an anonymous or a local class captures are passed to its constructor and are fields of the class: they cannot be
-             * renamed, and the arguments of a constructor may be such variables
+             * renamed. The arguments of the constructor of another class are no captures.
              */
             @Override
             public void visit(NewExpression expression) {
-                lambdaDepth++;
+                int captures = expression.getBodyDeclaration() == null ? 0 : 1;
+
+                lambdaDepth += captures;
                 super.visit(expression);
-                lambdaDepth--;
+                lambdaDepth -= captures;
             }
 
             /** The parameters of a lambda are names too, which its body may not use for the binding of a pattern, whether it uses them or not */

@@ -19,6 +19,7 @@ import org.jd.core.v1.model.javasyntax.statement.ForEachStatement;
 import org.jd.core.v1.model.javasyntax.statement.TryStatement;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.InstanceOfExpression;
+import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.SwitchExpression;
 import org.jd.core.v1.model.javasyntax.pattern.TypePattern;
 import org.jd.core.v1.model.javasyntax.statement.SwitchStatement;
@@ -35,12 +36,15 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
     private final Set<String> reservedNames = new HashSet<>();
     /** The name and the type of the variables which the statements declare: the variables of the same name and type are merged into one when they are hoisted */
     private final Set<String> declaredVariables = new HashSet<>();
+    /** The names which the lambdas of the method use: the body of a lambda keeps the name which its captured variable had when it was made */
+    private final Set<String> capturedNames = new HashSet<>();
     private int unusedCount;
 
     /** The names of the parameters and of the variables of the method: a pattern which binds no variable is named by none of them */
     public void reserveNamesOf(BaseStatement statements, BaseFormalParameter parameters) {
         reservedNames.clear();
         declaredVariables.clear();
+        capturedNames.clear();
         unusedCount = 0;
 
         AbstractJavaSyntaxVisitor collector = new AbstractJavaSyntaxVisitor() {
@@ -63,9 +67,21 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
                 super.visit(statement);
             }
 
+            private int lambdaDepth;
+
+            @Override
+            public void visit(LambdaIdentifiersExpression expression) {
+                lambdaDepth++;
+                super.visit(expression);
+                lambdaDepth--;
+            }
+
             @Override
             public void visit(LocalVariableReferenceExpression expression) {
                 reservedNames.add(expression.getName());
+                if (lambdaDepth > 0) {
+                    capturedNames.add(expression.getName());
+                }
             }
 
             /** The variable of a pattern whose binding was removed has no declarator and no reference left, but its name is taken */
@@ -117,7 +133,7 @@ public class ResolveInstanceOfPatternVisitor extends AbstractUpdateExpressionVis
         AbstractLocalVariable variable = pattern.getLocalVariable();
         String name = variable.getName();
 
-        if (declaredVariables.contains(declaredKey(name, pattern.getInstanceOfType()))) {
+        if (declaredVariables.contains(declaredKey(name, pattern.getInstanceOfType())) && !capturedNames.contains(name)) {
             int count = 1;
 
             while (reservedNames.contains(name + count)) {

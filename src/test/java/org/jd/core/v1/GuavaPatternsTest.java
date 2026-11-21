@@ -11,7 +11,7 @@ import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
 import org.jd.core.v1.api.loader.Loader;
 import org.jd.core.v1.loader.ClassPathLoader;
-import org.jd.core.v1.printer.PlainTextPrinter;
+import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.jd.core.v1.stub.GuavaOuter;
 import org.jd.core.v1.stub.GuavaPatterns;
 import org.jd.core.v1.stub.BoundedBindings;
@@ -31,7 +31,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void test() throws Exception {
         String internalClassName = GuavaPatterns.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
 
         assertEquals(-1, source.indexOf("ErrorThrower<RuntimeException>"));
         assertEquals(-1, source.indexOf("null."));
@@ -45,7 +45,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testInnerClassOfTheSuperclass() throws Exception {
         String internalClassName = GuavaSub.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
 
         assertEquals(-1, source.indexOf("(this,"));
         assertTrue(source.contains("new GuavaOuter.Wrapped(key, value)"));
@@ -55,8 +55,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testTypeAnnotationsOfWholeTypes() throws Exception {
         String internalClassName = TypeAnnotationPatterns.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
+        String source = printed.replaceAll("\\s+", " ");
 
         assertTrue(source.contains("class TypeAnnotationPatterns<T extends @Maybe Object>"));
         assertTrue(source.contains("<U extends @Maybe Object> U first(U value)"));
@@ -92,7 +92,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testLocalClassIsDeclaredBeforeWhatNeedsItAfterTheBlockOfItsOnlyInstance() throws Exception {
         String internalClassName = LocalClassPlacement.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName).replaceAll("\\s+", " ");
 
         // a field of the class in another local class, a bound, the declaration of a 'for' statement, an implements clause, a catch, type arguments, a constructor reference
         assertDeclaredBeforeTheBlock(source, "itemInTheSignatureOfAnotherLocalClass(", "Item");
@@ -112,7 +112,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testFieldOfTheSuperclassHiddenByAField() throws Exception {
         String internalClassName = GuavaPatterns.class.getName().replace('.', '/') + "$HiddenFieldDerived";
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName).replaceAll("\\s+", " ");
 
         assertTrue(source, source.contains("super.count"));
     }
@@ -133,7 +133,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
                 return internalName.equals(wrapped) ? new byte[] {1, 2, 3} : delegate.load(internalName);
             }
         };
-        String source = decompileSuccess(loader, new PlainTextPrinter(), GuavaSub.class.getName().replace('.', '/')).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = decompileSuccess(loader, new NoLineNumberPrinter(), GuavaSub.class.getName().replace('.', '/')).replaceAll("\\s+", " ");
 
         // the outer instance is written once, as the qualifier, or not at all
         assertFalse(source, source.contains(".new Wrapped(this,") || source.contains(".new GuavaOuter.Wrapped(this,"));
@@ -142,7 +142,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testFieldTwoLevelsUpHiddenByTheFieldsBetween() throws Exception {
         String internalClassName = GuavaPatterns.class.getName().replace('.', '/') + "$FieldC";
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName).replaceAll("\\s+", " ");
 
         assertFalse(source, source.contains("super.x"));
         assertTrue(source, source.contains("(FieldA)this).x") || source.contains("(GuavaPatterns.FieldA)this).x"));
@@ -151,7 +151,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testUpdateOfALoopWhoseInnerLoopEndsWithABreak() throws Exception {
         String internalClassName = LoopUpdates.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName).replaceAll("\\s+", " ");
 
         // each outer 'for' keeps its update, or its loop would never end
         assertFalse(source, source.contains("; )"));
@@ -166,8 +166,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testSynchronizedBlockWhichReturnsInATryWithAFinally() throws Exception {
         String internalClassName = SynchronizedReturns.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
+        String source = printed.replaceAll("\\s+", " ");
 
         // the block is not taken for the copy of the 'finally' and removed with it
         assertTrue(source, source.contains("try { synchronized ("));
@@ -183,7 +183,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testTypeVariablesOutsideTheirBoundsAreBoundToTheirBounds() throws Exception {
         String internalClassName = BoundedBindings.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
 
         assertEquals(printed, -1, printed.indexOf("throw null"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
@@ -192,8 +192,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testCallsWhoseTypeArgumentsTheBytecodeDoesNotKeep() throws Exception {
         String internalClassName = InferenceLimits.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
+        String source = printed.replaceAll("\\s+", " ");
 
         assertTrue(source, source.contains("((Value)values.get(\"key\")).answer()") || source.contains("((Value) values.get(\"key\")).answer()"));
         assertTrue(source, source.contains("((Value)pair.pick(value)).answer()") || source.contains("((Value) pair.pick(value)).answer()") || source.contains("pair.<Value>pick(value).answer()"));
@@ -221,7 +221,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testLocalClassOfAnInitializerUsedOnlyByALambda() throws Exception {
         String internalClassName = InitializerLocals.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
 
         // the lambda is written after the initializer which holds the class: it is the initializer which declares it
         assertTrue(printed, printed.replaceAll("\\s+", " ").contains("class OfTheStaticInitializer"));
@@ -231,8 +231,8 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testFinallyAroundALoopWhoseCatchSetsTheFlagOfTheFinally() throws Exception {
         String internalClassName = FinallyAroundALoop.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
-        String source = printed.replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
+        String source = printed.replaceAll("\\s+", " ");
 
         // the flag set by the 'catch' is the one the 'finally' tests: the 'finally' is the one of the loop, not of one of its iterations
         assertTrue(source, source.contains("try { while (true) { try { return future.get(); } catch (InterruptedException e) { interrupted = true; } } } finally {"));
@@ -244,7 +244,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testFieldOfAGenericGrandparentIsReachedThroughTheParameterizedOwner() throws Exception {
         String internalClassName = InheritedGenericField.class.getName().replace('.', '/');
-        String printed = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName);
+        String printed = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName);
 
         assertTrue(printed, printed.replaceAll("\\s+", " ").contains("A<K, V>)this).value") || printed.replaceAll("\\s+", " ").contains("A<K, V>) this).value"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject(internalClassName, printed)));
@@ -253,7 +253,7 @@ public class GuavaPatternsTest extends AbstractJdTest {
     @Test
     public void testTypeAnnotationOfARecordComponent() throws Exception {
         String internalClassName = TypeAnnotationRecord.class.getName().replace('.', '/');
-        String source = decompileSuccess(new ClassPathLoader(), new PlainTextPrinter(), internalClassName).replaceAll("/\\*[^*]*\\*/", "").replaceAll("\\s+", " ");
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), internalClassName).replaceAll("\\s+", " ");
 
         assertTrue(source, source.contains("@Maybe Object value"));
     }

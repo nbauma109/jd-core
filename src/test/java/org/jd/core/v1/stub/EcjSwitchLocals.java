@@ -28,6 +28,8 @@ public class EcjSwitchLocals {
                                 return u + v;
                             case 2:
                                 return u;
+                            default:
+                                break;
                         }
                         break;
                     case 2:
@@ -38,6 +40,8 @@ public class EcjSwitchLocals {
                             }
                             return glb[0];
                         }
+                        break;
+                    default:
                         break;
                 }
             } else {
@@ -51,6 +55,8 @@ public class EcjSwitchLocals {
                             return null;
                         }
                         return glb[0];
+                    default:
+                        break;
                 }
             }
         } else if (u.length() > 3) {
@@ -64,6 +70,8 @@ public class EcjSwitchLocals {
                         return null;
                     }
                     return glb[0];
+                default:
+                    break;
             }
         }
         return v;

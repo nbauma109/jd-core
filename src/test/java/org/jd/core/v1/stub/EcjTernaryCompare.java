@@ -34,6 +34,9 @@ public class EcjTernaryCompare {
                 if ((dim == 0 ? mecs[0].id : mecs[0].leaf().id) == OBJECT) {
                     return mecs[1];
                 }
+                break;
+            default:
+                break;
         }
         return null;
     }

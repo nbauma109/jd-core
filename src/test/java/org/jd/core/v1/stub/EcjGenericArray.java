@@ -15,10 +15,10 @@ import java.util.function.Function;
  */
 public class EcjGenericArray {
     static <T extends CharSequence> T[] filterValid(long first, T[] all, double second, Function<Integer, T[]> ctor) {
-        T[] valid = ctor.apply(all.length);
+        T[] valid = ctor.apply(all.length + (int) (first + second));
         int count = 0;
         for (T type : all) {
-            if (type.length() > 0) {
+            if (!type.isEmpty()) {
                 valid[count++] = type;
             }
         }

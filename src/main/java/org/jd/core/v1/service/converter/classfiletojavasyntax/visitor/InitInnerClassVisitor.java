@@ -357,34 +357,6 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     }
 
     /** The variables which the initializers of an anonymous class read are the last arguments: the parameters which read them have their names, and they are no arguments */
-    private static void removeCapturedArguments(ClassFileNewExpression ne, List<AbstractLocalVariable> captured) {
-        BaseExpression parameters = ne.getParameters();
-
-        if (captured == null || parameters == null) {
-            return;
-        }
-
-        List<Expression> arguments = parameters.isList() ? parameters.getList() : List.of(parameters.getFirst());
-        int first = arguments.size() - captured.size();
-
-        for (int i = 0; i < captured.size(); i++) {
-            Expression argument = arguments.get(first + i);
-
-            if (argument.isLocalVariableReferenceExpression()) {
-                captured.get(i).setName(argument.getName());
-            }
-        }
-        if (parameters.isList()) {
-            int size = arguments.size();
-
-            arguments.subList(first, size).clear();
-            ne.getParameterTypes().getList().subList(first, size).clear();
-        } else {
-            ne.setParameters(null);
-            ne.setParameterTypes(null);
-        }
-    }
-
     private static boolean isMandatedOuterParameter(ClassFile classFile, Method constructor) {
         if (classFile.getMajorVersion() < MAJOR_VERSION_MANDATED_PARAMETERS) {
             // javac 18-20 drop the unused outer instance without describing the parameter
@@ -1020,6 +992,34 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
 
             safeAccept(expression.getParameters());
+        }
+
+        private void removeCapturedArguments(ClassFileNewExpression ne, List<AbstractLocalVariable> captured) {
+            BaseExpression parameters = ne.getParameters();
+
+            if (captured == null || parameters == null) {
+                return;
+            }
+
+            List<Expression> arguments = parameters.isList() ? parameters.getList() : List.of(parameters.getFirst());
+            int first = arguments.size() - captured.size();
+
+            for (int i = 0; i < captured.size(); i++) {
+                Expression argument = arguments.get(first + i);
+
+                if (argument.isLocalVariableReferenceExpression()) {
+                    captured.get(i).setName(argument.getName());
+                }
+            }
+            if (parameters.isList()) {
+                int size = arguments.size();
+
+                arguments.subList(first, size).clear();
+                ne.getParameterTypes().getList().subList(first, size).clear();
+            } else {
+                ne.setParameters(null);
+                ne.setParameterTypes(null);
+            }
         }
 
         /**

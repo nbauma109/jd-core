@@ -16,7 +16,7 @@ import java.io.InputStream;
  */
 public class EcjTwoResources {
     static class Archive implements AutoCloseable {
-        InputStream open(String name) throws IOException {
+        InputStream open(String name) {
             return new ByteArrayInputStream(name.getBytes());
         }
 
@@ -29,8 +29,7 @@ public class EcjTwoResources {
     InputStream read(String name) throws IOException {
         try (Archive archive = new Archive();
                 InputStream input = archive.open(name)) {
-            ByteArrayInputStream buffer = new ByteArrayInputStream(input.readAllBytes());
-            return buffer;
+            return new ByteArrayInputStream(input.readAllBytes());
         }
     }
 }

@@ -47,6 +47,7 @@ import org.jd.core.v1.model.javasyntax.statement.ForStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfElseStatement;
 import org.jd.core.v1.model.javasyntax.statement.IfStatement;
 import org.jd.core.v1.model.javasyntax.statement.ReturnExpressionStatement;
+import org.jd.core.v1.model.javasyntax.statement.YieldExpressionStatement;
 import org.jd.core.v1.model.javasyntax.statement.WhileStatement;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
 import org.jd.core.v1.model.javasyntax.type.InnerObjectType;
@@ -93,6 +94,8 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
     protected static final ObjectTypeReferenceExpression TYPE_INTEGER_REFERENCE = new ObjectTypeReferenceExpression(ObjectType.TYPE_INTEGER);
 
     private Type returnedType;
+    /** The type of the switch expression whose rules yield the constants */
+    private Type yieldedType;
 
     static {
         BaseType c  = TYPE_CHAR;
@@ -145,6 +148,15 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
     public void visit(WhileStatement statement) {
         statement.setCondition(updateBooleanExpression(statement.getCondition()));
         safeAccept(statement.getStatements());
+    }
+
+    @Override
+    public void visit(YieldExpressionStatement statement) {
+        if (yieldedType.isPrimitiveType()) {
+            statement.setExpression(updateExpression(yieldedType, statement.getExpression()));
+        } else {
+            statement.getExpression().accept(this);
+        }
     }
 
     @Override
@@ -300,7 +312,9 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
     @Override
     public void visit(SwitchExpression expression) {
         Type type = expression.getType();
+        Type previousYieldedType = yieldedType;
 
+        yieldedType = type;
         expression.getSelector().accept(this);
         for (SwitchExpression.Rule rule : expression.getRules()) {
             if (rule instanceof SwitchExpression.RuleExpression ruleExpression) {
@@ -313,6 +327,7 @@ public class UpdateIntegerConstantTypeVisitor extends AbstractJavaSyntaxVisitor 
                 ruleStatement.getStatements().accept(this);
             }
         }
+        yieldedType = previousYieldedType;
     }
 
     @Override

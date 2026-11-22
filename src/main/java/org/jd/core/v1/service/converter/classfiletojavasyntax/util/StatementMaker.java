@@ -14,6 +14,8 @@ import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.model.javasyntax.declaration.FieldDeclarator;
 import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
+import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
+import org.jd.core.v1.model.javasyntax.expression.LambdaIdentifiersExpression;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -535,15 +537,29 @@ public class StatementMaker {
 
     /** A 'return' cannot leave a switch expression: the ones of its rules, which come from the values left on the stack, are 'yield' */
     private static void replaceReturnsWithYields(Statements statements) {
-        for (int i = 0; i < statements.size(); i++) {
-            Statement statement = statements.get(i);
+        statements.accept(new ReturnsToYields());
+    }
 
-            if (statement instanceof ReturnExpressionStatement returned) {
-                statements.set(i, new YieldExpressionStatement(returned.getLineNumber(), returned.getExpression()));
-            } else if (statement instanceof IfStatement ifStatement) {
-                // (the statements of the body of a statement 'if' made by this class are a list)
-                replaceReturnsWithYields((Statements) ifStatement.getStatements());
+    /** A 'return' of a rule of a switch expression is a 'yield', wherever it is in the rule: in a loop, in a branch of an 'if' or of a 'try' */
+    private static final class ReturnsToYields extends AbstractJavaSyntaxVisitor {
+        @Override
+        public void visit(Statements statements) {
+            for (int i = 0; i < statements.size(); i++) {
+                if (statements.get(i) instanceof ReturnExpressionStatement returned) {
+                    statements.set(i, new YieldExpressionStatement(returned.getLineNumber(), returned.getExpression()));
+                }
             }
+            super.visit(statements);
+        }
+
+        @Override
+        public void visit(LambdaIdentifiersExpression expression) {
+            // The returns of the body of a lambda are its own
+        }
+
+        @Override
+        public void visit(BodyDeclaration declaration) {
+            // The returns of the methods of an anonymous or a local class are their own
         }
     }
 

@@ -1350,6 +1350,11 @@ public final class TryWithResourcesStatementMaker {
         DefaultList<ResourceInfo> resourceInfos = committed.resources;
         if (currentLocalVariable != null) {
             ResourceInfo existing = findResourceInfo(resourceInfos, currentLocalVariable);
+            if (existing != null) {
+                // The handler is the one of the outermost try: its resource is the first one, whatever the order in which the chain found them
+                resourceInfos.remove(existing);
+                resourceInfos.add(0, existing);
+            }
             if (existing == null) {
                 if (currentExpression == null) {
                     return null;

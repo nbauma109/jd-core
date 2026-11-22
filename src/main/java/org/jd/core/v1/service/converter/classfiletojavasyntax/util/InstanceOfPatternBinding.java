@@ -19,6 +19,7 @@ import org.apache.bcel.generic.CHECKCAST;
 import org.apache.bcel.generic.INSTANCEOF;
 import org.apache.bcel.generic.CPInstruction;
 import org.apache.bcel.generic.ClassGenException;
+import org.apache.bcel.generic.AALOAD;
 import org.apache.bcel.generic.ALOAD;
 import org.apache.bcel.generic.ASTORE;
 import org.apache.bcel.generic.ATHROW;
@@ -38,6 +39,7 @@ import org.jd.core.v1.api.loader.Loader;
 import java.util.ArrayDeque;
 import java.util.Objects;
 import java.util.List;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
@@ -230,7 +232,9 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         // The variable of 'dup; astore' disappears with the assignment: the test is of the value which survives, whose type is the one of the field or of the call
         if (temporaryOperandIndex(code.getCode(), offset) >= 0) {
-            return typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+            String kept = typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+
+            return kept != null ? kept : typeOfTheArrayElementKeptBy(method, offset);
         }
 
         if (code.getLocalVariableTable() != null) {
@@ -250,6 +254,28 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             index += type.getSize();
         }
         return null;
+    }
+
+    /**
+     * @return the descriptor of the type of the element which 'aload array; index; aaload; dup; astore v; instanceof' tests: the one of the elements of the array, as the local
+     *         variable table says. Null if it is another value.
+     */
+    private static String typeOfTheArrayElementKeptBy(Method method, int instanceOfOffset) {
+        // 'aload array; index; aaload; dup; astore v; instanceof': the instruction of the index is the one which comes between the load of the array and the load of the element
+        InstructionHandle element = decoded(method.getCode().getCode()).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev();
+
+        if (!(element.getInstruction() instanceof AALOAD)) {
+            return null;
+        }
+
+        // (the load of the index and the load of the array precede the load of the element in the code of the Eclipse compiler)
+        InstructionHandle array = element.getPrev().getPrev();
+
+        if (!(array.getInstruction() instanceof ALOAD load)) {
+            return null;
+        }
+
+        return Optional.ofNullable(operandDescriptor(method, load.getIndex(), array.getPosition())).map(descriptor -> descriptor.substring(1)).orElse(null);
     }
 
     /**

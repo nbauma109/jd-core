@@ -44,5 +44,7 @@ public class EcjTernaryCastTest extends AbstractJdTest {
         String source = printed.replaceAll("\\s+", " ");
 
         assertTrue(printed, source.contains("this.items[i] instanceof Wrapper wrapper"));
+        // the array which an anonymous class captures: its bounds are unknown, the test stays
+        assertFalse(printed, source.contains("instanceof Runnable runnable"));
     }
 }

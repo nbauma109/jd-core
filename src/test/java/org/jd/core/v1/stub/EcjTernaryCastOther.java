@@ -40,4 +40,18 @@ public class EcjTernaryCastOther {
             runnable.run();
         }
     }
+
+    /** the array which an anonymous class captures is a copy of the variable, of the erasure of its type: the bounds of the type variable are lost */
+    <T extends Node & Runnable> Runnable captured(T[] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Runnable) {
+                    Runnable runnable = (Runnable) temporary;
+                    runnable.run();
+                }
+            }
+        };
+    }
 }

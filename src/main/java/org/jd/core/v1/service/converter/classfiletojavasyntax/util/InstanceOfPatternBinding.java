@@ -282,6 +282,10 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
+            // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds)
+            if (isCapturedVariable(field, method.getConstantPool())) {
+                return null;
+            }
             return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
         }
         if (!(array.getInstruction() instanceof ALOAD load)) {
@@ -308,6 +312,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
         return typeOfTheValueProducedBy(producer, constants);
+    }
+
+    /** @return true if the field is the copy which an anonymous or a local class makes of a variable which it captures ('val$name') */
+    private static boolean isCapturedVariable(FieldInstruction field, ConstantPool constants) {
+        return field.getFieldName(new org.apache.bcel.generic.ConstantPoolGen(constants)).startsWith("val$");
     }
 
     /** @return the descriptor of the type of the value which a field, a call or a constructor produces; null for another instruction or a value which is declared with generics */

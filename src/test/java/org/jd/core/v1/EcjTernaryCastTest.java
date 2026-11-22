@@ -32,11 +32,19 @@ public class EcjTernaryCastTest extends AbstractJdTest {
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjTernaryCast", printed)));
     }
 
-    /** the elements of a field and of a list are not typed by a local variable: the shape which the test and the cast have stays what it was */
+    /** the elements of a field are typed by the field, the ones of a list are not: the test of the elements of a list stays what it was */
     @Test
     public void testElementsOfAFieldAndOfAList() throws Exception {
+        String printed;
+
         try (InputStream is = getClass().getResourceAsStream("/jar/ecj-ternary-cast-other-ecj-17.jar")) {
-            decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTernaryCastOther");
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjTernaryCastOther");
         }
+
+        String source = printed.replaceAll("\\s+", " ");
+
+        assertTrue(printed, source.contains("this.items[i] instanceof Wrapper wrapper"));
+        // the array which an anonymous class captures: its bounds are unknown, the test stays
+        assertFalse(printed, source.contains("instanceof Runnable runnable"));
     }
 }

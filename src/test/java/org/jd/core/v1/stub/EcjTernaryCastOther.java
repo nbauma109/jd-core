@@ -26,4 +26,18 @@ public class EcjTernaryCastOther {
         Node field = this.items[i] instanceof Wrapper wrapper ? wrapper.wrapped : this.items[i];
         return nodes.get(i) instanceof Wrapper wrapper ? wrapper.wrapped : field;
     }
+
+    /** the index is computed from another array: the elements are not the ones of the array which the index reads */
+    Node computed(Node[] values, int[] indices) {
+        return values[indices.length] instanceof Wrapper wrapper ? wrapper.wrapped : values[0];
+    }
+
+    /** an array of a type variable: the bounds of the variable are lost with the erasure of the array */
+    <T extends Node & Runnable> void bounded(T[] values, int i) {
+        Object temporary;
+        if ((temporary = values[i]) instanceof Runnable) {
+            Runnable runnable = (Runnable) temporary;
+            runnable.run();
+        }
+    }
 }

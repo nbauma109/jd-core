@@ -21,6 +21,8 @@ import org.apache.bcel.generic.CPInstruction;
 import org.apache.bcel.generic.ClassGenException;
 import org.apache.bcel.generic.AALOAD;
 import org.apache.bcel.generic.ALOAD;
+import org.apache.bcel.generic.ConstantPushInstruction;
+import org.apache.bcel.generic.ILOAD;
 import org.apache.bcel.generic.ASTORE;
 import org.apache.bcel.generic.ATHROW;
 import org.apache.bcel.generic.BranchInstruction;
@@ -268,14 +270,28 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             return null;
         }
 
-        // (the load of the index and the load of the array precede the load of the element in the code of the Eclipse compiler)
-        InstructionHandle array = element.getPrev().getPrev();
+        // (the index is one instruction, the load of a variable or a constant: any other instruction is the end of the code which computes the index, which may read
+        // another array)
+        InstructionHandle index = element.getPrev();
+
+        if (!(index.getInstruction() instanceof ILOAD) && !(index.getInstruction() instanceof ConstantPushInstruction)) {
+            return null;
+        }
+
+        InstructionHandle array = index.getPrev();
 
         if (!(array.getInstruction() instanceof ALOAD load)) {
             return null;
         }
 
-        return Optional.ofNullable(operandDescriptor(method, load.getIndex(), array.getPosition())).map(descriptor -> descriptor.substring(1)).orElse(null);
+        int slot = load.getIndex();
+
+        // The elements of an array of a type variable ('T[] values', 'T extends A & B') are of the erasure of the variable: the other bounds are not the ones of the descriptor
+        if (isTypeVariable(method.getCode(), slot, array.getPosition()) || isGenericParameter(method, slot)) {
+            return null;
+        }
+
+        return Optional.ofNullable(operandDescriptor(method, slot, array.getPosition())).map(descriptor -> descriptor.substring(1)).orElse(null);
     }
 
     /**

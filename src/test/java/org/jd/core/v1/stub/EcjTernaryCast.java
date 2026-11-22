@@ -19,6 +19,11 @@ public class EcjTernaryCast {
         Node wrapped;
     }
 
+    /** the index is a constant */
+    Node firstWrapped(Node[] arguments) {
+        return arguments[0] instanceof Wrapper wrapper ? wrapper.wrapped : arguments[0];
+    }
+
     Node[] unwrap(Node[] arguments) {
         int count = arguments == null ? 0 : arguments.length;
         Node[] result = new Node[count];

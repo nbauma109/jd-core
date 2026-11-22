@@ -11,6 +11,9 @@ updates:
       interval: "daily"
       time: "17:30"
       timezone: "Europe/Paris"
+    cooldown:
+      exclude:
+        - "io.github.nbauma109:jd-util"
     open-pull-requests-limit: 30
   - package-ecosystem: "github-actions"
     directory: "/" # Location of GitHub Actions workflows

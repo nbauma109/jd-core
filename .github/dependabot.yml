@@ -12,6 +12,7 @@ updates:
       time: "17:30"
       timezone: "Europe/Paris"
     cooldown:
+      default-days: 3
       exclude:
         - "io.github.nbauma109:jd-util"
     open-pull-requests-limit: 30

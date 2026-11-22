@@ -280,6 +280,10 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         InstructionHandle array = index.getPrev();
 
+        if (array.getInstruction() instanceof FieldInstruction field) {
+            // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
+            return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
+        }
         if (!(array.getInstruction() instanceof ALOAD load)) {
             return null;
         }
@@ -303,6 +307,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         // 'producer; dup; astore v; instanceof'
         Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
+        return typeOfTheValueProducedBy(producer, constants);
+    }
+
+    /** @return the descriptor of the type of the value which a field, a call or a constructor produces; null for another instruction or a value which is declared with generics */
+    private static String typeOfTheValueProducedBy(Instruction producer, ConstantPool constants) {
         if (!(producer instanceof FieldInstruction) && !(producer instanceof InvokeInstruction)) {
             return null;
         }

@@ -12,14 +12,14 @@ package org.jd.core.v1.stub;
  * flag '$assertionsDisabled' is the one of the enum or of the outer class
  */
 public enum EcjNestedAssert {
-    Named {
+    NAMED {
         @Override
         public boolean matches(Object element, Object name) {
             assert name != null : "name match needs a name";
             return element.equals(name);
         }
     },
-    Any {
+    ANY {
         @Override
         public boolean matches(Object element, Object name) {
             return element != null;

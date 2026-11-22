@@ -3122,7 +3122,8 @@ public class ByteCodeParser {
 
         String typeName = constants.getConstantString(constantMemberRef.getClassIndex(), CONSTANT_Class);
 
-        return internalTypeName.equals(typeName);
+        // The flag is the one of the class, or of the class which contains it: the body of a constant of an enum, an inner class
+        return (internalTypeName + '$').startsWith(typeName + '$');
     }
 
     /** @return the length of the instruction which stores the exception at the beginning of a handler, or which pops it */

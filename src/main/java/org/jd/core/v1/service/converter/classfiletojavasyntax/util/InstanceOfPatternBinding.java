@@ -19,7 +19,10 @@ import org.apache.bcel.generic.CHECKCAST;
 import org.apache.bcel.generic.INSTANCEOF;
 import org.apache.bcel.generic.CPInstruction;
 import org.apache.bcel.generic.ClassGenException;
+import org.apache.bcel.generic.AALOAD;
 import org.apache.bcel.generic.ALOAD;
+import org.apache.bcel.generic.ConstantPushInstruction;
+import org.apache.bcel.generic.ILOAD;
 import org.apache.bcel.generic.ASTORE;
 import org.apache.bcel.generic.ATHROW;
 import org.apache.bcel.generic.BranchInstruction;
@@ -38,6 +41,7 @@ import org.jd.core.v1.api.loader.Loader;
 import java.util.ArrayDeque;
 import java.util.Objects;
 import java.util.List;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
@@ -230,7 +234,9 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         // The variable of 'dup; astore' disappears with the assignment: the test is of the value which survives, whose type is the one of the field or of the call
         if (temporaryOperandIndex(code.getCode(), offset) >= 0) {
-            return typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+            String kept = typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+
+            return kept != null ? kept : typeOfTheArrayElementKeptBy(method, offset);
         }
 
         if (code.getLocalVariableTable() != null) {
@@ -250,6 +256,42 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             index += type.getSize();
         }
         return null;
+    }
+
+    /**
+     * @return the descriptor of the type of the element which 'aload array; index; aaload; dup; astore v; instanceof' tests: the one of the elements of the array, as the local
+     *         variable table says. Null if it is another value.
+     */
+    private static String typeOfTheArrayElementKeptBy(Method method, int instanceOfOffset) {
+        // 'aload array; index; aaload; dup; astore v; instanceof': the instruction of the index is the one which comes between the load of the array and the load of the element
+        InstructionHandle element = decoded(method.getCode().getCode()).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev();
+
+        if (!(element.getInstruction() instanceof AALOAD)) {
+            return null;
+        }
+
+        // (the index is one instruction, the load of a variable or a constant: any other instruction is the end of the code which computes the index, which may read
+        // another array)
+        InstructionHandle index = element.getPrev();
+
+        if (!(index.getInstruction() instanceof ILOAD) && !(index.getInstruction() instanceof ConstantPushInstruction)) {
+            return null;
+        }
+
+        InstructionHandle array = index.getPrev();
+
+        if (!(array.getInstruction() instanceof ALOAD load)) {
+            return null;
+        }
+
+        int slot = load.getIndex();
+
+        // The elements of an array of a type variable ('T[] values', 'T extends A & B') are of the erasure of the variable: the other bounds are not the ones of the descriptor
+        if (isTypeVariable(method.getCode(), slot, array.getPosition()) || isGenericParameter(method, slot)) {
+            return null;
+        }
+
+        return Optional.ofNullable(operandDescriptor(method, slot, array.getPosition())).map(descriptor -> descriptor.substring(1)).orElse(null);
     }
 
     /**

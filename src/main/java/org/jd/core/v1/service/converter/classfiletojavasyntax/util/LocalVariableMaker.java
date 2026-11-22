@@ -486,6 +486,8 @@ public class LocalVariableMaker {
             AbstractLocalVariable lv2 = currentFrame.getLocalVariable(index);
 
             if (lv2 != null && (lv.getName() == null ? lv2.getName() == null : lv.getName().equals(lv2.getName())) && lv.getType().equals(lv2.getType())) {
+                // The ranges of the local variable table which have the name and the type of a variable are its own: its scope goes on
+                lv2.setScopeEnd(Math.max(lv2.getScopeEnd(), lv.getScopeEnd()));
                 lv = lv2;
             }
 

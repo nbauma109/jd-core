@@ -32,6 +32,16 @@ public class EcjForDeclarationTest extends AbstractJdTest {
         assertFalse(printed, source.contains("e = null"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjForDeclaration", printed)));
     }
+
+    /** a null assigned in a branch, after the range of the variable in the other one, is the variable: javac writes a range of the local variable table for each branch */
+    @Test
+    public void testNullInTheSecondBranch() throws Exception {
+        String printed;
+
+        try (InputStream is = getClass().getResourceAsStream("/jar/javac-null-in-branch-17.jar")) {
+            printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/JavacNullInBranch");
+        }
+
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/JavacNullInBranch", printed)));
+    }
 }
-
-

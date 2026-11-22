@@ -47,7 +47,9 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
 
         constructor = null;
         constructorCounter = 0;
-        classAccessFlags = bodyDeclaration.getClassFile().getAccessFlags() & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE);
+        // The compiler gives the default constructor the access of the class (always private for an enum)
+        classAccessFlags = bodyDeclaration.getClassFile().isEnum() ? Const.ACC_PRIVATE
+                : bodyDeclaration.getClassFile().getAccessFlags() & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE);
         safeAcceptListDeclaration(methods);
 
         if (constructorCounter == 1 && constructor != null) {
@@ -93,7 +95,8 @@ public class RemoveDefaultConstructorVisitor extends AbstractJavaSyntaxVisitor {
                 int constructorAccessFlags = declaration.getFlags() & (Const.ACC_PUBLIC | Const.ACC_PROTECTED | Const.ACC_PRIVATE);
                 // A constructor which declares exceptions is no default constructor: removing it would change what the creations throw
                 if (statements.isEmpty() && Utils.isEmpty(cfcd.getFormalParameters()) && cfcd.getExceptionTypes() == null
-                        && (constructorAccessFlags != Const.ACC_PROTECTED || constructorAccessFlags == classAccessFlags)) {
+                        // An explicit private or protected constructor which differs from the default constructor is kept
+                        && ((constructorAccessFlags & (Const.ACC_PROTECTED | Const.ACC_PRIVATE)) == 0 || constructorAccessFlags == classAccessFlags)) {
                     constructor = cfcd;
                 }
             }

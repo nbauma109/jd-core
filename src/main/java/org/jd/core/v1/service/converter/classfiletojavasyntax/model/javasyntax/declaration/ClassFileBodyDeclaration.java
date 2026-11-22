@@ -7,6 +7,7 @@
 package org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.declaration;
 
 import org.jd.core.v1.model.classfile.ClassFile;
+import org.jd.core.v1.service.converter.classfiletojavasyntax.model.localvariable.AbstractLocalVariable;
 import org.jd.core.v1.model.javasyntax.declaration.BaseMemberDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
 import org.jd.core.v1.model.javasyntax.type.BaseType;
@@ -28,6 +29,8 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
     private String outerTypeFieldName;
     private boolean outerInstanceParameter;
     private DefaultList<String> syntheticInnerFieldNames;
+    /** The parameters of the constructor of an anonymous class which only the initializers read: the Eclipse compiler stores no 'val$' field for them */
+    private List<AbstractLocalVariable> capturedParameters;
     private final ClassFileBodyDeclaration outerBodyDeclaration;
     private final Map<String, TypeArgument> bindings;
     private final Map<String, BaseType> typeBounds;
@@ -139,6 +142,14 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
 
     public void setOuterInstanceParameter(boolean outerInstanceParameter) {
         this.outerInstanceParameter = outerInstanceParameter;
+    }
+
+    public List<AbstractLocalVariable> getCapturedParameters() {
+        return capturedParameters;
+    }
+
+    public void setCapturedParameters(List<AbstractLocalVariable> capturedParameters) {
+        this.capturedParameters = capturedParameters;
     }
 
     public DefaultList<String> getSyntheticInnerFieldNames() {

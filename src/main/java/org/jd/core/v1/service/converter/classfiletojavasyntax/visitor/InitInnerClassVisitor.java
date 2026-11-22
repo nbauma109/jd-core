@@ -12,6 +12,7 @@ import org.apache.bcel.classfile.MethodParameters;
 import org.jd.core.v1.model.classfile.ClassFile;
 import org.jd.core.v1.model.javasyntax.AbstractJavaSyntaxVisitor;
 import org.jd.core.v1.api.loader.Loader;
+import org.jd.core.v1.model.javasyntax.declaration.FormalParameters;
 import org.jd.core.v1.model.javasyntax.declaration.AnnotationDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.BaseFormalParameter;
 import org.jd.core.v1.model.javasyntax.declaration.BodyDeclaration;
@@ -91,6 +92,8 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.StreamSupport;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 
 import static org.apache.bcel.Const.ACC_STATIC;import static org.apache.bcel.Const.ACC_SYNTHETIC;
@@ -299,8 +302,86 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                     // Mark anonymous class constructor
                     cfcd.setFlags(cfcd.getFlags() | FLAG_ANONYMOUS);
                     cfcd.getBodyDeclaration().setAnonymous(anonymousFlag);
+                    keepCapturedParameters(cfcd);
                 }
             }
+        }
+    }
+
+    /**
+     * The Eclipse compiler stores no 'val$' field for a variable which only the initializers of an anonymous class read: the constructor takes it as a parameter, which the
+     * initializers read. The parameters which the constructor does not pass to 'super' are those variables.
+     */
+    private static void keepCapturedParameters(ClassFileConstructorOrMethodDeclaration cfcd) {
+        BaseFormalParameter parameters = cfcd.getFormalParameters();
+
+        if (parameters == null) {
+            return;
+        }
+
+        SuperArguments superArguments = new SuperArguments();
+
+        cfcd.getStatements().accept(superArguments);
+
+        Map<Boolean, List<FormalParameter>> parts = StreamSupport.stream(parameters.spliterator(), false)
+                .collect(Collectors.partitioningBy(parameter -> superArguments.variables.contains(((ClassFileFormalParameter) parameter).getLocalVariable())));
+        List<AbstractLocalVariable> captured = parts.get(Boolean.FALSE).stream().map(parameter -> ((ClassFileFormalParameter) parameter).getLocalVariable()).toList();
+
+        if (!captured.isEmpty()) {
+            FormalParameters kept = new FormalParameters();
+
+            kept.addAll(parts.get(Boolean.TRUE));
+            cfcd.setFormalParameters(kept.isEmpty() ? null : kept);
+            cfcd.getBodyDeclaration().setCapturedParameters(captured);
+        }
+    }
+
+    /** The variables which the call of the constructor of the superclass reads */
+    private static final class SuperArguments extends AbstractJavaSyntaxVisitor {
+        private final Set<AbstractLocalVariable> variables = new HashSet<>();
+        private final AbstractJavaSyntaxVisitor collector = new AbstractJavaSyntaxVisitor() {
+            @Override
+            public void visit(LocalVariableReferenceExpression expression) {
+                variables.add(((ClassFileLocalVariableReferenceExpression) expression).getLocalVariable());
+            }
+        };
+
+        @Override
+        public void visit(SuperConstructorInvocationExpression expression) {
+            BaseExpression arguments = expression.getParameters();
+
+            if (arguments != null) {
+                arguments.accept(collector);
+            }
+        }
+    }
+
+    /** The variables which the initializers of an anonymous class read are the last arguments: the parameters which read them have their names, and they are no arguments */
+    private static void removeCapturedArguments(ClassFileNewExpression ne, List<AbstractLocalVariable> captured) {
+        BaseExpression parameters = ne.getParameters();
+
+        if (captured == null || parameters == null) {
+            return;
+        }
+
+        List<Expression> arguments = parameters.isList() ? parameters.getList() : List.of(parameters.getFirst());
+        int first = arguments.size() - captured.size();
+
+        for (int i = 0; i < captured.size(); i++) {
+            Expression argument = arguments.get(first + i);
+
+            if (argument.isLocalVariableReferenceExpression()) {
+                captured.get(i).setName(argument.getName());
+            }
+        }
+        if (parameters.isList()) {
+            int size = arguments.size();
+
+            arguments.subList(first, size).clear();
+            ne.getParameterTypes().getList().subList(first, size).clear();
+        } else {
+            ne.setParameters(null);
+            ne.setParameterTypes(null);
         }
     }
 
@@ -914,6 +995,8 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 ne.setParameterTypes(null);
                             }
                         }
+
+                        removeCapturedArguments(ne, cfbd.getCapturedParameters());
 
                         // Is the last parameter synthetic ?
                         parameters = ne.getParameters();

@@ -247,7 +247,10 @@ public class LocalVariableMaker {
                     int index = localVariable.getIndex();
                     int startPc = !staticFlag && index==0 ? 0 : localVariable.getStartPC();
 
-                    localVariableSet.add(index, createLocalVariable(localVariable, index, startPc));
+                    AbstractLocalVariable variable = createLocalVariable(localVariable, index, startPc);
+
+                    variable.setScopeEnd(startPc + localVariable.getLength());
+                    localVariableSet.add(index, variable);
                     names.add(localVariable.getName());
                 }
             }
@@ -547,6 +550,12 @@ public class LocalVariableMaker {
 
     public AbstractLocalVariable getLocalVariableInNullAssignment(int index, int offset, Type valueType) {
         AbstractLocalVariable lv = searchLocalVariable(index, offset);
+
+        if (lv != null && offset > lv.getScopeEnd()) {
+            // A variable of the local variable table is assigned within its scope: the slot is used by another variable after it, as the one of the
+            // exception of a try-with-resources
+            lv = null;
+        }
 
         if (lv == null || lv.getType().getDimension() == 0 && lv.getType().isPrimitiveType()) {
             lv = createNewLocalVariable(index, offset, valueType);

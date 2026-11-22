@@ -24,11 +24,21 @@ public abstract class AbstractLocalVariable {
     private final int index;
     private int fromOffset;
     private int toOffset;
+    /** The offset where the scope of a variable of the local variable table ends: a later assignment of the slot is none of this variable */
+    private int scopeEnd = Integer.MAX_VALUE;
     protected String name;
     private String oldName;
     private final DefaultList<LocalVariableReference> references = new DefaultList<>();
     private Set<AbstractLocalVariable> variablesOnRight;
     private Set<AbstractLocalVariable> variablesOnLeft;
+
+    public int getScopeEnd() {
+        return scopeEnd;
+    }
+
+    public void setScopeEnd(int scopeEnd) {
+        this.scopeEnd = scopeEnd;
+    }
 
     protected AbstractLocalVariable(int index, int offset, String name) {
         this(index, offset, name, offset == 0);

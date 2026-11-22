@@ -997,7 +997,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         private void removeCapturedArguments(ClassFileNewExpression ne, List<AbstractLocalVariable> captured) {
             BaseExpression parameters = ne.getParameters();
 
-            if (captured == null || parameters == null) {
+            if (captured == null) {
                 return;
             }
 

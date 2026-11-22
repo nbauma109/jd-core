@@ -15,7 +15,7 @@ import java.util.function.Supplier;
  */
 public class EcjYieldInLoop {
     static int pick(int id, List<Integer> items, int base) {
-        int result = switch (id) {
+        return switch (id) {
             case 1, 2 -> base;
             case 3 -> {
                 if (base > 0) {
@@ -42,7 +42,6 @@ public class EcjYieldInLoop {
             }
             default -> throw new IllegalStateException();
         };
-        return result;
     }
 
     static String name(int id, List<String> items) {

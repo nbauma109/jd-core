@@ -36,6 +36,8 @@ public class EcjSwitchInIfTest extends AbstractJdTest {
         // the switch of the else branch, whose last case is empty, is not the one of the code which follows the branch
         assertFalse(printed, source.contains("throw null"));
         assertTrue(printed, source.contains("case 1: msecs += 100 * text.charAt(start);"));
+        // a case which falls into the default case keeps the code of the latter
+        assertTrue(printed, source.contains("case 1: n++; default: n += 2; break; }"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjSwitchInIf", printed)));
     }
 

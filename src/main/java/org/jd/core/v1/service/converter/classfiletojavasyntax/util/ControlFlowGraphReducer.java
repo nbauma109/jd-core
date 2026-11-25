@@ -907,7 +907,8 @@ public abstract class ControlFlowGraphReducer {
             end = joinedBefore;
         }
 
-        BasicBlock continueTarget = farthestEnd == end ? null : farthestEnd;
+        // (the last case, which another one falls into, is a case: it is no continue of a loop)
+        BasicBlock continueTarget = farthestEnd == end || farthestEnd == lastSwitchCaseBasicBlock ? null : farthestEnd;
 
         if (end == END) {
             end = lastSwitchCaseBasicBlock;

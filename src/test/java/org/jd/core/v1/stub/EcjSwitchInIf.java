@@ -138,4 +138,20 @@ public class EcjSwitchInIf {
         text.length();
         return msecs;
     }
+
+    /** a case which falls into the default case, outside of a loop: the default case is no 'continue'. The cases fall through on purpose */
+    @SuppressWarnings("java:S128")
+    int accumulate(boolean enabled, int selector) {
+        int n = 0;
+
+        if (enabled) {
+            switch (selector) {
+                case 1:
+                    n++;
+                default:
+                    n += 2;
+            }
+        }
+        return n;
+    }
 }

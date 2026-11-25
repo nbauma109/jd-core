@@ -237,7 +237,7 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                             // class is illegal even from within a lambda; qualify it with the class name.
                             Integer currentPosition = fieldPositions.get(fre.getName());
                             if (currentPosition != null) {
-                                forwardFieldReferenceVisitor.init(internalTypeName, fieldPositions, currentPosition);
+                                forwardFieldReferenceVisitor.init(internalTypeName, fields, fieldPositions, currentPosition);
                                 expression.accept(forwardFieldReferenceVisitor);
                             }
                             fdr.setVariableInitializer(new ExpressionVariableInitializer(expression));
@@ -301,11 +301,13 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
 
     private static class ForwardFieldReferenceVisitor extends AbstractJavaSyntaxVisitor {
         private String internalTypeName;
+        private Map<String, FieldDeclarator> fields;
         private Map<String, Integer> fieldPositions;
         private int currentPosition;
 
-        void init(String internalTypeName, Map<String, Integer> fieldPositions, int currentPosition) {
+        void init(String internalTypeName, Map<String, FieldDeclarator> fields, Map<String, Integer> fieldPositions, int currentPosition) {
             this.internalTypeName = internalTypeName;
+            this.fields = fields;
             this.fieldPositions = fieldPositions;
             this.currentPosition = currentPosition;
         }
@@ -316,8 +318,9 @@ public class InitStaticFieldVisitor extends AbstractJavaSyntaxVisitor {
                     && expression.getExpression() instanceof ObjectTypeReferenceExpression otr
                     && !otr.isExplicit()) {
                 Integer targetPosition = fieldPositions.get(expression.getName());
-                if (targetPosition != null && targetPosition >= currentPosition) {
-                    // Field declared at or after the current position: a simple name would be an illegal forward reference
+                if (targetPosition != null && (targetPosition >= currentPosition || fields.get(expression.getName()).getVariableInitializer() == null)) {
+                    // Field declared at or after the current position, or one without initializer, which may be printed after the others: a simple name would be an
+                    // illegal forward reference
                     otr.setExplicit(true);
                 }
             }

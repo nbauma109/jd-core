@@ -112,7 +112,8 @@ public class EcjSwitchInIf {
         return count;
     }
 
-    /** 'StdDateFormat' of Jackson: the switch is in the else branch of an if, whose then branch jumps to the code which follows the else branch as the empty last case does */
+    /** 'StdDateFormat' of Jackson: the switch is in the else branch of an if, whose then branch jumps to the code which follows the else branch as the empty last case does. The cases fall through, as the ones of Jackson do */
+    @SuppressWarnings("java:S128")
     int fraction(int start, int end, String text) {
         int msecs = 0;
 

@@ -77,6 +77,7 @@ import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.DefaultStack;
 import org.jd.core.v1.util.StringConstants;
 
+import java.util.Arrays;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -1079,6 +1080,27 @@ public class StatementMaker {
         return new SwitchStatement.MultiLabelsBlock(labels, subStatements);
     }
 
+    /**
+     * @return true if a protected range of the handlers of a 'try' which has a 'finally' block leads to a 'goto' which jumps over the 'finally' handler: the copy of
+     * the 'finally' statements which the normal completion of the 'try' block runs is not at the end of the block, as 'javac' puts it, but after the handler, as the
+     * Eclipse compiler puts it
+     */
+    private static boolean isFinallyCopiedAfterTheHandler(BasicBlock tryBlock) {
+        Code code = tryBlock.getControlFlowGraph().getMethod().getCode();
+        Map<Integer, String> handlers = new HashMap<>();
+
+        tryBlock.getExceptionHandlers().forEach(handler -> handlers.put(handler.getBasicBlock().getFromOffset(), handler.getInternalThrowableName()));
+
+        return handlers.entrySet().stream().filter(handler -> handler.getValue() == null)
+                .anyMatch(handler -> Arrays.stream(code.getExceptionTable()).filter(entry -> handlers.containsKey(entry.getHandlerPC()))
+                        // the 'goto' (3 bytes) ends the range which the handler follows, or follows the range
+                        .anyMatch(entry -> jumpsOver(code.getCode(), entry.getEndPC() == handler.getKey() ? handler.getKey() - 3 : entry.getEndPC(), handler.getKey())));
+    }
+
+    private static boolean jumpsOver(byte[] code, int jump, int offset) {
+        return (code[jump] & 255) == GOTO && jump + (short) ((code[jump + 1] & 255) << 8 | code[jump + 2] & 255) > offset;
+    }
+
     protected void parseTry(WatchDog watchdog, BasicBlock basicBlock, Statements statements, Statements jumps, boolean jsr, boolean eclipse) {
         Statements tryStatements;
         DefaultList<TryStatement.CatchClause> catchClauses = new DefaultList<>();
@@ -1225,6 +1247,7 @@ public class StatementMaker {
                 ClassFileTryStatement tryStatement = new ClassFileTryStatement(tryStatements, catchClauses, finallyStatements, jsr);
 
                 tryStatement.setProtectsAccessorsOnly(protectsAccessorsOnly(basicBlock));
+                tryStatement.setFinallyCopyFollows(isFinallyCopiedAfterTheHandler(basicBlock));
                 statement = tryStatement;
             } else {
                 mergeTryWithResourcesStatementFlag = true;

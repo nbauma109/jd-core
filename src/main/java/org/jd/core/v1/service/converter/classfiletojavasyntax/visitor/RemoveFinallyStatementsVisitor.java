@@ -55,6 +55,9 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
     @Override
     public void visit(Statements statements) {
         DefaultList<Statement> stmts = statements;
+
+        removeFinallyCopiesWhichFollow(stmts);
+
         int size = statements.size();
 
         if (size > 0) {
@@ -133,6 +136,19 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             }
 
             statementCountToRemove = oldStatementCountToRemove;
+        }
+    }
+
+    /** Removes the copy of the 'finally' statements which follows a 'try' statement whose normal completion runs it there */
+    private static void removeFinallyCopiesWhichFollow(DefaultList<Statement> statements) {
+        for (int i = 0; i < statements.size(); i++) {
+            if (statements.get(i) instanceof ClassFileTryStatement tryStatement && tryStatement.isFinallyCopyFollows() && tryStatement.getFinallyStatements() != null) {
+                int end = i + 1 + tryStatement.getFinallyStatements().size();
+
+                if (end <= statements.size()) {
+                    statements.subList(i + 1, end).clear();
+                }
+            }
         }
     }
 
@@ -217,9 +233,14 @@ public class RemoveFinallyStatementsVisitor implements StatementVisitor {
             int finallyStatementsSize = finallyStatements.size();
 
             statementCountInFinally += finallyStatementsSize;
-            statementCountToRemove += finallyStatementsSize;
+            if (!ts.isFinallyCopyFollows()) {
+                statementCountToRemove += finallyStatementsSize;
+            }
 
             tryStatements.accept(this);
+
+            // the 'catch' blocks end with their own copy, even when the one of the 'try' block follows the statement
+            statementCountToRemove = oldStatementCountToRemove + finallyStatementsSize;
 
             if (catchClauses != null) {
                 for (TryStatement.CatchClause cc : catchClauses) {

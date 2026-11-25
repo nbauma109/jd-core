@@ -901,7 +901,7 @@ public abstract class ControlFlowGraphReducer {
 
         end = preferTheJoinBeforeTheContinueOfALoop(basicBlock, ends, lastSwitchCaseBasicBlock, end);
 
-        BasicBlock joinedBefore = joinedBeforeTheSwitch(lastSwitchCaseBasicBlock);
+        BasicBlock joinedBefore = joinedBeforeTheSwitch(basicBlock, lastSwitchCaseBasicBlock);
 
         if (joinedBefore != null) {
             end = joinedBefore;
@@ -1560,18 +1560,18 @@ public abstract class ControlFlowGraphReducer {
      *
      * @return the end of the switch, null if the code which follows the switch is reached by the switch only
      */
-    private static BasicBlock joinedBeforeTheSwitch(BasicBlock lastSwitchCaseBasicBlock) {
-        if (isJoinedBeforeTheSwitch(lastSwitchCaseBasicBlock)) {
+    private static BasicBlock joinedBeforeTheSwitch(BasicBlock switchBlock, BasicBlock lastSwitchCaseBasicBlock) {
+        if (isJoinedBeforeTheSwitch(switchBlock, lastSwitchCaseBasicBlock)) {
             return lastSwitchCaseBasicBlock;
         }
 
         BasicBlock next = lastSwitchCaseBasicBlock.getNext();
 
-        return next != null && isJoinedBeforeTheSwitch(next) ? next : null;
+        return next != null && isJoinedBeforeTheSwitch(switchBlock, next) ? next : null;
     }
 
-    private static boolean isJoinedBeforeTheSwitch(BasicBlock block) {
-        return block.getPredecessors().stream().filter(predecessor -> predecessor.matchType(GROUP_CONDITION)).map(BasicBlock::getBranch).anyMatch(block::equals);
+    private static boolean isJoinedBeforeTheSwitch(BasicBlock switchBlock, BasicBlock block) {
+        return block.getPredecessors().stream().filter(predecessor -> predecessor.matchType(GROUP_CONDITION) && predecessor.getNext() == switchBlock).map(BasicBlock::getBranch).anyMatch(block::equals);
     }
 
     /**

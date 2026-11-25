@@ -9,6 +9,7 @@ package org.jd.core.v1;
 
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.loader.ClassPathLoader;
 import org.jd.core.v1.loader.ZipLoader;
 import org.jd.core.v1.printer.NoLineNumberPrinter;
 import org.junit.Test;
@@ -36,5 +37,14 @@ public class EcjSwitchInIfTest extends AbstractJdTest {
         assertFalse(printed, source.contains("throw null"));
         assertTrue(printed, source.contains("case 1: msecs += 100 * text.charAt(start);"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjSwitchInIf", printed)));
+    }
+
+    /** 'AbstractService.stopAsync' of Guava: the switch of a try, in an if whose test jumps over it, is not the one which the test of the 'if' ends */
+    @Test
+    public void testSwitchInATryInAnIf() throws Exception {
+        String source = decompileSuccess(new ClassPathLoader(), new NoLineNumberPrinter(), "com/google/common/util/concurrent/AbstractService");
+
+        assertTrue(source, source.contains("doCancelStart();"));
+        assertTrue(source, source.contains("isStoppable is incorrectly implemented"));
     }
 }

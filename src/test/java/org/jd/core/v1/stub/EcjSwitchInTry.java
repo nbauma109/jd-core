@@ -45,9 +45,9 @@ public class EcjSwitchInTry {
                 case 1:
                     result = 2;
                     break;
-                case 2:
-                case 3:
+                case 2, 3:
                     throw new AssertionError(previous);
+                default:
             }
         } finally {
             closed++;

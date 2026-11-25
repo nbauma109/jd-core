@@ -18,6 +18,9 @@ public class ClassFileTryStatement extends TryStatement {
     /** True when the exception table protects nothing but the invocations of accessors with the handler of the statement: the lowering of a record pattern */
     private boolean protectsAccessorsOnly;
 
+    /** True when the copy of the 'finally' statements which the normal completion runs follows the statement, as the Eclipse compiler lays it out after the handler */
+    private boolean finallyCopyFollows;
+
     public ClassFileTryStatement(BaseStatement tryStatements, DefaultList<TryStatement.CatchClause> catchClauses, BaseStatement finallyStatements, boolean jsr) {
         super(tryStatements, catchClauses, finallyStatements);
         this.jsr = jsr;
@@ -36,6 +39,14 @@ public class ClassFileTryStatement extends TryStatement {
                 this.resources.addAll(resources);
             }
         }
+    }
+
+    public boolean isFinallyCopyFollows() {
+        return finallyCopyFollows;
+    }
+
+    public void setFinallyCopyFollows(boolean finallyCopyFollows) {
+        this.finallyCopyFollows = finallyCopyFollows;
     }
 
     public boolean isProtectsAccessorsOnly() {

@@ -32,6 +32,9 @@ public class EcjSwitchInIfTest extends AbstractJdTest {
         assertTrue(printed, source.contains("default: current = current.bound; break; } } Binding first = current.bound;"));
         assertTrue(printed, source.contains("continue; } count += 2;"));
         assertTrue(printed, source.contains("for (int i = 0; i < max; i++)"));
+        // the switch of the else branch, whose last case is empty, is not the one of the code which follows the branch
+        assertFalse(printed, source.contains("throw null"));
+        assertTrue(printed, source.contains("case 1: msecs += 100 * text.charAt(start);"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjSwitchInIf", printed)));
     }
 }

@@ -30,7 +30,7 @@ public class EcjSwitchInIf {
     }
 
     Binding create(Binding binding, int dim) {
-        return binding;
+        return binding.dimensions >= dim ? binding : new Binding();
     }
 
     Binding[] visit(Binding[] types) {
@@ -110,5 +110,31 @@ public class EcjSwitchInIf {
             count += 2;
         }
         return count;
+    }
+
+    /** 'StdDateFormat' of Jackson: the switch is in the else branch of an if, whose then branch jumps to the code which follows the else branch as the empty last case does */
+    int fraction(int start, int end, String text) {
+        int msecs = 0;
+
+        if (start >= end) {
+            msecs = -1;
+        } else {
+            switch (end - start) {
+                default:
+                    if (end - start > 9) {
+                        throw new IllegalStateException(text);
+                    }
+                case 3:
+                    msecs += text.charAt(start + 2);
+                case 2:
+                    msecs += 10 * text.charAt(start + 1);
+                case 1:
+                    msecs += 100 * text.charAt(start);
+                case 0:
+            }
+            msecs += 1;
+        }
+        text.length();
+        return msecs;
     }
 }

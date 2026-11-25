@@ -901,7 +901,7 @@ public abstract class ControlFlowGraphReducer {
 
         end = preferTheJoinBeforeTheContinueOfALoop(basicBlock, ends, lastSwitchCaseBasicBlock, end);
 
-        BasicBlock joinedBefore = joinedBeforeTheSwitch(basicBlock, lastSwitchCaseBasicBlock);
+        BasicBlock joinedBefore = joinedBeforeTheSwitch(lastSwitchCaseBasicBlock);
 
         if (joinedBefore != null) {
             end = joinedBefore;
@@ -1555,23 +1555,23 @@ public abstract class ControlFlowGraphReducer {
     }
 
     /**
-     * 'if (c) { switch (x) { case 1: continue; default: v = 1; } } rest': a jump which comes from before the switch reaches the code which follows the last case, which
+     * 'if (c) { switch (x) { case 1: continue; default: v = 1; } } rest': a test which comes before the switch jumps to the code which follows the last case, which
      * is the end of the switch, or the last case itself if it is empty
      *
      * @return the end of the switch, null if the code which follows the switch is reached by the switch only
      */
-    private static BasicBlock joinedBeforeTheSwitch(BasicBlock switchBlock, BasicBlock lastSwitchCaseBasicBlock) {
-        if (isJoinedBeforeTheSwitch(switchBlock, lastSwitchCaseBasicBlock)) {
+    private static BasicBlock joinedBeforeTheSwitch(BasicBlock lastSwitchCaseBasicBlock) {
+        if (isJoinedBeforeTheSwitch(lastSwitchCaseBasicBlock)) {
             return lastSwitchCaseBasicBlock;
         }
 
         BasicBlock next = lastSwitchCaseBasicBlock.getNext();
 
-        return next != null && isJoinedBeforeTheSwitch(switchBlock, next) ? next : null;
+        return next != null && isJoinedBeforeTheSwitch(next) ? next : null;
     }
 
-    private static boolean isJoinedBeforeTheSwitch(BasicBlock switchBlock, BasicBlock block) {
-        return block.getPredecessors().stream().anyMatch(predecessor -> predecessor != switchBlock && predecessor.getFromOffset() < switchBlock.getFromOffset());
+    private static boolean isJoinedBeforeTheSwitch(BasicBlock block) {
+        return block.getPredecessors().stream().filter(predecessor -> predecessor.matchType(GROUP_CONDITION)).map(BasicBlock::getBranch).anyMatch(block::equals);
     }
 
     /**

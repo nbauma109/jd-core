@@ -838,6 +838,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         castCapturesToTheTypeVariableOfTheParameter(expression);
         castWildcardArgumentsToTheTypeVariablesWhichOtherArgumentsFix(expression);
         parameterizeCheckCastsPassedWithLambdas(expression);
+        castRawArraySortedByATypedComparator(expression);
 
         if (expression.getNonWildcardTypeArguments() != null) {
             if (hasKnownTypeParameters(expression.getNonWildcardTypeArguments())) {
@@ -3370,6 +3371,21 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         return expression == argumentBeingUpdated && invocationOfTheParameters == null && (expression.isLocalVariableReferenceExpression() || expression.isFieldReferenceExpression())
             && parameterType.getDimension() == 0 && expressionType.getDimension() == 0 && parameterType.rawEquals(expressionType)
             && isRawGenericType(parameterType) && hasWildcardTypeArgument(expressionType);
+    }
+
+    /**
+     * 'Arrays.sort(entries, comparator)', where the byte code only knows 'entries' as a raw 'Map.Entry[]' and the comparator compares 'Map.Entry&lt;String, String&gt;': no type
+     * is both the one of the elements and the one which is compared, so the array is cast to the type which the comparator compares
+     */
+    private static void castRawArraySortedByATypedComparator(MethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if ("java/util/Arrays".equals(expression.getInternalTypeName()) && "sort".equals(expression.getName()) && parameters.size() == 2
+                && parameters.getFirst().getType() instanceof ObjectType array
+                && parameters.getList().getLast().getType() instanceof ObjectType comparator && comparator.getTypeArguments() instanceof ObjectType element
+                && element.getTypeArguments() != null && element.getInternalName().equals(array.getInternalName())) {
+            parameters.getList().set(0, new CastExpression(element.createType(array.getDimension()), parameters.getFirst()));
+        }
     }
 
     /** @return true if the cast, which the byte code has, gives the target type to the list or the set which 'Stream.collect' makes: its type is inferred from the target */

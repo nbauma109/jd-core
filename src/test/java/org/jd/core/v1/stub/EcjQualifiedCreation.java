@@ -20,6 +20,10 @@ public class EcjQualifiedCreation {
             this.source = source;
         }
 
+        Walker(Runnable action) {
+            this.source = action.toString();
+        }
+
         class Step {
         }
     }
@@ -31,6 +35,23 @@ public class EcjQualifiedCreation {
     /** the outer instance is of an inner class */
     static Object step(Walker walker) {
         return walker.new Step();
+    }
+
+    /** the check which the source makes precedes a creation whose argument is a lambda */
+    static Object lambda(Object value, EcjQualifiedCreation outer) {
+        value.getClass();
+        return outer.new Walker(() -> {
+        });
+    }
+
+    /** the check which the source makes, in a switch expression, runs while the creation is pending */
+    Object pending(Object value, int selector) {
+        return new Walker(switch (selector) {
+            default -> {
+                value.getClass();
+                yield "x";
+            }
+        });
     }
 
     static int length(EcjQualifiedCreation outer, String source) {

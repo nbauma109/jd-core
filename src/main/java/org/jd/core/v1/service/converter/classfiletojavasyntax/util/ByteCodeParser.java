@@ -404,7 +404,7 @@ public class ByteCodeParser {
                 case POP, POP2:
                     expression1 = stack.pop();
                     if (expression1.isMethodInvocationExpression() && "getClass".equals(expression1.getName())
-                            && (expression1.getExpression().getType().isInnerObjectType() || isEnclosingInstanceNullCheck(stack))) {
+                            && (expression1.getExpression().getType().isInnerObjectType() || isEnclosingInstanceNullCheck(expression1, stack))) {
                         // (the Eclipse compiler and 'javac' before Java 9 check that way that the instance which qualifies a creation is not null)
                         enclosingInstances.push(expression1.getExpression());
                     } else if (isSyntheticMethodReferenceNullCheck(expression1, stack)) {
@@ -1702,7 +1702,7 @@ public class ByteCodeParser {
     }
 
     private void parseInvokeDynamic(Statements statements, DefaultStack<Expression> stack, ConstantPool constants, int lineNumber, int invokeOffset, int index) {
-        removePreviousGetClass(statements);
+        removePreviousGetClass(statements, stack);
 
         // Create expression
         ConstantCP constantMemberRef = constants.getConstant(index);
@@ -1733,13 +1733,21 @@ public class ByteCodeParser {
         }
     }
 
-    private void removePreviousGetClass(Statements statements) {
+    /** @return true if the receiver of the call is on the top of the stack too: the 'dup; invokevirtual getClass; pop' of a null check */
+    private static boolean isDuplicatedReceiver(Expression call, DefaultStack<Expression> stack) {
+        return !stack.isEmpty() && stack.peek() == call.getExpression();
+    }
+
+    private void removePreviousGetClass(Statements statements, DefaultStack<Expression> stack) {
         if (statements.isEmpty()) {
             return;
         }
-        // Remove previous 'getClass()' or cast if exists
+        // Remove the previous 'getClass()' which checks a receiver of the instruction: the one of the source checks another value
         Expression expression = statements.getLast().getExpression();
 
+        if (!isDuplicatedReceiver(expression, stack)) {
+            return;
+        }
         if (expression instanceof MethodInvocationExpression mie
          && "getClass".equals(mie.getName()) && "()Ljava/lang/Class;".equals(mie.getDescriptor()) && StringConstants.JAVA_LANG_OBJECT.equals(mie.getInternalTypeName())) {
             statements.removeLast();
@@ -1899,9 +1907,9 @@ public class ByteCodeParser {
         return typeMaker.isRawTypeAssignable(firstParameterType, candidateType);
     }
 
-    /** @return true if the stack holds the instance which was checked, above the creation of an inner class which it qualifies; a statement leaves the stack empty */
-    private static boolean isEnclosingInstanceNullCheck(DefaultStack<Expression> stack) {
-        return !stack.isEmpty() && isPendingInnerClassConstruction(stack);
+    /** @return true if the instance which was checked stays on the stack, above the creation of an inner class which it qualifies */
+    private static boolean isEnclosingInstanceNullCheck(Expression call, DefaultStack<Expression> stack) {
+        return isDuplicatedReceiver(call, stack) && isPendingInnerClassConstruction(stack);
     }
 
     private static boolean isPendingInnerClassConstruction(DefaultStack<Expression> stack) {

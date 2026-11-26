@@ -30,7 +30,9 @@ public class EcjQualifiedCreationTest extends AbstractJdTest {
 
         assertTrue(printed, source.contains("return OUTER.new Walker(source);"));
         assertTrue(printed, source.contains("return walker.new Step();"));
-        // the call which the source makes stays
+        // the checks which the source makes stay
+        assertTrue(printed, source.contains("value.getClass(); return outer.new Walker(() -> {"));
+        assertTrue(printed, source.split("value.getClass\\(\\)", -1).length == 3);
         assertTrue(printed, source.contains("outer.getClass(); return"));
         assertTrue(printed, source.contains("outer.new Walker(source)).source.length();") || source.contains("outer.new Walker(source).source.length();"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjQualifiedCreation", printed)));

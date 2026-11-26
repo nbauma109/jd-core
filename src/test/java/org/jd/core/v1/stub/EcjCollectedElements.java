@@ -17,6 +17,7 @@ import java.util.stream.Stream;
 /**
  * 'ModuleBinding.combineWithPackagesFromOtherRelevantModules' of the Eclipse compiler: the elements which are collected are of a subtype of the ones of the list
  */
+@SuppressWarnings("java:S6204")
 public class EcjCollectedElements {
     static class Name {
     }
@@ -25,7 +26,14 @@ public class EcjCollectedElements {
     }
 
     PlainName plain(String text) {
-        return new PlainName();
+        return text.isEmpty() ? null : new PlainName();
+    }
+
+    /** 'StringUtils.indexOfAnyBut' of Commons Lang: the collector is cast to the raw type, the cast of the result stays */
+    boolean contains(CharSequence text, int searched) {
+        Set<Integer> codes = text.codePoints().boxed().collect(Collectors.toSet());
+
+        return codes.contains(searched);
     }
 
     List<Name> names(List<String> texts) {

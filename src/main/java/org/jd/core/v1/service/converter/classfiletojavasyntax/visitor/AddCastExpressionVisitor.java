@@ -3397,7 +3397,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             Expression collect = expression.getExpression();
 
             acceptWithExpectedType(collect, type);
-            return collect;
+            // (a raw argument leaves the call unchecked, whose result is erased: the cast stays)
+            return collect.getParameters().getFirst().isCastExpression() ? expression : collect;
         }
 
         if (expression.isNullExpression()) {

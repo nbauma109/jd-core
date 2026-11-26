@@ -353,7 +353,12 @@ public class ConvertClassFileProcessor {
                 int descriptorIndex = recordComponentInfo.getDescriptorIndex();
                 String recordComponentName = classFile.getConstantPool().getConstantString(index, Const.CONSTANT_Utf8);
                 String recordComponentSignature = classFile.getConstantPool().getConstantString(descriptorIndex, Const.CONSTANT_Utf8);
-                ObjectType recordComponentType = parser.makeFromDescriptor(recordComponentSignature);
+                // the generic type ('T', 'List<K>') is in the signature of the component, the descriptor is its erasure
+                Type recordComponentType = parser.makeFromSignature(Stream.of(recordComponentInfo.getAttributes())
+                        .filter(org.apache.bcel.classfile.Signature.class::isInstance)
+                        .map(attribute -> ((org.apache.bcel.classfile.Signature) attribute).getSignature())
+                        .findAny()
+                        .orElse(recordComponentSignature));
                 annotationReferences = converter.withMarkers(annotationReferences,
                         TypeAnnotationReader.of(recordComponentInfo.getAttributes()).getDeclarationAnnotations(), recordComponentType);
                 recordComponents.add(new RecordComponent(annotationReferences, recordComponentType, recordComponentName));

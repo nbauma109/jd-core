@@ -3110,13 +3110,22 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
     }
 
+    /**
+     * @return true if an 'Object' is cast to a type with a wildcard, the one of the parameter which takes it: the cast is legal and, unlike a raw one, leaves the call checked,
+     * whose result is not erased ('R' for the 'visitor.visitList((List&lt;? extends CharSequence&gt;) value, parameter)')
+     */
+    private static boolean isCastOfAnObjectToAWildcardType(ObjectType target, Expression operand) {
+        return hasWildcardTypeArgument(target) && ObjectType.TYPE_OBJECT.equals(operand.getType());
+    }
+
     @Override
     public void visit(CastExpression expression) {
         if (expression.isByteCodeCheckCast() && expression.getType() instanceof ObjectType objectType
                 && objectType.getTypeArguments() != null
                 && objectType.findTypeParametersInType().isEmpty()
                 && expression != memberReceiver
-                && !(expression.getExpression() instanceof MethodReferenceExpression)) {
+                && !(expression.getExpression() instanceof MethodReferenceExpression)
+                && !isCastOfAnObjectToAWildcardType(objectType, expression.getExpression())) {
             // A CHECKCAST records only the erased class. A concrete parameterization inferred for the
             // implementation cast can be invariantly incompatible with the source-level use.
             expression.setType(objectType.createType(null));

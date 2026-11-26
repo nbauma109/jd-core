@@ -19,15 +19,13 @@ public class EcjRawForEach {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    void record(Context context, boolean exit) {
+    void visit(Context context, boolean exit) {
         ArrayList exited = null;
 
         while (context != null) {
-            if (exit) {
-                if (exited != null) {
-                    for (Object loop : exited) {
-                        ((Context) loop).visits++;
-                    }
+            if (exit && exited != null) {
+                for (Object loop : exited) {
+                    ((Context) loop).visits++;
                 }
             }
             if (context.visits > 0) {

@@ -66,6 +66,16 @@ public class EcjCollectedElements {
         return (ArrayList) texts.collect(Collectors.toList());
     }
 
+    /** a raw stream: the cast of the 'Object' which it collects stays */
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    List ofARawStream(Stream texts) {
+        return (List) texts.collect(Collectors.toList());
+    }
+
+    <S extends Stream<PlainName>> List<PlainName> ofAStreamVariable(S texts) {
+        return texts.collect(Collectors.toList());
+    }
+
     /** the casts of the other calls stay */
     interface Sink {
         <T> T collect(Collector<PlainName, ?, T> collector);

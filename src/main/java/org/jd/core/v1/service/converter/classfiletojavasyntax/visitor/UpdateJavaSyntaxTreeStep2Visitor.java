@@ -40,6 +40,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
     private final DisableVarArgsExpansionVisitor disableVarArgsExpansionVisitor = new DisableVarArgsExpansionVisitor();
     private final WidenedFloatConstantVisitor widenedFloatConstantVisitor = new WidenedFloatConstantVisitor();
     private final RestoreMethodReferenceVisitor restoreMethodReferenceVisitor = new RestoreMethodReferenceVisitor();
+    private final OuterReceiverCleanupVisitor outerReceiverCleanupVisitor = new OuterReceiverCleanupVisitor();
     private final AnonymousClassVarVisitor anonymousClassVarVisitor;
     private final EmptyThenWithPatternVisitor emptyThenWithPatternVisitor = new EmptyThenWithPatternVisitor();
     private final RecordPatternIfVisitor recordPatternIfVisitor;
@@ -83,6 +84,7 @@ public class UpdateJavaSyntaxTreeStep2Visitor extends AbstractJavaSyntaxVisitor 
         SORT_MEMBERS_VISITOR.visit(declaration);
 
         if (bodyDeclaration.isMainBodyDeclaration()) {
+            outerReceiverCleanupVisitor.visit(declaration);
             if (bodyDeclaration.hasInnerTypeDeclarations() && replaceBridgeMethodVisitor.init(bodyDeclaration)) {
                 // Replace bridge method invocation
                 replaceBridgeMethodVisitor.visit(bodyDeclaration);

@@ -1031,7 +1031,8 @@ public final class LoopStatementMaker {
                 if (list.isNewExpression()) {
                     ClassFileNewExpression ne = (ClassFileNewExpression) list;
                     ne.setType(listType.createType(item.getType()));
-                } else {
+                } else if (!TYPE_OBJECT.equals(item.getType()) || !isIterable(typeMaker, listType)) {
+                    // (any list gives 'Object' elements: without a cast, the one which the elements added later give type arguments stays compatible)
                     list = new CastExpression(TYPE_ITERABLE.createType(iterableElementType(item.getType())), list);
                 }
             } else {

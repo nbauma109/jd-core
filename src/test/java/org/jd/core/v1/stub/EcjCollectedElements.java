@@ -60,6 +60,12 @@ public class EcjCollectedElements {
                 .collect(Collectors.toList());
     }
 
+    /** the cast of the source to a class narrows the result of the collector */
+    @SuppressWarnings("rawtypes")
+    ArrayList narrowed(Stream<String> texts) {
+        return (ArrayList) texts.collect(Collectors.toList());
+    }
+
     /** the casts of the other calls stay */
     interface Sink {
         <T> T collect(Collector<PlainName, ?, T> collector);

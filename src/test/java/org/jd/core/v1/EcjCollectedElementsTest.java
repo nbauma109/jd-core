@@ -26,6 +26,7 @@ public class EcjCollectedElementsTest extends AbstractJdTest {
             printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/EcjCollectedElements");
         }
 
+        assertTrue(printed, printed.contains("return (ArrayList)texts.collect("));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjCollectedElements", printed)));
     }
 }

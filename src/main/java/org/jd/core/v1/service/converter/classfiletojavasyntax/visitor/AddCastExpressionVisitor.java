@@ -179,6 +179,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
     private int staticBoundary;
     private Type expectedType;
 
+    /** The descriptors of the types which the collectors of 'java.util.stream.Collectors' are declared to make */
+    private static final Map<String, String> COLLECTED_TYPES = Map.of("toList", "Ljava/util/List;", "toSet", "Ljava/util/Set;");
+
     private record TypeParameter(BaseTypeParameter type, boolean methodLevel) {
         TypeParameter(BaseTypeParameter type) {
             this(type, false);
@@ -3375,7 +3378,9 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && cast.getExpression() instanceof MethodInvocationExpression collect && "collect".equals(collect.getName())
                 && "java/util/stream/Stream".equals(collect.getInternalTypeName())
                 && collect.getParameters().getFirst() instanceof MethodInvocationExpression collector
-                && "java/util/stream/Collectors".equals(collector.getInternalTypeName()) && ("toList".equals(collector.getName()) || "toSet".equals(collector.getName()));
+                && "java/util/stream/Collectors".equals(collector.getInternalTypeName())
+                // (a cast to a class, as the one of the source to 'ArrayList', narrows the result: it stays)
+                && target.getDescriptor().equals(COLLECTED_TYPES.get(collector.getName()));
     }
 
     private Expression updateExpression(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {

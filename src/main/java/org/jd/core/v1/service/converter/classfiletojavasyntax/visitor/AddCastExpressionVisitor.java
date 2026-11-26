@@ -3369,6 +3369,15 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             && isRawGenericType(parameterType) && hasWildcardTypeArgument(expressionType);
     }
 
+    /** @return true if the cast, which the byte code has, gives the target type to the list or the set which 'Stream.collect' makes: its type is inferred from the target */
+    private static boolean isCastOfCollectedElements(Type target, Expression expression) {
+        return expression instanceof CastExpression cast && cast.isByteCodeCheckCast() && target.equals(cast.getType())
+                && cast.getExpression() instanceof MethodInvocationExpression collect && "collect".equals(collect.getName())
+                && "java/util/stream/Stream".equals(collect.getInternalTypeName())
+                && collect.getParameters().getFirst() instanceof MethodInvocationExpression collector
+                && "java/util/stream/Collectors".equals(collector.getInternalTypeName()) && ("toList".equals(collector.getName()) || "toSet".equals(collector.getName()));
+    }
+
     private Expression updateExpression(Map<String, TypeArgument> typeBindings, Map<String, BaseType> localTypeBounds, Type type, Type unboundType, Expression expression, boolean forceCast, boolean unique, boolean rawCast) {
         // Only the outermost expression of a returned value or of a local variable initializer is concerned
         boolean genericCastInLambda = castToGenericInLambda;
@@ -3381,6 +3390,14 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             if (parameterTypeArgument != null) {
                 fieldRef.setType(ot.createType(parameterTypeArgument));
             }
+        }
+
+        if (isCastOfCollectedElements(type, expression)) {
+            // '(List<Name>) names.stream().map(this::plain).collect(Collectors.toList())' casts a 'List<PlainName>': without the cast the target gives the type of the elements
+            Expression collect = expression.getExpression();
+
+            acceptWithExpectedType(collect, type);
+            return collect;
         }
 
         if (expression.isNullExpression()) {

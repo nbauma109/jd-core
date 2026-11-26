@@ -18,6 +18,7 @@ import org.jd.core.v1.model.token.ReferenceToken;
 import org.jd.core.v1.model.token.TextToken;
 import org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.visitor.CompilationUnitVisitor;
 import org.jd.core.v1.service.fragmenter.javasyntaxtojavafragment.visitor.SearchImportsVisitor;
+import java.util.Optional;
 
 import static org.apache.bcel.Const.MAJOR_1_5;
 import static org.jd.core.v1.api.printer.Printer.TYPE;
@@ -98,10 +99,11 @@ public class JavaSyntaxToJavaFragmentProcessor {
 
         @Override
         public void visit(InnerObjectType type) {
-            ObjectType outerType = type.getOuterType();
-            if (outerType != null && (outerType.getName() == null || outerType.getName().isEmpty())) {
+            // (without an outer type, or with the one of an anonymous class, which has no name)
+            if (type.getQualifiedName() == null || Optional.ofNullable(type.getOuterType()).map(ObjectType::getName).orElse("").isEmpty()) {
                 // An anonymous class has no source-level name. Its member types are directly in scope
-                // inside its body and must not be prefixed with the anonymous class's empty name.
+                // inside its body and must not be prefixed with the anonymous class's empty name. A local
+                // class, which has no qualified name, is no member of the class which declares it either.
                 tokens.add(new ReferenceToken(TYPE, type.getInternalName(), type.getName(), null, currentType));
                 if (majorVersion >= MAJOR_1_5) {
                     BaseTypeArgument typeArguments = type.getTypeArguments();

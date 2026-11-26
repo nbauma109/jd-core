@@ -403,7 +403,9 @@ public class ByteCodeParser {
                     break;
                 case POP, POP2:
                     expression1 = stack.pop();
-                    if (expression1.isMethodInvocationExpression() && expression1.getExpression().getType().isInnerObjectType() && "getClass".equals(expression1.getName())) {
+                    if (expression1.isMethodInvocationExpression() && "getClass".equals(expression1.getName())
+                            && (expression1.getExpression().getType().isInnerObjectType() || isEnclosingInstanceNullCheck(stack))) {
+                        // (the Eclipse compiler and 'javac' before Java 9 check that way that the instance which qualifies a creation is not null)
                         enclosingInstances.push(expression1.getExpression());
                     } else if (isSyntheticMethodReferenceNullCheck(expression1, stack)) {
                         // javac emits 'dup + Objects.requireNonNull + pop' before bound method references
@@ -1895,6 +1897,11 @@ public class ByteCodeParser {
         ObjectType firstParameterType = typeMaker.makeFromInternalTypeName(constructorDescriptor.substring(2, constructorDescriptor.indexOf(';')));
 
         return typeMaker.isRawTypeAssignable(firstParameterType, candidateType);
+    }
+
+    /** @return true if the stack holds the instance which was checked, above the creation of an inner class which it qualifies; a statement leaves the stack empty */
+    private static boolean isEnclosingInstanceNullCheck(DefaultStack<Expression> stack) {
+        return !stack.isEmpty() && isPendingInnerClassConstruction(stack);
     }
 
     private static boolean isPendingInnerClassConstruction(DefaultStack<Expression> stack) {

@@ -3383,6 +3383,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         if ("java/util/Arrays".equals(expression.getInternalTypeName()) && "sort".equals(expression.getName()) && parameters.size() == 2
                 && parameters.getFirst().getType() instanceof ObjectType array
                 && parameters.getList().getLast().getType() instanceof ObjectType comparator && comparator.getTypeArguments() instanceof ObjectType element
+                // (the type argument of a class which implements the interface need not be the type which it compares)
+                && "java/util/Comparator".equals(comparator.getInternalName())
                 && element.getTypeArguments() != null && element.getInternalName().equals(array.getInternalName())) {
             parameters.getList().set(0, new CastExpression(element.createType(array.getDimension()), parameters.getFirst()));
         }

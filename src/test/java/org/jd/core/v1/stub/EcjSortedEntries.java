@@ -52,4 +52,18 @@ public class EcjSortedEntries {
         Arrays.sort(lists, bySize);
         Arrays.sort(names, naturally);
     }
+
+    /** the type argument of the class of this comparator is not the type which it compares */
+    static class ByText<T> implements Comparator<Map.Entry<String, String>> {
+        T context;
+
+        @Override
+        public int compare(Map.Entry<String, String> first, Map.Entry<String, String> second) {
+            return first.getKey().compareTo(second.getKey());
+        }
+    }
+
+    void custom(Map.Entry<String, String>[] entries, ByText<Map.Entry<Integer, Integer>> byText) {
+        Arrays.sort(entries, byText);
+    }
 }

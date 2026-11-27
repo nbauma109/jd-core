@@ -8,7 +8,7 @@
 package org.jd.core.v1.stub;
 
 /**
- * 'Server.escape' of Log4j: in a loop, some cases 'break' to the code which follows a 'switch' without 'default', others 'continue' the loop
+ * 'Server.escape' of Log4j: in a loop, some cases 'break' to the code which follows a 'switch' whose 'default' only leaves it, others 'continue' the loop
  */
 public class SwitchBreakAndContinue {
     public static String escape(String name) {
@@ -17,13 +17,11 @@ public class SwitchBreakAndContinue {
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);
             switch (c) {
-                case '\\':
-                case '*':
+                case '\\', '*':
                     sb.append('\\');
                     needsQuotes = true;
                     break;
-                case ',':
-                case '=':
+                case ',', '=':
                     needsQuotes = true;
                     break;
                 case '\r':
@@ -32,6 +30,8 @@ public class SwitchBreakAndContinue {
                     sb.append("\\n");
                     needsQuotes = true;
                     continue;
+                default:
+                    break;
             }
             sb.append(c);
         }
@@ -60,7 +60,7 @@ public class SwitchBreakAndContinue {
         return sum;
     }
 
-    /** the last case is no 'default' */
+    /** the last case is no 'default', which only leaves the switch */
     public static int withoutLastDefault(int[] values) {
         int sum = 0;
         for (int value : values) {
@@ -72,6 +72,9 @@ public class SwitchBreakAndContinue {
                     break;
                 case 3:
                     sum += 3;
+                    break;
+                default:
+                    break;
             }
             sum++;
         }

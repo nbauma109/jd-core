@@ -22,7 +22,7 @@ public class SwitchBreakAndContinueTest extends AbstractJdTest {
     public void testCasesWhichBreakAndCasesWhichContinue() throws Exception {
         String printed;
 
-        try (InputStream is = getClass().getResourceAsStream("/jar/switch-break-and-continue-javac-8.jar")) {
+        try (InputStream is = getClass().getResourceAsStream("/jar/switch-break-and-continue-javac-17.jar")) {
             printed = decompileSuccess(new ZipLoader(is), new NoLineNumberPrinter(), "org/jd/core/v1/stub/SwitchBreakAndContinue");
         }
 
@@ -30,6 +30,6 @@ public class SwitchBreakAndContinueTest extends AbstractJdTest {
 
         assertTrue(printed, source.contains("case '\\r': continue;"));
         assertTrue(printed, source.contains("needsQuotes = true; continue; } sb.append(c);"));
-        assertTrue(printed, CompilerUtil.compile("8", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/SwitchBreakAndContinue", printed)));
+        assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/SwitchBreakAndContinue", printed)));
     }
 }

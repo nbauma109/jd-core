@@ -27,6 +27,8 @@ public class EcjSortedEntriesTest extends AbstractJdTest {
         }
 
         assertTrue(printed, printed.contains("Arrays.sort(entries, (Comparator)byText);"));
+        // the array which has its type arguments is not cast
+        assertTrue(printed, printed.contains("Arrays.sort(shared, BY_HASH);"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjSortedEntries", printed)));
     }
 }

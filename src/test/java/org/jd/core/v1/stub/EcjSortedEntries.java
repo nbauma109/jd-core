@@ -66,4 +66,37 @@ public class EcjSortedEntries {
     void custom(Map.Entry<String, String>[] entries, ByText<Map.Entry<Integer, Integer>> byText) {
         Arrays.sort(entries, byText);
     }
+
+    static Map.Entry<String, String>[] shared;
+
+    static final Comparator<Map.Entry<?, ?>> BY_HASH = null;
+
+    static ByText<Map.Entry<Integer, Integer>> byText;
+
+    /** the generic signature of the field gives the type arguments of the array: no cast */
+    void shared() {
+        Arrays.sort(shared, BY_HASH);
+        Arrays.sort(shared, byText);
+    }
+
+    /** a raw array does not take a comparator of the wildcard type */
+    void wildcards(Map.Entry<?, ?>[] anyEntries, Comparator<Map.Entry<?, ?>> byAnyKey) {
+        Arrays.sort(anyEntries, byAnyKey);
+    }
+
+    /** a bounded wildcard is not what the raw type is: the cast is needed */
+    void bounded(Map.Entry<String, Integer>[] counts, Comparator<Map.Entry<String, ? extends Number>> byNumber) {
+        Arrays.sort(counts, byNumber);
+    }
+
+    /** comparators which are created where they sort */
+    void created(Map.Entry<?, ?>[] anyEntries, Map.Entry<String, String>[] entries) {
+        Arrays.sort(anyEntries, new Comparator<Map.Entry<?, ?>>() {
+            @Override
+            public int compare(Map.Entry<?, ?> first, Map.Entry<?, ?> second) {
+                return first.hashCode() - second.hashCode();
+            }
+        });
+        Arrays.sort(entries, new ByText<Map.Entry<Integer, Integer>>());
+    }
 }

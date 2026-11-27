@@ -3501,7 +3501,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && cast.getExpression() instanceof MethodInvocationExpression collect && "collect".equals(collect.getName())
                 && "java/util/stream/Stream".equals(collect.getInternalTypeName())
                 // (a raw stream is unchecked: whatever the collector, 'collect' makes an 'Object')
-                && !(collect.getExpression().getType() instanceof ObjectType stream && stream.getTypeArguments() == null)
+                && (!(collect.getExpression().getType() instanceof ObjectType stream) || (stream.getTypeArguments() != null))
                 && collect.getParameters().getFirst() instanceof MethodInvocationExpression collector
                 && "java/util/stream/Collectors".equals(collector.getInternalTypeName())
                 // (a cast to a class, as the one of the source to 'ArrayList', narrows the result: it stays)

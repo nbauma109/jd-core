@@ -141,17 +141,22 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testDiskLruCache() throws Exception {
-        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", pomVersion("com.jakewharton", "disklrucache"), false);
+        String version = pomVersion("com.jakewharton", "disklrucache");
+        // One test expects ThreadPoolExecutor.getTaskCount, which is documented as approximate, to be exact: the released jar gives it 2 instead of 1 too
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test", List.of("-Dtest=!DiskLruCacheTest#shrinkMaxSizeEvicts"));
+        testAtTag("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-" + version, "com.jakewharton", "disklrucache", version, true, null, layout);
     }
 
     @Test
     public void testJavaPoet() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", pomVersion("com.squareup", "javapoet"), false);
+        // Its tests need Java 8: its Mockito cannot define classes on a later JDK, whose compiler also reads parameter names which a test expects to be unknown
+        String version = pomVersion("com.squareup", "javapoet");
+        testAtTag("https://github.com/square/javapoet", "javapoet", "javapoet-" + version, "com.squareup", "javapoet", version, true, findJava8Home());
     }
 
     @Test
     public void testJavaWriter() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", pomVersion("com.squareup", "javawriter"), false);
+        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", pomVersion("com.squareup", "javawriter"));
     }
 
     @Test
@@ -207,12 +212,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testMimecraft() throws Exception {
-        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", pomVersion("com.squareup.mimecraft", "mimecraft"), false);
+        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", pomVersion("com.squareup.mimecraft", "mimecraft"));
     }
 
     @Test
     public void testScribe() throws Exception {
-        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", pomVersion("org.scribe", "scribe"), false);
+        // The library uses javax.xml.bind, which the JDK has no more after Java 8
+        String version = pomVersion("org.scribe", "scribe");
+        // One test expects an order of the entries of a HashMap which the released jar does not give either
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test",
+                List.of("-Dtest=!HeaderExtractorTest#shouldExtractStandardHeader"));
+        testAtTag("https://github.com/scribejava/scribejava", "scribejava", version, "org.scribe", "scribe", version, true, findJava8Home(), layout);
     }
 
     @Test
@@ -601,6 +611,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // javac refuses outright ("Source option 5 is no longer supported"); bump those up to 8,
                 // which every such library's own pre-8 syntax already compiles under unchanged.
                 raiseObsoleteCompilerLevel(Paths.get(projectDir.getPath(), "pom.xml"));
+                useStandardCompiler(Paths.get(projectDir.getPath(), "pom.xml"));
                 if (layout.moduleDir() != null) {
                     relaxInheritedCompilerChecks(Paths.get(projectDir.getPath(), "pom.xml"));
                 }
@@ -622,6 +633,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 command.add("-Danimal.sniffer.skip=true");
                 // The decompiled sources have no license header: the Apache RAT check of the Commons projects would fail the build
                 command.add("-Drat.skip=true");
+                // The old FindBugs of some poms (Scribe), which they run when they compile, cannot read classes of Java 8
+                command.add("-Dfindbugs.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);
                 // Maven Central answers 429 to the jobs of the CI which all resolve the artifacts of the library at the same time: Maven tries again, later
                 command.add("-Daether.connector.http.retryHandler.count=10");
@@ -747,9 +760,30 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         }
     }
 
-    private static final Pattern OBSOLETE_COMPILER_LEVEL =
-            Pattern.compile("(?<open><(?:maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion)>)\\s*(?:1\\.[0-7]|[0-7])\\s*"
-                    + "(?<close></(?:maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion)>)");
+    /** The properties and the settings of the compiler plugin by which the poms give the compiler level */
+    private static final String COMPILER_LEVEL_TAGS = "maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion|java\\.version|source|target";
+
+    private static final Pattern OBSOLETE_COMPILER_LEVEL = Pattern.compile(
+            "(?<open><(?:" + COMPILER_LEVEL_TAGS + ")>)\\s*(?:1\\.[0-7]|[0-7])\\s*(?<close></(?:" + COMPILER_LEVEL_TAGS + ")>)");
+
+    private static final Pattern ERROR_PRONE_DEPENDENCIES = Pattern.compile(
+            "<dependencies>\\s*<dependency>\\s*<groupId>org\\.codehaus\\.plexus</groupId>\\s*<artifactId>plexus-compiler-javac-errorprone</artifactId>.*?</dependencies>",
+            Pattern.DOTALL);
+
+    /** The compiler of old versions of Error Prone, which some poms (JavaPoet) set, cannot read the classes of the JDK which runs the tests */
+    private static void useStandardCompiler(Path pomPath) throws IOException {
+        if (!Files.exists(pomPath)) {
+            return;
+        }
+
+        String pom = Files.readString(pomPath);
+        // (the dependencies of the compiler plugin which add it have the compiler too)
+        String patched = ERROR_PRONE_DEPENDENCIES.matcher(pom.replace("<compilerId>javac-with-errorprone</compilerId>", "")).replaceFirst("");
+
+        if (!patched.equals(pom)) {
+            Files.writeString(pomPath, patched);
+        }
+    }
 
     private static void raiseObsoleteCompilerLevel(Path pomPath) throws IOException {
         if (!Files.exists(pomPath)) {

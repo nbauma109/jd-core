@@ -200,7 +200,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJUnit4() throws Exception {
-        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", pomVersion("junit", "junit"), false);
+        test("https://github.com/junit-team/junit4", "junit4", "r", "junit", "junit", pomVersion("junit", "junit"));
     }
 
     @Test
@@ -742,7 +742,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     }
 
     private static final Pattern OBSOLETE_COMPILER_LEVEL =
-            Pattern.compile("(?<open><maven\\.compiler\\.(?:source|target|compilerVersion|release)>)\\s*(?:1\\.[0-7]|[0-7])\\s*(?<close></maven\\.compiler\\.(?:source|target|compilerVersion|release)>)");
+            Pattern.compile("(?<open><(?:maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion)>)\\s*(?:1\\.[0-7]|[0-7])\\s*"
+                    + "(?<close></(?:maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion)>)");
 
     private static void raiseObsoleteCompilerLevel(Path pomPath) throws IOException {
         if (!Files.exists(pomPath)) {

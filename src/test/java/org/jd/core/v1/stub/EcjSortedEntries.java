@@ -94,7 +94,7 @@ public class EcjSortedEntries {
         Arrays.sort(anyEntries, new Comparator<Map.Entry<?, ?>>() {
             @Override
             public int compare(Map.Entry<?, ?> first, Map.Entry<?, ?> second) {
-                return first.hashCode() - second.hashCode();
+                return Integer.compare(first.hashCode(), second.hashCode());
             }
         });
         Arrays.sort(entries, new ByText<Map.Entry<Integer, Integer>>());

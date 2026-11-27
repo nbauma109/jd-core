@@ -622,6 +622,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 command.add("-Danimal.sniffer.skip=true");
                 // The decompiled sources have no license header: the Apache RAT check of the Commons projects would fail the build
                 command.add("-Drat.skip=true");
+                // The old FindBugs of some poms (Scribe), which they run when they compile, cannot read classes of Java 8
+                command.add("-Dfindbugs.skip=true");
                 command.add("-Dmaven.repo.local=" + mavenRepoLocal);
                 // Maven Central answers 429 to the jobs of the CI which all resolve the artifacts of the library at the same time: Maven tries again, later
                 command.add("-Daether.connector.http.retryHandler.count=10");
@@ -753,6 +755,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     private static final Pattern OBSOLETE_COMPILER_LEVEL = Pattern.compile(
             "(?<open><(?:" + COMPILER_LEVEL_TAGS + ")>)\\s*(?:1\\.[0-7]|[0-7])\\s*(?<close></(?:" + COMPILER_LEVEL_TAGS + ")>)");
 
+    private static final Pattern ERROR_PRONE_DEPENDENCIES = Pattern.compile(
+            "<dependencies>\\s*<dependency>\\s*<groupId>org\\.codehaus\\.plexus</groupId>\\s*<artifactId>plexus-compiler-javac-errorprone</artifactId>.*?</dependencies>",
+            Pattern.DOTALL);
+
     /** The compiler of old versions of Error Prone, which some poms (JavaPoet) set, cannot read the classes of the JDK which runs the tests */
     private static void useStandardCompiler(Path pomPath) throws IOException {
         if (!Files.exists(pomPath)) {
@@ -760,7 +766,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         }
 
         String pom = Files.readString(pomPath);
-        String patched = pom.replace("<compilerId>javac-with-errorprone</compilerId>", "");
+        // (the dependencies of the compiler plugin which add it have the compiler too)
+        String patched = ERROR_PRONE_DEPENDENCIES.matcher(pom.replace("<compilerId>javac-with-errorprone</compilerId>", "")).replaceFirst("");
 
         if (!patched.equals(pom)) {
             Files.writeString(pomPath, patched);

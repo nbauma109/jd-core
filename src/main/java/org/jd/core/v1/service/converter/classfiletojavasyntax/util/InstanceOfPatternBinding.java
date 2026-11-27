@@ -283,9 +283,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
             // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds. These are interfaces:
-            // none of them can make the test of a class unconditional)
-            if (isCapturedVariable(field, method.getConstantPool())
-                    && !ClassMetadata.isClass(LOADER.get(), erasure(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool())))) {
+            // none of them can make the test of a class or of an array unconditional)
+            if (isCapturedVariable(field, method.getConstantPool()) && !isClassOrArray(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()))) {
                 return null;
             }
             return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
@@ -314,6 +313,10 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
         return typeOfTheValueProducedBy(producer, constants);
+    }
+
+    private static boolean isClassOrArray(String descriptor) {
+        return descriptor.startsWith("[") || ClassMetadata.isClass(LOADER.get(), erasure(descriptor));
     }
 
     /** @return true if the field is the copy which an anonymous or a local class makes of a variable which it captures ('val$name') */
@@ -386,6 +389,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         while (signature.charAt(dimensions) == '[') {
             dimensions++;
+        }
+
+        if (dimensions == signature.length() - 1) {
+            // a primitive type, or an array of it
+            return signature.substring(dimensions);
         }
 
         int start = dimensions + 1;

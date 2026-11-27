@@ -44,4 +44,21 @@ public class EcjTernaryCast {
             }
         };
     }
+
+    /** the captured array is tested against an array of a primitive type */
+    Runnable capturedValues(final Object[] values, final int[] lengths) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < values.length; i++) {
+                    lengths[i] = values[i] instanceof int[] ints ? ints.length : 0;
+                }
+            }
+        };
+    }
+
+    /** a local variable is tested against an array of a primitive type */
+    static int length(Object value) {
+        return value instanceof long[][] longs ? longs.length : 0;
+    }
 }

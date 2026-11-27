@@ -33,6 +33,8 @@ public class EcjTernaryCastTest extends AbstractJdTest {
         // the test of a class cannot be made unconditional by the interfaces which the erasure of a captured array omits
         assertTrue(printed, source.contains("(nodes[i] instanceof Wrapper capturedWrapper) ? capturedWrapper.wrapped : nodes[i]")
                 || source.contains("(nodes[i] instanceof EcjTernaryCast.Wrapper capturedWrapper) ? capturedWrapper.wrapped : nodes[i]"));
+        assertTrue(printed, source.contains("(values[i] instanceof int[] ints) ? ints.length : 0"));
+        assertTrue(printed, source.contains("instanceof long[][] longs"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjTernaryCast", printed)));
     }
 

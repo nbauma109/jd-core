@@ -282,8 +282,10 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
-            // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds)
-            if (isCapturedVariable(field, method.getConstantPool())) {
+            // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds. These are interfaces:
+            // none of them can make the test of a class unconditional)
+            if (isCapturedVariable(field, method.getConstantPool())
+                    && !ClassMetadata.isClass(LOADER.get(), erasure(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool())))) {
                 return null;
             }
             return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);

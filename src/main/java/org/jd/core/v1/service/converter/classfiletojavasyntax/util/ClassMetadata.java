@@ -1149,6 +1149,13 @@ public final class ClassMetadata {
         return new byte[0];
     }
 
+    /** @return true if the class file can be read and declares a class, not an interface */
+    public static boolean isClass(Loader loader, String internalName) {
+        JavaClass javaClass = parse(loader, internalName);
+
+        return javaClass != null && javaClass.isClass();
+    }
+
     /** @return true if the hierarchy of the class can be read: its class file is held by the loader, or it is a class of the platform */
     public static boolean isKnown(Loader loader, String internalName) {
         return parse(loader, internalName) != null;

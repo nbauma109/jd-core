@@ -32,4 +32,16 @@ public class EcjTernaryCast {
         }
         return result;
     }
+
+    /** the array which an anonymous class captures */
+    Runnable capturedNodes(final Node[] nodes, final Node[] result) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < nodes.length; i++) {
+                    result[i] = nodes[i] instanceof Wrapper capturedWrapper ? capturedWrapper.wrapped : nodes[i];
+                }
+            }
+        };
+    }
 }

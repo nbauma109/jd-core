@@ -12,7 +12,9 @@ import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.Expression;
 import org.jd.core.v1.model.javasyntax.expression.MethodInvocationExpression;
 import org.jd.core.v1.model.javasyntax.expression.StringConstantExpression;
+import org.jd.core.v1.model.javasyntax.expression.IntegerConstantExpression;
 import org.jd.core.v1.model.javasyntax.type.ObjectType;
+import org.jd.core.v1.model.javasyntax.type.PrimitiveType;
 import org.jd.core.v1.service.converter.classfiletojavasyntax.model.javasyntax.expression.ClassFileMethodInvocationExpression;
 import org.jd.core.v1.util.DefaultList;
 import org.jd.core.v1.util.StringConstants;
@@ -31,7 +33,7 @@ public final class StringConcatenationUtil {
             MethodInvocationExpression mie = (MethodInvocationExpression) expression;
 
             if (Utils.isSingleton(mie.getParameters()) && "append".equals(mie.getName())) {
-                Expression concatenatedStringExpression = mie.getParameters().getFirst();
+                Expression concatenatedStringExpression = operandOf(mie);
                 Expression expr = mie.getExpression();
                 boolean firstParameterHaveGenericType = false;
 
@@ -43,7 +45,7 @@ public final class StringConcatenationUtil {
                     }
 
                     firstParameterHaveGenericType = mie.getParameters().getFirst().getType().isGenericType();
-                    concatenatedStringExpression = new BinaryOperatorExpression(mie.getLineNumber(), ObjectType.TYPE_STRING, (Expression) mie.getParameters(), "+", concatenatedStringExpression, 4);
+                    concatenatedStringExpression = new BinaryOperatorExpression(mie.getLineNumber(), ObjectType.TYPE_STRING, operandOf(mie), "+", concatenatedStringExpression, 4);
                     expr = mie.getExpression();
                 }
 
@@ -68,6 +70,16 @@ public final class StringConcatenationUtil {
         }
 
         return new ClassFileMethodInvocationExpression(lineNumber, ObjectType.TYPE_STRING, expression, typeName, "toString", "()Ljava/lang/String;", null, null);
+    }
+
+    /** 'append(int)' appends a number: the constant must not be taken for a character once the call is turned into a '+' */
+    private static Expression operandOf(MethodInvocationExpression append) {
+        Expression operand = append.getParameters().getFirst();
+
+        if (operand instanceof IntegerConstantExpression constant && append.getDescriptor().startsWith("(I)")) {
+            constant.setType(PrimitiveType.TYPE_INT);
+        }
+        return operand;
     }
 
     public static Expression create(String recipe, BaseExpression parameters) {

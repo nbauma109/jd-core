@@ -68,4 +68,18 @@ public class EcjTernaryCastOther {
             }
         };
     }
+
+    /** an array of references keeps its test: the hierarchy of the elements may be unknown */
+    Runnable capturedClassArrays(final Node[][] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Wrapper[]) {
+                    Wrapper[] wrappers = (Wrapper[]) temporary;
+                    items = wrappers;
+                }
+            }
+        };
+    }
 }

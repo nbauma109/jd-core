@@ -53,6 +53,7 @@ public class EcjTernaryCastTest extends AbstractJdTest {
         // the array which an anonymous class captures: its bounds are unknown, the test of an interface stays
         assertFalse(printed, source.contains("instanceof Runnable runnable"));
         assertFalse(printed, source.contains("instanceof Runnable[] runnables"));
+        assertFalse(printed, source.contains("[] wrappers)"));
     }
 
     /** without a class file, a type is not known to be a class */

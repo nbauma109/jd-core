@@ -283,8 +283,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
             // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds. These are interfaces:
-            // none of them can make the test of a class unconditional, nor the one of an array of a class)
-            if (isCapturedVariable(field, method.getConstantPool()) && !isClassOrArrayOfClass(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()))) {
+            // none of them can make the test of a class unconditional)
+            if (isCapturedVariable(field, method.getConstantPool()) && !isClassOrPrimitiveArray(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()))) {
                 return null;
             }
             return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
@@ -315,10 +315,13 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return typeOfTheValueProducedBy(producer, constants);
     }
 
-    /** @return true for a class, an array of a class and an array of a primitive type: no interface, nor an array of one */
-    private static boolean isClassOrArrayOfClass(String descriptor) {
+    /**
+     * @return true for a class and an array of a primitive type. An array of references stays: it may be one of an interface, or one which the elements
+     *         are of for sure, which a class missing from the loader hides
+     */
+    private static boolean isClassOrPrimitiveArray(String descriptor) {
         // the descriptor of a primitive type is the only one without ';'
-        return !descriptor.endsWith(";") || ClassMetadata.isClass(LOADER.get(), erasure(descriptor));
+        return !descriptor.endsWith(";") || descriptor.startsWith("L") && ClassMetadata.isClass(LOADER.get(), erasure(descriptor));
     }
 
     /** @return true if the field is the copy which an anonymous or a local class makes of a variable which it captures ('val$name') */

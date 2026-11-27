@@ -23,6 +23,7 @@ import org.jd.core.v1.model.javasyntax.declaration.MethodDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.RecordDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.StaticInitializerDeclaration;
 import org.jd.core.v1.model.javasyntax.declaration.VariableInitializer;
+import org.jd.core.v1.model.javasyntax.expression.AbstractLambdaExpression;
 import org.jd.core.v1.model.javasyntax.expression.BaseExpression;
 import org.jd.core.v1.model.javasyntax.expression.BinaryOperatorExpression;
 import org.jd.core.v1.model.javasyntax.expression.BooleanExpression;
@@ -116,6 +117,7 @@ import java.util.stream.IntStream;
 import java.util.function.Predicate;
 
 import org.apache.bcel.classfile.ClassParser;
+import org.apache.bcel.Const;
 import org.apache.bcel.classfile.JavaClass;
 import org.apache.bcel.generic.ConstantPoolGen;
 import org.apache.bcel.generic.InstructionHandle;
@@ -905,6 +907,7 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         }
         removeEmptyVarArgsArray(expression);
         keepEmptyArrayWhichSelectsTheOverload((ClassFileMethodInvocationExpression) expression);
+        keepArrayWhoseElementsSelectAnOverload((ClassFileMethodInvocationExpression) expression);
     }
 
     /**
@@ -918,6 +921,79 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
                 && hasOverloadWithoutTheLastParameterType(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())) {
             expression.setVarArgsOverride(Boolean.FALSE);
         }
+    }
+
+    /**
+     * 'filter(message, new Object[] {p0})' calls the variable arity method; with the elements in place of the array it calls an overload which takes
+     * them one by one, when there is one, which may be the calling method itself: the array stays
+     */
+    private void keepArrayWhoseElementsSelectAnOverload(ClassFileMethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (expression.isVarArgs() && !Utils.isEmpty(parameters) && parameters.getLast() instanceof NewInitializedArray array) {
+            Expressions spelled = spelledArguments(parameters, array.getArrayInitializer());
+
+            if (hasFixedArityOverload(expression.getInternalTypeName(), expression.getName(), spelled)) {
+                expression.setVarArgsOverride(Boolean.FALSE);
+            }
+        }
+    }
+
+    /** @return the arguments of the call once the elements of the array take its place */
+    private static Expressions spelledArguments(BaseExpression parameters, ArrayVariableInitializer elements) {
+        Expressions spelled = new Expressions();
+
+        if (parameters.isList()) {
+            spelled.addAll(parameters.getList().subList(0, parameters.size() - 1));
+        }
+        for (VariableInitializer element : elements) {
+            spelled.add(element.getExpression());
+        }
+        return spelled;
+    }
+
+    /** @return true if the class, or one which it extends, has a method of that name and of a fixed arity which takes the arguments */
+    private boolean hasFixedArityOverload(String internalName, String name, List<Expression> arguments) {
+        for (JavaClass owner = parseClass(internalName); owner != null && owner.getSuperclassNameIndex() != 0; owner = parseClass(owner.getSuperclassName().replace('.', '/'))) {
+            if (Arrays.stream(owner.getMethods()).anyMatch(method -> method.getName().equals(name) && (method.getAccessFlags() & Const.ACC_VARARGS) == 0
+                    && takes(method.getArgumentTypes(), arguments))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean takes(org.apache.bcel.generic.Type[] parameterTypes, List<Expression> arguments) {
+        return parameterTypes.length == arguments.size()
+                && IntStream.range(0, parameterTypes.length).allMatch(i -> isPassable(arguments.get(i), parameterTypes[i].getSignature()));
+    }
+
+    private static final Set<String> BOXED_TYPES = Set.of("Ljava/lang/Boolean;", "Ljava/lang/Byte;", "Ljava/lang/Character;", "Ljava/lang/Short;",
+            "Ljava/lang/Integer;", "Ljava/lang/Long;", "Ljava/lang/Float;", "Ljava/lang/Double;");
+
+    /** @return true if the argument can be passed to a parameter of that descriptor, boxed or unboxed if need be */
+    private boolean isPassable(Expression argument, String parameter) {
+        Type type = argument.getType();
+
+        if (argument.isNullExpression()) {
+            return parameter.length() > 1;
+        }
+        if (type.isPrimitiveType() && type.getDimension() == 0) {
+            // the primitive type itself, or a super type of its box
+            return parameter.length() == 1 || parameter.startsWith("Ljava/lang/") || "Ljava/io/Serializable;".equals(parameter);
+        }
+        if (parameter.length() == 1) {
+            return BOXED_TYPES.contains(type.getDescriptor());
+        }
+        if (parameter.equals(type.getDescriptor())) {
+            return true;
+        }
+        if ("Ljava/lang/Object;".equals(parameter)) {
+            // a lambda or a method reference has no type of its own: 'Object' cannot be its target
+            return !(argument instanceof AbstractLambdaExpression) && !(argument instanceof MethodReferenceExpression);
+        }
+        return type instanceof ObjectType objectType && objectType.getDimension() == 0 && parameter.startsWith("L")
+                && typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName(parameter.substring(1, parameter.length() - 1)), objectType);
     }
 
     /** @return true if the class, or one which it extends, has a method of that name whose parameter types are the ones of the descriptor without the last one */

@@ -80,4 +80,47 @@ public class SwitchBreakAndContinue {
         }
         return sum;
     }
+
+    /** the code which follows the switch leaves a 'while' loop */
+    public static int whileReturns(int[] values) {
+        int sum = 0;
+        int i = 0;
+        while (i < values.length) {
+            switch (values[i++]) {
+                case 1:
+                    continue;
+                case 2:
+                    sum += 2;
+                    break;
+                case 3:
+                    sum += 3;
+                    break;
+                default:
+                    break;
+            }
+            return sum;
+        }
+        return -sum;
+    }
+    public static int whileThrows(int[] values) {
+        int sum = 0;
+        int i = 0;
+        while (i < values.length) {
+            int value = values[i++];
+            switch (value) {
+                case 1:
+                    continue;
+                case 2:
+                    sum += 2;
+                    break;
+                case 4:
+                    sum += 4;
+                    continue;
+                default:
+                    break;
+            }
+            throw new IllegalStateException("" + sum);
+        }
+        return -sum;
+    }
 }

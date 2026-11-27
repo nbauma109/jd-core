@@ -30,6 +30,8 @@ public class SwitchBreakAndContinueTest extends AbstractJdTest {
 
         assertTrue(printed, source.contains("case '\\r': continue;"));
         assertTrue(printed, source.contains("needsQuotes = true; continue; } sb.append(c);"));
+        assertTrue(printed, source.contains("} return sum; } return -sum;"));
+        assertTrue(printed, source.contains("sum += 4; continue; } throw new IllegalStateException("));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/SwitchBreakAndContinue", printed)));
     }
 }

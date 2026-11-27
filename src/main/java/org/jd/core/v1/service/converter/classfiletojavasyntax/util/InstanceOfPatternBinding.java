@@ -236,17 +236,19 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (temporaryOperandIndex(code.getCode(), offset) >= 0) {
             if (!method.isStatic() && isThisKeptBy(code.getCode(), offset)) {
                 // The Eclipse compiler keeps 'this' in a temporary too: its type is the one of the class
-                return declaredDescriptor(code, 0, offset);
+                return Optional.ofNullable(code.getLocalVariableTable()).map(table -> table.getLocalVariable(0, offset)).map(LocalVariable::getSignature).orElse(null);
             }
             String kept = typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
 
             return kept != null ? kept : typeOfTheArrayElementKeptBy(method, offset);
         }
 
-        String declared = declaredDescriptor(code, slot, offset);
-
-        if (declared != null) {
-            return declared;
+        if (code.getLocalVariableTable() != null) {
+            for (LocalVariable variable : code.getLocalVariableTable().getLocalVariableTable()) {
+                if (variable.getIndex() == slot && variable.getStartPC() <= offset && offset < variable.getStartPC() + variable.getLength()) {
+                    return variable.getSignature();
+                }
+            }
         }
 
         int index = method.isStatic() ? 0 : 1;
@@ -260,23 +262,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return null;
     }
 
-    /** @return the descriptor which the local variable table declares for the variable of the slot, null if it does not say */
-    private static String declaredDescriptor(Code code, int slot, int offset) {
-        if (code.getLocalVariableTable() != null) {
-            for (LocalVariable variable : code.getLocalVariableTable().getLocalVariableTable()) {
-                if (variable.getIndex() == slot && variable.getStartPC() <= offset && offset < variable.getStartPC() + variable.getLength()) {
-                    return variable.getSignature();
-                }
-            }
-        }
-        return null;
-    }
-
     /** @return true if the value which 'dup; astore v; instanceof' keeps is the one of the first slot, 'this' in an instance method */
     private static boolean isThisKeptBy(byte[] code, int instanceOfOffset) {
         Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
-        return producer instanceof ALOAD load && load.getIndex() == 0;
+        return producer.getOpcode() == ALOAD_0;
     }
 
     /**

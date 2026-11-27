@@ -32,4 +32,33 @@ public class EcjTernaryCast {
         }
         return result;
     }
+
+    /** the array which an anonymous class captures */
+    Runnable capturedNodes(final Node[] nodes, final Node[] result) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < nodes.length; i++) {
+                    result[i] = nodes[i] instanceof Wrapper capturedWrapper ? capturedWrapper.wrapped : nodes[i];
+                }
+            }
+        };
+    }
+
+    /** the captured array is tested against an array of a primitive type */
+    Runnable capturedValues(final Object[] values, final int[] lengths) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < values.length; i++) {
+                    lengths[i] = values[i] instanceof int[] ints ? ints.length : 0;
+                }
+            }
+        };
+    }
+
+    /** a local variable is tested against an array of a primitive type */
+    static int length(Object value) {
+        return value instanceof long[][] longs ? longs.length : 0;
+    }
 }

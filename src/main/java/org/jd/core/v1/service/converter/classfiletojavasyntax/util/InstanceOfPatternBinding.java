@@ -301,10 +301,13 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
             // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds)
-            if (isCapturedVariable(field, method.getConstantPool())) {
+            String ofField = Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
+
+            if (ofField != null && isCapturedVariable(field, method.getConstantPool())
+                    && !isSurelyNarrower(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()), ofField)) {
                 return null;
             }
-            return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
+            return ofField;
         }
         if (!(array.getInstruction() instanceof ALOAD load)) {
             return null;
@@ -330,6 +333,21 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
 
         return typeOfTheValueProducedBy(producer, constants);
+    }
+
+    /**
+     * @return true if the test of an element for the type cannot be unconditional, whatever the interfaces which bound it: an array of a primitive type,
+     *         or a class which is known to extend the one of the element. A class missing from the loader leaves the others in doubt.
+     */
+    private static boolean isSurelyNarrower(String tested, String element) {
+        // the descriptor of a primitive type is the only one without ';'
+        if (!tested.endsWith(";")) {
+            return true;
+        }
+        Loader loader = LOADER.get();
+
+        return tested.startsWith("L") && element.startsWith("L") && !tested.equals(element) && ClassMetadata.isClass(loader, erasure(tested))
+                && ClassMetadata.isSubtype(loader, erasure(tested), erasure(element));
     }
 
     /** @return true if the field is the copy which an anonymous or a local class makes of a variable which it captures ('val$name') */
@@ -402,6 +420,11 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         while (signature.charAt(dimensions) == '[') {
             dimensions++;
+        }
+
+        if (dimensions == signature.length() - 1) {
+            // a primitive type, or an array of it
+            return signature.substring(dimensions);
         }
 
         int start = dimensions + 1;

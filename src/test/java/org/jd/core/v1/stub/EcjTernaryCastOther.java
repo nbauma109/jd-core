@@ -54,4 +54,46 @@ public class EcjTernaryCastOther {
             }
         };
     }
+
+    /** an interface which the erasure of the captured array omits makes the test of an array of it unconditional */
+    <T extends Node & Runnable> Runnable capturedArrays(T[][] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Runnable[]) {
+                    Runnable[] runnables = (Runnable[]) temporary;
+                    runnables[0].run();
+                }
+            }
+        };
+    }
+
+    /** an array of references keeps its test: the hierarchy of the elements may be unknown */
+    Runnable capturedClassArrays(final Node[][] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Wrapper[]) {
+                    Wrapper[] wrappers = (Wrapper[]) temporary;
+                    items = wrappers;
+                }
+            }
+        };
+    }
+
+    /** a class which is not known to extend the one of the elements keeps its test */
+    Runnable capturedObjects(final Object[] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Cloneable) {
+                    Cloneable copy = (Cloneable) temporary;
+                    items = new Node[copy.hashCode()];
+                }
+            }
+        };
+    }
 }

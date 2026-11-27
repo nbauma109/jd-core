@@ -147,7 +147,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testJavaPoet() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", pomVersion("com.squareup", "javapoet"));
+        // Its tests need Java 8: its Mockito cannot define classes on a later JDK, whose compiler also reads parameter names which a test expects to be unknown
+        String version = pomVersion("com.squareup", "javapoet");
+        testAtTag("https://github.com/square/javapoet", "javapoet", "javapoet-" + version, "com.squareup", "javapoet", version, true, findJava8Home());
     }
 
     @Test
@@ -215,7 +217,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
     public void testScribe() throws Exception {
         // The library uses javax.xml.bind, which the JDK has no more after Java 8
         String version = pomVersion("org.scribe", "scribe");
-        testAtTag("https://github.com/scribejava/scribejava", "scribejava", version, "org.scribe", "scribe", version, true, findJava8Home());
+        // One test expects an order of the entries of a HashMap which the released jar does not give either
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test",
+                List.of("-Dtest=!HeaderExtractorTest#shouldExtractStandardHeader"));
+        testAtTag("https://github.com/scribejava/scribejava", "scribejava", version, "org.scribe", "scribe", version, true, findJava8Home(), layout);
     }
 
     @Test

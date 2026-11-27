@@ -52,6 +52,11 @@ public final class ByteCodeUtil {
         if (basicBlock.getControlFlowGraph() == null) {
             return false;
         }
+        // A 'try' and a loop start with an empty operand stack: they follow a 'switch' statement (the instructions of their handlers, which take the
+        // exception off the stack, are no consumers of the value of a 'switch')
+        if (basicBlock.matchType(BasicBlock.TYPE_LOOP | BasicBlock.TYPE_TRY | BasicBlock.TYPE_TRY_JSR | BasicBlock.TYPE_TRY_ECLIPSE | BasicBlock.TYPE_TRY_DECLARATION)) {
+            return false;
+        }
 
         final byte[] code = basicBlock.getControlFlowGraph().getMethod().getCode().getCode();
         final int fromOffset = basicBlock.getFromOffset();

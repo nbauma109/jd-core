@@ -234,9 +234,7 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         // The variable of 'dup; astore' disappears with the assignment: the test is of the value which survives, whose type is the one of the field or of the call
         if (temporaryOperandIndex(code.getCode(), offset) >= 0) {
-            String kept = typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
-
-            return kept != null ? kept : typeOfTheArrayElementKeptBy(method, offset);
+            return typeOfTheTemporary(method, offset);
         }
 
         if (code.getLocalVariableTable() != null) {
@@ -256,6 +254,26 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
             index += type.getSize();
         }
         return null;
+    }
+
+    /** @return the descriptor of the value which 'dup; astore v; instanceof' keeps and tests, null if it is unknown */
+    private static String typeOfTheTemporary(Method method, int offset) {
+        Code code = method.getCode();
+
+        if (!method.isStatic() && isThisKeptBy(code.getCode(), offset)) {
+            // The Eclipse compiler keeps 'this' in a temporary too: its type is the one of the class
+            return Optional.ofNullable(code.getLocalVariableTable()).map(table -> table.getLocalVariable(0, offset)).map(LocalVariable::getSignature).orElse(null);
+        }
+        String kept = typeOfTheValueKeptBy(code.getCode(), offset, method.getConstantPool());
+
+        return kept != null ? kept : typeOfTheArrayElementKeptBy(method, offset);
+    }
+
+    /** @return true if the value which 'dup; astore v; instanceof' keeps is the one of the first slot, 'this' in an instance method */
+    private static boolean isThisKeptBy(byte[] code, int instanceOfOffset) {
+        Instruction producer = decoded(code).list().findHandle(instanceOfOffset).getPrev().getPrev().getPrev().getInstruction();
+
+        return producer.getOpcode() == ALOAD_0;
     }
 
     /**

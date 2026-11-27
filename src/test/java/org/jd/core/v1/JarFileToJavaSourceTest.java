@@ -61,6 +61,8 @@ import jd.core.ClassUtil;
 
 public class JarFileToJavaSourceTest extends AbstractJdTest {
 
+    private static final Pattern COMMIT_ID = Pattern.compile("[0-9a-f]{40}");
+
     private static final Pattern MODULE_INFO_CLASS = Pattern.compile("(?:META-INF/versions/(\\d+)/)?module-info\\.class");
 
     @Test
@@ -225,7 +227,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testSparkCore() throws Exception {
-        test("https://github.com/perwendel/spark", "spark", "", "com.sparkjava", "spark-core", pomVersion("com.sparkjava", "spark-core"), false);
+        String version = pomVersion("com.sparkjava", "spark-core");
+        // The repository has no tag for 2.9.4: this is the commit whose sources are the ones of the released jar, with the same dependencies
+        String revision = "2.9.4".equals(version) ? "1973e402f5d4c1442ad34a1d38ed0758079f7773" : version;
+        // Its tests use PowerMock 1.7, which needs Java 8
+        testAtTag("https://github.com/perwendel/spark", "spark", revision, "com.sparkjava", "spark-core", version, true, findJava8Home());
     }
 
     @Test
@@ -464,8 +470,8 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 }
             }
 
-            // Prepare URL of the .zip file for the tag
-            String repoZipURL = repo + "/archive/refs/tags/" + tag + ".zip";
+            // Prepare URL of the .zip file for the tag, or for the commit of a release which has no tag
+            String repoZipURL = repo + (COMMIT_ID.matcher(tag).matches() ? "/archive/" : "/archive/refs/tags/") + tag + ".zip";
 
             // Download and extract .zip file for the tag. The root folder name inside the archive is derived
             // from the first entry rather than guessed as "repoName-tag": GitHub strips a leading 'v' from

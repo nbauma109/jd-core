@@ -925,8 +925,8 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
         org.apache.bcel.generic.Type[] types = org.apache.bcel.generic.Type.getArgumentTypes(descriptor);
         org.apache.bcel.generic.Type[] others = Arrays.copyOf(types, types.length - 1);
 
-        for (JavaClass type = parseClass(internalName); type != null && type.getSuperclassNameIndex() != 0; type = parseClass(type.getSuperclassName().replace('.', '/'))) {
-            if (Arrays.stream(type.getMethods()).anyMatch(method -> method.getName().equals(name) && Arrays.equals(method.getArgumentTypes(), others))) {
+        for (JavaClass owner = parseClass(internalName); owner != null && owner.getSuperclassNameIndex() != 0; owner = parseClass(owner.getSuperclassName().replace('.', '/'))) {
+            if (Arrays.stream(owner.getMethods()).anyMatch(method -> method.getName().equals(name) && Arrays.equals(method.getArgumentTypes(), others))) {
                 return true;
             }
         }

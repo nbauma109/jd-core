@@ -139,7 +139,10 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testDiskLruCache() throws Exception {
-        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", pomVersion("com.jakewharton", "disklrucache"));
+        String version = pomVersion("com.jakewharton", "disklrucache");
+        // One test expects ThreadPoolExecutor.getTaskCount, which is documented as approximate, to be exact: the released jar gives it 2 instead of 1 too
+        ProjectLayout layout = new ProjectLayout(null, ProjectLayout.DEFAULT_SOURCE_DIRECTORY, false, "test", List.of("-Dtest=!DiskLruCacheTest#shrinkMaxSizeEvicts"));
+        testAtTag("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-" + version, "com.jakewharton", "disklrucache", version, true, null, layout);
     }
 
     @Test
@@ -210,7 +213,9 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testScribe() throws Exception {
-        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", pomVersion("org.scribe", "scribe"));
+        // The library uses javax.xml.bind, which the JDK has no more after Java 8
+        String version = pomVersion("org.scribe", "scribe");
+        testAtTag("https://github.com/scribejava/scribejava", "scribejava", version, "org.scribe", "scribe", version, true, findJava8Home());
     }
 
     @Test
@@ -595,6 +600,7 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
                 // javac refuses outright ("Source option 5 is no longer supported"); bump those up to 8,
                 // which every such library's own pre-8 syntax already compiles under unchanged.
                 raiseObsoleteCompilerLevel(Paths.get(projectDir.getPath(), "pom.xml"));
+                useStandardCompiler(Paths.get(projectDir.getPath(), "pom.xml"));
                 if (layout.moduleDir() != null) {
                     relaxInheritedCompilerChecks(Paths.get(projectDir.getPath(), "pom.xml"));
                 }
@@ -746,6 +752,20 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     private static final Pattern OBSOLETE_COMPILER_LEVEL = Pattern.compile(
             "(?<open><(?:" + COMPILER_LEVEL_TAGS + ")>)\\s*(?:1\\.[0-7]|[0-7])\\s*(?<close></(?:" + COMPILER_LEVEL_TAGS + ")>)");
+
+    /** The compiler of old versions of Error Prone, which some poms (JavaPoet) set, cannot read the classes of the JDK which runs the tests */
+    private static void useStandardCompiler(Path pomPath) throws IOException {
+        if (!Files.exists(pomPath)) {
+            return;
+        }
+
+        String pom = Files.readString(pomPath);
+        String patched = pom.replace("<compilerId>javac-with-errorprone</compilerId>", "");
+
+        if (!patched.equals(pom)) {
+            Files.writeString(pomPath, patched);
+        }
+    }
 
     private static void raiseObsoleteCompilerLevel(Path pomPath) throws IOException {
         if (!Files.exists(pomPath)) {

@@ -54,6 +54,7 @@ public class EcjTernaryCastTest extends AbstractJdTest {
         assertFalse(printed, source.contains("instanceof Runnable runnable"));
         assertFalse(printed, source.contains("instanceof Runnable[] runnables"));
         assertFalse(printed, source.contains("[] wrappers)"));
+        assertFalse(printed, source.contains("instanceof Cloneable copy"));
     }
 
     /** without a class file, a type is not known to be a class */

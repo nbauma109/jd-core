@@ -282,12 +282,14 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
 
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
-            // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds. These are interfaces:
-            // none of them can make the test of a class unconditional)
-            if (isCapturedVariable(field, method.getConstantPool()) && !isClassOrPrimitiveArray(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()))) {
+            // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds)
+            String ofField = Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
+
+            if (ofField != null && isCapturedVariable(field, method.getConstantPool())
+                    && !isSurelyNarrower(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()), ofField)) {
                 return null;
             }
-            return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
+            return ofField;
         }
         if (!(array.getInstruction() instanceof ALOAD load)) {
             return null;
@@ -316,12 +318,18 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
     }
 
     /**
-     * @return true for a class and an array of a primitive type. An array of references stays: it may be one of an interface, or one which the elements
-     *         are of for sure, which a class missing from the loader hides
+     * @return true if the test of an element for the type cannot be unconditional, whatever the interfaces which bound it: an array of a primitive type,
+     *         or a class which is known to extend the one of the element. A class missing from the loader leaves the others in doubt.
      */
-    private static boolean isClassOrPrimitiveArray(String descriptor) {
+    private static boolean isSurelyNarrower(String tested, String element) {
         // the descriptor of a primitive type is the only one without ';'
-        return !descriptor.endsWith(";") || descriptor.startsWith("L") && ClassMetadata.isClass(LOADER.get(), erasure(descriptor));
+        if (!tested.endsWith(";")) {
+            return true;
+        }
+        Loader loader = LOADER.get();
+
+        return tested.startsWith("L") && element.startsWith("L") && !tested.equals(element) && ClassMetadata.isClass(loader, erasure(tested))
+                && ClassMetadata.isSubtype(loader, erasure(tested), erasure(element));
     }
 
     /** @return true if the field is the copy which an anonymous or a local class makes of a variable which it captures ('val$name') */

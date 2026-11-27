@@ -82,4 +82,18 @@ public class EcjTernaryCastOther {
             }
         };
     }
+
+    /** a class which is not known to extend the one of the elements keeps its test */
+    Runnable capturedObjects(final Object[] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Cloneable) {
+                    Cloneable copy = (Cloneable) temporary;
+                    items = new Node[copy.hashCode()];
+                }
+            }
+        };
+    }
 }

@@ -139,17 +139,17 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testDiskLruCache() throws Exception {
-        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", pomVersion("com.jakewharton", "disklrucache"), false);
+        test("https://github.com/JakeWharton/DiskLruCache", "DiskLruCache", "disklrucache-", "com.jakewharton", "disklrucache", pomVersion("com.jakewharton", "disklrucache"));
     }
 
     @Test
     public void testJavaPoet() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", pomVersion("com.squareup", "javapoet"), false);
+        test("https://github.com/square/javapoet", "javapoet", "javapoet-", "com.squareup", "javapoet", pomVersion("com.squareup", "javapoet"));
     }
 
     @Test
     public void testJavaWriter() throws Exception {
-        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", pomVersion("com.squareup", "javawriter"), false);
+        test("https://github.com/square/javapoet", "javapoet", "javawriter-", "com.squareup", "javawriter", pomVersion("com.squareup", "javawriter"));
     }
 
     @Test
@@ -205,12 +205,12 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
 
     @Test
     public void testMimecraft() throws Exception {
-        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", pomVersion("com.squareup.mimecraft", "mimecraft"), false);
+        test("https://github.com/square/mimecraft", "mimecraft", "mimecraft-", "com.squareup.mimecraft", "mimecraft", pomVersion("com.squareup.mimecraft", "mimecraft"));
     }
 
     @Test
     public void testScribe() throws Exception {
-        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", pomVersion("org.scribe", "scribe"), false);
+        test("https://github.com/scribejava/scribejava", "scribejava", "", "org.scribe", "scribe", pomVersion("org.scribe", "scribe"));
     }
 
     @Test
@@ -741,9 +741,11 @@ public class JarFileToJavaSourceTest extends AbstractJdTest {
         }
     }
 
-    private static final Pattern OBSOLETE_COMPILER_LEVEL =
-            Pattern.compile("(?<open><(?:maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion)>)\\s*(?:1\\.[0-7]|[0-7])\\s*"
-                    + "(?<close></(?:maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion)>)");
+    /** The properties and the settings of the compiler plugin by which the poms give the compiler level */
+    private static final String COMPILER_LEVEL_TAGS = "maven\\.compiler\\.(?:source|target|compilerVersion|release)|jdkVersion|java\\.version|source|target";
+
+    private static final Pattern OBSOLETE_COMPILER_LEVEL = Pattern.compile(
+            "(?<open><(?:" + COMPILER_LEVEL_TAGS + ")>)\\s*(?:1\\.[0-7]|[0-7])\\s*(?<close></(?:" + COMPILER_LEVEL_TAGS + ")>)");
 
     private static void raiseObsoleteCompilerLevel(Path pomPath) throws IOException {
         if (!Files.exists(pomPath)) {

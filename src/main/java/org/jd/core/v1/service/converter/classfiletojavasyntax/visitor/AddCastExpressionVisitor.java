@@ -904,6 +904,33 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
             memberReceiver = oldMemberReceiver;
         }
         removeEmptyVarArgsArray(expression);
+        keepEmptyArrayWhichSelectsTheOverload((ClassFileMethodInvocationExpression) expression);
+    }
+
+    /**
+     * 'begin(flow, new Object[0])' calls the variable arity method; without the array it calls the overload whose parameters are the other ones, when there is one,
+     * which may be the calling method itself: the array stays
+     */
+    private void keepEmptyArrayWhichSelectsTheOverload(ClassFileMethodInvocationExpression expression) {
+        BaseExpression parameters = expression.getParameters();
+
+        if (expression.isVarArgs() && !Utils.isEmpty(parameters) && parameters.getLast() instanceof NewArray array && array.isEmptyNewArray()
+                && hasOverloadWithoutTheLastParameterType(expression.getInternalTypeName(), expression.getName(), expression.getDescriptor())) {
+            expression.setVarArgsOverride(Boolean.FALSE);
+        }
+    }
+
+    /** @return true if the class, or one which it extends, has a method of that name whose parameter types are the ones of the descriptor without the last one */
+    private boolean hasOverloadWithoutTheLastParameterType(String internalName, String name, String descriptor) {
+        org.apache.bcel.generic.Type[] types = org.apache.bcel.generic.Type.getArgumentTypes(descriptor);
+        org.apache.bcel.generic.Type[] others = Arrays.copyOf(types, types.length - 1);
+
+        for (JavaClass type = parseClass(internalName); type != null && type.getSuperclassNameIndex() != 0; type = parseClass(type.getSuperclassName().replace('.', '/'))) {
+            if (Arrays.stream(type.getMethods()).anyMatch(method -> method.getName().equals(name) && Arrays.equals(method.getArgumentTypes(), others))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

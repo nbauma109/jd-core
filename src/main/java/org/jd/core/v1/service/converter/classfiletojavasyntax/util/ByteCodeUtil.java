@@ -252,18 +252,13 @@ public final class ByteCodeUtil {
     }
 
     public static int evalStackDepth(final ConstantPool constants, final byte[] code, final BasicBlock bb) {
-        return evalStackDepth(constants, code, bb.getFromOffset(), bb.getToOffset());
-    }
-
-    /** @return the number of values which the instructions between the two offsets add to the operand stack */
-    public static int evalStackDepth(final ConstantPool constants, final byte[] code, final int fromOffset, final int toOffset) {
         ConstantCP constantMemberRef;
         ConstantNameAndType constantNameAndType;
         String descriptor;
         int depth = 0;
         boolean previousWide = false;
 
-        for (int offset=fromOffset; offset<toOffset; offset++) {
+        for (int offset=bb.getFromOffset(), toOffset=bb.getToOffset(); offset<toOffset; offset++) {
             int opcode = code[offset] & 255;
             boolean wide = isWideResult(opcode);
 

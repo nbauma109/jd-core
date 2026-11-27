@@ -525,7 +525,7 @@ public class ControlFlowGraphMaker {
                         && lineNumberTable[i + 1].getLineNumber() == lineNumber;
 
                 // The Eclipse compiler goes back to the line of an operator inside its expression: no statement starts where values are on the stack
-                if (!syntheticFirstLineDip && lineNumber > lineNumberEntry.getLineNumber() && !leavesValuesOnTheStack(constants, code, map, offset)) {
+                if (!syntheticFirstLineDip && lineNumber > lineNumberEntry.getLineNumber() && !leavesValuesOnTheStack(cfg, constants, code, map, offset)) {
                     map[offset] = MARK;
                 }
 
@@ -773,13 +773,14 @@ public class ControlFlowGraphMaker {
     }
 
     /** @return true if the instructions between the previous start of a block and the offset leave values on the operand stack */
-    private static boolean leavesValuesOnTheStack(ConstantPool constants, byte[] code, BasicBlock[] map, int offset) {
+    private static boolean leavesValuesOnTheStack(ControlFlowGraph cfg, ConstantPool constants, byte[] code, BasicBlock[] map, int offset) {
         int start = offset - 1;
 
         while (start > 0 && map[start] == null) {
             start--;
         }
-        return ByteCodeUtil.evalStackDepth(constants, code, start, offset) > 0;
+        // The block of these instructions only: it is not one of the graph
+        return ByteCodeUtil.evalStackDepth(constants, code, new BasicBlock(cfg, -1, TYPE_STATEMENTS, start, offset, false)) > 0;
     }
 
     protected static boolean checkILOADForIINC(byte[] code, int offset, int index) {

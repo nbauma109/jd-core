@@ -28,7 +28,7 @@ public class EcjMultiLineTernaryTest extends AbstractJdTest {
 
         String source = printed.replaceAll("\\s+", " ");
 
-        assertTrue(printed, source.contains("this.stack[this.pointer] = (operator != 30) ? new"));
+        assertTrue(printed, source.contains("this.stack[this.pointer] = (operator == 30) ? new"));
         assertFalse(printed, source.contains("labelMerge"));
         assertFalse(printed, source.contains("throw null"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/EcjMultiLineTernary", printed)));

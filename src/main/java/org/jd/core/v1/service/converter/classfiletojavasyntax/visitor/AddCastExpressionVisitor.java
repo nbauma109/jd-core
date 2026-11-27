@@ -973,26 +973,26 @@ public class AddCastExpressionVisitor extends AbstractJavaSyntaxVisitor {
 
     /** @return true if the argument can be passed to a parameter of that descriptor, boxed or unboxed if need be */
     private boolean isPassable(Expression argument, String parameter) {
-        Type type = argument.getType();
+        Type argumentType = argument.getType();
 
         if (argument.isNullExpression()) {
             return parameter.length() > 1;
         }
-        if (type.isPrimitiveType() && type.getDimension() == 0) {
+        if (argumentType.isPrimitiveType() && argumentType.getDimension() == 0) {
             // the primitive type itself, or a super type of its box
             return parameter.length() == 1 || parameter.startsWith("Ljava/lang/") || "Ljava/io/Serializable;".equals(parameter);
         }
         if (parameter.length() == 1) {
-            return BOXED_TYPES.contains(type.getDescriptor());
+            return BOXED_TYPES.contains(argumentType.getDescriptor());
         }
-        if (parameter.equals(type.getDescriptor())) {
+        if (parameter.equals(argumentType.getDescriptor())) {
             return true;
         }
         if ("Ljava/lang/Object;".equals(parameter)) {
             // a lambda or a method reference has no type of its own: 'Object' cannot be its target
             return !(argument instanceof AbstractLambdaExpression) && !(argument instanceof MethodReferenceExpression);
         }
-        return type instanceof ObjectType objectType && objectType.getDimension() == 0 && parameter.startsWith("L")
+        return argumentType instanceof ObjectType objectType && objectType.getDimension() == 0 && parameter.startsWith("L")
                 && typeMaker.isRawTypeAssignable(typeMaker.makeFromInternalTypeName(parameter.substring(1, parameter.length() - 1)), objectType);
     }
 

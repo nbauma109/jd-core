@@ -36,7 +36,7 @@ public class VarArgsElementsOverload {
     }
 
     static String of(Integer width, String text) {
-        return text;
+        return width + text;
     }
 
     /** the overload of the same arity cannot take these arguments: the array is not needed */
@@ -85,7 +85,7 @@ public class VarArgsElementsOverload {
     }
 
     static String lazy(String separator, Object first, Object second, Object third) {
-        return separator;
+        return separator + first + second + third;
     }
 
     /** a method reference cannot be passed as an 'Object': the array is not needed */
@@ -93,21 +93,37 @@ public class VarArgsElementsOverload {
         return lazy("-", new Supplier<?>[] {text::trim, text::strip, text::intern});
     }
 
-    static void number(Object... values) {}
+    static void number(Object... values) {
+        // only the choice of the overload matters
+    }
 
-    static void number(int value) {}
+    static void number(int value) {
+        // only the choice of the overload matters
+    }
 
-    static void serial(Object... values) {}
+    static void serial(Object... values) {
+        // only the choice of the overload matters
+    }
 
-    static void serial(Serializable value) {}
+    static void serial(Serializable value) {
+        // only the choice of the overload matters
+    }
 
-    static void names(Object... values) {}
+    static void names(Object... values) {
+        // only the choice of the overload matters
+    }
 
-    static void names(String[] value) {}
+    static void names(String[] value) {
+        // only the choice of the overload matters
+    }
 
-    static void text(Object... values) {}
+    static void text(Object... values) {
+        // only the choice of the overload matters
+    }
 
-    static void text(CharSequence value) {}
+    static void text(CharSequence value) {
+        // only the choice of the overload matters
+    }
 
     /** a primitive value can be passed as a primitive, or as 'Serializable' once boxed */
     void primitives(int value, char letter) {
@@ -131,17 +147,29 @@ public class VarArgsElementsOverload {
         names(new Object[] {object});
     }
 
-    static void sum(int... values) {}
+    static void sum(int... values) {
+        // only the choice of the overload matters
+    }
 
-    static void sum(long value) {}
+    static void sum(long value) {
+        // only the choice of the overload matters
+    }
 
-    static void listed(int... values) {}
+    static void listed(int... values) {
+        // only the choice of the overload matters
+    }
 
-    static void listed(java.util.List<?> value) {}
+    static void listed(java.util.List<?> value) {
+        // only the choice of the overload matters
+    }
 
-    static void serialized(int... values) {}
+    static void serialized(int... values) {
+        // only the choice of the overload matters
+    }
 
-    static void serialized(Serializable value) {}
+    static void serialized(Serializable value) {
+        // only the choice of the overload matters
+    }
 
     /** a value of a primitive varargs method can be passed to a wider primitive and to 'Serializable', not to a 'List' */
     void numbers(int value) {

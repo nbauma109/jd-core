@@ -54,4 +54,18 @@ public class EcjTernaryCastOther {
             }
         };
     }
+
+    /** an interface which the erasure of the captured array omits makes the test of an array of it unconditional */
+    <T extends Node & Runnable> Runnable capturedArrays(T[][] values) {
+        return new Runnable() {
+            @Override
+            public void run() {
+                Object temporary;
+                if ((temporary = values[0]) instanceof Runnable[]) {
+                    Runnable[] runnables = (Runnable[]) temporary;
+                    runnables[0].run();
+                }
+            }
+        };
+    }
 }

@@ -283,8 +283,8 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         if (array.getInstruction() instanceof FieldInstruction field) {
             // 'getfield array; index; aaload': the elements are the ones of the field, if it is declared without generics
             // (a captured variable has no signature: the field of a 'T[]' of a type variable is an array of its erasure, which omits the other bounds. These are interfaces:
-            // none of them can make the test of a class or of an array unconditional)
-            if (isCapturedVariable(field, method.getConstantPool()) && !isClassOrArray(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()))) {
+            // none of them can make the test of a class unconditional, nor the one of an array of a class)
+            if (isCapturedVariable(field, method.getConstantPool()) && !isClassOrArrayOfClass(castDescriptor(method.getCode().getCode(), instanceOfOffset, method.getConstantPool()))) {
                 return null;
             }
             return Optional.ofNullable(typeOfTheValueProducedBy(field, method.getConstantPool())).map(descriptor -> descriptor.substring(1)).orElse(null);
@@ -315,8 +315,10 @@ public record InstanceOfPatternBinding(int storeIndex, int storeOffset, int stor
         return typeOfTheValueProducedBy(producer, constants);
     }
 
-    private static boolean isClassOrArray(String descriptor) {
-        return descriptor.startsWith("[") || ClassMetadata.isClass(LOADER.get(), erasure(descriptor));
+    /** @return true for a class, an array of a class and an array of a primitive type: no interface, nor an array of one */
+    private static boolean isClassOrArrayOfClass(String descriptor) {
+        // the descriptor of a primitive type is the only one without ';'
+        return !descriptor.endsWith(";") || ClassMetadata.isClass(LOADER.get(), erasure(descriptor));
     }
 
     /** @return true if the field is the copy which an anonymous or a local class makes of a variable which it captures ('val$name') */

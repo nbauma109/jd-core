@@ -1586,6 +1586,10 @@ public abstract class ControlFlowGraphReducer {
 
         boolean continuesTheLoop = goesBackBefore(end, switchBlock.getFromOffset());
 
+        if (continuesTheLoop && isBrokenOutTo(switchBlock, lastSwitchCaseBasicBlock) && isReachable(lastSwitchCaseBasicBlock, end)) {
+            return lastSwitchCaseBasicBlock;
+        }
+
         for (BasicBlock candidate : ends) {
             if (candidate != end && candidate != lastSwitchCaseBasicBlock && candidate != SWITCH_BREAK && candidate.getFromOffset() < end.getFromOffset() && isReachable(candidate, end)) {
                 BasicBlock join = continuesTheLoop || isReachable(lastSwitchCaseBasicBlock, candidate) ? candidate : null;
@@ -1597,6 +1601,15 @@ public abstract class ControlFlowGraphReducer {
         }
 
         return end;
+    }
+
+    /**
+     * @return true if the block of 'default' is the code which follows a 'switch' without 'default', as the jump of another case to it says (the 'goto'
+     *         is not in the block of the case): a case falls into the next one, it never jumps to it
+     */
+    private static boolean isBrokenOutTo(BasicBlock switchBlock, BasicBlock block) {
+        return switchBlock.getSwitchCases().stream().anyMatch(switchCase -> switchCase.isDefaultCase() && switchCase.getBasicBlock() == block)
+                && block.getPredecessors().stream().anyMatch(predecessor -> predecessor != switchBlock && predecessor.getToOffset() < block.getFromOffset());
     }
 
     /** The cases which go to the update of the loop, which follows the end of the switch, 'continue' the loop */

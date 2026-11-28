@@ -28,6 +28,8 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
     private int firstLineNumber;
     private String outerTypeFieldName;
     private boolean outerInstanceParameter;
+    /** The constructor takes the enclosing instance of the superclass before the one of the class */
+    private boolean superOuterInstanceParameter;
     private DefaultList<String> syntheticInnerFieldNames;
     /** The parameters of the constructor of an anonymous class which only the initializers read: the Eclipse compiler stores no 'val$' field for them */
     private List<AbstractLocalVariable> capturedParameters;
@@ -142,6 +144,14 @@ public class ClassFileBodyDeclaration extends BodyDeclaration implements ClassFi
 
     public void setOuterInstanceParameter(boolean outerInstanceParameter) {
         this.outerInstanceParameter = outerInstanceParameter;
+    }
+
+    public boolean hasSuperOuterInstanceParameter() {
+        return superOuterInstanceParameter;
+    }
+
+    public void setSuperOuterInstanceParameter(boolean superOuterInstanceParameter) {
+        this.superOuterInstanceParameter = superOuterInstanceParameter;
     }
 
     public List<AbstractLocalVariable> getCapturedParameters() {

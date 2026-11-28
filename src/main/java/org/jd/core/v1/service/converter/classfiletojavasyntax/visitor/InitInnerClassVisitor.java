@@ -107,6 +107,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
     private final DefaultList<String> syntheticInnerFieldNames = new DefaultList<>();
     private String outerTypeFieldName;
     private boolean outerInstanceParameter;
+    private boolean superOuterInstanceParameter;
 
     @Override
     public void visit(AnnotationDeclaration declaration) {
@@ -135,12 +136,14 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         // Init attributes
         outerTypeFieldName = null;
         outerInstanceParameter = false;
+        superOuterInstanceParameter = false;
         syntheticInnerFieldNames.clear();
         // Visit methods
         safeAcceptListDeclaration(bodyDeclaration.getMethodDeclarations());
         // Init values
         bodyDeclaration.setOuterTypeFieldName(outerTypeFieldName);
         bodyDeclaration.setOuterInstanceParameter(outerInstanceParameter || outerTypeFieldName != null);
+        bodyDeclaration.setSuperOuterInstanceParameter(superOuterInstanceParameter);
 
         if (!syntheticInnerFieldNames.isEmpty()) {
             bodyDeclaration.setSyntheticInnerFieldNames(new DefaultList<>(syntheticInnerFieldNames));
@@ -157,6 +160,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
         ClassFile classFile = cfcd.getClassFile();
         ClassFile outerClassFile = classFile.getOuterClassFile();
         boolean removeFirstParameter = false;
+        AbstractLocalVariable storedOuterInstance = null;
         Map<AbstractLocalVariable, String> capturedNames = new LinkedHashMap<>();
 
         syntheticInnerFieldNames.clear();
@@ -198,6 +202,7 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                                 if (expression.getRightExpression() instanceof ClassFileLocalVariableReferenceExpression outerParameter) {
                                     // The references to the outer instance parameter (the one passed to an inner superclass) are named like the field
                                     outerParameter.getLocalVariable().setName(name);
+                                    storedOuterInstance = outerParameter.getLocalVariable();
                                 }
                             } else if (name.startsWith("val$")) {
                                 syntheticInnerFieldNames.add(name);
@@ -242,6 +247,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
             }
         }
 
+        // The Eclipse compiler passes to an anonymous class which extends an inner class the enclosing instance of the superclass before its own one
+        boolean removeSuperOuterInstance = isSecondParameter(parameters, storedOuterInstance);
+
+        superOuterInstanceParameter |= removeSuperOuterInstance;
+
         // Remove synthetic parameters
 
         if (parameters != null) {
@@ -258,6 +268,10 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         // Remove outer this
                         list.remove(0);
                     }
+                }
+
+                if (removeSuperOuterInstance) {
+                    list.remove(0);
                 }
 
                 int count = Math.max(0, syntheticInnerFieldNames.size() - missing);
@@ -306,6 +320,11 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                 }
             }
         }
+    }
+
+    private static boolean isSecondParameter(BaseFormalParameter parameters, AbstractLocalVariable variable) {
+        return variable != null && parameters != null && parameters.isList() && parameters.getList().size() > 1
+                && ((ClassFileFormalParameter) parameters.getList().get(1)).getLocalVariable() == variable;
     }
 
     /**
@@ -912,6 +931,12 @@ public class InitInnerClassVisitor extends AbstractJavaSyntaxVisitor {
                         if (parameters.isList()) {
                             DefaultList<Expression> list = parameters.getList();
                             DefaultList<Type> types = parameterTypes.getList();
+
+                            if (cfbd.hasSuperOuterInstanceParameter()) {
+                                // The enclosing instance of the superclass: 'this', or the qualifier of the creation
+                                list.removeFirst();
+                                types.removeFirst();
+                            }
 
                             if (cfbd.hasOuterInstanceParameter()) {
                                 // Remove outer this

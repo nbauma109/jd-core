@@ -149,6 +149,7 @@ public class SwitchBreakAndContinue {
     }
 
     /** a case falls into 'default' only if a test says so, and another one breaks to the code which follows: 'default' stays a case */
+    @SuppressWarnings("java:S128") // the fall through under a condition is what the fixture is about
     public static int conditionalFallThrough(int[] values) {
         int sum = 0;
         for (int value : values) {

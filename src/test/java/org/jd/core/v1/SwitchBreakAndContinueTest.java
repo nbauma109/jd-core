@@ -33,6 +33,7 @@ public class SwitchBreakAndContinueTest extends AbstractJdTest {
         assertTrue(printed, source.contains("} return sum; } return -sum;"));
         assertTrue(printed, source.contains("sum += 4; continue; } throw new IllegalStateException("));
         assertTrue(printed, source.contains("index < values.length; index++)"));
+        assertTrue(printed, source.contains("default: sum += 2; break; } sum += 3;"));
         assertTrue(printed, CompilerUtil.compile("17", new InMemoryJavaSourceFileObject("org/jd/core/v1/stub/SwitchBreakAndContinue", printed)));
     }
 }

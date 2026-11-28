@@ -147,4 +147,24 @@ public class SwitchBreakAndContinue {
         }
         return -sum;
     }
+
+    /** a case falls into 'default' only if a test says so, and another one breaks to the code which follows: 'default' stays a case */
+    public static int conditionalFallThrough(int[] values) {
+        int sum = 0;
+        for (int value : values) {
+            switch (value) {
+                case 1:
+                    break;
+                case 2:
+                    if (sum > 4) {
+                        continue;
+                    }
+                default:
+                    sum += 2;
+                    break;
+            }
+            sum += 3;
+        }
+        return sum;
+    }
 }

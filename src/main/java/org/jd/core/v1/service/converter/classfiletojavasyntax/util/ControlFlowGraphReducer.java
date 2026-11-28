@@ -1586,7 +1586,8 @@ public abstract class ControlFlowGraphReducer {
 
         boolean continuesTheLoop = goesBackBefore(end, switchBlock.getFromOffset());
 
-        if (continuesTheLoop && isBrokenOutTo(switchBlock, lastSwitchCaseBasicBlock) && isReachable(lastSwitchCaseBasicBlock, end)) {
+        if (continuesTheLoop && isBrokenOutTo(switchBlock, lastSwitchCaseBasicBlock) && isReachable(lastSwitchCaseBasicBlock, end)
+                && !isLeftBeyond(ends, lastSwitchCaseBasicBlock, end)) {
             return lastSwitchCaseBasicBlock;
         }
 
@@ -1610,6 +1611,14 @@ public abstract class ControlFlowGraphReducer {
     private static boolean isBrokenOutTo(BasicBlock switchBlock, BasicBlock block) {
         return switchBlock.getSwitchCases().stream().anyMatch(switchCase -> switchCase.isDefaultCase() && switchCase.getBasicBlock() == block)
                 && block.getPredecessors().stream().anyMatch(predecessor -> predecessor != switchBlock && predecessor.getToOffset() < block.getFromOffset());
+    }
+
+    /**
+     * @return true if a case leaves the switch for a block which follows the one of 'default', other than the update of the loop: that 'default' is a
+     *         case, which the other one skips
+     */
+    private static boolean isLeftBeyond(Set<BasicBlock> ends, BasicBlock defaultBlock, BasicBlock update) {
+        return ends.stream().anyMatch(candidate -> candidate != update && candidate.getFromOffset() > defaultBlock.getFromOffset());
     }
 
     /** The cases which go to the update of the loop, which follows the end of the switch, 'continue' the loop */

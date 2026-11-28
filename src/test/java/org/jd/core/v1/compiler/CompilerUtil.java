@@ -12,6 +12,7 @@ import org.eclipse.jdt.internal.compiler.tool.EclipseCompiler;
 import java.io.File;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -38,11 +39,7 @@ public class CompilerUtil {
     }
     
     public static boolean compile(String preferredJavaVersion, InMemoryClassLoader classLoader, InMemoryJavaSourceFileObject... javaFileObjects) throws Exception {
-        String javaVersion = getJavaVersion(preferredJavaVersion);
-
-        DESTINATION_DIRECTORY.mkdirs();
-
-        List<String> options = Arrays.asList("-g", "-proc:none", "-source", javaVersion, "-target", javaVersion, "-d", DESTINATION_DIRECTORY_PATH, "-cp", System.getProperty("java.class.path"));
+        List<String> options = options(preferredJavaVersion);
         List<InMemoryJavaSourceFileObject> compilationUnits = Arrays.asList(javaFileObjects);
 
         CompilationResult result = compileWithCompiler(new EclipseCompiler(), options, compilationUnits, classLoader);
@@ -57,6 +54,34 @@ public class CompilerUtil {
 
         printDiagnostics(result.diagnostics, javaFileObjects, compilationUnits);
         return result.compilationSuccess;
+    }
+
+    /**
+     * Compiles with the Eclipse compiler only, without printing anything: its classes are the ones which a round trip decompiles
+     *
+     * @return the errors, none if the source compiles
+     */
+    public static List<String> compileWithEclipse(String preferredJavaVersion, InMemoryClassLoader classLoader, InMemoryJavaSourceFileObject source)
+            throws Exception {
+        List<String> options = new ArrayList<>(options(preferredJavaVersion));
+
+        // as the Eclipse IDE does by default: without it, the values of the unused variables are computed and discarded
+        options.add("-preserveAllLocals");
+        CompilationResult result = compileWithCompiler(new EclipseCompiler(), options, List.of(source), classLoader);
+
+        if (result.compilationSuccess) {
+            return List.of();
+        }
+        return result.diagnostics.getDiagnostics().stream().filter(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR)
+                .map(diagnostic -> "line " + diagnostic.getLineNumber() + ": " + diagnostic.getMessage(Locale.US)).toList();
+    }
+
+    private static List<String> options(String preferredJavaVersion) {
+        String javaVersion = getJavaVersion(preferredJavaVersion);
+
+        DESTINATION_DIRECTORY.mkdirs();
+
+        return Arrays.asList("-g", "-proc:none", "-source", javaVersion, "-target", javaVersion, "-d", DESTINATION_DIRECTORY_PATH, "-cp", System.getProperty("java.class.path"));
     }
 
     private static CompilationResult compileWithCompiler(

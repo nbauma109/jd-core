@@ -12,7 +12,9 @@ import org.jd.core.v1.api.printer.Printer;
 import org.jd.core.v1.compiler.CompilerUtil;
 import org.jd.core.v1.compiler.InMemoryClassLoader;
 import org.jd.core.v1.compiler.InMemoryJavaSourceFileObject;
+import org.jd.core.v1.compiler.RoundTrip;
 import org.jd.core.v1.loader.ZipLoader;
+import org.jd.core.v1.model.message.DecompileContext;
 import org.jd.core.v1.printer.PlainTextPrinter;
 
 import junit.framework.TestCase;
@@ -35,10 +37,24 @@ public abstract class AbstractJdTest extends TestCase {
     }
 
     protected String decompileSuccess(Loader loader, Printer printer, String internalTypeName, Map<String, Object> configuration) throws Exception {
-        String source = decompile(loader, printer, internalTypeName, configuration);
+        DecompileContext context = classFileToJavaSourceDecompiler.decompile(loader, printer, internalTypeName, configuration);
+        String source = printer.toString();
+
+        printSource(source);
         assertEquals(-1, source.indexOf("// Byte code:"));
         assertEquals(-1, source.indexOf("Decompilation failed at line #"));
+        assertRoundTrip(loader, internalTypeName, source, context.getMajorVersion(), configuration);
         return source;
+    }
+
+    /** The decompiled source, compiled by the Eclipse compiler, is decompiled and compiled again */
+    private void assertRoundTrip(Loader loader, String internalTypeName, String source, int majorVersion, Map<String, Object> configuration) throws Exception {
+        String failure = RoundTrip.check(loader, internalTypeName, source, majorVersion, configuration);
+
+        if (failure != null) {
+            RoundTrip.report(getClass().getSimpleName() + "." + getName(), internalTypeName, failure);
+            assertFalse(failure, Boolean.getBoolean("jd.roundTrip.strict"));
+        }
     }
 
     protected String decompileSuccess(Loader loader, Printer printer, String internalTypeName) throws Exception {

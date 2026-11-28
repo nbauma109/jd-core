@@ -123,4 +123,28 @@ public class SwitchBreakAndContinue {
         }
         return -sum;
     }
+
+    /**
+     * Only a 'continue' reaches the update of this loop, as the code which follows the switch returns: the loop keeps its update. The cases which
+     * break still fall into the next one, which this fixture does not claim to be right.
+     */
+    public static int onlyContinueReachesTheUpdate(int[] values) {
+        int sum = 0;
+        for (int index = 0; index < values.length; index++) {
+            switch (values[index]) {
+                case 1:
+                    continue;
+                case 2:
+                    sum += 2;
+                    break;
+                case 3:
+                    sum += 3;
+                    break;
+                default:
+                    break;
+            }
+            return sum;
+        }
+        return -sum;
+    }
 }

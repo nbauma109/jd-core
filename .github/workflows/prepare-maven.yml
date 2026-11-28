@@ -1,0 +1,49 @@
+name: Prepare Maven dependencies
+
+on:
+  workflow_call:
+    outputs:
+      cache-key:
+        description: Prepared Maven repository cache key
+        value: ${{ jobs.prepare.outputs.cache-key }}
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache.outputs.cache-primary-key }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Configure Maven repositories
+        run: install -D .github/maven-settings.xml "$HOME/.m2/settings.xml"
+      - name: Restore prepared Maven repository
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-jd-core-${{ hashFiles('pom.xml', '.github/maven-settings.xml', '.github/workflows/prepare-maven.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-jd-core-
+      - name: Resolve project and build plugin dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mvn -B -ntp dependency:go-offline
+          mvn -B -ntp -Dtest=CodeExceptionComparatorTest test jacoco:report
+          find "$HOME/.m2/repository" -name '*.lastUpdated' -delete
+      - name: Save prepared Maven repository
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.cache.outputs.cache-primary-key }}

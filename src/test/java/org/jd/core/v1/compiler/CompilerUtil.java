@@ -12,6 +12,7 @@ import org.eclipse.jdt.internal.compiler.tool.EclipseCompiler;
 import java.io.File;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -62,7 +63,11 @@ public class CompilerUtil {
      */
     public static List<String> compileWithEclipse(String preferredJavaVersion, InMemoryClassLoader classLoader, InMemoryJavaSourceFileObject source)
             throws Exception {
-        CompilationResult result = compileWithCompiler(new EclipseCompiler(), options(preferredJavaVersion), List.of(source), classLoader);
+        List<String> options = new ArrayList<>(options(preferredJavaVersion));
+
+        // as the Eclipse IDE does by default: without it, the values of the unused variables are computed and discarded
+        options.add("-preserveAllLocals");
+        CompilationResult result = compileWithCompiler(new EclipseCompiler(), options, List.of(source), classLoader);
 
         if (result.compilationSuccess) {
             return List.of();
